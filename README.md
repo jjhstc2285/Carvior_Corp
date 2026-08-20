@@ -1,32 +1,65 @@
-# React + TypeScript + Vite
+# 애니원카 통합 관리 시스템 (MVP)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite + TypeScript + Tailwind. 목업 데이터를 브라우저 `localStorage`에 저장해서 동작하는
+**프론트엔드 전용 MVP**입니다 (실제 백엔드 API 없음). 외주 요청안 ①~④를 기반으로 만들었습니다.
 
-Currently, two official plugins are available:
+## 실행
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+우측 상단(사이드바 하단) "데모용 빠른 로그인"으로 아무 직원이나 눌러서 바로 들어갈 수 있고,
+관리자 로그인은 데모 계정 `admin` / `admin1234` 입니다. 우측 상단 되돌리기 버튼으로 목업 데이터를
+언제든 초기 상태로 리셋할 수 있습니다.
+
+## 지금까지 만든 것
+
+### 로그인 / 권한
+- 카카오·네이버 소셜 로그인, 관리자 계정 로그인 — **전부 목업**(아래 백로그 참고)
+- 소셜 로그인 최초 진입 시 사내 직원과 연결하는 단계
+- 로그인한 계정의 역할(직원/관리자)에 따라 화면이 달라짐 (더 이상 수동 토글 아님)
+- 모바일 반응형 — 데스크탑은 고정 사이드바, 모바일은 햄버거로 여는 오버레이 드로어
+
+### ① 출퇴근 관리
+- 실제 출근/퇴근 버튼(오늘 기준, IP 화이트리스트로 출근 등록 제한 가능 — 관리자 설정)
+- 근무시간 원형 게이지, 출퇴근 누락 시 관리자 자동 알림
+- 직원: 누락된 날 수정요청(사유+시각) 제출 → 관리자: 승인/반려
+- **연차/외근·출장 신청** — 직원이 신청 → 관리자 승인 → 캘린더에 반영(연차는 큰 X 표시, 외근은 별도 표시)
+- 월별 리스트/캘린더 뷰, 지각·조퇴·누락·연차·외근 통계 카드 및 필터
+
+### ② 알선 상담 관리
+- 차량번호/고객명 검색, 상태(진행중/계약/보류/종결) 필터
+- 고객명 클릭 → 해당 고객의 전체 상담 이력 타임라인
+- 다음 연락 예정일, 첨부파일 이름(업로드 없이 이름만, 목업)
+- 담당자별 상담→계약 전환율, 리스트/캘린더 뷰
+
+### ③ 정산 관리
+- 매입가/상품화비용/판매금액/수수료 입력 시 순이익 실시간 자동계산
+- 진행중/정산완료 상태 관리, 필수값 누락 시 저장 차단
+- 엑셀(.xlsx) 다운로드
+
+### ④ 주차장 관리
+- 기존 엑셀 시트지 구조(주차장 → 구역 → 앞/뒤 겹주차) 그대로 재현한 구역도 그리드
+- 칸 클릭해서 바로 차량 등록/수정/비우기 (관리자)
+- 리스트 뷰(차량번호/차종 검색)도 별도 제공
+
+## 백로그 (아직 안 한 것 / 목업으로만 되어 있는 것)
+
+- **카카오/네이버 실제 로그인 연동** — 지금은 진짜 OAuth가 아니라 가짜 지연 후 임의 프로필 반환.
+  두 분이 카카오/네이버 개발자센터에서 앱 등록하고 API 키 발급받아오시면, `src/lib/auth.ts`의
+  `loginWithKakao`/`loginWithNaver` 함수 안쪽만 실제 SDK 호출로 교체하면 됨
+- **백엔드/DB 없음** — 모든 데이터가 브라우저 localStorage에만 있음. 여러 사람이 실제로 같이 쓰려면
+  서버(API)와 데이터베이스가 필요함
+- **정산 개별 PDF 출력** — 요청안에 있던 항목인데 아직 미구현(엑셀만 됨)
+- **주차장 구역도 시각적 배치 개선** — 지금은 표 형태 재현. 실제 도면처럼 더 그래픽적으로 만드는 건 다음 단계
+- **통화녹음 자동 STT/AI요약 (상담 자동화)** — Channel Talk Meet 같은 기능 논의만 하고 보류 중.
+  실제로 붙이려면 통화녹음 인프라(PBX 연동 등) + 녹음 고지·동의(통신비밀보호법) 검토 필요
+- **정산/주차장 모듈에 캘린더뷰 미적용** — 출퇴근/상담에만 있음, 필요하면 추가 가능
+
+## 다음에 하려는 것
+
+- 테스트해보면서 발견되는 버그·불편한 점 보완
+- 백엔드 필요 여부 판단(실사용 전환 시 필수)
+- 카카오/네이버 실 연동은 API 키 확보되는 대로 진행
