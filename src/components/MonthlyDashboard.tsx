@@ -1,0 +1,179 @@
+import { useMemo, useState } from 'react';
+import dayjs from 'dayjs';
+import { CalendarDays, List } from 'lucide-react';
+import { useStore } from '../store';
+import { approvedRequestKind, computeStatus, isWorkday } from '../lib/attendance';
+import type { AttendanceStatus } from '../types';
+import StatusBadge from './StatusBadge';
+import StatsCards from './StatsCards';
+import CalendarView from './CalendarView';
+
+const STATUS_OPTIONS: { value: AttendanceStatus | 'all'; label: string }[] = [
+  { value: 'all', label: '전체 상태' },
+  { value: 'normal', label: '정상' },
+  { value: 'late', label: '지각' },
+  { value: 'earlyLeave', label: '조퇴' },
+  { value: 'lateAndEarly', label: '지각+조퇴' },
+  { value: 'missing', label: '누락' },
+  { value: 'annualLeave', label: '연차' },
+  { value: 'fieldWork', label: '외근/출장' },
+];
+
+export default function MonthlyDashboard() {
+  const { state } = useStore();
+  const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
+  const [department, setDepartment] = useState('all');
+  const [employeeId, setEmployeeId] = useState('all');
+  const [status, setStatus] = useState<AttendanceStatus | 'all'>('all');
+  const [view, setView] = useState<'list' | 'calendar'>('list');
+
+  const departments = useMemo(() => Array.from(new Set(state.employees.map(e => e.department))), [state.employees]);
+
+  const monthDayjs = dayjs(`${month}-01`);
+  const days = useMemo(() => {
+    const today = dayjs();
+    const start = monthDayjs.startOf('month');
+    const end = monthDayjs.isSame(today, 'month') ? today : monthDayjs.endOf('month');
+    const list: string[] = [];
+    for (let d = start; d.isBefore(end, 'day') || d.isSame(end, 'day'); d = d.add(1, 'day')) {
+      const dateStr = d.format('YYYY-MM-DD');
+      if (isWorkday(dateStr)) list.push(dateStr);
+    }
+    return list;
+  }, [month]);
+
+  const scopedEmployees = state.employees.filter(e =>
+    (department === 'all' || e.department === department) &&
+    (employeeId === 'all' || e.id === employeeId)
+  );
+
+  const allRows = useMemo(() => {
+    const out: { date: string; employeeId: string; status: AttendanceStatus }[] = [];
+    for (const emp of scopedEmployees) {
+      for (const date of days) {
+        const record = state.records.find(r => r.employeeId === emp.id && r.date === date);
+        const kind = approvedRequestKind(state.attendanceRequests, emp.id, date);
+        out.push({ date, employeeId: emp.id, status: computeStatus(record, date, kind) });
+      }
+    }
+    return out;
+  }, [scopedEmployees, days, state.records, state.attendanceRequests]);
+
+  const counts = useMemo(() => {
+    const c: Record<AttendanceStatus, number> = { normal: 0, late: 0, earlyLeave: 0, lateAndEarly: 0, missing: 0, dayOff: 0, annualLeave: 0, fieldWork: 0 };
+    allRows.forEach(r => { c[r.status]++; });
+    return c;
+  }, [allRows]);
+
+  const filteredRows = status === 'all' ? allRows : allRows.filter(r => r.status === status);
+  const sortedRows = [...filteredRows].sort((a, b) => b.date.localeCompare(a.date));
+
+  const employeeOf = (id: string) => state.employees.find(e => e.id === id)!;
+  const recordOf = (empId: string, date: string) => state.records.find(r => r.employeeId === empId && r.date === date);
+
+  const singleEmployee = employeeId !== 'all' ? state.employees.find(e => e.id === employeeId) : null;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="month"
+          value={month}
+          onChange={e => setMonth(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+        />
+        <select
+          value={department}
+          onChange={e => { setDepartment(e.target.value); setEmployeeId('all'); }}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+        >
+          <option value="all">전체 부서</option>
+          {departments.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <select
+          value={employeeId}
+          onChange={e => setEmployeeId(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+        >
+          <option value="all">전체 직원</option>
+          {state.employees.filter(e => department === 'all' || e.department === department).map(e => (
+            <option key={e.id} value={e.id}>{e.name}</option>
+          ))}
+        </select>
+        <select
+          value={status}
+          onChange={e => setStatus(e.target.value as AttendanceStatus | 'all')}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+        >
+          {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+
+        <div className="ml-auto flex rounded-lg bg-slate-100 p-0.5 text-sm">
+          <button
+            onClick={() => setView('list')}
+            className={`flex items-center gap-1 rounded-md px-3 py-1.5 font-medium transition-colors ${view === 'list' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+          >
+            <List size={14} /> 리스트
+          </button>
+          <button
+            onClick={() => setView('calendar')}
+            className={`flex items-center gap-1 rounded-md px-3 py-1.5 font-medium transition-colors ${view === 'calendar' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+          >
+            <CalendarDays size={14} /> 캘린더
+          </button>
+        </div>
+      </div>
+
+      <StatsCards counts={counts} total={allRows.length} />
+
+      <div className="rounded-2xl border border-slate-200 bg-white">
+        {view === 'list' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                  <th className="px-5 py-2.5 font-medium">날짜</th>
+                  <th className="px-5 py-2.5 font-medium">부서</th>
+                  <th className="px-5 py-2.5 font-medium">직원</th>
+                  <th className="px-5 py-2.5 font-medium">출근</th>
+                  <th className="px-5 py-2.5 font-medium">퇴근</th>
+                  <th className="px-5 py-2.5 font-medium">상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRows.length === 0 && (
+                  <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-400">조건에 맞는 기록이 없습니다.</td></tr>
+                )}
+                {sortedRows.map((row, i) => {
+                  const emp = employeeOf(row.employeeId);
+                  const record = recordOf(row.employeeId, row.date);
+                  return (
+                    <tr key={`${row.employeeId}-${row.date}-${i}`} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
+                      <td className="px-5 py-2.5 text-slate-600">{dayjs(row.date).format('M월 D일 (ddd)')}</td>
+                      <td className="px-5 py-2.5 text-slate-500">{emp.department}</td>
+                      <td className="px-5 py-2.5 font-medium text-slate-700">{emp.name}</td>
+                      <td className="px-5 py-2.5 text-slate-500">{record?.clockIn ?? '-'}</td>
+                      <td className="px-5 py-2.5 text-slate-500">{record?.clockOut ?? '-'}</td>
+                      <td className="px-5 py-2.5"><StatusBadge status={row.status} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : singleEmployee ? (
+          <div className="p-5">
+            <p className="mb-3 text-sm font-semibold text-slate-700">{singleEmployee.name} · {monthDayjs.format('YYYY년 M월')}</p>
+            <CalendarView
+              month={monthDayjs}
+              records={state.records.filter(r => r.employeeId === singleEmployee.id)}
+              requests={state.attendanceRequests.filter(r => r.employeeId === singleEmployee.id)}
+            />
+          </div>
+        ) : (
+          <p className="px-5 py-10 text-center text-sm text-slate-400">캘린더 보기는 직원을 한 명 선택하면 볼 수 있어요.</p>
+        )}
+      </div>
+    </section>
+  );
+}
