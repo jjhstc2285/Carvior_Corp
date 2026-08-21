@@ -4,7 +4,7 @@ import BrokerageSettlementTab from './BrokerageSettlementTab';
 import PurchaseSettlementTab from './PurchaseSettlementTab';
 
 interface Props {
-  role: 'employee' | 'admin';
+  role: 'EMPLOYEE' | 'ADMIN';
 }
 
 type Tab = 'brokerage' | 'purchase' | 'basic';
@@ -22,7 +22,7 @@ export default function SettlementModule({ role }: Props) {
   return (
     <div className="mx-auto max-w-368 px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-slate-900">{role === 'employee' ? '내 정산 현황' : '정산 관리'}</h1>
+        <h1 className="text-xl font-bold text-slate-900">{role === 'EMPLOYEE' ? '내 정산 현황' : '정산 관리'}</h1>
         <p className="mt-1 text-sm text-slate-500">{current.desc}</p>
       </div>
 

@@ -46,7 +46,7 @@ export default function VehiclePostDetail({ post, onClose, onEdit }: Props) {
         {total > 0 && (
           <div className="mt-4 px-5">
             <div className="relative overflow-hidden rounded-xl bg-slate-100">
-              <img src={post.photos[index]} alt={`${post.vehicleModel} 사진 ${index + 1}`} className="max-h-[52vh] w-full object-contain" />
+              <img src={post.photos[index].url} alt={`${post.vehicleModel} 사진 ${index + 1}`} className="max-h-[52vh] w-full object-contain" />
               {total > 1 && (
                 <>
                   <button
@@ -71,13 +71,13 @@ export default function VehiclePostDetail({ post, onClose, onEdit }: Props) {
             </div>
             {total > 1 && (
               <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                {post.photos.map((src, i) => (
+                {post.photos.map((p, i) => (
                   <button
                     key={i}
                     onClick={() => setIndex(i)}
                     className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 ${i === index ? 'border-indigo-500' : 'border-transparent'}`}
                   >
-                    <img src={src} alt={`썸네일 ${i + 1}`} className="h-full w-full object-cover" />
+                    <img src={p.url} alt={`썸네일 ${i + 1}`} className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>

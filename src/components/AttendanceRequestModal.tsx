@@ -5,13 +5,13 @@ import { useStore } from '../store';
 import { ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
 
 interface Props {
-  employeeId: string;
+
   onClose: () => void;
 }
 
-export default function AttendanceRequestModal({ employeeId, onClose }: Props) {
+export default function AttendanceRequestModal({ onClose }: Props) {
   const { submitAttendanceRequest } = useStore();
-  const [kind, setKind] = useState<AttendanceRequestKind>('annualLeave');
+  const [kind, setKind] = useState<AttendanceRequestKind>('ANNUAL_LEAVE');
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [reason, setReason] = useState('');
 
@@ -19,7 +19,7 @@ export default function AttendanceRequestModal({ employeeId, onClose }: Props) {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    submitAttendanceRequest({ employeeId, date, kind, reason: reason.trim() });
+    submitAttendanceRequest({ date, kind, reason: reason.trim() });
     onClose();
   };
 

@@ -1,20 +1,34 @@
+// 서버(Prisma) enum과 값을 그대로 맞춘다.
+// 중간에 변환 계층을 두면 어긋났을 때 찾기 어려워서, 프론트가 서버 표기를 따라간다.
+
+export type Role = 'ADMIN' | 'EMPLOYEE';
+
 export interface Employee {
   id: string;
   name: string;
-  department: string;
-  position: string;
+  position: string; // 직책 — 대표 / 본부장 / 사무장 / 차장 / 과장 / 매니저
+  department: string | null;
+  phones: string[];
+  role: Role;
+  active: boolean;
 }
 
 export type AttendanceStatus = 'normal' | 'late' | 'earlyLeave' | 'lateAndEarly' | 'missing' | 'dayOff' | 'annualLeave' | 'fieldWork';
 
-export type AttendanceRequestStatus = 'pending' | 'approved' | 'rejected';
+export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
+  PENDING: '대기',
+  APPROVED: '승인',
+  REJECTED: '반려',
+};
 
 // 근태 신청 종류 — 연차(휴가)는 쉬는 날, 외근/출장은 정상 근무지만 출퇴근을 못 찍는 경우
-export type AttendanceRequestKind = 'annualLeave' | 'fieldWork';
+export type AttendanceRequestKind = 'ANNUAL_LEAVE' | 'FIELD_WORK';
 
 export const ATTENDANCE_REQUEST_KIND_LABEL: Record<AttendanceRequestKind, string> = {
-  annualLeave: '연차',
-  fieldWork: '외근/출장',
+  ANNUAL_LEAVE: '연차',
+  FIELD_WORK: '외근/출장',
 };
 
 // 연차 — 근로기준법 기준 연 15일 고정으로 단순화(입사연차 가산 등은 미반영, MVP 틀)
@@ -26,7 +40,7 @@ export interface AttendanceRequest {
   date: string; // YYYY-MM-DD, 연차/외근 사용일
   kind: AttendanceRequestKind;
   reason: string;
-  status: AttendanceRequestStatus;
+  status: RequestStatus;
   createdAt: string; // ISO
   reviewedAt: string | null;
   reviewNote: string | null;
@@ -40,8 +54,6 @@ export interface AttendanceRecord {
   clockOut: string | null; // HH:mm
 }
 
-export type CorrectionStatus = 'pending' | 'approved' | 'rejected';
-
 export interface CorrectionRequest {
   id: string;
   employeeId: string;
@@ -49,13 +61,13 @@ export interface CorrectionRequest {
   reason: string;
   requestedClockIn: string | null;
   requestedClockOut: string | null;
-  status: CorrectionStatus;
+  status: RequestStatus;
   createdAt: string; // ISO
   reviewedAt: string | null;
   reviewNote: string | null;
 }
 
-export type NotificationType = 'missing' | 'correctionRequest' | 'attendanceRequest';
+export type NotificationType = 'MISSING' | 'CORRECTION_REQUEST' | 'ATTENDANCE_REQUEST';
 
 export interface AppNotification {
   id: string;
@@ -67,7 +79,12 @@ export interface AppNotification {
   read: boolean;
 }
 
-export type SettlementStatus = 'inProgress' | 'completed';
+export type SettlementStatus = 'IN_PROGRESS' | 'COMPLETED';
+
+export const SETTLEMENT_STATUS_LABEL: Record<SettlementStatus, string> = {
+  IN_PROGRESS: '진행중',
+  COMPLETED: '정산완료',
+};
 
 export interface SettlementRecord {
   id: string;
@@ -83,26 +100,21 @@ export interface SettlementRecord {
   createdAt: string;
 }
 
-export const SETTLEMENT_STATUS_LABEL: Record<SettlementStatus, string> = {
-  inProgress: '진행중',
-  completed: '정산완료',
-};
-
 export function netProfit(r: Pick<SettlementRecord, 'purchaseCost' | 'prepCost' | 'saleAmount' | 'feeAmount'>): number {
   return r.saleAmount - r.purchaseCost - r.prepCost - r.feeAmount;
 }
 
 // ─────────────────────────────────────────────────────────────
-// 알선 정산 — 실제 시트지 컬럼 그대로
-// 일자 / 차량번호 / 차량명 / 총 진행 판매금액 / 실차주입금 / 수익금 / 이전비 / 이전비 잔액 /
-// 현금 수수료 / 할부 피 / 보험 피 / 기타비용 / 판매 수익 / 정산받을금액
-// (수익금·판매 수익은 저장하지 않고 항상 계산해서 씀)
+// 알선 정산 — 시트지 컬럼 그대로
+// 일자 / 차량번호 / 차량명 / 총 진행 판매금액 / 실차주입금 / 수익금 / 이전비 /
+// 이전비 잔액 / 현금 수수료 / 할부 피 / 보험 피 / 기타비용 / 판매 수익 / 정산받을금액
+// (수익금·판매 수익은 저장하지 않고 항상 계산해서 씀 — 서버도 같은 식을 쓴다)
 // ─────────────────────────────────────────────────────────────
 export interface BrokerageSettlement {
   id: string;
   date: string; // 일자 YYYY-MM-DD
-  vehicleNumber: string; // 차량번호
-  vehicleName: string; // 차량명
+  vehicleNumber: string;
+  vehicleName: string;
   totalSaleAmount: number; // 총 진행 판매금액
   ownerDeposit: number; // 실차주입금
   transferFee: number; // 이전비
@@ -112,7 +124,7 @@ export interface BrokerageSettlement {
   insuranceFee: number; // 보험 피
   etcCost: number; // 기타비용
   settlementAmount: number; // 정산받을금액
-  employeeId: string; // 담당자
+  employeeId: string;
   status: SettlementStatus;
   memo: string;
   createdAt: string;
@@ -131,16 +143,13 @@ export function brokerageSaleProfit(
 }
 
 // ─────────────────────────────────────────────────────────────
-// 매입 정산 — 실제 시트지 컬럼 그대로
-// 일자 / 차량명 / 차량번호 / 이전비+추가이전비 / 매입가 / 광택 및 세차 / 판금 및 덴트 / 성능비 /
-// 탁송비 / 수리비 / 구전 / 진단비 / 상품화총비용 / 매입+상품화총비용 / 정산금액 / 신차이름
-// (상품화총비용·매입+상품화총비용은 저장하지 않고 항상 계산해서 씀)
+// 매입 정산 — 시트지 컬럼 그대로
 // ─────────────────────────────────────────────────────────────
 export interface PurchaseSettlement {
   id: string;
   date: string; // 일자 YYYY-MM-DD
-  vehicleName: string; // 차량명
-  vehicleNumber: string; // 차량번호
+  vehicleName: string;
+  vehicleNumber: string;
   transferFee: number; // 이전비 + 추가이전비
   purchasePrice: number; // 매입가
   polishWashCost: number; // 광택 및 세차
@@ -152,7 +161,7 @@ export interface PurchaseSettlement {
   diagnosisCost: number; // 진단비
   settlementAmount: number; // 정산금액
   newCarName: string; // 신차이름
-  employeeId: string; // 담당자
+  employeeId: string;
   status: SettlementStatus;
   memo: string;
   createdAt: string;
@@ -164,7 +173,7 @@ export type PurchasePrepFields = Pick<
 >;
 
 // 상품화총비용 = 광택및세차 + 판금및덴트 + 성능비 + 탁송비 + 수리비 + 구전 + 진단비
-// (이전비는 상품화가 아니라 별도 항목이라 여기 안 넣음 — 포함하려면 이 함수만 고치면 됨)
+// (이전비는 상품화가 아니라 별도 항목이라 여기 안 넣음 — 포함하려면 이 함수와 서버 calc만 고치면 됨)
 export function purchasePrepTotal(r: PurchasePrepFields): number {
   return r.polishWashCost + r.dentCost + r.performanceCost + r.deliveryCost + r.repairCost + r.brokerFee + r.diagnosisCost;
 }
@@ -174,13 +183,13 @@ export function purchaseGrandTotal(r: PurchasePrepFields & Pick<PurchaseSettleme
   return r.purchasePrice + purchasePrepTotal(r);
 }
 
-export type ConsultationStatus = 'inProgress' | 'contracted' | 'onHold' | 'closed';
+export type ConsultationStatus = 'IN_PROGRESS' | 'CONTRACTED' | 'ON_HOLD' | 'CLOSED';
 
 export const CONSULTATION_STATUS_LABEL: Record<ConsultationStatus, string> = {
-  inProgress: '진행중',
-  contracted: '계약',
-  onHold: '보류',
-  closed: '종결',
+  IN_PROGRESS: '진행중',
+  CONTRACTED: '계약',
+  ON_HOLD: '보류',
+  CLOSED: '종결',
 };
 
 export interface ConsultationRecord {
@@ -193,17 +202,17 @@ export interface ConsultationRecord {
   time: string; // HH:mm
   content: string; // 상담내용
   nextContactDate: string | null; // 다음 연락 예정일
-  fileNames: string[]; // 첨부파일 이름만(목업 — 실제 업로드 없음)
+  files: { id: string; fileName: string; url: string }[];
   createdAt: string;
 }
 
-export type ParkingStatus = '전시중' | '판매완료' | '예약중' | '이동중';
+export type ParkingStatus = 'DISPLAY' | 'SOLD' | 'RESERVED' | 'MOVING';
 
 export const PARKING_STATUS_LABEL: Record<ParkingStatus, string> = {
-  전시중: '전시중',
-  판매완료: '판매완료',
-  예약중: '예약중',
-  이동중: '이동중',
+  DISPLAY: '전시중',
+  SOLD: '판매완료',
+  RESERVED: '예약중',
+  MOVING: '이동중',
 };
 
 export interface ParkingVehicle {
@@ -222,7 +231,6 @@ export interface ParkingVehicle {
 // 매물 사진 게시판 — 사이트에 올릴 차량 정보와 사진을 올려두고 전 직원이 같이 보는 용도
 export const VEHICLE_POST_SITES = ['엔카', 'KB차차차', '보배드림', '차란차', '당근마켓', '기타'] as const;
 
-// 사진은 base64로 localStorage에 들어가므로 장수를 제한한다(브라우저 저장 한도 ~5MB)
 export const VEHICLE_POST_PHOTO_MAX = 5;
 
 export interface VehiclePost {
@@ -232,7 +240,7 @@ export interface VehiclePost {
   vehicleModel: string; // 차명
   customerPhone: string; // 손님번호
   content: string; // 내용
-  photos: string[]; // 사진 data URL (최대 VEHICLE_POST_PHOTO_MAX장)
+  photos: { id: string; url: string }[]; // 서버에 올린 사진 경로
   employeeId: string; // 등록자
   createdAt: string;
   updatedAt: string;
@@ -246,10 +254,10 @@ export interface AppState {
   currentEmployeeId: string;
   ipWhitelist: string[];
   settlements: SettlementRecord[];
+  brokerageSettlements: BrokerageSettlement[];
+  purchaseSettlements: PurchaseSettlement[];
   consultations: ConsultationRecord[];
   parkingVehicles: ParkingVehicle[];
   attendanceRequests: AttendanceRequest[];
   vehiclePosts: VehiclePost[];
-  brokerageSettlements: BrokerageSettlement[];
-  purchaseSettlements: PurchaseSettlement[];
 }

@@ -7,7 +7,7 @@ import { netProfit, SETTLEMENT_STATUS_LABEL, type SettlementRecord, type Settlem
 import SettlementForm from './SettlementForm';
 
 interface Props {
-  role: 'employee' | 'admin';
+  role: 'EMPLOYEE' | 'ADMIN';
 }
 
 export default function BasicSettlementTab({ role }: Props) {
@@ -17,21 +17,21 @@ export default function BasicSettlementTab({ role }: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SettlementRecord | null>(null);
 
-  const scoped = role === 'employee'
+  const scoped = role === 'EMPLOYEE'
     ? state.settlements.filter(s => s.employeeId === state.currentEmployeeId)
     : state.settlements;
 
   const filtered = scoped
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
-    .filter(s => role !== 'admin' || employeeFilter === 'all' || s.employeeId === employeeFilter)
+    .filter(s => role !== 'ADMIN' || employeeFilter === 'all' || s.employeeId === employeeFilter)
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
 
   const totals = useMemo(() => {
     const totalProfit = filtered.reduce((sum, s) => sum + netProfit(s), 0);
-    const completed = filtered.filter(s => s.status === 'completed').length;
-    const inProgress = filtered.filter(s => s.status === 'inProgress').length;
+    const completed = filtered.filter(s => s.status === 'COMPLETED').length;
+    const inProgress = filtered.filter(s => s.status === 'IN_PROGRESS').length;
     return { totalProfit, completed, inProgress, count: filtered.length };
   }, [filtered]);
 
@@ -79,10 +79,10 @@ export default function BasicSettlementTab({ role }: Props) {
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as SettlementStatus | 'all')}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
           <option value="all">전체 상태</option>
-          <option value="inProgress">진행중</option>
-          <option value="completed">정산완료</option>
+          <option value="IN_PROGRESS">진행중</option>
+          <option value="COMPLETED">정산완료</option>
         </select>
-        {role === 'admin' && (
+        {role === 'ADMIN' && (
           <select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
             <option value="all">전체 담당자</option>
@@ -93,7 +93,7 @@ export default function BasicSettlementTab({ role }: Props) {
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download size={14} /> 엑셀 다운로드
           </button>
-          {role === 'admin' && (
+          {role === 'ADMIN' && (
             <button onClick={() => { setEditing(null); setFormOpen(true); }}
               className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700">
               <Plus size={14} /> 정산 추가
@@ -114,12 +114,12 @@ export default function BasicSettlementTab({ role }: Props) {
                 <th className="px-5 py-2.5 font-medium text-right">판매금액</th>
                 <th className="px-5 py-2.5 font-medium text-right">순이익</th>
                 <th className="px-5 py-2.5 font-medium">상태</th>
-                {role === 'admin' && <th className="px-5 py-2.5 font-medium text-right">관리</th>}
+                {role === 'ADMIN' && <th className="px-5 py-2.5 font-medium text-right">관리</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={role === 'admin' ? 8 : 7} className="px-5 py-10 text-center text-sm text-slate-400">정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={role === 'ADMIN' ? 8 : 7} className="px-5 py-10 text-center text-sm text-slate-400">정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => {
                 const profit = netProfit(s);
@@ -132,11 +132,11 @@ export default function BasicSettlementTab({ role }: Props) {
                     <td className="px-5 py-2.5 text-right text-slate-500">{s.saleAmount.toLocaleString()}</td>
                     <td className={`px-5 py-2.5 text-right font-semibold ${profit >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>{profit.toLocaleString()}</td>
                     <td className="px-5 py-2.5">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${s.status === 'completed' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-700 ring-amber-600/20'}`}>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${s.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-700 ring-amber-600/20'}`}>
                         {SETTLEMENT_STATUS_LABEL[s.status]}
                       </span>
                     </td>
-                    {role === 'admin' && (
+                    {role === 'ADMIN' && (
                       <td className="px-5 py-2.5">
                         <div className="flex justify-end gap-1.5">
                           <button onClick={() => { setEditing(s); setFormOpen(true); }} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">

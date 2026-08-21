@@ -15,8 +15,8 @@ export function computeStatus(record: AttendanceRecord | undefined, date: string
   // 주말(휴무)은 출퇴근 여부와 무관하게 항상 휴무 — 과거/미래 상관없이 고정값
   if (!isWorkday(date)) return 'dayOff';
   // 승인된 연차/외근은 결근·지각 판정보다 우선 — 출퇴근을 안 찍었어도 "누락"이 아니라 연차/외근으로 표시
-  if (approvedKind === 'annualLeave') return 'annualLeave';
-  if (approvedKind === 'fieldWork') return 'fieldWork';
+  if (approvedKind === 'ANNUAL_LEAVE') return 'annualLeave';
+  if (approvedKind === 'FIELD_WORK') return 'fieldWork';
 
   const isPast = dayjs(date).isBefore(dayjs(), 'day');
   const isToday = dayjs(date).isSame(dayjs(), 'day');
@@ -80,7 +80,7 @@ export const STATUS_COLOR: Record<AttendanceStatus, string> = {
 
 // 그날 승인된 연차/외근 신청이 있으면 그 종류를 반환 — computeStatus의 approvedKind 인자로 넘겨 씀
 export function approvedRequestKind(requests: AttendanceRequest[], employeeId: string, date: string): AttendanceRequestKind | null {
-  return requests.find(r => r.employeeId === employeeId && r.date === date && r.status === 'approved')?.kind ?? null;
+  return requests.find(r => r.employeeId === employeeId && r.date === date && r.status === 'APPROVED')?.kind ?? null;
 }
 
 // 평일만 근무일로 취급(주말은 대시보드/통계에서 제외)

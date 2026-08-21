@@ -8,14 +8,14 @@ import CustomerHistoryModal from './CustomerHistoryModal';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 
 interface Props {
-  role: 'employee' | 'admin';
+  role: 'EMPLOYEE' | 'ADMIN';
 }
 
 const STATUS_COLOR: Record<ConsultationStatus, string> = {
-  inProgress: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-  contracted: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  onHold: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  closed: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+  IN_PROGRESS: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  CONTRACTED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  ON_HOLD: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  CLOSED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
 };
 
 export default function ConsultationModule({ role }: Props) {
@@ -28,7 +28,7 @@ export default function ConsultationModule({ role }: Props) {
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [calMonth, setCalMonth] = useState(() => dayjs().startOf('month'));
 
-  const scoped = role === 'employee'
+  const scoped = role === 'EMPLOYEE'
     ? state.consultations.filter(c => c.employeeId === state.currentEmployeeId)
     : state.consultations;
 
@@ -48,7 +48,7 @@ export default function ConsultationModule({ role }: Props) {
           label: c.customerName,
           sublabel: CONSULTATION_STATUS_LABEL[c.status],
           colorClass: STATUS_COLOR[c.status].replace(/ ring-\S+/, ''),
-          dotClass: c.status === 'contracted' ? 'bg-emerald-400' : c.status === 'onHold' ? 'bg-amber-400' : c.status === 'closed' ? 'bg-gray-400' : 'bg-blue-400',
+          dotClass: c.status === 'CONTRACTED' ? 'bg-emerald-400' : c.status === 'ON_HOLD' ? 'bg-amber-400' : c.status === 'CLOSED' ? 'bg-gray-400' : 'bg-blue-400',
         });
       }
       if (c.nextContactDate === dateStr) {
@@ -65,10 +65,10 @@ export default function ConsultationModule({ role }: Props) {
   };
 
   const staffStats = useMemo(() => {
-    if (role !== 'admin') return [];
+    if (role !== 'ADMIN') return [];
     return state.employees.map(emp => {
       const own = state.consultations.filter(c => c.employeeId === emp.id);
-      const contracted = own.filter(c => c.status === 'contracted').length;
+      const contracted = own.filter(c => c.status === 'CONTRACTED').length;
       const rate = own.length > 0 ? Math.round((contracted / own.length) * 100) : 0;
       return { emp, total: own.length, contracted, rate };
     }).filter(s => s.total > 0);
@@ -78,7 +78,7 @@ export default function ConsultationModule({ role }: Props) {
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">{role === 'employee' ? '내 상담 목록' : '알선 상담 관리'}</h1>
+          <h1 className="text-xl font-bold text-slate-900">{role === 'EMPLOYEE' ? '내 상담 목록' : '알선 상담 관리'}</h1>
           <p className="mt-1 text-sm text-slate-500">차량번호·고객명으로 검색하고, 고객을 클릭하면 이전 상담 이력을 바로 확인할 수 있어요.</p>
         </div>
         <button
@@ -89,7 +89,7 @@ export default function ConsultationModule({ role }: Props) {
         </button>
       </div>
 
-      {role === 'admin' && staffStats.length > 0 && (
+      {role === 'ADMIN' && staffStats.length > 0 && (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
           <p className="mb-3 text-xs font-bold text-slate-500">담당자별 상담 → 계약 전환율</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -114,10 +114,10 @@ export default function ConsultationModule({ role }: Props) {
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as ConsultationStatus | 'all')}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
           <option value="all">전체 상태</option>
-          <option value="inProgress">진행중</option>
-          <option value="contracted">계약</option>
-          <option value="onHold">보류</option>
-          <option value="closed">종결</option>
+          <option value="IN_PROGRESS">진행중</option>
+          <option value="CONTRACTED">계약</option>
+          <option value="ON_HOLD">보류</option>
+          <option value="CLOSED">종결</option>
         </select>
         <div className="ml-auto flex rounded-lg bg-slate-100 p-0.5 text-sm">
           <button
@@ -148,7 +148,7 @@ export default function ConsultationModule({ role }: Props) {
                 <th className="px-5 py-2.5 font-medium">상담일시</th>
                 <th className="px-5 py-2.5 font-medium">차량번호</th>
                 <th className="px-5 py-2.5 font-medium">고객명</th>
-                {role === 'admin' && <th className="px-5 py-2.5 font-medium">담당자</th>}
+                {role === 'ADMIN' && <th className="px-5 py-2.5 font-medium">담당자</th>}
                 <th className="px-5 py-2.5 font-medium">상태</th>
                 <th className="px-5 py-2.5 font-medium">상담내용</th>
                 <th className="px-5 py-2.5 font-medium text-right">관리</th>
@@ -167,7 +167,7 @@ export default function ConsultationModule({ role }: Props) {
                       {c.customerName}
                     </button>
                   </td>
-                  {role === 'admin' && <td className="px-5 py-2.5 text-slate-500">{employeeOf(c.employeeId)?.name}</td>}
+                  {role === 'ADMIN' && <td className="px-5 py-2.5 text-slate-500">{employeeOf(c.employeeId)?.name}</td>}
                   <td className="px-5 py-2.5">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_COLOR[c.status]}`}>
                       {CONSULTATION_STATUS_LABEL[c.status]}

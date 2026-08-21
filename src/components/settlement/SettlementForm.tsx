@@ -18,7 +18,7 @@ export default function SettlementForm({ editing, defaultEmployeeId, onClose }: 
   const [prepCost, setPrepCost] = useState(editing?.prepCost?.toString() ?? '0');
   const [saleAmount, setSaleAmount] = useState(editing?.saleAmount?.toString() ?? '');
   const [feeAmount, setFeeAmount] = useState(editing?.feeAmount?.toString() ?? '0');
-  const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'inProgress');
+  const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
   const [memo, setMemo] = useState(editing?.memo ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -100,8 +100,8 @@ export default function SettlementForm({ editing, defaultEmployeeId, onClose }: 
             <label className="mb-1 block text-xs font-semibold text-slate-500">정산 상태</label>
             <select value={status} onChange={e => setStatus(e.target.value as SettlementStatus)}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-              <option value="inProgress">진행중</option>
-              <option value="completed">정산완료</option>
+              <option value="IN_PROGRESS">진행중</option>
+              <option value="COMPLETED">정산완료</option>
             </select>
           </div>
           <div className="col-span-2">

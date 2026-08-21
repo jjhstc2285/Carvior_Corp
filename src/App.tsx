@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { StoreProvider, useStore } from './store';
+import { useState } from 'react';
+import { StoreProvider } from './store';
 import { AuthProvider, useAuth } from './authStore';
 import type { ModuleKey } from './modules';
+import type { Role } from './types';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import EmployeeView from './components/EmployeeView';
@@ -11,7 +12,6 @@ import ConsultationModule from './components/consultation/ConsultationModule';
 import ParkingModule from './components/parking/ParkingModule';
 import VehiclePostModule from './components/vehiclePost/VehiclePostModule';
 import LoginPage from './components/auth/LoginPage';
-import LinkEmployeeStep from './components/auth/LinkEmployeeStep';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
   attendance: '출퇴근 관리',
@@ -21,15 +21,15 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   vehiclePost: '매물 사진 등록',
 };
 
-function ModuleContent({ module, role }: { module: ModuleKey; role: 'employee' | 'admin' }) {
-  if (module === 'attendance') return role === 'employee' ? <EmployeeView /> : <AdminView />;
+function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
+  if (module === 'attendance') return role === 'EMPLOYEE' ? <EmployeeView /> : <AdminView />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationModule role={role} />;
   if (module === 'vehiclePost') return <VehiclePostModule role={role} />;
   return <ParkingModule role={role} />;
 }
 
-function AuthedApp({ role }: { role: 'employee' | 'admin' }) {
+function AuthedApp({ role }: { role: Role }) {
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -50,24 +50,30 @@ function AuthedApp({ role }: { role: 'employee' | 'admin' }) {
 }
 
 function Gate() {
-  const { user } = useAuth();
-  const { setCurrentEmployeeId } = useStore();
+  const { user, loading } = useAuth();
 
-  useEffect(() => {
-    if (user?.employeeId) setCurrentEmployeeId(user.employeeId);
-  }, [user?.employeeId, setCurrentEmployeeId]);
+  // 저장된 토큰으로 세션을 복구하는 동안 로그인 화면이 깜빡이지 않게 잡아둔다.
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-sm text-slate-400">불러오는 중…</p>
+      </div>
+    );
+  }
 
   if (!user) return <LoginPage />;
-  if (user.role === 'employee' && !user.employeeId) return <LinkEmployeeStep />;
-  return <AuthedApp role={user.role} />;
+
+  return (
+    <StoreProvider>
+      <AuthedApp role={user.role} />
+    </StoreProvider>
+  );
 }
 
 export default function App() {
   return (
-    <StoreProvider>
-      <AuthProvider>
-        <Gate />
-      </AuthProvider>
-    </StoreProvider>
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   );
 }

@@ -15,7 +15,7 @@ export default function AttendanceRequestInbox() {
   const [rejectNote, setRejectNote] = useState('');
 
   const pending = state.attendanceRequests
-    .filter(r => r.status === 'pending')
+    .filter(r => r.status === 'PENDING')
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);

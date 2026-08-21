@@ -3,15 +3,15 @@ import type { ParkingStatus, ParkingVehicle } from '../../types';
 import { PARKING_LOTS, PARKING_SLOTS } from '../../lib/parkingLayout';
 
 interface Props {
-  role: 'employee' | 'admin';
+  role: 'EMPLOYEE' | 'ADMIN';
   onCellClick: (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => void;
 }
 
 const STATUS_DOT: Record<ParkingStatus, string> = {
-  전시중: 'bg-blue-400',
-  예약중: 'bg-amber-400',
-  판매완료: 'bg-emerald-400',
-  이동중: 'bg-gray-400',
+  DISPLAY: 'bg-blue-400',
+  RESERVED: 'bg-amber-400',
+  SOLD: 'bg-emerald-400',
+  MOVING: 'bg-gray-400',
 };
 
 // 요청받은 엑셀 시트지(주차장 배너 → 구역 컬럼 → 앞/뒤 겹주차 행)를 그대로 재현한 그리드.
@@ -59,10 +59,10 @@ export default function ParkingGrid({ role, onCellClick }: Props) {
                           <td key={zone} className="border border-slate-100 p-0">
                             <button
                               onClick={() => onCellClick(lot, zone, slot, v)}
-                              disabled={role !== 'admin' && !v}
+                              disabled={role !== 'ADMIN' && !v}
                               className={`flex h-11 w-full flex-col items-center justify-center gap-0.5 px-1 text-center transition-colors ${
                                 v ? 'bg-orange-100 hover:bg-orange-200' : 'bg-white hover:bg-slate-50'
-                              } ${role !== 'admin' && !v ? 'cursor-default' : ''}`}
+                              } ${role !== 'ADMIN' && !v ? 'cursor-default' : ''}`}
                             >
                               {v ? (
                                 <>

@@ -15,7 +15,7 @@ export default function ConsultationForm({ editing, defaultEmployeeId, onClose }
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
   const [customerName, setCustomerName] = useState(editing?.customerName ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
-  const [status, setStatus] = useState<ConsultationStatus>(editing?.status ?? 'inProgress');
+  const [status, setStatus] = useState<ConsultationStatus>(editing?.status ?? 'IN_PROGRESS');
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
   const [time, setTime] = useState(editing?.time ?? dayjs().format('HH:mm'));
   const [content, setContent] = useState(editing?.content ?? '');
@@ -37,7 +37,7 @@ export default function ConsultationForm({ editing, defaultEmployeeId, onClose }
       time,
       content: content.trim(),
       nextContactDate: nextContactDate || null,
-      fileNames: editing?.fileNames ?? [],
+      
     });
     onClose();
   };
@@ -74,10 +74,10 @@ export default function ConsultationForm({ editing, defaultEmployeeId, onClose }
             <label className="mb-1 block text-xs font-semibold text-slate-500">상담 상태</label>
             <select value={status} onChange={e => setStatus(e.target.value as ConsultationStatus)}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-              <option value="inProgress">진행중</option>
-              <option value="contracted">계약</option>
-              <option value="onHold">보류</option>
-              <option value="closed">종결</option>
+              <option value="IN_PROGRESS">진행중</option>
+              <option value="CONTRACTED">계약</option>
+              <option value="ON_HOLD">보류</option>
+              <option value="CLOSED">종결</option>
             </select>
           </div>
           <div>

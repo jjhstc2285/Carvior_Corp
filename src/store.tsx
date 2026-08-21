@@ -1,298 +1,276 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import dayjs from 'dayjs';
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { AppState, AttendanceRequest, AttendanceRequestKind, BrokerageSettlement, ConsultationRecord, CorrectionRequest, ParkingVehicle, PurchaseSettlement, SettlementRecord, VehiclePost } from './types';
-import { ATTENDANCE_REQUEST_KIND_LABEL } from './types';
-import { loadState, resetState, saveState } from './lib/storage';
+import { api, ApiError } from './lib/api';
+import { useAuth } from './authStore';
+import type {
+  AppNotification,
+  AppState,
+  AttendanceRecord,
+  AttendanceRequest,
+  AttendanceRequestKind,
+  BrokerageSettlement,
+  ConsultationRecord,
+  CorrectionRequest,
+  Employee,
+  ParkingVehicle,
+  PurchaseSettlement,
+  SettlementRecord,
+  VehiclePost,
+} from './types';
+
+const EMPTY_STATE: AppState = {
+  employees: [],
+  records: [],
+  requests: [],
+  notifications: [],
+  currentEmployeeId: '',
+  ipWhitelist: [],
+  settlements: [],
+  brokerageSettlements: [],
+  purchaseSettlements: [],
+  consultations: [],
+  parkingVehicles: [],
+  attendanceRequests: [],
+  vehiclePosts: [],
+};
+
+type Upsert<T, K extends string> = Omit<T, 'id' | K> & { id?: string };
 
 interface Store {
   state: AppState;
-  setCurrentEmployeeId: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  /** 현재 보고 있는 월(YYYY-MM) — 출퇴근 조회 범위 */
+  month: string;
+  setMonth: (month: string) => void;
+  refresh: () => Promise<void>;
+
+  clockIn: () => Promise<void>;
+  clockOut: () => Promise<void>;
+
   submitCorrectionRequest: (input: {
-    employeeId: string;
     date: string;
     reason: string;
     requestedClockIn: string | null;
     requestedClockOut: string | null;
-  }) => void;
-  approveRequest: (requestId: string, note?: string) => void;
-  rejectRequest: (requestId: string, note: string) => void;
-  markNotificationRead: (id: string) => void;
-  markAllNotificationsRead: () => void;
-  clockIn: (employeeId: string) => void;
-  clockOut: (employeeId: string) => void;
-  addWhitelistIp: (ip: string) => void;
-  removeWhitelistIp: (ip: string) => void;
-  upsertSettlement: (record: Omit<SettlementRecord, 'id' | 'createdAt'> & { id?: string }) => void;
-  deleteSettlement: (id: string) => void;
-  upsertBrokerageSettlement: (record: Omit<BrokerageSettlement, 'id' | 'createdAt'> & { id?: string }) => void;
-  deleteBrokerageSettlement: (id: string) => void;
-  upsertPurchaseSettlement: (record: Omit<PurchaseSettlement, 'id' | 'createdAt'> & { id?: string }) => void;
-  deletePurchaseSettlement: (id: string) => void;
-  upsertConsultation: (record: Omit<ConsultationRecord, 'id' | 'createdAt'> & { id?: string }) => void;
-  deleteConsultation: (id: string) => void;
-  upsertParkingVehicle: (record: Omit<ParkingVehicle, 'id' | 'updatedAt'> & { id?: string }) => void;
-  deleteParkingVehicle: (id: string) => void;
-  upsertVehiclePost: (record: Omit<VehiclePost, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
-  deleteVehiclePost: (id: string) => void;
-  submitAttendanceRequest: (input: { employeeId: string; date: string; kind: AttendanceRequestKind; reason: string }) => void;
-  approveAttendanceRequest: (requestId: string, note?: string) => void;
-  rejectAttendanceRequest: (requestId: string, note: string) => void;
-  resetDemo: () => void;
+  }) => Promise<void>;
+  approveRequest: (requestId: string, note?: string) => Promise<void>;
+  rejectRequest: (requestId: string, note: string) => Promise<void>;
+
+  submitAttendanceRequest: (input: { date: string; kind: AttendanceRequestKind; reason: string }) => Promise<void>;
+  approveAttendanceRequest: (requestId: string, note?: string) => Promise<void>;
+  rejectAttendanceRequest: (requestId: string, note: string) => Promise<void>;
+
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+
+  addWhitelistIp: (ip: string) => Promise<void>;
+  removeWhitelistIp: (ip: string) => Promise<void>;
+
+  upsertSettlement: (record: Upsert<SettlementRecord, 'createdAt'>) => Promise<void>;
+  deleteSettlement: (id: string) => Promise<void>;
+  upsertBrokerageSettlement: (record: Upsert<BrokerageSettlement, 'createdAt'>) => Promise<void>;
+  deleteBrokerageSettlement: (id: string) => Promise<void>;
+  upsertPurchaseSettlement: (record: Upsert<PurchaseSettlement, 'createdAt'>) => Promise<void>;
+  deletePurchaseSettlement: (id: string) => Promise<void>;
+
+  upsertConsultation: (record: Upsert<ConsultationRecord, 'createdAt' | 'files'>) => Promise<void>;
+  deleteConsultation: (id: string) => Promise<void>;
+
+  upsertParkingVehicle: (record: Upsert<ParkingVehicle, 'updatedAt'>) => Promise<void>;
+  deleteParkingVehicle: (id: string) => Promise<void>;
+
+  upsertVehiclePost: (record: {
+    id?: string;
+    site: string;
+    vehicleNumber: string;
+    vehicleModel: string;
+    customerPhone: string;
+    content: string;
+    photos: string[];
+  }) => Promise<void>;
+  deleteVehiclePost: (id: string) => Promise<void>;
 }
 
 const StoreContext = createContext<Store | null>(null);
 
+/** 서버 응답에 딸려오는 employee 객체를 걷어내고 화면이 쓰는 평평한 모양으로 맞춘다. */
+function flatten<T>(row: T): T {
+  const { employee: _employee, ...rest } = row as T & { employee?: unknown };
+  return rest as T;
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(() => loadState());
-  const quotaWarned = useRef(false);
+  const { user } = useAuth();
+  const [state, setState] = useState<AppState>(EMPTY_STATE);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
+  const isAdmin = user?.role === 'ADMIN';
+  const reqId = useRef(0);
+
+  const load = useCallback(async () => {
+    if (!user) {
+      setState(EMPTY_STATE);
+      return;
+    }
+    const myReq = ++reqId.current;
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 화면 전체가 한 번에 뜨는 게 자연스러워서 병렬로 모두 받아온다.
+      // 관리자 전용 목록(IP 화이트리스트)은 직원일 때 아예 요청하지 않는다(403 방지).
+      const [
+        employees,
+        records,
+        requests,
+        attendanceRequests,
+        notifications,
+        settlements,
+        brokerageSettlements,
+        purchaseSettlements,
+        consultations,
+        parkingVehicles,
+        vehiclePosts,
+        ipWhitelist,
+      ] = await Promise.all([
+        api<Employee[]>('/employees'),
+        api<AttendanceRecord[]>(`/attendance/records?month=${month}`),
+        api<CorrectionRequest[]>('/attendance/corrections'),
+        api<AttendanceRequest[]>('/attendance/requests'),
+        api<AppNotification[]>('/attendance/notifications'),
+        api<SettlementRecord[]>('/settlements/basic'),
+        api<BrokerageSettlement[]>('/settlements/brokerage'),
+        api<PurchaseSettlement[]>('/settlements/purchase'),
+        api<ConsultationRecord[]>('/consultations'),
+        api<ParkingVehicle[]>('/parking'),
+        api<VehiclePost[]>('/vehicle-posts'),
+        isAdmin ? api<{ ip: string }[]>('/attendance/ip-whitelist') : Promise.resolve([]),
+      ]);
+
+      // 응답이 늦게 도착한 이전 요청이 최신 상태를 덮어쓰지 않게 한다.
+      if (myReq !== reqId.current) return;
+
+      setState({
+        employees,
+        records: records.map(flatten),
+        requests: requests.map(flatten),
+        attendanceRequests: attendanceRequests.map(flatten),
+        notifications,
+        settlements: settlements.map(flatten),
+        brokerageSettlements: brokerageSettlements.map(flatten),
+        purchaseSettlements: purchaseSettlements.map(flatten),
+        consultations: consultations.map(flatten),
+        parkingVehicles: parkingVehicles.map(flatten),
+        vehiclePosts: vehiclePosts.map(flatten),
+        ipWhitelist: ipWhitelist.map((w) => w.ip),
+        currentEmployeeId: user.id,
+      });
+    } catch (e) {
+      if (myReq !== reqId.current) return;
+      setError(e instanceof ApiError ? e.message : '데이터를 불러오지 못했습니다.');
+    } finally {
+      if (myReq === reqId.current) setLoading(false);
+    }
+  }, [user, month, isAdmin]);
 
   useEffect(() => {
-    const saved = saveState(state);
-    if (!saved && !quotaWarned.current) {
-      quotaWarned.current = true;
-      alert('브라우저 저장 공간이 가득 찼습니다.\n사진이 많은 매물 글을 삭제하거나 사진 수를 줄여주세요.');
-    }
-  }, [state]);
+    void load();
+  }, [load]);
 
-  const value = useMemo<Store>(() => ({
-    state,
-    setCurrentEmployeeId: (id) => setState(s => ({ ...s, currentEmployeeId: id })),
+  const value = useMemo<Store>(() => {
+    // 서버 상태가 정답이므로, 쓰기 후에는 전체를 다시 불러와 화면을 맞춘다.
+    // 목록이 크지 않아 이 단순함이 낙관적 업데이트보다 낫다.
+    const run = async (fn: () => Promise<unknown>) => {
+      await fn();
+      await load();
+    };
 
-    submitCorrectionRequest: ({ employeeId, date, reason, requestedClockIn, requestedClockOut }) => {
-      setState(s => {
-        const req: CorrectionRequest = {
-          id: `req-${Date.now()}`,
-          employeeId,
-          date,
-          reason,
-          requestedClockIn,
-          requestedClockOut,
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-          reviewedAt: null,
-          reviewNote: null,
-        };
-        const emp = s.employees.find(e => e.id === employeeId);
-        return {
-          ...s,
-          requests: [req, ...s.requests],
-          notifications: [
-            {
-              id: `n-${Date.now()}`,
-              type: 'correctionRequest',
-              message: `${emp?.name ?? '직원'}님이 ${dayjs(date).format('M월 D일')} 근태 수정을 요청했습니다.`,
-              employeeId,
-              date,
-              createdAt: new Date().toISOString(),
-              read: false,
+    return {
+      state,
+      loading,
+      error,
+      month,
+      setMonth,
+      refresh: load,
+
+      clockIn: () => run(() => api('/attendance/clock-in', { method: 'POST' })),
+      clockOut: () => run(() => api('/attendance/clock-out', { method: 'POST' })),
+
+      submitCorrectionRequest: (input) =>
+        run(() =>
+          api('/attendance/corrections', {
+            method: 'POST',
+            body: {
+              date: input.date,
+              reason: input.reason,
+              ...(input.requestedClockIn ? { requestedClockIn: input.requestedClockIn } : {}),
+              ...(input.requestedClockOut ? { requestedClockOut: input.requestedClockOut } : {}),
             },
-            ...s.notifications,
-          ],
-        };
-      });
-    },
+          }),
+        ),
+      approveRequest: (id, note) =>
+        run(() => api(`/attendance/corrections/${id}/approve`, { method: 'PATCH', body: { note } })),
+      rejectRequest: (id, note) =>
+        run(() => api(`/attendance/corrections/${id}/reject`, { method: 'PATCH', body: { note } })),
 
-    approveRequest: (requestId, note) => {
-      setState(s => {
-        const req = s.requests.find(r => r.id === requestId);
-        if (!req) return s;
-        const existing = s.records.find(r => r.employeeId === req.employeeId && r.date === req.date);
-        const records = existing
-          ? s.records.map(r => r === existing ? { ...r, clockIn: req.requestedClockIn, clockOut: req.requestedClockOut } : r)
-          : [...s.records, { id: `r-${Date.now()}`, employeeId: req.employeeId, date: req.date, clockIn: req.requestedClockIn, clockOut: req.requestedClockOut }];
-        return {
-          ...s,
-          records,
-          requests: s.requests.map(r => r.id === requestId ? { ...r, status: 'approved', reviewedAt: new Date().toISOString(), reviewNote: note ?? null } : r),
-        };
-      });
-    },
+      submitAttendanceRequest: (input) => run(() => api('/attendance/requests', { method: 'POST', body: input })),
+      approveAttendanceRequest: (id, note) =>
+        run(() => api(`/attendance/requests/${id}/approve`, { method: 'PATCH', body: { note } })),
+      rejectAttendanceRequest: (id, note) =>
+        run(() => api(`/attendance/requests/${id}/reject`, { method: 'PATCH', body: { note } })),
 
-    rejectRequest: (requestId, note) => {
-      setState(s => ({
-        ...s,
-        requests: s.requests.map(r => r.id === requestId ? { ...r, status: 'rejected', reviewedAt: new Date().toISOString(), reviewNote: note } : r),
-      }));
-    },
+      markNotificationRead: (id) => run(() => api(`/attendance/notifications/${id}/read`, { method: 'PATCH' })),
+      markAllNotificationsRead: () => run(() => api('/attendance/notifications/read-all', { method: 'PATCH' })),
 
-    markNotificationRead: (id) => {
-      setState(s => ({ ...s, notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n) }));
-    },
+      addWhitelistIp: (ip) => run(() => api('/attendance/ip-whitelist', { method: 'POST', body: { ip } })),
+      removeWhitelistIp: (ip) =>
+        run(() => api(`/attendance/ip-whitelist/${encodeURIComponent(ip)}`, { method: 'DELETE' })),
 
-    markAllNotificationsRead: () => {
-      setState(s => ({ ...s, notifications: s.notifications.map(n => ({ ...n, read: true })) }));
-    },
+      upsertSettlement: ({ id, ...body }) =>
+        run(() =>
+          id
+            ? api(`/settlements/basic/${id}`, { method: 'PATCH', body })
+            : api('/settlements/basic', { method: 'POST', body }),
+        ),
+      deleteSettlement: (id) => run(() => api(`/settlements/basic/${id}`, { method: 'DELETE' })),
 
-    clockIn: (employeeId) => {
-      setState(s => {
-        const today = dayjs().format('YYYY-MM-DD');
-        const now = dayjs().format('HH:mm');
-        const existing = s.records.find(r => r.employeeId === employeeId && r.date === today);
-        if (existing) {
-          if (existing.clockIn) return s; // 이미 출근 찍음 — 중복 방지
-          return { ...s, records: s.records.map(r => r === existing ? { ...r, clockIn: now } : r) };
-        }
-        return {
-          ...s,
-          records: [...s.records, { id: `r-${Date.now()}`, employeeId, date: today, clockIn: now, clockOut: null }],
-        };
-      });
-    },
+      upsertBrokerageSettlement: ({ id, ...body }) =>
+        run(() =>
+          id
+            ? api(`/settlements/brokerage/${id}`, { method: 'PATCH', body })
+            : api('/settlements/brokerage', { method: 'POST', body }),
+        ),
+      deleteBrokerageSettlement: (id) => run(() => api(`/settlements/brokerage/${id}`, { method: 'DELETE' })),
 
-    clockOut: (employeeId) => {
-      setState(s => {
-        const today = dayjs().format('YYYY-MM-DD');
-        const now = dayjs().format('HH:mm');
-        const existing = s.records.find(r => r.employeeId === employeeId && r.date === today);
-        if (!existing?.clockIn || existing.clockOut) return s; // 출근 전이거나 이미 퇴근 찍음
-        return { ...s, records: s.records.map(r => r === existing ? { ...r, clockOut: now } : r) };
-      });
-    },
+      upsertPurchaseSettlement: ({ id, ...body }) =>
+        run(() =>
+          id
+            ? api(`/settlements/purchase/${id}`, { method: 'PATCH', body })
+            : api('/settlements/purchase', { method: 'POST', body }),
+        ),
+      deletePurchaseSettlement: (id) => run(() => api(`/settlements/purchase/${id}`, { method: 'DELETE' })),
 
-    addWhitelistIp: (ip) => {
-      setState(s => (s.ipWhitelist.includes(ip) ? s : { ...s, ipWhitelist: [...s.ipWhitelist, ip] }));
-    },
+      upsertConsultation: ({ id, ...body }) =>
+        run(() =>
+          id ? api(`/consultations/${id}`, { method: 'PATCH', body }) : api('/consultations', { method: 'POST', body }),
+        ),
+      deleteConsultation: (id) => run(() => api(`/consultations/${id}`, { method: 'DELETE' })),
 
-    removeWhitelistIp: (ip) => {
-      setState(s => ({ ...s, ipWhitelist: s.ipWhitelist.filter(i => i !== ip) }));
-    },
+      // 주차는 칸(lot+zone+slot) 기준 upsert라 신규/수정 모두 POST 하나로 처리된다.
+      upsertParkingVehicle: ({ id: _id, ...body }) => run(() => api('/parking', { method: 'POST', body })),
+      deleteParkingVehicle: (id) => run(() => api(`/parking/${id}`, { method: 'DELETE' })),
 
-    upsertSettlement: (record) => {
-      setState(s => {
-        if (record.id) {
-          return { ...s, settlements: s.settlements.map(r => r.id === record.id ? { ...r, ...record, id: r.id } : r) };
-        }
-        const created: SettlementRecord = { ...record, id: `s-${Date.now()}`, createdAt: new Date().toISOString() };
-        return { ...s, settlements: [created, ...s.settlements] };
-      });
-    },
-
-    deleteSettlement: (id) => {
-      setState(s => ({ ...s, settlements: s.settlements.filter(r => r.id !== id) }));
-    },
-
-    upsertBrokerageSettlement: (record) => {
-      setState(s => {
-        if (record.id) {
-          return { ...s, brokerageSettlements: s.brokerageSettlements.map(r => r.id === record.id ? { ...r, ...record, id: r.id } : r) };
-        }
-        const created: BrokerageSettlement = { ...record, id: `bs-${Date.now()}`, createdAt: new Date().toISOString() };
-        return { ...s, brokerageSettlements: [created, ...s.brokerageSettlements] };
-      });
-    },
-
-    deleteBrokerageSettlement: (id) => {
-      setState(s => ({ ...s, brokerageSettlements: s.brokerageSettlements.filter(r => r.id !== id) }));
-    },
-
-    upsertPurchaseSettlement: (record) => {
-      setState(s => {
-        if (record.id) {
-          return { ...s, purchaseSettlements: s.purchaseSettlements.map(r => r.id === record.id ? { ...r, ...record, id: r.id } : r) };
-        }
-        const created: PurchaseSettlement = { ...record, id: `ps-${Date.now()}`, createdAt: new Date().toISOString() };
-        return { ...s, purchaseSettlements: [created, ...s.purchaseSettlements] };
-      });
-    },
-
-    deletePurchaseSettlement: (id) => {
-      setState(s => ({ ...s, purchaseSettlements: s.purchaseSettlements.filter(r => r.id !== id) }));
-    },
-
-    upsertConsultation: (record) => {
-      setState(s => {
-        if (record.id) {
-          return { ...s, consultations: s.consultations.map(r => r.id === record.id ? { ...r, ...record, id: r.id } : r) };
-        }
-        const created: ConsultationRecord = { ...record, id: `c-${Date.now()}`, createdAt: new Date().toISOString() };
-        return { ...s, consultations: [created, ...s.consultations] };
-      });
-    },
-
-    deleteConsultation: (id) => {
-      setState(s => ({ ...s, consultations: s.consultations.filter(r => r.id !== id) }));
-    },
-
-    upsertParkingVehicle: (record) => {
-      setState(s => {
-        if (record.id) {
-          return { ...s, parkingVehicles: s.parkingVehicles.map(r => r.id === record.id ? { ...r, ...record, id: r.id, updatedAt: new Date().toISOString() } : r) };
-        }
-        const created: ParkingVehicle = { ...record, id: `p-${Date.now()}`, updatedAt: new Date().toISOString() };
-        return { ...s, parkingVehicles: [created, ...s.parkingVehicles] };
-      });
-    },
-
-    deleteParkingVehicle: (id) => {
-      setState(s => ({ ...s, parkingVehicles: s.parkingVehicles.filter(r => r.id !== id) }));
-    },
-
-    upsertVehiclePost: (record) => {
-      setState(s => {
-        const now = new Date().toISOString();
-        if (record.id) {
-          return { ...s, vehiclePosts: s.vehiclePosts.map(r => r.id === record.id ? { ...r, ...record, id: r.id, updatedAt: now } : r) };
-        }
-        const created: VehiclePost = { ...record, id: `vp-${Date.now()}`, createdAt: now, updatedAt: now };
-        return { ...s, vehiclePosts: [created, ...s.vehiclePosts] };
-      });
-    },
-
-    deleteVehiclePost: (id) => {
-      setState(s => ({ ...s, vehiclePosts: s.vehiclePosts.filter(r => r.id !== id) }));
-    },
-
-    submitAttendanceRequest: ({ employeeId, date, kind, reason }) => {
-      setState(s => {
-        const req: AttendanceRequest = {
-          id: `areq-${Date.now()}`,
-          employeeId,
-          date,
-          kind,
-          reason,
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-          reviewedAt: null,
-          reviewNote: null,
-        };
-        const emp = s.employees.find(e => e.id === employeeId);
-        return {
-          ...s,
-          attendanceRequests: [req, ...s.attendanceRequests],
-          notifications: [
-            {
-              id: `n-${Date.now()}`,
-              type: 'attendanceRequest',
-              message: `${emp?.name ?? '직원'}님이 ${dayjs(date).format('M월 D일')} ${ATTENDANCE_REQUEST_KIND_LABEL[kind]}을 신청했습니다.`,
-              employeeId,
-              date,
-              createdAt: new Date().toISOString(),
-              read: false,
-            },
-            ...s.notifications,
-          ],
-        };
-      });
-    },
-
-    approveAttendanceRequest: (requestId, note) => {
-      setState(s => ({
-        ...s,
-        attendanceRequests: s.attendanceRequests.map(r => r.id === requestId ? { ...r, status: 'approved', reviewedAt: new Date().toISOString(), reviewNote: note ?? null } : r),
-      }));
-    },
-
-    rejectAttendanceRequest: (requestId, note) => {
-      setState(s => ({
-        ...s,
-        attendanceRequests: s.attendanceRequests.map(r => r.id === requestId ? { ...r, status: 'rejected', reviewedAt: new Date().toISOString(), reviewNote: note } : r),
-      }));
-    },
-
-    resetDemo: () => {
-      setState(resetState());
-    },
-  }), [state]);
+      upsertVehiclePost: ({ id, ...body }) =>
+        run(() =>
+          id
+            ? api(`/vehicle-posts/${id}`, { method: 'PATCH', body })
+            : api('/vehicle-posts', { method: 'POST', body }),
+        ),
+      deleteVehiclePost: (id) => run(() => api(`/vehicle-posts/${id}`, { method: 'DELETE' })),
+    };
+  }, [state, loading, error, month, load]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

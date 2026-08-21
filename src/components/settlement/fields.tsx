@@ -93,8 +93,8 @@ export function StatusField({ value, onChange, className }: {
     <div className={className}>
       <label className="mb-1 block text-xs font-semibold text-slate-500">정산 상태</label>
       <select value={value} onChange={e => onChange(e.target.value)} className={INPUT_CLASS}>
-        <option value="inProgress">진행중</option>
-        <option value="completed">정산완료</option>
+        <option value="IN_PROGRESS">진행중</option>
+        <option value="COMPLETED">정산완료</option>
       </select>
     </div>
   );

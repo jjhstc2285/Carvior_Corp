@@ -1,41 +1,57 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { AuthUser } from './lib/auth';
-
-const AUTH_STORAGE_KEY = 'attendance-app-auth-v1';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { getToken, UNAUTHORIZED_EVENT } from './lib/api';
+import { fetchMe, logoutLocal, type AuthUser } from './lib/auth';
 
 interface AuthStore {
   user: AuthUser | null;
+  /** 저장된 토큰으로 세션 복구를 시도하는 동안 true */
+  loading: boolean;
   login: (user: AuthUser) => void;
-  linkEmployee: (employeeId: string, name: string) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthStore | null>(null);
 
-function loadUser(): AuthUser | null {
-  const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as AuthUser;
-  } catch {
-    return null;
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => loadUser());
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // 새로고침해도 로그인이 유지되게, 저장된 토큰으로 내 정보를 다시 받아온다.
+  // 서버에서 확인하므로 퇴사·권한변경이 즉시 반영된다.
   useEffect(() => {
-    if (user) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    else localStorage.removeItem(AUTH_STORAGE_KEY);
-  }, [user]);
+    if (!getToken()) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    fetchMe()
+      .then((me) => {
+        if (!cancelled) setUser(me);
+      })
+      .catch(() => {
+        if (!cancelled) setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const value: AuthStore = {
-    user,
-    login: (u) => setUser(u),
-    linkEmployee: (employeeId, name) => setUser(u => (u ? { ...u, employeeId, name } : u)),
-    logout: () => setUser(null),
-  };
+  // 토큰이 만료되면 API 계층이 이 이벤트를 쏜다 → 로그인 화면으로
+  useEffect(() => {
+    const onUnauthorized = () => setUser(null);
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
+
+  const logout = useCallback(() => {
+    logoutLocal();
+    setUser(null);
+  }, []);
+
+  const value = useMemo<AuthStore>(() => ({ user, loading, login: setUser, logout }), [user, loading, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

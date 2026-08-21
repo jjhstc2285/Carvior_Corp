@@ -59,7 +59,7 @@ export default function EmployeeView() {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const usedAnnualLeave = state.attendanceRequests.filter(
-    r => r.employeeId === employee.id && r.kind === 'annualLeave' && r.status === 'approved' && dayjs(r.date).isSame(dayjs(), 'year'),
+    r => r.employeeId === employee.id && r.kind === 'ANNUAL_LEAVE' && r.status === 'APPROVED' && dayjs(r.date).isSame(dayjs(), 'year'),
   ).length;
 
   return (
@@ -138,7 +138,7 @@ export default function EmployeeView() {
                   <td className="px-5 py-2.5"><StatusBadge status={status} /></td>
                   <td className="px-5 py-2.5 text-right">
                     {status === 'missing' ? (
-                      request && request.status !== 'rejected' ? (
+                      request && request.status !== 'REJECTED' ? (
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${REQUEST_STATUS_COLOR[request.status]}`}>
                           {REQUEST_STATUS_LABEL[request.status]}
                         </span>
@@ -147,7 +147,7 @@ export default function EmployeeView() {
                           onClick={() => setRequestDate(date)}
                           className="rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-100"
                         >
-                          {request?.status === 'rejected' ? '다시 요청' : '수정 요청'}
+                          {request?.status === 'REJECTED' ? '다시 요청' : '수정 요청'}
                         </button>
                       )
                     ) : (
@@ -175,7 +175,7 @@ export default function EmployeeView() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-slate-700">{dayjs(r.date).format('M월 D일 (ddd)')}</span>
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${r.kind === 'annualLeave' ? 'bg-violet-50 text-violet-600' : 'bg-sky-50 text-sky-600'}`}>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${r.kind === 'ANNUAL_LEAVE' ? 'bg-violet-50 text-violet-600' : 'bg-sky-50 text-sky-600'}`}>
                       {ATTENDANCE_REQUEST_KIND_LABEL[r.kind]}
                     </span>
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${REQUEST_STATUS_COLOR[r.status]}`}>
@@ -221,13 +221,13 @@ export default function EmployeeView() {
 
       {requestDate && (
         <CorrectionRequestModal
-          employeeId={employee.id}
+
           date={requestDate}
           onClose={() => setRequestDate(null)}
         />
       )}
       {attReqOpen && (
-        <AttendanceRequestModal employeeId={employee.id} onClose={() => setAttReqOpen(false)} />
+        <AttendanceRequestModal onClose={() => setAttReqOpen(false)} />
       )}
     </div>
   );

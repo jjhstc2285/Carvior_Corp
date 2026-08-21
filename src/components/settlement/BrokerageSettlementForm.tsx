@@ -26,7 +26,7 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, on
   const [etcCost, setEtcCost] = useState(editing?.etcCost?.toString() ?? '0');
   const [settlementAmount, setSettlementAmount] = useState(editing?.settlementAmount?.toString() ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
-  const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'inProgress');
+  const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
   const [memo, setMemo] = useState(editing?.memo ?? '');
   const [error, setError] = useState<string | null>(null);
 

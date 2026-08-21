@@ -9,10 +9,10 @@ interface Props {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  inProgress: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-  contracted: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  onHold: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  closed: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+  IN_PROGRESS: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  CONTRACTED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  ON_HOLD: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  CLOSED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
 };
 
 export default function CustomerHistoryModal({ customerName, onClose }: Props) {
@@ -46,9 +46,9 @@ export default function CustomerHistoryModal({ customerName, onClose }: Props) {
                 <span className="text-xs text-slate-400">담당 {employeeOf(c.employeeId)?.name}</span>
               </div>
               <p className="mt-1 text-sm text-slate-600">{c.content}</p>
-              {c.fileNames.length > 0 && (
+              {c.files.length > 0 && (
                 <div className="mt-1 flex items-center gap-1 text-xs text-slate-400">
-                  <Paperclip size={11} /> {c.fileNames.join(', ')}
+                  <Paperclip size={11} /> {c.files.map(f => f.fileName).join(', ')}
                 </div>
               )}
               {c.nextContactDate && (

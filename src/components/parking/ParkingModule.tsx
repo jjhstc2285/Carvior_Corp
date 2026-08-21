@@ -7,14 +7,14 @@ import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
 
 interface Props {
-  role: 'employee' | 'admin';
+  role: 'EMPLOYEE' | 'ADMIN';
 }
 
 const STATUS_COLOR: Record<ParkingStatus, string> = {
-  전시중: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-  예약중: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  판매완료: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  이동중: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+  DISPLAY: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  RESERVED: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  SOLD: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  MOVING: 'bg-gray-100 text-gray-600 ring-gray-500/20',
 };
 
 export default function ParkingModule({ role }: Props) {
@@ -37,7 +37,7 @@ export default function ParkingModule({ role }: Props) {
     .sort((a, b) => a.lot.localeCompare(b.lot) || a.zone.localeCompare(b.zone));
 
   const handleCellClick = (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => {
-    if (role !== 'admin' && !existing) return;
+    if (role !== 'ADMIN' && !existing) return;
     setPresetPosition({ lot, zone, slot });
     setEditing(existing);
     setFormOpen(true);
@@ -50,7 +50,7 @@ export default function ParkingModule({ role }: Props) {
           <h1 className="text-xl font-bold text-slate-900">주차장 차량 위치 관리</h1>
           <p className="mt-1 text-sm text-slate-500">주차장 → 구역 → 위치별로 차량을 조회하고 관리합니다. 칸을 클릭해서 바로 등록/수정하세요. (기존 엑셀 시트지 대체)</p>
         </div>
-        {role === 'admin' && (
+        {role === 'ADMIN' && (
           <button
             onClick={() => { setEditing(null); setPresetPosition(null); setFormOpen(true); }}
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
@@ -114,12 +114,12 @@ export default function ParkingModule({ role }: Props) {
                 <th className="px-5 py-2.5 font-medium">담당자</th>
                 <th className="px-5 py-2.5 font-medium">상태</th>
                 <th className="px-5 py-2.5 font-medium">최근 수정</th>
-                {role === 'admin' && <th className="px-5 py-2.5 font-medium text-right">관리</th>}
+                {role === 'ADMIN' && <th className="px-5 py-2.5 font-medium text-right">관리</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={role === 'admin' ? 9 : 8} className="px-5 py-10 text-center text-sm text-slate-400">조건에 맞는 차량이 없습니다.</td></tr>
+                <tr><td colSpan={role === 'ADMIN' ? 9 : 8} className="px-5 py-10 text-center text-sm text-slate-400">조건에 맞는 차량이 없습니다.</td></tr>
               )}
               {filtered.map(v => (
                 <tr key={v.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -135,7 +135,7 @@ export default function ParkingModule({ role }: Props) {
                     </span>
                   </td>
                   <td className="px-5 py-2.5 text-xs text-slate-400">{dayjs(v.updatedAt).format('M/D HH:mm')}</td>
-                  {role === 'admin' && (
+                  {role === 'ADMIN' && (
                     <td className="px-5 py-2.5">
                       <div className="flex justify-end gap-1.5">
                         <button onClick={() => { setEditing(v); setPresetPosition(null); setFormOpen(true); }} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>

@@ -5,12 +5,12 @@ import { useStore } from '../store';
 import { WORK_START, WORK_END } from '../lib/attendance';
 
 interface Props {
-  employeeId: string;
+
   date: string;
   onClose: () => void;
 }
 
-export default function CorrectionRequestModal({ employeeId, date, onClose }: Props) {
+export default function CorrectionRequestModal({ date, onClose }: Props) {
   const { submitCorrectionRequest } = useStore();
   const [reason, setReason] = useState('');
   const [clockIn, setClockIn] = useState(WORK_START);
@@ -21,7 +21,7 @@ export default function CorrectionRequestModal({ employeeId, date, onClose }: Pr
   const handleSubmit = () => {
     if (!canSubmit) return;
     submitCorrectionRequest({
-      employeeId,
+      
       date,
       reason: reason.trim(),
       requestedClockIn: clockIn,

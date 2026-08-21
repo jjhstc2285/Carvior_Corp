@@ -7,7 +7,7 @@ import { brokerageProfit, brokerageSaleProfit, SETTLEMENT_STATUS_LABEL, type Bro
 import BrokerageSettlementForm from './BrokerageSettlementForm';
 
 interface Props {
-  role: 'employee' | 'admin';
+  role: 'EMPLOYEE' | 'ADMIN';
 }
 
 // 시트지 컬럼 순서 그대로 — 표/엑셀 양쪽에서 같은 순서를 쓴다
@@ -21,13 +21,13 @@ export default function BrokerageSettlementTab({ role }: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<BrokerageSettlement | null>(null);
 
-  const scoped = role === 'employee'
+  const scoped = role === 'EMPLOYEE'
     ? state.brokerageSettlements.filter(s => s.employeeId === state.currentEmployeeId)
     : state.brokerageSettlements;
 
   const filtered = scoped
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
-    .filter(s => role !== 'admin' || employeeFilter === 'all' || s.employeeId === employeeFilter)
+    .filter(s => role !== 'ADMIN' || employeeFilter === 'all' || s.employeeId === employeeFilter)
     .filter(s => !query.trim() || s.vehicleNumber.includes(query.trim()) || s.vehicleName.includes(query.trim()))
     .sort((a, b) => b.date.localeCompare(a.date));
 
@@ -37,7 +37,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
     count: filtered.length,
     saleProfit: filtered.reduce((sum, s) => sum + brokerageSaleProfit(s), 0),
     settlement: filtered.reduce((sum, s) => sum + s.settlementAmount, 0),
-    inProgress: filtered.filter(s => s.status === 'inProgress').length,
+    inProgress: filtered.filter(s => s.status === 'IN_PROGRESS').length,
   }), [filtered]);
 
   const handleExport = () => {
@@ -93,10 +93,10 @@ export default function BrokerageSettlementTab({ role }: Props) {
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as SettlementStatus | 'all')}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
           <option value="all">전체 상태</option>
-          <option value="inProgress">진행중</option>
-          <option value="completed">정산완료</option>
+          <option value="IN_PROGRESS">진행중</option>
+          <option value="COMPLETED">정산완료</option>
         </select>
-        {role === 'admin' && (
+        {role === 'ADMIN' && (
           <select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
             <option value="all">전체 담당자</option>
@@ -163,7 +163,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
                     <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{NUM(s.settlementAmount)}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{employeeOf(s.employeeId)?.name}</td>
                     <td className="px-3 py-2.5">
-                      <span className={`inline-flex whitespace-nowrap items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${s.status === 'completed' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-700 ring-amber-600/20'}`}>
+                      <span className={`inline-flex whitespace-nowrap items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${s.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-700 ring-amber-600/20'}`}>
                         {SETTLEMENT_STATUS_LABEL[s.status]}
                       </span>
                     </td>

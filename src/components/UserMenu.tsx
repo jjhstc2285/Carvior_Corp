@@ -4,9 +4,9 @@ import { useAuth } from '../authStore';
 import type { AuthProvider } from '../lib/auth';
 
 const PROVIDER_LABEL: Record<AuthProvider, string> = {
-  kakao: '카카오',
-  naver: '네이버',
-  admin: '관리자 계정',
+  KAKAO: '카카오',
+  NAVER: '네이버',
+  LOCAL: '사내 계정',
 };
 
 export default function UserMenu() {
@@ -33,8 +33,8 @@ export default function UserMenu() {
 
   if (!user) return null;
 
-  const roleLabel = user.role === 'admin' ? '관리자' : '직원';
-  const providerLabel = PROVIDER_LABEL[user.provider];
+  const roleLabel = user.role === 'ADMIN' ? '관리자' : '직원';
+  const providerLabel = user.provider ? PROVIDER_LABEL[user.provider] : '사내 계정';
 
   return (
     <div ref={wrapRef} className="relative">

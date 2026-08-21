@@ -95,7 +95,7 @@ export default function ClockCard() {
 
           <div className="flex gap-2">
             <button
-              onClick={() => clockIn(employee.id)}
+              onClick={() => clockIn()}
               disabled={!canClockIn}
               className="rounded-lg px-5 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
               style={canClockIn ? { backgroundColor: '#4f7cff' } : undefined}
@@ -103,7 +103,7 @@ export default function ClockCard() {
               출근
             </button>
             <button
-              onClick={() => clockOut(employee.id)}
+              onClick={() => clockOut()}
               disabled={!canClockOut}
               className="rounded-lg bg-slate-800 px-5 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
             >

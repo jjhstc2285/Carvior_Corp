@@ -20,7 +20,7 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
   const [slot, setSlot] = useState(editing?.slot ?? presetPosition?.slot ?? PARKING_SLOTS[0]);
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
   const [vehicleModel, setVehicleModel] = useState(editing?.vehicleModel ?? '');
-  const [status, setStatus] = useState<ParkingStatus>(editing?.status ?? '전시중');
+  const [status, setStatus] = useState<ParkingStatus>(editing?.status ?? 'DISPLAY');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [memo, setMemo] = useState(editing?.memo ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -104,10 +104,10 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
             <label className="mb-1 block text-xs font-semibold text-slate-500">상태</label>
             <select value={status} onChange={e => setStatus(e.target.value as ParkingStatus)}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-              <option value="전시중">전시중</option>
-              <option value="예약중">예약중</option>
-              <option value="판매완료">판매완료</option>
-              <option value="이동중">이동중</option>
+              <option value="DISPLAY">전시중</option>
+              <option value="RESERVED">예약중</option>
+              <option value="SOLD">판매완료</option>
+              <option value="MOVING">이동중</option>
             </select>
           </div>
           <div>

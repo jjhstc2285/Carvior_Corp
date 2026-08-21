@@ -27,7 +27,11 @@ export default function MonthlyDashboard() {
   const [status, setStatus] = useState<AttendanceStatus | 'all'>('all');
   const [view, setView] = useState<'list' | 'calendar'>('list');
 
-  const departments = useMemo(() => Array.from(new Set(state.employees.map(e => e.department))), [state.employees]);
+  // 부서는 아직 비어 있는 직원이 있어 null을 걸러낸다.
+  const departments = useMemo(
+    () => Array.from(new Set(state.employees.map(e => e.department).filter((d): d is string => !!d))),
+    [state.employees],
+  );
 
   const monthDayjs = dayjs(`${month}-01`);
   const days = useMemo(() => {

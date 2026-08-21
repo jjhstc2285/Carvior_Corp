@@ -7,7 +7,7 @@ import VehiclePostForm from './VehiclePostForm';
 import VehiclePostDetail from './VehiclePostDetail';
 
 interface Props {
-  role: 'employee' | 'admin';
+  role: 'EMPLOYEE' | 'ADMIN';
 }
 
 export default function VehiclePostModule({ role }: Props) {
@@ -73,7 +73,7 @@ export default function VehiclePostModule({ role }: Props) {
               <button onClick={() => setDetailId(post.id)} className="block w-full text-left">
                 <div className="relative aspect-[4/3] bg-slate-100">
                   {post.photos[0]
-                    ? <img src={post.photos[0]} alt={`${post.vehicleModel} 대표사진`} className="h-full w-full object-cover" />
+                    ? <img src={post.photos[0].url} alt={`${post.vehicleModel} 대표사진`} className="h-full w-full object-cover" />
                     : <div className="flex h-full items-center justify-center text-slate-300"><Images size={24} /></div>}
                   <span className="absolute left-2 top-2 rounded-full bg-slate-900/60 px-2 py-0.5 text-[11px] font-semibold text-white">{post.site}</span>
                   {post.photos.length > 1 && (
@@ -96,7 +96,7 @@ export default function VehiclePostModule({ role }: Props) {
                 <div className="flex items-center gap-1">
                   <button onClick={() => { setEditing(post); setFormOpen(true); }}
                     className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
-                  {(role === 'admin' || post.employeeId === state.currentEmployeeId) && (
+                  {(role === 'ADMIN' || post.employeeId === state.currentEmployeeId) && (
                     <button onClick={() => { if (confirm('이 매물 글을 삭제할까요?')) deleteVehiclePost(post.id); }}
                       className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500" aria-label="삭제">
                       <Trash2 size={14} />
@@ -117,7 +117,7 @@ export default function VehiclePostModule({ role }: Props) {
         />
       )}
       {formOpen && (
-        <VehiclePostForm editing={editing} defaultEmployeeId={state.currentEmployeeId} onClose={() => setFormOpen(false)} />
+        <VehiclePostForm editing={editing} onClose={() => setFormOpen(false)} />
       )}
     </div>
   );

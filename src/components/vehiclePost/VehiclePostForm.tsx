@@ -2,24 +2,24 @@ import { useRef, useState } from 'react';
 import { ImagePlus, Loader2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { VEHICLE_POST_PHOTO_MAX, VEHICLE_POST_SITES, type VehiclePost } from '../../types';
-import { fileToCompressedDataUrl } from '../../lib/image';
+import { ApiError, uploadPhotos } from '../../lib/api';
 
 interface Props {
   editing: VehiclePost | null;
-  defaultEmployeeId: string;
   onClose: () => void;
 }
 
-export default function VehiclePostForm({ editing, defaultEmployeeId, onClose }: Props) {
-  const { state, upsertVehiclePost } = useStore();
-  const [site, setSite] = useState(editing?.site ?? VEHICLE_POST_SITES[0]);
+export default function VehiclePostForm({ editing, onClose }: Props) {
+  const { upsertVehiclePost } = useStore();
+  const [site, setSite] = useState<string>(editing?.site ?? VEHICLE_POST_SITES[0]);
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
   const [vehicleModel, setVehicleModel] = useState(editing?.vehicleModel ?? '');
   const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? '');
   const [content, setContent] = useState(editing?.content ?? '');
-  const [photos, setPhotos] = useState<string[]>(editing?.photos ?? []);
-  const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
+  // 서버에 올라간 사진 경로만 들고 있는다(미리보기도 이 경로로 바로 뜬다).
+  const [photos, setPhotos] = useState<string[]>(editing?.photos.map(p => p.url) ?? []);
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -34,18 +34,18 @@ export default function VehiclePostForm({ editing, defaultEmployeeId, onClose }:
     setError(null);
     try {
       const picked = Array.from(files).slice(0, room);
-      const added = await Promise.all(picked.map(fileToCompressedDataUrl));
-      setPhotos(prev => [...prev, ...added].slice(0, VEHICLE_POST_PHOTO_MAX));
+      const urls = await uploadPhotos(picked);
+      setPhotos(prev => [...prev, ...urls].slice(0, VEHICLE_POST_PHOTO_MAX));
       if (files.length > room) setError(`사진은 최대 ${VEHICLE_POST_PHOTO_MAX}장까지라 앞의 ${room}장만 추가했습니다.`);
-    } catch {
-      setError('사진을 불러오지 못했습니다. 다른 사진으로 다시 시도해 주세요.');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '사진 업로드에 실패했습니다.');
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!vehicleNumber.trim() || !vehicleModel.trim() || !customerPhone.trim() || !content.trim()) {
       setError('사이트, 차량번호, 차명, 손님번호, 내용은 필수 입력입니다.');
       return;
@@ -54,17 +54,23 @@ export default function VehiclePostForm({ editing, defaultEmployeeId, onClose }:
       setError('사진을 최소 1장 이상 올려주세요. (권장 4~5장)');
       return;
     }
-    upsertVehiclePost({
-      id: editing?.id,
-      site,
-      vehicleNumber: vehicleNumber.trim(),
-      vehicleModel: vehicleModel.trim(),
-      customerPhone: customerPhone.trim(),
-      content: content.trim(),
-      photos,
-      employeeId,
-    });
-    onClose();
+    setSaving(true);
+    setError(null);
+    try {
+      await upsertVehiclePost({
+        id: editing?.id,
+        site,
+        vehicleNumber: vehicleNumber.trim(),
+        vehicleModel: vehicleModel.trim(),
+        customerPhone: customerPhone.trim(),
+        content: content.trim(),
+        photos,
+      });
+      onClose();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '저장에 실패했습니다.');
+      setSaving(false);
+    }
   };
 
   return (
@@ -101,13 +107,6 @@ export default function VehiclePostForm({ editing, defaultEmployeeId, onClose }:
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
           <div className="col-span-2">
-            <label className="mb-1 block text-xs font-semibold text-slate-500">등록자</label>
-            <select value={employeeId} onChange={e => setEmployeeId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-              {state.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-          </div>
-          <div className="col-span-2">
             <label className="mb-1 block text-xs font-semibold text-slate-500">내용 *</label>
             <textarea value={content} onChange={e => setContent(e.target.value)} rows={3} placeholder="차량 상태, 특이사항 등"
               className="w-full resize-none rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-indigo-400" />
@@ -119,11 +118,11 @@ export default function VehiclePostForm({ editing, defaultEmployeeId, onClose }:
               <span className="text-[11px] text-slate-400">{photos.length}/{VEHICLE_POST_PHOTO_MAX}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {photos.map((src, i) => (
-                <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                  <img src={src} alt={`사진 ${i + 1}`} className="h-full w-full object-cover" />
+              {photos.map((url, i) => (
+                <div key={url} className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                  <img src={url} alt={`사진 ${i + 1}`} className="h-full w-full object-cover" />
                   <button
-                    onClick={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                    onClick={() => setPhotos(prev => prev.filter(p => p !== url))}
                     className="absolute right-1 top-1 rounded-full bg-slate-900/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
                     aria-label="사진 삭제"
                   >
@@ -150,7 +149,7 @@ export default function VehiclePostForm({ editing, defaultEmployeeId, onClose }:
               className="hidden"
               onChange={e => void handleFiles(e.target.files)}
             />
-            <p className="mt-1.5 text-[11px] text-slate-400">올린 사진은 자동으로 용량을 줄여 저장되고, 전 직원이 볼 수 있습니다.</p>
+            <p className="mt-1.5 text-[11px] text-slate-400">사진은 서버에 저장되어 전 직원이 볼 수 있습니다.</p>
           </div>
         </div>
 
@@ -158,8 +157,11 @@ export default function VehiclePostForm({ editing, defaultEmployeeId, onClose }:
 
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">취소</button>
-          <button onClick={handleSubmit} disabled={uploading}
-            className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">저장</button>
+          <button onClick={() => void handleSubmit()} disabled={uploading || saving}
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            저장
+          </button>
         </div>
       </div>
     </div>

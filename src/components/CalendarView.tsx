@@ -44,14 +44,14 @@ export default function CalendarView({ month, records, requests }: Props) {
           const record = records.find(r => r.date === dateStr);
           const future = d.isAfter(today, 'day');
           const workday = isWorkday(dateStr);
-          const approvedKind = requests.find(r => r.date === dateStr && r.status === 'approved')?.kind ?? null;
+          const approvedKind = requests.find(r => r.date === dateStr && r.status === 'APPROVED')?.kind ?? null;
 
           // 미래 근무일인데 연차/외근 신청이 없으면 아직 알 수 없으니 상태 표시 안 함.
           // 휴무·승인된 연차/외근은 미래여도 이미 확정된 사실이라 항상 표시.
           let status: AttendanceStatus | null = null;
           if (!workday) status = 'dayOff';
-          else if (approvedKind === 'annualLeave') status = 'annualLeave';
-          else if (approvedKind === 'fieldWork') status = 'fieldWork';
+          else if (approvedKind === 'ANNUAL_LEAVE') status = 'annualLeave';
+          else if (approvedKind === 'FIELD_WORK') status = 'fieldWork';
           else if (!future) status = computeStatus(record, dateStr);
 
           const showBigX = status === 'dayOff' || status === 'annualLeave';

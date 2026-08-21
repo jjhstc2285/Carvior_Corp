@@ -1,48 +1,82 @@
-export type AuthProvider = 'kakao' | 'naver' | 'admin';
-export type UserRole = 'employee' | 'admin';
+import { api, setToken } from './api';
+import type { Role } from '../types';
+
+export type AuthProvider = 'KAKAO' | 'NAVER' | 'LOCAL';
 
 export interface AuthUser {
-  id: string; // provider가 준 고유 id (mock)
-  provider: AuthProvider;
+  id: string; // 직원 id
   name: string;
-  role: UserRole;
-  employeeId: string | null; // employee role인데 아직 사내 직원과 연결 안 됐으면 null
+  position: string;
+  role: Role;
+  provider: AuthProvider | null;
 }
 
-const DELAY_MS = 700;
-function delay<T>(value: T): Promise<T> {
-  return new Promise(resolve => setTimeout(() => resolve(value), DELAY_MS));
+interface LoginResponse {
+  accessToken: string;
+  user: AuthUser & { linked: true };
 }
 
-// ⚠️ 목업 구현입니다. 실제 카카오/네이버 로그인은 각 개발자센터에서 앱 등록 후
-// 발급받는 REST/JS API 키가 있어야 붙일 수 있어요(카카오: developers.kakao.com,
-// 네이버: developers.naver.com). 여기서는 그 SDK 호출이 들어갈 자리를 함수로 분리해뒀고,
-// 지금은 실제 팝업 대신 가짜 지연 후 임의의 프로필을 반환합니다.
-export async function loginWithKakao(): Promise<AuthUser> {
-  // TODO: 실제 연동 시 — Kakao.Auth.authorize({ redirectUri }) 또는
-  // Kakao.Auth.login()으로 토큰을 받고 Kakao.API.request('/v2/user/me')로 프로필 조회
-  const mockId = `kakao-${Math.floor(Math.random() * 9000 + 1000)}`;
-  return delay({ id: mockId, provider: 'kakao', name: '카카오사용자', role: 'employee', employeeId: null });
+interface PendingResponse {
+  linked: false;
+  pendingToken: string;
 }
 
-export async function loginWithNaver(): Promise<AuthUser> {
-  // TODO: 실제 연동 시 — 네이버 로그인 JS SDK(naver_id_login)로 인가 후
-  // /v1/nid/me로 프로필 조회 (토큰 교환은 보안상 서버에서 하는 걸 권장)
-  const mockId = `naver-${Math.floor(Math.random() * 9000 + 1000)}`;
-  return delay({ id: mockId, provider: 'naver', name: '네이버사용자', role: 'employee', employeeId: null });
+/** 관리자 계정 로그인 (아이디 + 비밀번호) */
+export async function loginWithPassword(loginId: string, password: string): Promise<AuthUser> {
+  const res = await api<LoginResponse>('/auth/login', {
+    method: 'POST',
+    body: { loginId, password },
+    skipAuthRedirect: true,
+  });
+  setToken(res.accessToken);
+  return res.user;
 }
 
-const DEMO_ADMIN = { id: 'admin', password: 'admin1234' };
+/**
+ * 소셜 로그인.
+ *
+ * TODO: 카카오/네이버 개발자센터에서 앱 등록 후 실제 SDK로 교체.
+ *   카카오 — Kakao.Auth.login() → Kakao.API.request('/v2/user/me')
+ *   네이버 — naver_id_login → /v1/nid/me
+ * 지금은 SDK가 준 프로필을 서버로 넘기는 뒷부분만 구현돼 있다.
+ */
+export async function loginWithSocial(
+  provider: 'KAKAO' | 'NAVER',
+  profile: { providerId: string; name?: string },
+): Promise<AuthUser | { linked: false; pendingToken: string }> {
+  const res = await api<LoginResponse | PendingResponse>('/auth/social', {
+    method: 'POST',
+    body: { provider, providerId: profile.providerId, name: profile.name },
+    skipAuthRedirect: true,
+  });
 
-export async function loginAsAdmin(id: string, password: string): Promise<AuthUser | null> {
-  // ⚠️ 데모 계정입니다. 실제로는 백엔드에서 비밀번호를 해시 검증해야 합니다.
-  if (id !== DEMO_ADMIN.id || password !== DEMO_ADMIN.password) {
-    return delay(null);
-  }
-  return delay({ id: 'admin-1', provider: 'admin', name: '관리자', role: 'admin', employeeId: null });
+  if ('linked' in res && res.linked === false) return res;
+
+  const ok = res as LoginResponse;
+  setToken(ok.accessToken);
+  return ok.user;
 }
 
-// 데모 편의용 — 소셜 로그인 팝업 없이 바로 특정 직원으로 로그인(테스트 계정 전환 용도)
-export async function loginAsEmployee(employeeId: string, name: string): Promise<AuthUser> {
-  return delay({ id: `demo-${employeeId}`, provider: 'kakao', name, role: 'employee', employeeId });
+/** 소셜 계정을 사내 직원과 연결 */
+export async function linkSocialToEmployee(pendingToken: string, employeeId: string): Promise<AuthUser> {
+  const res = await api<LoginResponse>('/auth/link', {
+    method: 'POST',
+    body: { pendingToken, employeeId },
+    skipAuthRedirect: true,
+  });
+  setToken(res.accessToken);
+  return res.user;
+}
+
+/** 저장된 토큰으로 현재 로그인 상태 복구 */
+export async function fetchMe(): Promise<AuthUser> {
+  return api<AuthUser>('/auth/me');
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await api<void>('/auth/password', { method: 'POST', body: { currentPassword, newPassword } });
+}
+
+export function logoutLocal(): void {
+  setToken(null);
 }
