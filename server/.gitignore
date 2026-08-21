@@ -1,0 +1,14 @@
+node_modules
+dist
+*.log
+
+# 환경변수 — DB 비밀번호/JWT 시크릿이 들어가므로 절대 커밋 금지
+.env
+.env.*
+!.env.example
+
+# 실제 임직원 명단(실명·휴대폰번호) — 개인정보라 커밋 금지
+prisma/employees.json
+
+# 업로드된 매물 사진
+uploads

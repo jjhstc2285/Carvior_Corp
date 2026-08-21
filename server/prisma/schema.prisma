@@ -1,0 +1,388 @@
+// 애니원모터스 통합 관리 시스템 스키마 (MySQL 8)
+//
+// 금액 컬럼 단위는 프론트와 맞춰 전부 "만원"이고 정수로 저장한다.
+// 날짜는 @db.Date(시각 없음), 출퇴근 시각은 "HH:mm" 문자열로 둔다(기존 화면 로직과 동일).
+// 긴 자유입력(내용·사유·메모)은 VARCHAR(191) 기본값으로는 모자라서 @db.Text 를 붙였다.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// 임직원 / 권한
+// ─────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum AuthProvider {
+  KAKAO
+  NAVER
+  LOCAL
+}
+
+model Employee {
+  id         String  @id @default(cuid())
+  name       String
+  position   String // 직책 — 대표 / 본부장 / 사무장 / 차장 / 과장 / 매니저
+  department String?
+  role       Role    @default(EMPLOYEE)
+  active     Boolean @default(true)
+
+  // 로그인 수단 — 소셜은 provider+providerId, 관리자 계정은 loginId+passwordHash
+  provider     AuthProvider?
+  providerId   String?
+  loginId      String?       @unique
+  passwordHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 본부장님·강예원 매니저님처럼 번호가 2개인 분이 있어 별도 테이블로 뺐다.
+  // (MySQL은 PostgreSQL과 달리 배열 컬럼을 못 쓴다)
+  phones EmployeePhone[]
+
+  attendanceRecords    AttendanceRecord[]
+  correctionRequests   CorrectionRequest[]
+  attendanceRequests   AttendanceRequest[]
+  notifications        Notification[]
+  consultations        Consultation[]
+  settlements          Settlement[]
+  brokerageSettlements BrokerageSettlement[]
+  purchaseSettlements  PurchaseSettlement[]
+  parkingVehicles      ParkingVehicle[]
+  vehiclePosts         VehiclePost[]
+
+  @@unique([provider, providerId])
+  @@index([name])
+}
+
+model EmployeePhone {
+  id         String @id @default(cuid())
+  employeeId String
+  number     String
+  sortOrder  Int    @default(0)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, sortOrder])
+  @@index([number])
+}
+
+// ─────────────────────────────────────────────
+// ① 출퇴근
+// ─────────────────────────────────────────────
+
+model AttendanceRecord {
+  id         String   @id @default(cuid())
+  employeeId String
+  date       DateTime @db.Date
+  clockIn    String? // "HH:mm"
+  clockOut   String? // "HH:mm"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// 근태 수정(정정) 요청
+model CorrectionRequest {
+  id                String        @id @default(cuid())
+  employeeId        String
+  date              DateTime      @db.Date
+  reason            String        @db.Text
+  requestedClockIn  String?
+  requestedClockOut String?
+  status            RequestStatus @default(PENDING)
+  reviewedAt        DateTime?
+  reviewNote        String?       @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+enum AttendanceRequestKind {
+  ANNUAL_LEAVE // 연차
+  FIELD_WORK // 외근/출장
+}
+
+model AttendanceRequest {
+  id         String                @id @default(cuid())
+  employeeId String
+  date       DateTime              @db.Date
+  kind       AttendanceRequestKind
+  reason     String                @db.Text
+  status     RequestStatus         @default(PENDING)
+  reviewedAt DateTime?
+  reviewNote String?               @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([date])
+}
+
+enum NotificationType {
+  MISSING
+  CORRECTION_REQUEST
+  ATTENDANCE_REQUEST
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  type       NotificationType
+  message    String           @db.Text
+  employeeId String
+  date       DateTime         @db.Date
+  read       Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([read])
+}
+
+// 출근 등록을 허용할 사무실 IP
+model IpWhitelist {
+  ip        String   @id
+  label     String?
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────
+// ② 알선 상담
+// ─────────────────────────────────────────────
+
+enum ConsultationStatus {
+  IN_PROGRESS
+  CONTRACTED
+  ON_HOLD
+  CLOSED
+}
+
+model Consultation {
+  id              String             @id @default(cuid())
+  vehicleNumber   String
+  customerName    String
+  employeeId      String
+  status          ConsultationStatus @default(IN_PROGRESS)
+  date            DateTime           @db.Date
+  time            String // "HH:mm"
+  content         String             @db.Text
+  nextContactDate DateTime?          @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee           @relation(fields: [employeeId], references: [id])
+  files    ConsultationFile[]
+
+  @@index([employeeId])
+  @@index([vehicleNumber])
+  @@index([customerName])
+  @@index([date])
+}
+
+model ConsultationFile {
+  id             String   @id @default(cuid())
+  consultationId String
+  fileName       String
+  url            String
+  createdAt      DateTime @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId])
+}
+
+// ─────────────────────────────────────────────
+// ③ 정산 — 간편 / 알선 / 매입
+// ─────────────────────────────────────────────
+
+enum SettlementStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+// 간편 정산(기존 양식)
+model Settlement {
+  id           String           @id @default(cuid())
+  employeeId   String
+  vehicleInfo  String
+  purchaseCost Int              @default(0)
+  prepCost     Int              @default(0)
+  saleAmount   Int              @default(0)
+  feeAmount    Int              @default(0)
+  status       SettlementStatus @default(IN_PROGRESS)
+  date         DateTime         @db.Date
+  memo         String           @default("") @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([date])
+}
+
+// 알선 정산 — 시트지 컬럼 그대로.
+// 수익금 / 판매 수익은 저장하지 않고 조회 시 계산한다(계산식이 바뀌어도 과거 데이터가 안 꼬이게).
+model BrokerageSettlement {
+  id                 String           @id @default(cuid())
+  date               DateTime         @db.Date
+  vehicleNumber      String
+  vehicleName        String
+  totalSaleAmount    Int              @default(0) // 총 진행 판매금액
+  ownerDeposit       Int              @default(0) // 실차주입금
+  transferFee        Int              @default(0) // 이전비
+  transferFeeBalance Int              @default(0) // 이전비 잔액
+  cashCommission     Int              @default(0) // 현금 수수료
+  installmentFee     Int              @default(0) // 할부 피
+  insuranceFee       Int              @default(0) // 보험 피
+  etcCost            Int              @default(0) // 기타비용
+  settlementAmount   Int              @default(0) // 정산받을금액
+  employeeId         String
+  status             SettlementStatus @default(IN_PROGRESS)
+  memo               String           @default("") @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([date])
+  @@index([vehicleNumber])
+}
+
+// 매입 정산 — 시트지 컬럼 그대로.
+// 상품화총비용 / 매입+상품화총비용도 저장하지 않고 조회 시 계산한다.
+model PurchaseSettlement {
+  id               String           @id @default(cuid())
+  date             DateTime         @db.Date
+  vehicleName      String
+  vehicleNumber    String
+  transferFee      Int              @default(0) // 이전비 + 추가이전비
+  purchasePrice    Int              @default(0) // 매입가
+  polishWashCost   Int              @default(0) // 광택 및 세차
+  dentCost         Int              @default(0) // 판금 및 덴트
+  performanceCost  Int              @default(0) // 성능비
+  deliveryCost     Int              @default(0) // 탁송비
+  repairCost       Int              @default(0) // 수리비
+  brokerFee        Int              @default(0) // 구전
+  diagnosisCost    Int              @default(0) // 진단비
+  settlementAmount Int              @default(0) // 정산금액
+  newCarName       String           @default("") // 신차이름
+  employeeId       String
+  status           SettlementStatus @default(IN_PROGRESS)
+  memo             String           @default("") @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([date])
+  @@index([vehicleNumber])
+}
+
+// ─────────────────────────────────────────────
+// ④ 주차장
+// ─────────────────────────────────────────────
+
+enum ParkingStatus {
+  DISPLAY // 전시중
+  SOLD // 판매완료
+  RESERVED // 예약중
+  MOVING // 이동중
+}
+
+model ParkingVehicle {
+  id            String        @id @default(cuid())
+  lot           String // 주차장 (예: B4F-B05)
+  zone          String // 구역 (예: 9구역)
+  slot          String // 위치 (앞/뒤)
+  vehicleNumber String
+  vehicleModel  String
+  status        ParkingStatus @default(DISPLAY)
+  employeeId    String
+  memo          String        @default("") @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  // 한 칸에 차 한 대 — 중복 등록 방지
+  @@unique([lot, zone, slot])
+  @@index([employeeId])
+  @@index([vehicleNumber])
+}
+
+// ─────────────────────────────────────────────
+// ⑤ 매물 사진 게시판
+// ─────────────────────────────────────────────
+
+model VehiclePost {
+  id            String @id @default(cuid())
+  site          String // 엔카 / KB차차차 / 보배드림 ...
+  vehicleNumber String
+  vehicleModel  String // 차명
+  customerPhone String // 손님번호
+  content       String @db.Text
+  employeeId    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee           @relation(fields: [employeeId], references: [id])
+  photos   VehiclePostPhoto[]
+
+  @@index([employeeId])
+  @@index([vehicleNumber])
+  @@index([createdAt])
+}
+
+// 사진은 base64로 DB에 넣지 않고 파일로 저장한 뒤 경로만 들고 있는다.
+model VehiclePostPhoto {
+  id        String @id @default(cuid())
+  postId    String
+  url       String // /uploads/vehicle-posts/xxxx.jpg
+  sortOrder Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  post VehiclePost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, sortOrder])
+}
