@@ -152,7 +152,7 @@ CREATE TABLE `Settlement` (
     `feeAmount` INTEGER NOT NULL DEFAULT 0,
     `status` ENUM('IN_PROGRESS', 'COMPLETED') NOT NULL DEFAULT 'IN_PROGRESS',
     `date` DATE NOT NULL,
-    `memo` TEXT NOT NULL DEFAULT '',
+    `memo` TEXT NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -178,7 +178,7 @@ CREATE TABLE `BrokerageSettlement` (
     `settlementAmount` INTEGER NOT NULL DEFAULT 0,
     `employeeId` VARCHAR(191) NOT NULL,
     `status` ENUM('IN_PROGRESS', 'COMPLETED') NOT NULL DEFAULT 'IN_PROGRESS',
-    `memo` TEXT NOT NULL DEFAULT '',
+    `memo` TEXT NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -207,7 +207,7 @@ CREATE TABLE `PurchaseSettlement` (
     `newCarName` VARCHAR(191) NOT NULL DEFAULT '',
     `employeeId` VARCHAR(191) NOT NULL,
     `status` ENUM('IN_PROGRESS', 'COMPLETED') NOT NULL DEFAULT 'IN_PROGRESS',
-    `memo` TEXT NOT NULL DEFAULT '',
+    `memo` TEXT NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -227,7 +227,7 @@ CREATE TABLE `ParkingVehicle` (
     `vehicleModel` VARCHAR(191) NOT NULL,
     `status` ENUM('DISPLAY', 'SOLD', 'RESERVED', 'MOVING') NOT NULL DEFAULT 'DISPLAY',
     `employeeId` VARCHAR(191) NOT NULL,
-    `memo` TEXT NOT NULL DEFAULT '',
+    `memo` TEXT NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 

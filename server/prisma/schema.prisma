@@ -243,7 +243,7 @@ model Settlement {
   feeAmount    Int              @default(0)
   status       SettlementStatus @default(IN_PROGRESS)
   date         DateTime         @db.Date
-  memo         String           @default("") @db.Text
+  memo         String           @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -272,7 +272,7 @@ model BrokerageSettlement {
   settlementAmount   Int              @default(0) // 정산받을금액
   employeeId         String
   status             SettlementStatus @default(IN_PROGRESS)
-  memo               String           @default("") @db.Text
+  memo               String           @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -304,7 +304,7 @@ model PurchaseSettlement {
   newCarName       String           @default("") // 신차이름
   employeeId       String
   status           SettlementStatus @default(IN_PROGRESS)
-  memo             String           @default("") @db.Text
+  memo             String           @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -336,7 +336,7 @@ model ParkingVehicle {
   vehicleModel  String
   status        ParkingStatus @default(DISPLAY)
   employeeId    String
-  memo          String        @default("") @db.Text
+  memo          String        @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
