@@ -1,6 +1,7 @@
 import { Menu, RotateCcw } from 'lucide-react';
 import { useStore } from '../store';
 import NotificationBell from './NotificationBell';
+import UserMenu from './UserMenu';
 
 interface Props {
   title: string;
@@ -31,6 +32,10 @@ export default function TopBar({ title, role, onMenuClick }: Props) {
           >
             <RotateCcw size={16} />
           </button>
+
+          <div className="h-5 w-px bg-slate-200" />
+
+          <UserMenu />
         </div>
       </div>
     </header>

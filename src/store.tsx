@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { AppState, AttendanceRequest, AttendanceRequestKind, ConsultationRecord, CorrectionRequest, ParkingVehicle, SettlementRecord } from './types';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { AppState, AttendanceRequest, AttendanceRequestKind, BrokerageSettlement, ConsultationRecord, CorrectionRequest, ParkingVehicle, PurchaseSettlement, SettlementRecord, VehiclePost } from './types';
 import { ATTENDANCE_REQUEST_KIND_LABEL } from './types';
 import { loadState, resetState, saveState } from './lib/storage';
 
@@ -24,10 +24,16 @@ interface Store {
   removeWhitelistIp: (ip: string) => void;
   upsertSettlement: (record: Omit<SettlementRecord, 'id' | 'createdAt'> & { id?: string }) => void;
   deleteSettlement: (id: string) => void;
+  upsertBrokerageSettlement: (record: Omit<BrokerageSettlement, 'id' | 'createdAt'> & { id?: string }) => void;
+  deleteBrokerageSettlement: (id: string) => void;
+  upsertPurchaseSettlement: (record: Omit<PurchaseSettlement, 'id' | 'createdAt'> & { id?: string }) => void;
+  deletePurchaseSettlement: (id: string) => void;
   upsertConsultation: (record: Omit<ConsultationRecord, 'id' | 'createdAt'> & { id?: string }) => void;
   deleteConsultation: (id: string) => void;
   upsertParkingVehicle: (record: Omit<ParkingVehicle, 'id' | 'updatedAt'> & { id?: string }) => void;
   deleteParkingVehicle: (id: string) => void;
+  upsertVehiclePost: (record: Omit<VehiclePost, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
+  deleteVehiclePost: (id: string) => void;
   submitAttendanceRequest: (input: { employeeId: string; date: string; kind: AttendanceRequestKind; reason: string }) => void;
   approveAttendanceRequest: (requestId: string, note?: string) => void;
   rejectAttendanceRequest: (requestId: string, note: string) => void;
@@ -38,9 +44,14 @@ const StoreContext = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(() => loadState());
+  const quotaWarned = useRef(false);
 
   useEffect(() => {
-    saveState(state);
+    const saved = saveState(state);
+    if (!saved && !quotaWarned.current) {
+      quotaWarned.current = true;
+      alert('브라우저 저장 공간이 가득 찼습니다.\n사진이 많은 매물 글을 삭제하거나 사진 수를 줄여주세요.');
+    }
   }, [state]);
 
   const value = useMemo<Store>(() => ({
@@ -160,6 +171,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setState(s => ({ ...s, settlements: s.settlements.filter(r => r.id !== id) }));
     },
 
+    upsertBrokerageSettlement: (record) => {
+      setState(s => {
+        if (record.id) {
+          return { ...s, brokerageSettlements: s.brokerageSettlements.map(r => r.id === record.id ? { ...r, ...record, id: r.id } : r) };
+        }
+        const created: BrokerageSettlement = { ...record, id: `bs-${Date.now()}`, createdAt: new Date().toISOString() };
+        return { ...s, brokerageSettlements: [created, ...s.brokerageSettlements] };
+      });
+    },
+
+    deleteBrokerageSettlement: (id) => {
+      setState(s => ({ ...s, brokerageSettlements: s.brokerageSettlements.filter(r => r.id !== id) }));
+    },
+
+    upsertPurchaseSettlement: (record) => {
+      setState(s => {
+        if (record.id) {
+          return { ...s, purchaseSettlements: s.purchaseSettlements.map(r => r.id === record.id ? { ...r, ...record, id: r.id } : r) };
+        }
+        const created: PurchaseSettlement = { ...record, id: `ps-${Date.now()}`, createdAt: new Date().toISOString() };
+        return { ...s, purchaseSettlements: [created, ...s.purchaseSettlements] };
+      });
+    },
+
+    deletePurchaseSettlement: (id) => {
+      setState(s => ({ ...s, purchaseSettlements: s.purchaseSettlements.filter(r => r.id !== id) }));
+    },
+
     upsertConsultation: (record) => {
       setState(s => {
         if (record.id) {
@@ -186,6 +225,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     deleteParkingVehicle: (id) => {
       setState(s => ({ ...s, parkingVehicles: s.parkingVehicles.filter(r => r.id !== id) }));
+    },
+
+    upsertVehiclePost: (record) => {
+      setState(s => {
+        const now = new Date().toISOString();
+        if (record.id) {
+          return { ...s, vehiclePosts: s.vehiclePosts.map(r => r.id === record.id ? { ...r, ...record, id: r.id, updatedAt: now } : r) };
+        }
+        const created: VehiclePost = { ...record, id: `vp-${Date.now()}`, createdAt: now, updatedAt: now };
+        return { ...s, vehiclePosts: [created, ...s.vehiclePosts] };
+      });
+    },
+
+    deleteVehiclePost: (id) => {
+      setState(s => ({ ...s, vehiclePosts: s.vehiclePosts.filter(r => r.id !== id) }));
     },
 
     submitAttendanceRequest: ({ employeeId, date, kind, reason }) => {

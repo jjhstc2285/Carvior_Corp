@@ -1,5 +1,7 @@
 import dayjs from 'dayjs';
-import type { AppNotification, AppState, AttendanceRecord, AttendanceRequest, ConsultationRecord, CorrectionRequest, Employee, ParkingVehicle, SettlementRecord } from '../types';
+import type { AppNotification, AppState, AttendanceRecord, AttendanceRequest, BrokerageSettlement, ConsultationRecord, CorrectionRequest, Employee, ParkingVehicle, PurchaseSettlement, SettlementRecord, VehiclePost } from '../types';
+import { brokerageSaleProfit, purchasePrepTotal } from '../types';
+import { VEHICLE_POST_SITES } from '../types';
 import { isWorkday } from './attendance';
 import { PARKING_LOTS, PARKING_SLOTS } from './parkingLayout';
 
@@ -39,6 +41,19 @@ function pad(n: number): string {
 
 function randomPlate(rand: () => number): string {
   return `${12 + Math.floor(rand() * 88)}${['가', '나', '다', '라'][Math.floor(rand() * 4)]}${1000 + Math.floor(rand() * 8999)}`;
+}
+
+// 데모용 사진 자리표시자 — 실제 이미지 파일 없이 색만 다른 SVG를 data URL로 만들어 쓴다
+function placeholderPhoto(label: string, hue: number): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480">` +
+    `<rect width="640" height="480" fill="hsl(${hue},45%,88%)"/>` +
+    `<rect x="90" y="200" width="460" height="120" rx="26" fill="hsl(${hue},40%,72%)"/>` +
+    `<rect x="170" y="150" width="280" height="90" rx="24" fill="hsl(${hue},40%,78%)"/>` +
+    `<circle cx="200" cy="330" r="42" fill="hsl(${hue},25%,45%)"/>` +
+    `<circle cx="450" cy="330" r="42" fill="hsl(${hue},25%,45%)"/>` +
+    `<text x="320" y="430" font-family="sans-serif" font-size="26" fill="hsl(${hue},25%,40%)" text-anchor="middle">${label}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 function randomTimeAround(rand: () => number, baseH: number, baseM: number, spreadMin: number): string {
@@ -296,15 +311,109 @@ export function generateMockState(): AppState {
     });
   });
 
+  // 알선 정산 목업 — 실제 시트지 컬럼 그대로(금액 단위: 만원)
+  const brokerageSettlements: BrokerageSettlement[] = Array.from({ length: 12 }).map((_, i) => {
+    const emp = EMPLOYEES[Math.floor(rand() * EMPLOYEES.length)];
+    const totalSaleAmount = Math.round((900 + rand() * 2600) / 10) * 10;
+    const ownerDeposit = Math.round(totalSaleAmount * (0.88 + rand() * 0.07) / 10) * 10;
+    const transferFee = Math.round(20 + rand() * 40);
+    const daysAgo = Math.floor(rand() * 50);
+    const row = {
+      totalSaleAmount,
+      ownerDeposit,
+      transferFee,
+      transferFeeBalance: Math.round(rand() * 12),
+      cashCommission: Math.round(rand() * 30),
+      installmentFee: Math.round(rand() * 40),
+      insuranceFee: Math.round(rand() * 15),
+      etcCost: Math.round(rand() * 10),
+    };
+    return {
+      id: `bs${i + 1}`,
+      date: today.subtract(daysAgo, 'day').format('YYYY-MM-DD'),
+      vehicleNumber: randomPlate(rand),
+      vehicleName: VEHICLE_MODELS[Math.floor(rand() * VEHICLE_MODELS.length)],
+      ...row,
+      settlementAmount: brokerageSaleProfit(row),
+      employeeId: emp.id,
+      status: daysAgo > 14 ? 'completed' : rand() < 0.5 ? 'completed' : 'inProgress',
+      memo: '',
+      createdAt: today.subtract(daysAgo, 'day').toISOString(),
+    };
+  });
+
+  // 매입 정산 목업 — 실제 시트지 컬럼 그대로(금액 단위: 만원)
+  const purchaseSettlements: PurchaseSettlement[] = Array.from({ length: 12 }).map((_, i) => {
+    const emp = EMPLOYEES[Math.floor(rand() * EMPLOYEES.length)];
+    const purchasePrice = Math.round((800 + rand() * 2400) / 10) * 10;
+    const daysAgo = Math.floor(rand() * 50);
+    const prep = {
+      polishWashCost: Math.round(2 + rand() * 8),
+      dentCost: Math.round(rand() * 40),
+      performanceCost: Math.round(3 + rand() * 8),
+      deliveryCost: Math.round(5 + rand() * 20),
+      repairCost: Math.round(rand() * 60),
+      brokerFee: Math.round(rand() * 30),
+      diagnosisCost: Math.round(2 + rand() * 6),
+    };
+    return {
+      id: `ps${i + 1}`,
+      date: today.subtract(daysAgo, 'day').format('YYYY-MM-DD'),
+      vehicleName: VEHICLE_MODELS[Math.floor(rand() * VEHICLE_MODELS.length)],
+      vehicleNumber: randomPlate(rand),
+      transferFee: Math.round(20 + rand() * 45),
+      purchasePrice,
+      ...prep,
+      settlementAmount: purchasePrice + purchasePrepTotal(prep),
+      newCarName: rand() < 0.35 ? VEHICLE_MODELS[Math.floor(rand() * VEHICLE_MODELS.length)] : '',
+      employeeId: emp.id,
+      status: daysAgo > 14 ? 'completed' : rand() < 0.5 ? 'completed' : 'inProgress',
+      memo: '',
+      createdAt: today.subtract(daysAgo, 'day').toISOString(),
+    };
+  });
+
+  // 매물 사진 게시판 목업 — 실제 사진 대신 가벼운 SVG 플레이스홀더를 넣어둔다(용량 거의 0)
+  const POST_NOTES = [
+    '무사고 차량이고 실내 상태 좋습니다. 사진 참고하시고 문의 주세요.',
+    '엔진오일·타이어 교체 완료했습니다. 사이트 업로드용 사진입니다.',
+    '앞범퍼 미세 스크래치 있어서 사진에 같이 담았습니다. 가격 조정 가능.',
+    '옵션 풀 차량입니다. 손님 방문 예정이라 오늘 중 업로드 부탁드려요.',
+    '외판 도장 상태 확인 부탁드립니다. 하부 사진도 같이 올렸습니다.',
+  ];
+  const vehiclePosts: VehiclePost[] = Array.from({ length: 6 }).map((_, i) => {
+    const emp = EMPLOYEES[Math.floor(rand() * EMPLOYEES.length)];
+    const model = VEHICLE_MODELS[Math.floor(rand() * VEHICLE_MODELS.length)];
+    const plate = randomPlate(rand);
+    const hoursAgo = Math.floor(rand() * 120);
+    const photoCount = 4 + Math.floor(rand() * 2); // 4~5장
+    const created = today.subtract(hoursAgo, 'hour');
+    return {
+      id: `vp${i + 1}`,
+      site: VEHICLE_POST_SITES[Math.floor(rand() * (VEHICLE_POST_SITES.length - 1))],
+      vehicleNumber: plate,
+      vehicleModel: model,
+      customerPhone: `010-${1000 + Math.floor(rand() * 8999)}-${1000 + Math.floor(rand() * 8999)}`,
+      content: POST_NOTES[Math.floor(rand() * POST_NOTES.length)],
+      photos: Array.from({ length: photoCount }).map((__, p) => placeholderPhoto(`${model} ${p + 1}`, (i * 47 + p * 23) % 360)),
+      employeeId: emp.id,
+      createdAt: created.toISOString(),
+      updatedAt: created.toISOString(),
+    };
+  });
+
   return {
     employees: EMPLOYEES,
     records,
     requests,
     notifications,
     settlements,
+    brokerageSettlements,
+    purchaseSettlements,
     consultations,
     parkingVehicles,
     attendanceRequests,
+    vehiclePosts,
     currentEmployeeId: EMPLOYEES[0].id,
     ipWhitelist: [],
   };

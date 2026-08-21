@@ -1,1 +1,1 @@
-export type ModuleKey = 'attendance' | 'consultation' | 'settlement' | 'parking';
+export type ModuleKey = 'attendance' | 'consultation' | 'settlement' | 'parking' | 'vehiclePost';

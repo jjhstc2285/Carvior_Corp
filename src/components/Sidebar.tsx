@@ -1,6 +1,5 @@
-import { CalendarClock, LogOut, MessageSquareText, ParkingSquare, ReceiptText, Users2, X } from 'lucide-react';
+import { CalendarClock, Images, MessageSquareText, ParkingSquare, ReceiptText, Users2, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
-import { useAuth } from '../authStore';
 
 interface Props {
   active: ModuleKey;
@@ -14,11 +13,10 @@ const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[]
   { key: 'consultation', label: '알선 상담 관리', icon: MessageSquareText },
   { key: 'settlement', label: '정산 관리', icon: ReceiptText },
   { key: 'parking', label: '주차장 관리', icon: ParkingSquare },
+  { key: 'vehiclePost', label: '매물 사진 등록', icon: Images },
 ];
 
 export default function Sidebar({ active, onChange, mobileOpen, onMobileClose }: Props) {
-  const { user, logout } = useAuth();
-
   const content = (
     <>
       <div className="flex items-center justify-between px-4 py-4">
@@ -52,18 +50,7 @@ export default function Sidebar({ active, onChange, mobileOpen, onMobileClose }:
         })}
       </nav>
 
-      <div className="border-t border-slate-100 p-3">
-        <div className="rounded-lg bg-slate-50 px-3 py-2.5">
-          <p className="truncate text-sm font-semibold text-slate-700">{user?.name}</p>
-          <p className="text-[11px] text-slate-400">{user?.role === 'admin' ? '관리자' : '직원'} · {user?.provider === 'kakao' ? '카카오' : user?.provider === 'naver' ? '네이버' : '관리자 계정'}</p>
-        </div>
-        <button
-          onClick={logout}
-          className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600"
-        >
-          <LogOut size={15} /> 로그아웃
-        </button>
-      </div>
+      {/* 계정 정보/로그아웃은 상단 네비게이션 바(UserMenu)로 옮김 */}
     </>
   );
 
