@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  // prisma/seed.ts 는 ts-node로 직접 실행하므로 빌드 대상에서 뺀다.
+  // 안 빼면 컴파일 공통 루트가 프로젝트 루트가 되어 출력이 dist/src/main.js 로 밀린다.
+  "exclude": ["node_modules", "test", "dist", "prisma", "**/*spec.ts"]
+}
