@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, LogOut } from 'lucide-react';
 import { useAuth } from '../authStore';
 import type { AuthProvider } from '../lib/auth';
+import PushToggle from './PushToggle';
 
 const PROVIDER_LABEL: Record<AuthProvider, string> = {
   KAKAO: '카카오',
@@ -61,6 +62,7 @@ export default function UserMenu() {
             <p className="truncate text-sm font-semibold text-slate-700">{user.name}</p>
             <p className="mt-0.5 text-[11px] text-slate-400">{roleLabel} · {providerLabel}</p>
           </div>
+          <PushToggle />
           <button
             onClick={() => { setOpen(false); logout(); }}
             className="flex w-full items-center gap-2 px-3.5 py-2.5 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600"

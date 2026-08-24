@@ -63,6 +63,7 @@ model Employee {
   vehicleExpenses      VehicleExpenseLog[]
   conversation         Conversation?
   chatMessages         ChatMessage[]
+  pushSubscriptions    PushSubscription[]
 
   @@unique([provider, providerId])
   @@index([name])
@@ -425,6 +426,31 @@ model WorkLog {
 
   @@index([employeeId, date])
   @@index([date])
+}
+
+// ─────────────────────────────────────────────
+// ⑨ 웹 푸시 구독
+// ─────────────────────────────────────────────
+
+// 브라우저를 닫아둔 사람에게도 알림을 보내기 위한 구독 정보.
+//
+// 한 사람이 여러 기기(사무실 PC, 휴대폰)를 쓰므로 직원당 여러 건이 쌓인다.
+// endpoint가 곧 기기 식별자다 — 브라우저가 발급하고 같은 기기에서는 같은 값이 온다.
+// 브라우저에서 알림을 끄거나 앱을 지우면 endpoint가 죽는데(410/404), 그때는 발송하다가 지운다.
+model PushSubscription {
+  id         String  @id @default(cuid())
+  employeeId String
+  endpoint   String  @unique @db.VarChar(500) // 길어서 191자 기본값으로는 모자란다
+  p256dh     String // 브라우저 공개키
+  auth       String // 인증 시크릿
+  userAgent  String? // 어느 기기인지 알아보기 위한 참고용
+
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
 }
 
 // ─────────────────────────────────────────────

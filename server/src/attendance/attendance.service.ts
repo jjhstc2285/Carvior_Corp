@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, formatDateOnlyOrNull, monthRange, nowTimeKst, todayKst, toDateOnly } from '../common/date.util';
 import type { AddIpDto, CreateAttendanceRequestDto, CreateCorrectionDto } from './dto/attendance.dto';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
+import { PushService } from '../push/push.service';
 
 const KIND_LABEL: Record<AttendanceRequestKind, string> = {
   ANNUAL_LEAVE: '연차',
@@ -21,6 +22,7 @@ export class AttendanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
+    private readonly push: PushService,
   ) {}
 
   // ── 출퇴근 기록 ──────────────────────────────
@@ -320,6 +322,12 @@ export class AttendanceService {
       REALTIME_EVENT.notification,
       { type, message, date: formatDateOnly(date) },
     );
+
+    // 브라우저를 닫아둔 관리자에게는 웹 푸시로 간다. 발송을 기다리지 않는다(실패해도 무시).
+    void this.push.sendToEmployees(
+      admins.map((a) => a.id),
+      { title: '새 결재 요청', body: message, tag: `notification:${type}` },
+    );
     void employeeId;
   }
 
@@ -330,6 +338,11 @@ export class AttendanceService {
       type,
       message,
       date: formatDateOnly(date),
+    });
+    void this.push.sendToEmployees([employeeId], {
+      title: '새 알림',
+      body: message,
+      tag: `notification:${type}`,
     });
   }
 

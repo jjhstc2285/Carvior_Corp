@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { getToken, UNAUTHORIZED_EVENT } from './lib/api';
 import { fetchMe, logoutLocal, type AuthUser } from './lib/auth';
 import { connectSocket, disconnectSocket } from './lib/socket';
+import { syncPushSubscription } from './lib/push';
 
 interface AuthStore {
   user: AuthUser | null;
@@ -55,6 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     connectSocket();
+    // 이미 알림을 켜둔 기기면 구독을 서버에 다시 저장한다 —
+    // 같은 기기에서 계정을 바꿔 로그인한 경우 알림이 엉뚱한 사람에게 가지 않게.
+    void syncPushSubscription();
     return () => disconnectSocket();
   }, [user]);
 

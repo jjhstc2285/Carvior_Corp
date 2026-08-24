@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
+import { PushService } from '../push/push.service';
 
 interface AuthUser {
   id: string;
@@ -15,6 +16,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
+    private readonly push: PushService,
   ) {}
 
   /**
@@ -118,7 +120,42 @@ export class ChatService {
       this.realtime.toAdmins(REALTIME_EVENT.chatMessage, payload);
     }
 
+    // 메시지는 창을 닫아둔 사이에 오는 경우가 대부분이라 웹 푸시가 특히 의미가 있다.
+    // 발송을 기다리지 않는다 — 실패해도 메시지는 이미 저장됐다.
+    void this.pushMessage(user, employeeId, target.name, message.sender.name, body, conversation.id);
+
     return message;
+  }
+
+  /**
+   * 메시지 상대에게 웹 푸시.
+   * 관리자가 보냈으면 그 직원 한 명에게, 직원이 보냈으면 관리자 전원에게 간다
+   * (실시간과 대상이 같다 — 다만 room이 아니라 id 목록이 필요해서 여기서 조회한다).
+   */
+  private async pushMessage(
+    user: AuthUser,
+    employeeId: string,
+    targetName: string,
+    senderName: string,
+    body: string,
+    conversationId: string,
+  ): Promise<void> {
+    // 같은 대화의 알림은 tag로 덮어써서 쌓이지 않게 한다.
+    const tag = `chat:${conversationId}`;
+
+    if (user.role === Role.ADMIN) {
+      await this.push.sendToEmployees([employeeId], { title: `${senderName}님의 메시지`, body, tag });
+      return;
+    }
+
+    const admins = await this.prisma.employee.findMany({
+      where: { role: Role.ADMIN, active: true },
+      select: { id: true },
+    });
+    await this.push.sendToEmployees(
+      admins.map((a) => a.id),
+      { title: `${targetName}님의 메시지`, body, tag },
+    );
   }
 
   /** 상대가 보낸 안 읽은 메시지를 읽음으로 표시하고, 보낸 쪽에 알려준다. */
