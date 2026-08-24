@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, SettlementStatus } from '@prisma/client';
+import { Prisma, SettlementStatus, VehicleExpenseKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, monthRange, toDateOnly } from '../common/date.util';
 import {
@@ -30,6 +30,19 @@ interface ListParams {
 }
 
 const EMPLOYEE_SELECT = { employee: { select: { id: true, name: true, position: true } } };
+
+/**
+ * 차량비용 종류를 요약의 어느 칸에 더할지.
+ *
+ * Record로 못박아서 종류가 늘면 여기서 컴파일 에러가 나게 한다 —
+ * 예전에는 "나머지는 주차"로 처리해서, 수리비를 추가하면 조용히 주차비에 섞였다.
+ */
+const COST_FIELD: Record<VehicleExpenseKind, 'fuel' | 'battery' | 'parking' | 'repair'> = {
+  [VehicleExpenseKind.FUEL]: 'fuel',
+  [VehicleExpenseKind.BATTERY]: 'battery',
+  [VehicleExpenseKind.PARKING]: 'parking',
+  [VehicleExpenseKind.REPAIR]: 'repair',
+};
 
 @Injectable()
 export class SettlementsService {
@@ -205,10 +218,7 @@ export class SettlementsService {
       const entry = byVehicleId.get(g.vehicleId) ?? { ...EMPTY_VEHICLE_COST };
       const amount = g._sum.amount ?? 0;
 
-      if (g.kind === 'FUEL') entry.fuel += amount;
-      else if (g.kind === 'BATTERY') entry.battery += amount;
-      else entry.parking += amount;
-
+      entry[COST_FIELD[g.kind]] += amount;
       entry.total += amount;
       entry.count += g._count._all;
       byVehicleId.set(g.vehicleId, entry);

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import dayjs from 'dayjs';
-import { BatteryCharging, Fuel, Plus, Trash2 } from 'lucide-react';
+import { BatteryCharging, Fuel, Plus, Trash2, Wrench } from 'lucide-react';
 import { PLATE_MESSAGE, formatWon } from '../../lib/vehicle';
 import {
   VEHICLE_EXPENSE_KIND_LABEL,
@@ -12,6 +12,25 @@ import {
 import type { VehiclesApi } from './useVehicles';
 
 const NOTE_KEYS = Object.keys(VEHICLE_USAGE_NOTE_LABEL) as VehicleUsageNote[];
+
+/**
+ * 화면에서 직접 등록하는 종류. 주차비(PARKING)는 주차장 관리에서 자동으로 쌓이므로
+ * 여기 목록에는 없다 — 라벨 목록을 그대로 쓰면 손으로 못 넣는 종류까지 버튼이 생긴다.
+ */
+const KIND_KEYS: VehicleExpenseKind[] = ['FUEL', 'BATTERY', 'REPAIR'];
+
+/** 종류별 배지 색 — 목록에서 한눈에 갈리게 */
+const KIND_BADGE: Record<VehicleExpenseKind, string> = {
+  FUEL: 'bg-orange-50 text-orange-600',
+  BATTERY: 'bg-sky-50 text-sky-600',
+  REPAIR: 'bg-violet-50 text-violet-600',
+};
+
+function KindIcon({ kind, size = 14 }: { kind: VehicleExpenseKind; size?: number }) {
+  if (kind === 'FUEL') return <Fuel size={size} />;
+  if (kind === 'BATTERY') return <BatteryCharging size={size} />;
+  return <Wrench size={size} />;
+}
 
 export default function ExpenseTab({ api }: { api: VehiclesApi }) {
   const { vehicles, expenses, addExpense, editExpense, removeExpense } = api;
@@ -89,7 +108,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
     <div>
       <form onSubmit={handleSubmit} className="mb-5 rounded-2xl border border-slate-200 bg-white p-4">
         <div className="mb-3 flex items-center gap-1">
-          {(['FUEL', 'BATTERY'] as VehicleExpenseKind[]).map(k => (
+          {KIND_KEYS.map(k => (
             <button
               key={k}
               type="button"
@@ -98,7 +117,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
                 kind === k ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
               }`}
             >
-              {k === 'FUEL' ? <Fuel size={14} /> : <BatteryCharging size={14} />}
+              <KindIcon kind={k} />
               {VEHICLE_EXPENSE_KIND_LABEL[k]}
             </button>
           ))}
@@ -185,7 +204,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
       </form>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        {(['ALL', 'FUEL', 'BATTERY'] as const).map(k => (
+        {(['ALL', ...KIND_KEYS] as const).map(k => (
           <button
             key={k}
             onClick={() => setKindFilter(k)}
@@ -316,9 +335,7 @@ function ExpenseRow({ log, onEdit, onRemove }: RowProps) {
     <tr className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
       <td className="px-4 py-3 text-slate-500">{log.date}</td>
       <td className="px-3 py-3">
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-          log.kind === 'FUEL' ? 'bg-orange-50 text-orange-600' : 'bg-sky-50 text-sky-600'
-        }`}>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${KIND_BADGE[log.kind]}`}>
           {VEHICLE_EXPENSE_KIND_LABEL[log.kind]}
         </span>
       </td>

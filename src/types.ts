@@ -181,11 +181,19 @@ export interface VehicleCostSummary {
   fuel: number; // 주유
   battery: number; // 배터리
   parking: number; // 주차
+  repair: number; // 수리
   total: number;
   count: number; // 이력 건수
 }
 
-export const EMPTY_VEHICLE_COST: VehicleCostSummary = { fuel: 0, battery: 0, parking: 0, total: 0, count: 0 };
+export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
+  fuel: 0,
+  battery: 0,
+  parking: 0,
+  repair: 0,
+  total: 0,
+  count: 0,
+};
 
 /** 정산 금액 1 = 10,000원 (정산은 만원 단위, 차량비용은 원 단위) */
 export const WON_PER_UNIT = 10_000;
@@ -298,11 +306,12 @@ export interface ManagedVehicle {
   updatedAt: string;
 }
 
-export type VehicleExpenseKind = 'FUEL' | 'BATTERY';
+export type VehicleExpenseKind = 'FUEL' | 'BATTERY' | 'REPAIR';
 
 export const VEHICLE_EXPENSE_KIND_LABEL: Record<VehicleExpenseKind, string> = {
   FUEL: '주유',
   BATTERY: '배터리',
+  REPAIR: '수리',
 };
 
 // 주유 비고 — 배터리에는 쓰지 않는다

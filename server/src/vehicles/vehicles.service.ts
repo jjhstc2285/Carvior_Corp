@@ -164,8 +164,9 @@ export class VehiclesService {
 
   /** 비고(상품중/시승중/판매완료)는 주유에만 있다. */
   private assertNoteAllowed(kind: VehicleExpenseKind, note?: string | null): void {
-    if (note && kind === VehicleExpenseKind.BATTERY) {
-      throw new BadRequestException('배터리 등록에는 비고를 쓰지 않습니다.');
+    // 주유가 아닌 것을 하나씩 나열하면 종류가 늘 때마다 빠뜨린다 — 주유만 통과시킨다.
+    if (note && kind !== VehicleExpenseKind.FUEL) {
+      throw new BadRequestException('주유 등록에만 비고를 쓸 수 있습니다.');
     }
   }
 
