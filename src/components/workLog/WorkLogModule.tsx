@@ -3,6 +3,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { ChevronLeft, ChevronRight, NotebookPen } from 'lucide-react';
 import { useStore } from '../../store';
 import type { Role, WorkLog } from '../../types';
+import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { useWorkLogs } from './useWorkLogs';
 import WorkLogDayCard from './WorkLogDayCard';
 
@@ -22,12 +23,20 @@ function weekLabel(weekStart: Dayjs): string {
 export default function WorkLogModule({ role }: Props) {
   const { state } = useStore();
   const [weekStart, setWeekStart] = useState(() => dayjs().startOf('week'));
+  const [calMonth, setCalMonth] = useState(() => dayjs().startOf('month'));
   // 'self' = 내 일지, 'all' = 전 직원(관리자만), 그 외에는 직원 id
   const [view, setView] = useState<string>('self');
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day')), [weekStart]);
-  const from = weekStart.format('YYYY-MM-DD');
-  const to = weekStart.add(6, 'day').format('YYYY-MM-DD');
+  const weekFrom = weekStart.format('YYYY-MM-DD');
+  const weekTo = weekStart.add(6, 'day').format('YYYY-MM-DD');
+
+  // 주간 보드와 월별 캘린더가 한 번에 받은 같은 목록을 나눠 쓴다.
+  // 따로 받아오면 위에서 체크한 게 아래 캘린더에 안 비쳐서 서로 다른 화면처럼 보인다.
+  const gridStart = calMonth.startOf('month').startOf('week');
+  const gridEnd = calMonth.endOf('month').endOf('week');
+  const from = (weekStart.isBefore(gridStart) ? weekStart : gridStart).format('YYYY-MM-DD');
+  const to = (weekStart.add(6, 'day').isAfter(gridEnd) ? weekStart.add(6, 'day') : gridEnd).format('YYYY-MM-DD');
 
   const isAdmin = role === 'ADMIN';
   const isAllView = isAdmin && view === 'all';
@@ -36,7 +45,7 @@ export default function WorkLogModule({ role }: Props) {
 
   const { logs, loading, error, add, toggle, edit, remove } = useWorkLogs(from, to, scope);
 
-  // 날짜별로 한 번만 묶어두고 각 칸이 꺼내 쓴다.
+  // 날짜별로 한 번만 묶어두고 주간 칸·캘린더가 같이 꺼내 쓴다.
   const byDate = useMemo(() => {
     const map = new Map<string, WorkLog[]>();
     for (const log of logs) {
@@ -47,10 +56,22 @@ export default function WorkLogModule({ role }: Props) {
     return map;
   }, [logs]);
 
-  const total = logs.length;
-  const doneCount = logs.filter(l => l.done).length;
+  // 상단 요약은 '보고 있는 주'만 센다(받아온 범위에는 캘린더용 다른 달도 섞여 있다).
+  const weekLogs = useMemo(() => logs.filter(l => l.date >= weekFrom && l.date <= weekTo), [logs, weekFrom, weekTo]);
+  const total = weekLogs.length;
+  const doneCount = weekLogs.filter(l => l.done).length;
   const employeeName = (id: string) => state.employees.find(e => e.id === id)?.name ?? '알 수 없음';
   const ownerLabel = isAllView ? employeeName : undefined;
+
+  // 캘린더 칸에 뿌릴 칩 — 완료된 건 초록, 남은 건 인디고.
+  const eventsForDate = (dateStr: string): CalEvent[] =>
+    (byDate.get(dateStr) ?? []).map(log => ({
+      id: log.id,
+      label: isAllView ? `${employeeName(log.employeeId)} · ${log.content}` : log.content,
+      sublabel: log.done ? '완료' : '할 일',
+      colorClass: log.done ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700',
+      dotClass: log.done ? 'bg-emerald-400' : 'bg-indigo-400',
+    }));
 
   const viewerName =
     !isAdmin || view === 'self'
@@ -149,6 +170,22 @@ export default function WorkLogModule({ role }: Props) {
         <NotebookPen size={12} />
         할 일을 입력하고 Enter를 누르면 저장됩니다. 적어둔 내용을 누르면 바로 고칠 수 있어요.
       </p>
+
+      <div className="mt-8 border-t border-slate-200 pt-6">
+        <div className="mb-3">
+          <h2 className="text-base font-bold text-slate-800">월별 보기</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            날짜를 누르면 그날 목록이 아래에 펼쳐지고, 위 주간 보드도 그 주로 이동합니다.
+          </p>
+        </div>
+
+        <EventCalendar
+          month={calMonth}
+          onMonthChange={setCalMonth}
+          eventsForDate={eventsForDate}
+          onSelectDate={date => setWeekStart(dayjs(date).startOf('week'))}
+        />
+      </div>
     </div>
   );
 }
