@@ -453,6 +453,7 @@ model ManagedVehicle {
 enum VehicleExpenseKind {
   FUEL // 주유
   BATTERY // 배터리
+  PARKING // 주차비
 }
 
 // 주유 비고 — 배터리에는 쓰지 않는다

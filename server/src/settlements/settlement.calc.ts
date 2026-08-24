@@ -66,3 +66,39 @@ export function purchasePrepTotal(r: PurchasePrepFields): number {
 export function purchaseGrandTotal(r: PurchasePrepFields & { purchasePrice: number }): number {
   return r.purchasePrice + purchasePrepTotal(r);
 }
+
+// ── 차량비용(주유·배터리·주차) 연동 ──
+//
+// 차량관리에 쌓인 이력을 차량번호로 붙여서 매입 정산에 함께 보여준다.
+// 정산 금액은 만원 단위 정수인데 주유비는 만원으로 안 떨어져서(예: 25,000원),
+// 만원으로 반올림해 기존 항목에 섞지 않고 '원' 단위 항목을 따로 둔다.
+
+/** 정산 금액 1 = 10,000원 */
+export const WON_PER_UNIT = 10_000;
+
+export interface VehicleCostSummary {
+  fuel: number; // 원
+  battery: number; // 원
+  parking: number; // 원
+  total: number; // 원
+  count: number; // 이력 건수
+}
+
+export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
+  fuel: 0,
+  battery: 0,
+  parking: 0,
+  total: 0,
+  count: 0,
+};
+
+/**
+ * 최종 합계(원) = (매입+상품화총비용) × 10,000 + 차량비용
+ * 단위가 다른 둘을 더할 수 있는 유일한 지점이라 원으로 환산해서 낸다.
+ */
+export function purchaseGrandTotalWon(
+  r: PurchasePrepFields & { purchasePrice: number },
+  vehicleCost: VehicleCostSummary,
+): number {
+  return purchaseGrandTotal(r) * WON_PER_UNIT + vehicleCost.total;
+}

@@ -3,12 +3,16 @@ import { Prisma, SettlementStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, monthRange, toDateOnly } from '../common/date.util';
 import {
+  EMPTY_VEHICLE_COST,
   brokerageProfit,
   brokerageSaleProfit,
   netProfit,
   purchaseGrandTotal,
+  purchaseGrandTotalWon,
   purchasePrepTotal,
+  type VehicleCostSummary,
 } from './settlement.calc';
+import { normalizePlate } from '../vehicles/vehicle.rules';
 import type {
   CreateBrokerageDto,
   CreatePurchaseDto,
@@ -167,12 +171,78 @@ export class SettlementsService {
       include: EMPLOYEE_SELECT,
       orderBy: { date: 'desc' },
     });
-    return rows.map((r) => ({
-      ...r,
-      date: formatDateOnly(r.date),
-      prepTotal: purchasePrepTotal(r),
-      grandTotal: purchaseGrandTotal(r),
-    }));
+
+    const costs = await this.vehicleCostsByPlate(rows.map((r) => r.vehicleNumber));
+    return rows.map((r) => this.toPurchaseView(r, costs.get(normalizePlate(r.vehicleNumber))));
+  }
+
+  /**
+   * 차량번호로 차량관리의 주유·배터리·주차 이력을 모아온다.
+   *
+   * 목록 한 번에 두 번의 조회로 끝낸다(정산 건마다 조회하면 N+1이 된다).
+   * 매입 정산의 차량번호는 자유 입력이라 공백만 걷어내고 정확히 일치하는 것만 붙인다 —
+   * 차량관리에 없는 번호면 0원으로 나온다.
+   */
+  private async vehicleCostsByPlate(vehicleNumbers: string[]): Promise<Map<string, VehicleCostSummary>> {
+    const plates = [...new Set(vehicleNumbers.map(normalizePlate).filter(Boolean))];
+    if (plates.length === 0) return new Map();
+
+    const vehicles = await this.prisma.managedVehicle.findMany({
+      where: { vehicleNumber: { in: plates } },
+      select: { id: true, vehicleNumber: true },
+    });
+    if (vehicles.length === 0) return new Map();
+
+    const grouped = await this.prisma.vehicleExpenseLog.groupBy({
+      by: ['vehicleId', 'kind'],
+      where: { vehicleId: { in: vehicles.map((v) => v.id) } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+
+    const byVehicleId = new Map<string, VehicleCostSummary>();
+    for (const g of grouped) {
+      const entry = byVehicleId.get(g.vehicleId) ?? { ...EMPTY_VEHICLE_COST };
+      const amount = g._sum.amount ?? 0;
+
+      if (g.kind === 'FUEL') entry.fuel += amount;
+      else if (g.kind === 'BATTERY') entry.battery += amount;
+      else entry.parking += amount;
+
+      entry.total += amount;
+      entry.count += g._count._all;
+      byVehicleId.set(g.vehicleId, entry);
+    }
+
+    return new Map(
+      vehicles
+        .map((v) => [v.vehicleNumber, byVehicleId.get(v.id)] as const)
+        .filter((pair): pair is readonly [string, VehicleCostSummary] => pair[1] !== undefined),
+    );
+  }
+
+  private toPurchaseView<T extends Parameters<typeof purchaseGrandTotal>[0] & { date: Date }>(
+    row: T,
+    cost: VehicleCostSummary | undefined,
+  ) {
+    const vehicleCost = cost ?? EMPTY_VEHICLE_COST;
+    return {
+      ...row,
+      date: formatDateOnly(row.date),
+      prepTotal: purchasePrepTotal(row),
+      grandTotal: purchaseGrandTotal(row),
+      // 차량관리에서 자동으로 붙는 값 — 저장하지 않고 조회할 때마다 계산한다.
+      vehicleCost,
+      grandTotalWon: purchaseGrandTotalWon(row, vehicleCost),
+    };
+  }
+
+  /** 단건 응답도 목록과 같은 모양이 되게 차량비용을 붙여준다. */
+  private async withVehicleCost<T extends Parameters<typeof purchaseGrandTotal>[0] & { date: Date; vehicleNumber: string }>(
+    row: T,
+  ) {
+    const costs = await this.vehicleCostsByPlate([row.vehicleNumber]);
+    return this.toPurchaseView(row, costs.get(normalizePlate(row.vehicleNumber)));
   }
 
   async createPurchase(dto: CreatePurchaseDto) {
@@ -202,7 +272,7 @@ export class SettlementsService {
       },
       include: EMPLOYEE_SELECT,
     });
-    return { ...row, date: formatDateOnly(row.date), prepTotal: purchasePrepTotal(row), grandTotal: purchaseGrandTotal(row) };
+    return this.withVehicleCost(row);
   }
 
   async updatePurchase(id: string, dto: UpdatePurchaseDto) {
@@ -212,7 +282,7 @@ export class SettlementsService {
       data: { ...this.stripDate(dto), ...(dto.date ? { date: toDateOnly(dto.date) } : {}) },
       include: EMPLOYEE_SELECT,
     });
-    return { ...row, date: formatDateOnly(row.date), prepTotal: purchasePrepTotal(row), grandTotal: purchaseGrandTotal(row) };
+    return this.withVehicleCost(row);
   }
 
   async removePurchase(id: string) {
