@@ -87,6 +87,25 @@ ADMIN_DEFAULT_PASSWORD='초기비밀번호' npm run seed
 > 이미 비밀번호를 바꿔 쓰는 계정의 비밀번호는 덮어쓰지 않습니다.
 > **첫 로그인 후 `POST /api/auth/password`로 비밀번호를 바꾸세요.**
 
+### 테스트용 관리자 계정
+
+명단 시드와 별개로, 화면을 바로 돌려볼 관리자 계정 하나만 만드는 스크립트입니다.
+
+```bash
+npm run seed:admin            # 아이디 admin / 비밀번호 00700!
+```
+
+아이디·비밀번호를 바꾸려면 환경변수로 덮어씁니다:
+
+```bash
+ADMIN_LOGIN_ID=qa ADMIN_PASSWORD='다른비밀번호' npm run seed:admin
+```
+
+이미 있으면 비밀번호를 다시 맞춰주므로, 비밀번호를 잊었을 때 복구용으로도 씁니다.
+
+> ⚠️ `00700!`은 테스트 편의를 위한 값입니다. 외부에서 접근되는 서버라면 확인이 끝난 뒤
+> 비밀번호를 바꾸거나(`POST /api/auth/password`) 계정을 지우세요.
+
 ## 5. 실행
 
 ```bash
@@ -170,6 +189,15 @@ Apache 설정은 [`../deploy/apache-skv1motors.conf`](../deploy/apache-skv1motor
 | POST | `/api/vehicle-posts/photos` | 로그인 | 사진 업로드(최대 5장, 8MB) → url 반환 |
 | POST/PATCH | `/api/vehicle-posts/:id` | 로그인 | 글 등록/수정 |
 | DELETE | `/api/vehicle-posts/:id` | 본인 or 관리자 | 삭제 (디스크 사진도 함께 정리) |
+
+### ⑥ 작업일지
+
+| 메서드 | 경로 | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/api/work-logs?from=&to=&employeeId=` | 로그인 | 기간(주간) 조회 — 직원은 본인만, 관리자는 `employeeId`로 지정(없으면 전체) |
+| POST | `/api/work-logs` | 로그인 | 할 일 한 줄 추가 (`employeeId`로 남의 일지에 적는 건 관리자만) |
+| PATCH | `/api/work-logs/:id` | 본인 or 관리자 | 내용·완료 여부·날짜·순서 수정 |
+| DELETE | `/api/work-logs/:id` | 본인 or 관리자 | 삭제 |
 
 기본이 **로그인 필요**이고 `@Public()`을 붙인 엔드포인트만 열려 있습니다.
 새 API를 추가할 때 인증을 깜빡해서 뚫리는 일을 막기 위한 구조입니다.

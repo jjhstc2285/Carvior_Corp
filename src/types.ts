@@ -246,6 +246,18 @@ export interface VehiclePost {
   updatedAt: string;
 }
 
+// 작업일지 — 날짜별 할 일 한 줄이 한 레코드. 화면에서는 주간 플래너로 모아 본다.
+export interface WorkLog {
+  id: string;
+  employeeId: string;
+  date: string; // YYYY-MM-DD
+  content: string;
+  done: boolean;
+  sortOrder: number; // 같은 날 안에서의 순서
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppState {
   employees: Employee[];
   records: AttendanceRecord[];

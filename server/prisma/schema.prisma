@@ -59,6 +59,7 @@ model Employee {
   purchaseSettlements  PurchaseSettlement[]
   parkingVehicles      ParkingVehicle[]
   vehiclePosts         VehiclePost[]
+  workLogs             WorkLog[]
 
   @@unique([provider, providerId])
   @@index([name])
@@ -385,4 +386,26 @@ model VehiclePostPhoto {
   post VehiclePost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId, sortOrder])
+}
+
+// ─────────────────────────────────────────────
+// ⑥ 작업일지 — 날짜별 할 일 체크리스트(주간 플래너)
+// ─────────────────────────────────────────────
+
+// 한 줄이 곧 할 일 하나다. 날짜 단위로 여러 줄이 붙고, 화면에서는 요일별 칸에 모아 보여준다.
+model WorkLog {
+  id         String   @id @default(cuid())
+  employeeId String
+  date       DateTime @db.Date
+  content    String   @db.Text
+  done       Boolean  @default(false)
+  sortOrder  Int      @default(0) // 같은 날 안에서의 순서
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, date])
+  @@index([date])
 }
