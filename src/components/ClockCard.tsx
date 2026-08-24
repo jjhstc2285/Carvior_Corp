@@ -22,7 +22,16 @@ export default function ClockCard() {
     return () => clearInterval(t);
   }, []);
 
-  const employee = state.employees.find(e => e.id === state.currentEmployeeId)!;
+  // 명단 캐시 등으로 내가 목록에서 잠깐 빠질 수 있다 — 단언하면 카드가 아니라 화면 전체가 죽는다.
+  const employee = state.employees.find(e => e.id === state.currentEmployeeId);
+  if (!employee) {
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white px-5 py-8 text-center">
+        <p className="text-sm text-slate-400">직원 정보를 불러오는 중입니다…</p>
+      </section>
+    );
+  }
+
   const today = dayjs().format('YYYY-MM-DD');
   const record = state.records.find(r => r.employeeId === employee.id && r.date === today);
 

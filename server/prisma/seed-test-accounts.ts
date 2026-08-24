@@ -14,6 +14,7 @@
  */
 import * as bcrypt from 'bcrypt';
 import { AuthProvider, PrismaClient, Role } from '@prisma/client';
+import { invalidateEmployeeCache } from './invalidate-employee-cache';
 
 const prisma = new PrismaClient();
 
@@ -64,6 +65,9 @@ async function main() {
     const label = account.role === Role.ADMIN ? '관리자' : '일반 직원';
     console.log(`[seed:test] ${label} — 아이디 "${account.loginId}" / 비밀번호 "${account.password}" (${account.name})`);
   }
+
+  // 서버가 명단을 5분 캐시한다 — 안 비우면 방금 만든 계정으로 로그인해도 명단에 안 보인다.
+  await invalidateEmployeeCache('seed:test');
 
   console.log('[seed:test] 테스트가 끝나면 비밀번호를 바꾸거나 계정을 삭제하세요.');
 }

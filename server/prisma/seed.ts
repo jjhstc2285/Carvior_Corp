@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as bcrypt from 'bcrypt';
 import { AuthProvider, PrismaClient, Role } from '@prisma/client';
+import { invalidateEmployeeCache } from './invalidate-employee-cache';
 
 const prisma = new PrismaClient();
 
@@ -94,6 +95,9 @@ async function main() {
       console.log(`[seed] 생성: ${person.name} (${person.position})${isAdmin ? ' — 관리자' : ''}`);
     }
   }
+
+  // 서버가 명단을 5분 캐시한다 — 안 비우면 방금 넣은 직원이 화면에 바로 안 나온다.
+  await invalidateEmployeeCache('seed');
 
   const adminCount = await prisma.employee.count({ where: { role: Role.ADMIN } });
   console.log(`\n[seed] 완료. 총 ${roster.length}명, 관리자 ${adminCount}명.`);

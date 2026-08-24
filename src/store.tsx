@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import dayjs from 'dayjs';
 import { api, ApiError } from './lib/api';
 import { useAuth } from './authStore';
+import type { AuthUser } from './lib/auth';
 import type {
   AppNotification,
   AppState,
@@ -100,6 +101,21 @@ function flatten<T>(row: T): T {
   return rest as T;
 }
 
+/**
+ * 내 계정이 명단에 반드시 들어있게 보정한다.
+ *
+ * /employees는 서버에서 5분 캐시되고 비활성 직원은 빠지기 때문에, 방금 만든 계정으로
+ * 로그인하면 잠깐 명단에서 내가 빠져 보일 수 있다. 화면 여러 곳이 "내 정보는 목록에 있다"를
+ * 전제로 짜여 있어서, 그 틈에 화면이 통째로 죽는 걸 여기서 막는다.
+ */
+function withCurrentUser(employees: Employee[], user: AuthUser): Employee[] {
+  if (employees.some(e => e.id === user.id)) return employees;
+  return [
+    ...employees,
+    { id: user.id, name: user.name, position: user.position, department: null, phones: [], role: user.role, active: true },
+  ];
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [state, setState] = useState<AppState>(EMPTY_STATE);
@@ -153,7 +169,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (myReq !== reqId.current) return;
 
       setState({
-        employees,
+        employees: withCurrentUser(employees, user),
         records: records.map(flatten),
         requests: requests.map(flatten),
         attendanceRequests: attendanceRequests.map(flatten),

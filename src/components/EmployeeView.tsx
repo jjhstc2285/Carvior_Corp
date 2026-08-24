@@ -27,7 +27,8 @@ export default function EmployeeView() {
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [attReqOpen, setAttReqOpen] = useState(false);
 
-  const employee = state.employees.find(e => e.id === state.currentEmployeeId)!;
+  // 명단 캐시 등으로 내가 목록에서 빠질 수 있다 — 단언하지 않고 안내로 넘긴다(예전엔 화면이 통째로 죽었다).
+  const employee = state.employees.find(e => e.id === state.currentEmployeeId);
 
   const days = useMemo(() => {
     const today = dayjs();
@@ -39,6 +40,17 @@ export default function EmployeeView() {
     }
     return list.reverse();
   }, []);
+
+  if (!employee) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-16 text-center">
+        <p className="text-sm text-slate-500">직원 정보를 불러오지 못했습니다.</p>
+        <p className="mt-1 text-xs text-slate-400">
+          방금 만든 계정이라면 잠시 후 다시 시도해 주세요. 계속 보이면 관리자에게 문의해 주세요.
+        </p>
+      </div>
+    );
+  }
 
   const rows = days.map(date => {
     const record = state.records.find(r => r.employeeId === employee.id && r.date === date);
