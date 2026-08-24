@@ -31,19 +31,29 @@ interface LoginSeed {
   position?: string;
 }
 
+/**
+ * 파일이 없으면 그냥 실패한다.
+ *
+ * 명단 시드(seed.ts)처럼 예시로 대체하면 안 된다 — 여기서 만드는 건 '로그인할 수 있는
+ * 계정'이라, 실수로 예시가 돌면 실재하지 않는 사람에게 로그인 수단이 생긴다.
+ * 실제로 한 번 그랬다.
+ */
 function loadLogins(): LoginSeed[] {
   const realPath = join(__dirname, 'employee-logins.json');
-  const examplePath = join(__dirname, 'employee-logins.example.json');
 
-  if (existsSync(realPath)) {
-    return JSON.parse(readFileSync(realPath, 'utf-8')) as LoginSeed[];
+  if (!existsSync(realPath)) {
+    throw new Error(
+      'prisma/employee-logins.json 이 없습니다.\n' +
+        '        employee-logins.example.json 을 참고해 만든 뒤 다시 실행하세요.\n' +
+        `        찾은 경로: ${realPath}`,
+    );
   }
 
-  console.warn(
-    '\n[seed:logins] prisma/employee-logins.json 이 없어 예시 계정으로 시드합니다.\n' +
-      '              실제 계정을 넣으려면 employee-logins.example.json 을 복사해 employee-logins.json 으로 만드세요.\n',
-  );
-  return JSON.parse(readFileSync(examplePath, 'utf-8')) as LoginSeed[];
+  const parsed: unknown = JSON.parse(readFileSync(realPath, 'utf-8'));
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error('prisma/employee-logins.json 이 비어 있거나 배열이 아닙니다.');
+  }
+  return parsed as LoginSeed[];
 }
 
 /** 같은 아이디를 두 사람에게 주면 DB 유니크 제약에서 터진다 — 돌리기 전에 잡는다. */
