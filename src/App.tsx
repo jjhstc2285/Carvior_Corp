@@ -55,7 +55,13 @@ function AuthedApp({ role }: { role: Role }) {
         chatUnread={chatUnread}
       />
       <div className="min-w-0 flex-1">
-        <TopBar title={MODULE_TITLE[module]} role={role} onMenuClick={() => setMobileNavOpen(true)} />
+        <TopBar
+          title={MODULE_TITLE[module]}
+          role={role}
+          onMenuClick={() => setMobileNavOpen(true)}
+          chatUnread={chatUnread}
+          onOpenChat={() => setModule('chat')}
+        />
         <ModuleContent module={module} role={role} />
       </div>
 

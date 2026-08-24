@@ -74,9 +74,8 @@ export default function ChatModule({ role }: Props) {
     }
   };
 
-  const openedName = chat.openWith
-    ? (state.employees.find(e => e.id === chat.openWith)?.name ?? '대화')
-    : null;
+  // 이름만으로는 누군지 헷갈리는 경우가 있어 직급을 같이 보여준다.
+  const opened = chat.openWith ? state.employees.find(e => e.id === chat.openWith) : null;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
@@ -141,8 +140,11 @@ export default function ChatModule({ role }: Props) {
             </div>
           ) : (
             <>
-              <div className="border-b border-slate-100 px-4 py-3">
-                <p className="text-sm font-bold text-slate-800">{isAdmin ? openedName : '관리자'}</p>
+              <div className="flex items-baseline gap-1.5 border-b border-slate-100 px-4 py-3">
+                <p className="text-sm font-bold text-slate-800">{isAdmin ? (opened?.name ?? '대화') : '관리자'}</p>
+                {isAdmin && opened?.position && (
+                  <span className="text-xs text-slate-400">{opened.position}</span>
+                )}
               </div>
 
               <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
@@ -156,7 +158,12 @@ export default function ChatModule({ role }: Props) {
                   return (
                     <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[75%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
-                        {!mine && <p className="mb-0.5 text-[11px] text-slate-400">{m.sender.name}</p>}
+                        {!mine && (
+                          <p className="mb-0.5 text-[11px] text-slate-400">
+                            {m.sender.name}
+                            {m.sender.position && <span className="ml-1">{m.sender.position}</span>}
+                          </p>
+                        )}
                         <div
                           className={`whitespace-pre-wrap rounded-2xl px-3 py-2 text-[13px] leading-relaxed ${
                             mine ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'

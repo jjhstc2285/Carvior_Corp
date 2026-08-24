@@ -1,0 +1,5 @@
+[
+  { "name": "홍길동", "position": "사무장", "loginId": "hong97", "password": "바꿔주세요1!" },
+  { "name": "김철수", "position": "차장", "loginId": "kimcs123", "password": "바꿔주세요2!" },
+  { "name": "이영희", "position": "사원", "loginId": "leeyh0771", "password": "바꿔주세요3!" }
+]

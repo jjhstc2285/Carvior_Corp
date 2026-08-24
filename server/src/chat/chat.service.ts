@@ -11,6 +11,11 @@ interface AuthUser {
 
 const DEFAULT_TAKE = 50;
 
+/** 알림에는 이름만으로 누군지 헷갈리는 경우가 있어 직급을 같이 붙인다. */
+function label(name: string, position?: string | null): string {
+  return position ? `${name} ${position}` : name;
+}
+
 @Injectable()
 export class ChatService {
   constructor(
@@ -75,7 +80,7 @@ export class ChatService {
         conversationId: conversation.id,
         ...(params.before ? { createdAt: { lt: await this.createdAtOf(params.before) } } : {}),
       },
-      include: { sender: { select: { id: true, name: true, role: true } } },
+      include: { sender: { select: { id: true, name: true, role: true, position: true } } },
       orderBy: { createdAt: 'desc' },
       take: params.take ?? DEFAULT_TAKE,
     });
@@ -93,7 +98,7 @@ export class ChatService {
 
     const target = await this.prisma.employee.findUnique({
       where: { id: employeeId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, position: true },
     });
     if (!target) throw new NotFoundException('해당 직원을 찾을 수 없습니다.');
 
@@ -105,7 +110,7 @@ export class ChatService {
 
     const message = await this.prisma.chatMessage.create({
       data: { conversationId: conversation.id, senderId: user.id, body },
-      include: { sender: { select: { id: true, name: true, role: true } } },
+      include: { sender: { select: { id: true, name: true, role: true, position: true } } },
     });
 
     const payload = { conversationId: conversation.id, employeeId, message };
@@ -122,7 +127,14 @@ export class ChatService {
 
     // 메시지는 창을 닫아둔 사이에 오는 경우가 대부분이라 웹 푸시가 특히 의미가 있다.
     // 발송을 기다리지 않는다 — 실패해도 메시지는 이미 저장됐다.
-    void this.pushMessage(user, employeeId, target.name, message.sender.name, body, conversation.id);
+    void this.pushMessage(
+      user,
+      employeeId,
+      label(target.name, target.position),
+      label(message.sender.name, message.sender.position),
+      body,
+      conversation.id,
+    );
 
     return message;
   }

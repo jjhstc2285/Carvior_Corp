@@ -340,7 +340,7 @@ export interface ChatMessage {
   body: string;
   readAt: string | null; // 상대가 읽은 시각
   createdAt: string;
-  sender: { id: string; name: string; role: Role };
+  sender: { id: string; name: string; role: Role; position: string };
 }
 
 export interface ChatConversation {
