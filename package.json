@@ -1,5 +1,6 @@
 {
-  "name": "attendance-app",
+  "name": "anyone-motors-management",
+  "description": "애니원모터스 통합 관리 시스템",
   "private": true,
   "version": "0.0.0",
   "type": "module",
