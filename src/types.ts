@@ -165,7 +165,30 @@ export interface PurchaseSettlement {
   status: SettlementStatus;
   memo: string;
   createdAt: string;
+
+  // ── 서버 파생값(차량관리 연동) ──
+  /** 차량번호가 일치하는 차량의 주유·배터리·주차 비용(원). 차량관리에 없는 번호면 0. */
+  vehicleCost?: VehicleCostSummary;
+  /** 최종 합계(원) = (매입+상품화총비용) × 10,000 + 차량비용 */
+  grandTotalWon?: number;
 }
+
+/**
+ * 차량관리(주유·배터리·주차)에서 차량번호로 자동으로 붙는 비용 — 단위는 '원'.
+ * 서버가 조회할 때마다 계산해서 내려주는 파생값이라 저장되지 않는다.
+ */
+export interface VehicleCostSummary {
+  fuel: number; // 주유
+  battery: number; // 배터리
+  parking: number; // 주차
+  total: number;
+  count: number; // 이력 건수
+}
+
+export const EMPTY_VEHICLE_COST: VehicleCostSummary = { fuel: 0, battery: 0, parking: 0, total: 0, count: 0 };
+
+/** 정산 금액 1 = 10,000원 (정산은 만원 단위, 차량비용은 원 단위) */
+export const WON_PER_UNIT = 10_000;
 
 export type PurchasePrepFields = Pick<
   PurchaseSettlement,

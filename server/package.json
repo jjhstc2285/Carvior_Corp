@@ -14,7 +14,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "seed": "ts-node prisma/seed.ts",
     "seed:admin": "ts-node prisma/seed-admin.ts",
-    "seed:test": "ts-node prisma/seed-test-accounts.ts"
+    "seed:test": "ts-node prisma/seed-test-accounts.ts",
+    "reset:password": "ts-node prisma/reset-password.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

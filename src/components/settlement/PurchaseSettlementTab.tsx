@@ -3,7 +3,15 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
-import { purchaseGrandTotal, purchasePrepTotal, SETTLEMENT_STATUS_LABEL, type PurchaseSettlement, type SettlementStatus } from '../../types';
+import {
+  EMPTY_VEHICLE_COST,
+  purchaseGrandTotal,
+  purchasePrepTotal,
+  SETTLEMENT_STATUS_LABEL,
+  WON_PER_UNIT,
+  type PurchaseSettlement,
+  type SettlementStatus,
+} from '../../types';
 import PurchaseSettlementForm from './PurchaseSettlementForm';
 
 interface Props {
@@ -32,11 +40,17 @@ export default function PurchaseSettlementTab({ role }: Props) {
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
 
+  // 차량관리에서 붙는 비용 — 차량번호가 차량관리에 없으면 서버가 아무것도 안 붙이므로 0으로 본다.
+  const costOf = (s: PurchaseSettlement) => s.vehicleCost ?? EMPTY_VEHICLE_COST;
+  /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
+  const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? purchaseGrandTotal(s) * WON_PER_UNIT + costOf(s).total;
+
   const totals = useMemo(() => ({
     count: filtered.length,
     purchase: filtered.reduce((sum, s) => sum + s.purchasePrice, 0),
     prep: filtered.reduce((sum, s) => sum + purchasePrepTotal(s), 0),
     settlement: filtered.reduce((sum, s) => sum + s.settlementAmount, 0),
+    vehicleCost: filtered.reduce((sum, s) => sum + (s.vehicleCost?.total ?? 0), 0),
   }), [filtered]);
 
   const handleExport = () => {
@@ -56,6 +70,12 @@ export default function PurchaseSettlementTab({ role }: Props) {
       상품화총비용: purchasePrepTotal(s),
       '매입+상품화총비용': purchaseGrandTotal(s),
       정산금액: s.settlementAmount,
+      // 아래 네 열만 '원' 단위다(차량관리에서 자동으로 붙는 값).
+      '주유(원)': costOf(s).fuel,
+      '배터리(원)': costOf(s).battery,
+      '주차(원)': costOf(s).parking,
+      '차량비용 합계(원)': costOf(s).total,
+      '총합계(원)': totalWonOf(s),
       신차이름: s.newCarName,
       담당자: employeeOf(s.employeeId)?.name ?? '',
       상태: SETTLEMENT_STATUS_LABEL[s.status],
@@ -69,7 +89,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
 
   return (
     <>
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">총 건수</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">{totals.count}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
@@ -85,6 +105,11 @@ export default function PurchaseSettlementTab({ role }: Props) {
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">정산금액 합계</p>
           <p className="mt-1 text-2xl font-bold text-indigo-600">{NUM(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-xs font-medium text-slate-400">차량비용 합계</p>
+          <p className="mt-1 text-2xl font-bold text-sky-600">{NUM(totals.vehicleCost)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
+          <p className="mt-0.5 text-[11px] text-slate-400">주유·배터리·주차 자동 반영</p>
         </div>
       </div>
 
@@ -117,7 +142,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
 
       <div className="rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1320px] text-sm">
+          <table className="w-full min-w-[1520px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">일자</th>
@@ -135,6 +160,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">상품화총비용</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">매입+상품화</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">정산금액</th>
+                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">차량비용(원)</th>
+                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">총합계(원)</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">신차이름</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">담당자</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">상태</th>
@@ -143,7 +170,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={19} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={21} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => (
                 <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -162,6 +189,17 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   <td className="px-3 py-2.5 text-right font-medium text-amber-700">{NUM(purchasePrepTotal(s))}</td>
                   <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">{NUM(purchaseGrandTotal(s))}</td>
                   <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{NUM(s.settlementAmount)}</td>
+                  <td
+                    className="whitespace-nowrap px-3 py-2.5 text-right text-sky-700"
+                    title={
+                      costOf(s).count > 0
+                        ? `주유 ${NUM(costOf(s).fuel)} / 배터리 ${NUM(costOf(s).battery)} / 주차 ${NUM(costOf(s).parking)} (${costOf(s).count}건)`
+                        : '차량관리에 등록된 이력이 없습니다.'
+                    }
+                  >
+                    {costOf(s).count > 0 ? NUM(costOf(s).total) : <span className="text-slate-300">-</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-sky-700">{NUM(totalWonOf(s))}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{s.newCarName || '-'}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{employeeOf(s.employeeId)?.name}</td>
                   <td className="px-3 py-2.5">
