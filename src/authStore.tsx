@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getToken, UNAUTHORIZED_EVENT } from './lib/api';
 import { fetchMe, logoutLocal, type AuthUser } from './lib/auth';
+import { connectSocket, disconnectSocket } from './lib/socket';
 
 interface AuthStore {
   user: AuthUser | null;
@@ -45,6 +46,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
+
+  // 실시간 채널은 로그인 상태에만 붙여둔다. 소켓 인증에 로그인 토큰을 쓰므로
+  // 로그인 이후에 붙여야 하고, 로그아웃하면 남의 알림이 흘러들지 않게 끊는다.
+  useEffect(() => {
+    if (!user) {
+      disconnectSocket();
+      return;
+    }
+    connectSocket();
+    return () => disconnectSocket();
+  }, [user]);
 
   const logout = useCallback(() => {
     logoutLocal();

@@ -61,6 +61,8 @@ model Employee {
   vehiclePosts         VehiclePost[]
   workLogs             WorkLog[]
   vehicleExpenses      VehicleExpenseLog[]
+  conversation         Conversation?
+  chatMessages         ChatMessage[]
 
   @@unique([provider, providerId])
   @@index([name])
@@ -423,6 +425,43 @@ model WorkLog {
 
   @@index([employeeId, date])
   @@index([date])
+}
+
+// ─────────────────────────────────────────────
+// ⑧ 관리자 ↔ 직원 메시지
+// ─────────────────────────────────────────────
+
+// 직원 한 명당 대화 하나로 둔다.
+// 관리자는 여러 명이지만 같은 대화에 들어와 답하는 구조라, 방을 관리자별로 쪼갤 이유가 없다
+// (직원 입장에서도 "회사와의 대화" 하나가 자연스럽다).
+model Conversation {
+  id            String    @id @default(cuid())
+  employeeId    String    @unique
+  lastMessageAt DateTime? // 목록 정렬용 — 매번 메시지를 세지 않게 캐시한다
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([lastMessageAt])
+}
+
+model ChatMessage {
+  id             String    @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String    @db.Text
+  readAt         DateTime? // 상대가 읽은 시각 — 1:1이라 메시지마다 한 번만 찍힌다
+
+  createdAt DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       Employee     @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
 }
 
 // ─────────────────────────────────────────────

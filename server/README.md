@@ -228,6 +228,45 @@ Apache 설정은 [`../deploy/apache-skv1motors.conf`](../deploy/apache-skv1motor
 | PATCH | `/api/work-logs/:id` | 본인 or 관리자 | 내용·완료 여부·날짜·순서 수정 |
 | DELETE | `/api/work-logs/:id` | 본인 or 관리자 | 삭제 |
 
+### ⑧ 실시간 알림 / 메시지
+
+**socket.io** — 경로는 `/socket.io`이고 API 전역 프리픽스(`/api`)가 붙지 않습니다.
+
+접속할 때 `handshake.auth.token`으로 **HTTP와 같은 JWT**를 보내야 하고, 검증에 실패하거나
+비활성 계정이면 즉시 끊습니다. 통과한 소켓은 `employee:<id>` 방에 들어가고, 관리자는
+`role:admin` 방에도 들어갑니다(관리자 전원에게 보낼 때 조회 없이 방 하나로 지정).
+
+| 이벤트 | 방향 | 내용 |
+|---|---|---|
+| `notification` | 서버 → 클라이언트 | 알림 생성(승인/반려·정정요청·연차신청 등) |
+| `chat:message` | 서버 → 클라이언트 | 새 메시지 |
+| `chat:read` | 서버 → 클라이언트 | 내가 보낸 메시지를 상대가 읽음 |
+
+Apache에 WebSocket 프록시가 필요합니다 — `proxy_wstunnel` 모듈과
+[`../deploy/apache-skv1motors.conf`](../deploy/apache-skv1motors.conf)의 `/socket.io` 규칙:
+
+```bash
+sudo a2enmod proxy_wstunnel
+sudo cp deploy/apache-skv1motors.conf /etc/apache2/sites-available/skv1motors.conf
+sudo apache2ctl configtest && sudo systemctl reload apache2
+```
+
+> 이 설정을 안 하면 socket.io가 WebSocket으로 못 올라가고 롱폴링으로만 동작합니다(느리지만 됩니다).
+
+| 메서드 | 경로 | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/api/chat/conversations` | 로그인 | 대화 목록 (관리자는 전체, 직원은 본인 1건) |
+| GET | `/api/chat/unread` | 로그인 | 안 읽은 메시지 총 개수(사이드바 배지) |
+| GET | `/api/chat/:employeeId/messages?take=&before=` | 본인 or 관리자 | 메시지 목록 |
+| POST | `/api/chat/:employeeId/messages` | 본인 or 관리자 | 전송 (대화가 없으면 이때 생성) |
+| PATCH | `/api/chat/:employeeId/read` | 본인 or 관리자 | 상대가 보낸 것 읽음 처리 |
+
+대화는 **직원 한 명당 하나**입니다. 관리자는 여러 명이지만 같은 대화에 들어와 답하는
+구조라 방을 관리자별로 쪼개지 않았습니다(직원 입장에서도 "회사와의 대화" 하나가 자연스럽습니다).
+
+승인/반려 결과 알림도 이번에 추가됐습니다 — 그전에는 관리자에게만 알림이 갔고
+직원은 결과를 알림으로 받지 못했습니다.
+
 ### ⑦ 차량 관리
 
 | 메서드 | 경로 | 권한 | 설명 |

@@ -329,6 +329,28 @@ export interface VehicleExpenseLog {
   updatedAt: string;
 }
 
+// ─────────────────────────────────────────────────────────────
+// 관리자 ↔ 직원 메시지
+// ─────────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  readAt: string | null; // 상대가 읽은 시각
+  createdAt: string;
+  sender: { id: string; name: string; role: Role };
+}
+
+export interface ChatConversation {
+  id: string;
+  employee: { id: string; name: string; position: string };
+  lastMessage: Pick<ChatMessage, 'id' | 'body' | 'senderId' | 'createdAt' | 'readAt'> | null;
+  lastMessageAt: string | null;
+  unread: number;
+}
+
 export interface AppState {
   employees: Employee[];
   records: AttendanceRecord[];

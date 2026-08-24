@@ -1,4 +1,4 @@
-import { CalendarClock, Car, Images, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Users2, X } from 'lucide-react';
+import { CalendarClock, Car, Images, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Users2, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 
 interface Props {
@@ -6,6 +6,8 @@ interface Props {
   onChange: (m: ModuleKey) => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  /** 메시지 메뉴에 붙는 안 읽은 개수 */
+  chatUnread?: number;
 }
 
 const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[] = [
@@ -16,9 +18,10 @@ const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[]
   { key: 'parking', label: '주차장 관리', icon: ParkingSquare },
   { key: 'vehicle', label: '차량 관리', icon: Car },
   { key: 'vehiclePost', label: '매물 사진 등록', icon: Images },
+  { key: 'chat', label: '메시지', icon: MessageSquare },
 ];
 
-export default function Sidebar({ active, onChange, mobileOpen, onMobileClose }: Props) {
+export default function Sidebar({ active, onChange, mobileOpen, onMobileClose, chatUnread = 0 }: Props) {
   const content = (
     <>
       <div className="flex items-center justify-between px-4 py-4">
@@ -47,6 +50,11 @@ export default function Sidebar({ active, onChange, mobileOpen, onMobileClose }:
             >
               <Icon size={16} />
               {item.label}
+              {item.key === 'chat' && chatUnread > 0 && (
+                <span className="ml-auto inline-flex min-w-4 justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                  {chatUnread > 99 ? '99+' : chatUnread}
+                </span>
+              )}
             </button>
           );
         })}

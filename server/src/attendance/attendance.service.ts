@@ -4,6 +4,7 @@ import { AttendanceRequestKind, NotificationType, RequestStatus, Role } from '@p
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, formatDateOnlyOrNull, monthRange, nowTimeKst, todayKst, toDateOnly } from '../common/date.util';
 import type { AddIpDto, CreateAttendanceRequestDto, CreateCorrectionDto } from './dto/attendance.dto';
+import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 
 const KIND_LABEL: Record<AttendanceRequestKind, string> = {
   ANNUAL_LEAVE: '연차',
@@ -17,7 +18,10 @@ function hashDeviceToken(token: string): string {
 
 @Injectable()
 export class AttendanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeGateway,
+  ) {}
 
   // ── 출퇴근 기록 ──────────────────────────────
 
@@ -183,7 +187,7 @@ export class AttendanceService {
       throw new BadRequestException('이미 처리된 요청입니다.');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.correctionRequest.update({
         where: { id },
         data: {
@@ -208,6 +212,16 @@ export class AttendanceService {
 
       return { ...updated, date: formatDateOnly(updated.date) };
     });
+
+    // 결과 통지는 트랜잭션 밖에서 — 알림 때문에 기록 반영이 되돌아가면 안 된다.
+    await this.notifyEmployee(
+      NotificationType.CORRECTION_REQUEST,
+      `${result.date} 근태 수정 요청이 ${approve ? '승인' : '반려'}되었습니다.${note ? ` (${note})` : ''}`,
+      req.employeeId,
+      req.date,
+    );
+
+    return result;
   }
 
   // ── 연차 / 외근 신청 ──────────────────────────────
@@ -261,6 +275,14 @@ export class AttendanceService {
         reviewNote: note ?? null,
       },
     });
+
+    await this.notifyEmployee(
+      NotificationType.ATTENDANCE_REQUEST,
+      `${formatDateOnly(updated.date)} ${KIND_LABEL[updated.kind]} 신청이 ${approve ? '승인' : '반려'}되었습니다.${note ? ` (${note})` : ''}`,
+      updated.employeeId,
+      updated.date,
+    );
+
     return { ...updated, date: formatDateOnly(updated.date) };
   }
 
@@ -290,7 +312,25 @@ export class AttendanceService {
     await this.prisma.notification.createMany({
       data: admins.map((a) => ({ type, message, employeeId: a.id, date })),
     });
+
+    // 브라우저를 열어둔 관리자에게는 새로고침 없이 바로 뜨게 한다.
+    // 실패해도 알림 자체는 DB에 남았으므로 요청을 되돌리지 않는다.
+    this.realtime.toEmployees(
+      admins.map((a) => a.id),
+      REALTIME_EVENT.notification,
+      { type, message, date: formatDateOnly(date) },
+    );
     void employeeId;
+  }
+
+  /** 신청 결과를 신청한 직원에게 알린다(승인/반려). */
+  private async notifyEmployee(type: NotificationType, message: string, employeeId: string, date: Date) {
+    await this.prisma.notification.create({ data: { type, message, employeeId, date } });
+    this.realtime.toEmployee(employeeId, REALTIME_EVENT.notification, {
+      type,
+      message,
+      date: formatDateOnly(date),
+    });
   }
 
   async findNotifications(employeeId: string) {

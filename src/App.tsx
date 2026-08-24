@@ -13,6 +13,9 @@ import ParkingModule from './components/parking/ParkingModule';
 import VehiclePostModule from './components/vehiclePost/VehiclePostModule';
 import WorkLogModule from './components/workLog/WorkLogModule';
 import VehicleModule from './components/vehicle/VehicleModule';
+import ChatModule from './components/chat/ChatModule';
+import { useChatUnread } from './components/chat/useChat';
+import RealtimeToasts from './components/RealtimeToasts';
 import LoginPage from './components/auth/LoginPage';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
@@ -23,12 +26,14 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   parking: '주차장 관리',
   vehicle: '차량 관리',
   vehiclePost: '매물 사진 등록',
+  chat: '메시지',
 };
 
 function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'attendance') return role === 'EMPLOYEE' ? <EmployeeView /> : <AdminView />;
   if (module === 'workLog') return <WorkLogModule role={role} />;
   if (module === 'vehicle') return <VehicleModule />;
+  if (module === 'chat') return <ChatModule role={role} />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationModule role={role} />;
   if (module === 'vehiclePost') return <VehiclePostModule role={role} />;
@@ -38,6 +43,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
 function AuthedApp({ role }: { role: Role }) {
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const chatUnread = useChatUnread();
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -46,11 +52,15 @@ function AuthedApp({ role }: { role: Role }) {
         onChange={setModule}
         mobileOpen={mobileNavOpen}
         onMobileClose={() => setMobileNavOpen(false)}
+        chatUnread={chatUnread}
       />
       <div className="min-w-0 flex-1">
         <TopBar title={MODULE_TITLE[module]} role={role} onMenuClick={() => setMobileNavOpen(true)} />
         <ModuleContent module={module} role={role} />
       </div>
+
+      {/* 어느 화면에 있어도 실시간 알림·메시지를 놓치지 않게 앱 전체에 하나만 띄운다 */}
+      <RealtimeToasts onOpenChat={() => setModule('chat')} />
     </div>
   );
 }

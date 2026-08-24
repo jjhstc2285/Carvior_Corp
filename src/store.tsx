@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { api, ApiError } from './lib/api';
 import { useAuth } from './authStore';
 import type { AuthUser } from './lib/auth';
+import { SOCKET_EVENT, onSocketEvent } from './lib/socket';
 import type {
   AppNotification,
   AppState,
@@ -194,6 +195,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // 실시간 알림 — 소켓으로 알림이 오면 알림 목록만 다시 받아온다.
+  // 전체(load)를 다시 부르면 화면 전체가 깜빡이고 요청도 열 개가 넘게 나간다.
+  useEffect(() => {
+    if (!user) return;
+    return onSocketEvent(SOCKET_EVENT.notification, () => {
+      void api<AppNotification[]>('/attendance/notifications')
+        .then(notifications => setState(prev => ({ ...prev, notifications })))
+        .catch(() => {
+          // 목록 갱신 실패는 조용히 넘긴다 — 다음 새로고침에 맞춰진다.
+        });
+    });
+  }, [user]);
 
   const value = useMemo<Store>(() => {
     // 서버 상태가 정답이므로, 쓰기 후에는 전체를 다시 불러와 화면을 맞춘다.
