@@ -354,7 +354,8 @@ export interface ChatMessage {
 
 export interface ChatConversation {
   id: string;
-  employee: { id: string; name: string; position: string };
+  /** 대화 상대 — 내가 관리자면 직원이, 직원이면 관리자가 온다 */
+  partner: { id: string; name: string; position: string; role: Role };
   lastMessage: Pick<ChatMessage, 'id' | 'body' | 'senderId' | 'createdAt' | 'readAt'> | null;
   lastMessageAt: string | null;
   unread: number;

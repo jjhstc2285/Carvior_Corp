@@ -61,7 +61,8 @@ model Employee {
   vehiclePosts         VehiclePost[]
   workLogs             WorkLog[]
   vehicleExpenses      VehicleExpenseLog[]
-  conversation         Conversation?
+  conversations        Conversation[]      @relation("ConversationEmployee")
+  adminConversations   Conversation[]      @relation("ConversationAdmin")
   chatMessages         ChatMessage[]
   pushSubscriptions    PushSubscription[]
 
@@ -457,20 +458,29 @@ model PushSubscription {
 // ⑧ 관리자 ↔ 직원 메시지
 // ─────────────────────────────────────────────
 
-// 직원 한 명당 대화 하나로 둔다.
-// 관리자는 여러 명이지만 같은 대화에 들어와 답하는 구조라, 방을 관리자별로 쪼갤 이유가 없다
-// (직원 입장에서도 "회사와의 대화" 하나가 자연스럽다).
+// 두 사람 사이의 1:1 대화.
+//
+// 처음에는 직원당 하나로 두고 관리자 전원이 같은 방에 들어와 답했다. 그런데 직원이
+// "안원용 본부장님께만" 보내고 싶어도 방법이 없었다. 그래서 상대를 지정할 수 있게
+// (직원, 관리자) 쌍마다 방을 따로 둔다.
+//
+// employeeId/adminId라는 이름은 남겨두되, 조회는 "내가 어느 쪽이든" 걸리게 한다
+// (관리자끼리 주고받으면 한쪽이 employeeId 자리에 들어간다).
 model Conversation {
   id            String    @id @default(cuid())
-  employeeId    String    @unique
+  employeeId    String
+  adminId       String
   lastMessageAt DateTime? // 목록 정렬용 — 매번 메시지를 세지 않게 캐시한다
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  employee Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee      @relation("ConversationEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  admin    Employee      @relation("ConversationAdmin", fields: [adminId], references: [id], onDelete: Cascade)
   messages ChatMessage[]
 
+  @@unique([employeeId, adminId])
+  @@index([adminId])
   @@index([lastMessageAt])
 }
 

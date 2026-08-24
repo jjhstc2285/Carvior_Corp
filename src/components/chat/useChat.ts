@@ -8,15 +8,16 @@ interface MessagesResponse {
   messages: ChatMessage[];
 }
 
+/** 받는 사람 입장에서 이 대화의 상대(partnerId)를 서버가 채워서 보낸다. */
 interface IncomingMessage {
   conversationId: string;
-  employeeId: string;
+  partnerId: string;
   message: ChatMessage;
 }
 
 interface IncomingRead {
   conversationId: string;
-  employeeId: string;
+  partnerId: string;
   readAt: string;
   count: number;
 }
@@ -27,9 +28,9 @@ export interface ChatApi {
   loading: boolean;
   sending: boolean;
   error: string | null;
-  /** 지금 열어둔 대화의 직원 id */
+  /** 지금 열어둔 대화의 상대 id */
   openWith: string | null;
-  open: (employeeId: string) => void;
+  open: (partnerId: string) => void;
   send: (body: string) => Promise<void>;
   reload: () => Promise<void>;
 }
@@ -107,39 +108,39 @@ export function useChat(myId: string): ChatApi {
   }, [loadConversations]);
 
   /** 대화를 열면 메시지를 받아오고, 상대가 보낸 것들을 읽음으로 표시한다. */
-  const open = useCallback((employeeId: string) => {
-    openWithRef.current = employeeId;
-    setOpenWith(employeeId);
+  const open = useCallback((partnerId: string) => {
+    openWithRef.current = partnerId;
+    setOpenWith(partnerId);
     setMessages([]);
     setLoading(true);
 
     void (async () => {
       try {
-        const res = await api<MessagesResponse>(`/chat/${employeeId}/messages`);
+        const res = await api<MessagesResponse>(`/chat/${partnerId}/messages`);
         // 여는 사이에 다른 대화로 옮겼으면 버린다.
-        if (openWithRef.current !== employeeId) return;
+        if (openWithRef.current !== partnerId) return;
         setMessages(res.messages);
         setError(null);
 
-        await api(`/chat/${employeeId}/read`, { method: 'PATCH' });
-        setConversations(prev => prev.map(c => (c.employee.id === employeeId ? { ...c, unread: 0 } : c)));
+        await api(`/chat/${partnerId}/read`, { method: 'PATCH' });
+        setConversations(prev => prev.map(c => (c.partner.id === partnerId ? { ...c, unread: 0 } : c)));
         notifyUnreadChanged();
       } catch (e) {
-        if (openWithRef.current === employeeId) setError(message(e, '메시지를 불러오지 못했습니다.'));
+        if (openWithRef.current === partnerId) setError(message(e, '메시지를 불러오지 못했습니다.'));
       } finally {
-        if (openWithRef.current === employeeId) setLoading(false);
+        if (openWithRef.current === partnerId) setLoading(false);
       }
     })();
   }, []);
 
   const send = useCallback(
     async (body: string) => {
-      const employeeId = openWithRef.current;
-      if (!employeeId || !body.trim()) return;
+      const partnerId = openWithRef.current;
+      if (!partnerId || !body.trim()) return;
 
       setSending(true);
       try {
-        const sent = await api<ChatMessage>(`/chat/${employeeId}/messages`, {
+        const sent = await api<ChatMessage>(`/chat/${partnerId}/messages`, {
           method: 'POST',
           body: { body: body.trim() },
         });
@@ -159,10 +160,10 @@ export function useChat(myId: string): ChatApi {
   // 실시간 수신 — 열어둔 대화면 화면에 바로 붙이고, 아니면 목록의 안읽음만 갱신한다.
   useEffect(() => {
     const offMessage = onSocketEvent<IncomingMessage>(SOCKET_EVENT.chatMessage, payload => {
-      if (payload.employeeId === openWithRef.current) {
+      if (payload.partnerId === openWithRef.current) {
         setMessages(prev => (prev.some(m => m.id === payload.message.id) ? prev : [...prev, payload.message]));
         // 보고 있는 중이니 바로 읽음 처리한다.
-        void api(`/chat/${payload.employeeId}/read`, { method: 'PATCH' })
+        void api(`/chat/${payload.partnerId}/read`, { method: 'PATCH' })
           .then(notifyUnreadChanged)
           .catch(() => {});
       }
@@ -170,7 +171,7 @@ export function useChat(myId: string): ChatApi {
     });
 
     const offRead = onSocketEvent<IncomingRead>(SOCKET_EVENT.chatRead, payload => {
-      if (payload.employeeId !== openWithRef.current) return;
+      if (payload.partnerId !== openWithRef.current) return;
       // 읽음 표시는 '내가 보낸' 메시지에만 붙는다 — 상대 메시지까지 칠하면 뜻이 반대가 된다.
       setMessages(prev =>
         prev.map(m => (m.senderId === myId && !m.readAt ? { ...m, readAt: payload.readAt } : m)),
