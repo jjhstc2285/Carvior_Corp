@@ -179,6 +179,20 @@ model IpWhitelist {
   createdAt DateTime @default(now())
 }
 
+// 출근 등록을 허용할 단말(그 자리 PC).
+//
+// 사무실 WiFi에 붙은 휴대폰과 자리 PC는 같은 공인 IP로 나가기 때문에 IP만으로는 못 가른다.
+// 그래서 등록한 PC 브라우저에만 키를 심어두고, 그 키를 들고 온 요청만 출근을 찍게 한다.
+// 키 원본은 발급 때 한 번만 내려주고 서버에는 해시만 남긴다(유출돼도 DB에서 원본이 안 나오게).
+model AttendanceDevice {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique // 발급한 키의 SHA-256
+  label      String // 어느 자리 PC인지 알아볼 이름
+  active     Boolean   @default(true)
+  lastUsedAt DateTime? // 마지막으로 이 단말에서 출근이 찍힌 시각
+  createdAt  DateTime  @default(now())
+}
+
 // ─────────────────────────────────────────────
 // ② 알선 상담
 // ─────────────────────────────────────────────

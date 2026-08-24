@@ -32,6 +32,44 @@ export function setToken(value: string | null): void {
 /** 토큰이 만료·무효일 때 앱 전체가 로그인 화면으로 돌아가게 알린다. */
 export const UNAUTHORIZED_EVENT = 'anyone-motors:unauthorized';
 
+/**
+ * 출근 단말 키.
+ *
+ * 사무실 WiFi에 붙은 휴대폰과 자리 PC는 같은 공인 IP로 나가서 IP로는 못 가른다.
+ * 그래서 등록한 PC 브라우저에만 이 키를 저장해두고 매 요청에 실어 보낸다 —
+ * 서버는 등록된 단말이 있을 때 이 키가 있는 요청만 출근을 찍게 한다.
+ * 로그인 토큰과 달리 계정이 아니라 '그 PC'에 붙는 값이라 로그아웃해도 지우지 않는다.
+ */
+const DEVICE_KEY = 'anyone-motors-device';
+
+interface DeviceRegistration {
+  id: string;
+  token: string;
+}
+
+let device: DeviceRegistration | null = null;
+try {
+  const raw = localStorage.getItem(DEVICE_KEY);
+  if (raw) device = JSON.parse(raw) as DeviceRegistration;
+} catch {
+  // 저장된 값이 깨졌거나 접근이 막힌 경우 — 단말 미등록으로 본다
+}
+
+/** 이 브라우저가 등록된 단말이면 그 id, 아니면 null */
+export function getDeviceId(): string | null {
+  return device?.id ?? null;
+}
+
+export function setDevice(value: DeviceRegistration | null): void {
+  device = value;
+  try {
+    if (value) localStorage.setItem(DEVICE_KEY, JSON.stringify(value));
+    else localStorage.removeItem(DEVICE_KEY);
+  } catch {
+    // 저장이 안 되면 이번 세션에서만 유지된다
+  }
+}
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -53,6 +91,7 @@ interface RequestOptions {
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (device) headers['X-Device-Token'] = device.token;
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
 
   let res: Response;

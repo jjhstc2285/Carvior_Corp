@@ -51,3 +51,11 @@ export class AddIpDto {
   @MaxLength(50)
   label?: string;
 }
+
+export class RegisterDeviceDto {
+  /** 어느 자리 PC인지 알아볼 이름 — 예: "1층 카운터 PC" */
+  @IsString()
+  @IsNotEmpty({ message: '단말 이름을 입력해 주세요.' })
+  @MaxLength(50)
+  label!: string;
+}

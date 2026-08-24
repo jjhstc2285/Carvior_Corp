@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AttendanceRequestKind, NotificationType, RequestStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,6 +9,11 @@ const KIND_LABEL: Record<AttendanceRequestKind, string> = {
   ANNUAL_LEAVE: '연차',
   FIELD_WORK: '외근/출장',
 };
+
+/** 단말 키는 원본을 저장하지 않는다 — 조회는 해시로 한다(비밀번호와 달리 조회 키라 SHA-256). */
+function hashDeviceToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 @Injectable()
 export class AttendanceService {
@@ -25,14 +31,10 @@ export class AttendanceService {
 
   /**
    * 출근 등록.
-   * IP 화이트리스트가 하나라도 등록돼 있으면 그 목록에 있는 IP에서만 찍을 수 있다.
-   * (비어 있으면 제한 없음 — 아직 설정을 안 한 상태로 본다)
+   * 허용 조건은 IP와 단말 두 가지이고, 등록된 것만 검사한다(둘 다 비어 있으면 제한 없음).
    */
-  async clockIn(employeeId: string, clientIp: string) {
-    const whitelist = await this.prisma.ipWhitelist.findMany({ select: { ip: true } });
-    if (whitelist.length > 0 && !whitelist.some((w) => w.ip === clientIp)) {
-      throw new ForbiddenException(`사무실 네트워크에서만 출근 등록이 가능합니다. (현재 IP: ${clientIp})`);
-    }
+  async clockIn(employeeId: string, clientIp: string, deviceToken?: string) {
+    await this.assertClockInAllowed(clientIp, deviceToken);
 
     const date = toDateOnly(todayKst());
     const existing = await this.prisma.attendanceRecord.findUnique({
@@ -52,6 +54,65 @@ export class AttendanceService {
         });
 
     return { ...row, date: formatDateOnly(row.date) };
+  }
+
+  /**
+   * 출근을 찍을 수 있는 자리인지 확인한다.
+   *
+   * IP 화이트리스트는 "사무실 네트워크인가"까지만 가른다. 같은 WiFi를 쓰는 휴대폰도 같은
+   * 공인 IP로 나오기 때문에, "그 자리 PC인가"는 등록된 단말 키로 따로 가린다.
+   * 각 조건은 등록된 게 하나라도 있을 때만 적용된다 — 설정 전에는 아무도 못 찍게 막지 않는다.
+   */
+  private async assertClockInAllowed(clientIp: string, deviceToken?: string): Promise<void> {
+    const whitelist = await this.prisma.ipWhitelist.findMany({ select: { ip: true } });
+    if (whitelist.length > 0 && !whitelist.some((w) => w.ip === clientIp)) {
+      throw new ForbiddenException(`사무실 네트워크에서만 출근 등록이 가능합니다. (현재 IP: ${clientIp})`);
+    }
+
+    const deviceCount = await this.prisma.attendanceDevice.count({ where: { active: true } });
+    if (deviceCount === 0) return;
+
+    const device = deviceToken
+      ? await this.prisma.attendanceDevice.findUnique({ where: { tokenHash: hashDeviceToken(deviceToken) } })
+      : null;
+
+    if (!device?.active) {
+      throw new ForbiddenException('등록된 출근 단말(사무실 PC)에서만 출근 등록이 가능합니다.');
+    }
+
+    await this.prisma.attendanceDevice.update({
+      where: { id: device.id },
+      data: { lastUsedAt: new Date() },
+    });
+  }
+
+  // ── 출근 단말 ──────────────────────────────
+
+  /** 관리자 화면용 목록 — 키 해시는 내려주지 않는다. */
+  listDevices() {
+    return this.prisma.attendanceDevice.findMany({
+      select: { id: true, label: true, active: true, lastUsedAt: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * 단말 등록. 키 원본은 이 응답에서만 볼 수 있고, 서버에는 해시만 남는다.
+   * 등록을 누른 그 브라우저가 키를 받아 저장하므로 반드시 해당 PC에서 눌러야 한다.
+   */
+  async registerDevice(label: string) {
+    const token = randomBytes(32).toString('base64url');
+    const device = await this.prisma.attendanceDevice.create({
+      data: { label, tokenHash: hashDeviceToken(token) },
+      select: { id: true, label: true, active: true, lastUsedAt: true, createdAt: true },
+    });
+    return { ...device, token };
+  }
+
+  async removeDevice(id: string) {
+    const found = await this.prisma.attendanceDevice.findUnique({ where: { id }, select: { id: true } });
+    if (!found) throw new NotFoundException('등록된 단말을 찾을 수 없습니다.');
+    await this.prisma.attendanceDevice.delete({ where: { id } });
   }
 
   async clockOut(employeeId: string) {

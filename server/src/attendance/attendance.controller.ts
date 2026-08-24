@@ -1,7 +1,13 @@
-import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Ip, Param, Patch, Post, Query } from '@nestjs/common';
 import { RequestStatus, Role } from '@prisma/client';
 import { AttendanceService } from './attendance.service';
-import { AddIpDto, CreateAttendanceRequestDto, CreateCorrectionDto, ReviewDto } from './dto/attendance.dto';
+import {
+  AddIpDto,
+  CreateAttendanceRequestDto,
+  CreateCorrectionDto,
+  RegisterDeviceDto,
+  ReviewDto,
+} from './dto/attendance.dto';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { todayKst } from '../common/date.util';
@@ -26,10 +32,15 @@ export class AttendanceController {
     return this.attendance.today(user.id);
   }
 
+  /** 등록된 출근 단말이 있으면 그 PC가 심어둔 키(X-Device-Token)를 같이 봐야 통과한다. */
   @Post('clock-in')
   @HttpCode(200)
-  clockIn(@CurrentUser() user: AuthUser, @Ip() ip: string) {
-    return this.attendance.clockIn(user.id, ip);
+  clockIn(
+    @CurrentUser() user: AuthUser,
+    @Ip() ip: string,
+    @Headers('x-device-token') deviceToken?: string,
+  ) {
+    return this.attendance.clockIn(user.id, ip, deviceToken);
   }
 
   @Post('clock-out')
@@ -145,5 +156,30 @@ export class AttendanceController {
   @Get('my-ip')
   myIp(@Ip() ip: string) {
     return { ip };
+  }
+
+  // ── 출근 단말 (관리자 전용) ──
+
+  @Roles(Role.ADMIN)
+  @Get('devices')
+  devices() {
+    return this.attendance.listDevices();
+  }
+
+  /**
+   * 이 요청을 보낸 브라우저를 출근 단말로 등록한다.
+   * 응답의 token은 이때 딱 한 번만 내려가고, 그 브라우저가 저장해 두었다가 출근 때 보낸다.
+   */
+  @Roles(Role.ADMIN)
+  @Post('devices')
+  registerDevice(@Body() dto: RegisterDeviceDto) {
+    return this.attendance.registerDevice(dto.label);
+  }
+
+  @Roles(Role.ADMIN)
+  @Delete('devices/:id')
+  @HttpCode(204)
+  async removeDevice(@Param('id') id: string) {
+    await this.attendance.removeDevice(id);
   }
 }

@@ -3,6 +3,7 @@ import ApprovalInbox from './ApprovalInbox';
 import AttendanceRequestInbox from './AttendanceRequestInbox';
 import MonthlyDashboard from './MonthlyDashboard';
 import IpWhitelistSettings from './IpWhitelistSettings';
+import AttendanceDeviceSettings from './AttendanceDeviceSettings';
 
 export default function AdminView() {
   return (
@@ -16,6 +17,7 @@ export default function AdminView() {
         <AttendanceRequestInbox />
         <ApprovalInbox />
         <IpWhitelistSettings />
+        <AttendanceDeviceSettings />
         <MonthlyDashboard />
       </div>
     </div>

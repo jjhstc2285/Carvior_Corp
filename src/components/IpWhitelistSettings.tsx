@@ -38,9 +38,11 @@ export default function IpWhitelistSettings() {
 
       <div className="px-5 py-4">
         <p className="text-xs leading-relaxed text-slate-400">
-          목록이 비어있으면 모든 IP에서 출근 등록이 가능합니다. IP를 하나라도 추가하면, 목록에 없는 IP에서는 출근 버튼이 비활성화돼요.
+          목록이 비어있으면 모든 IP에서 출근 등록이 가능합니다. IP를 하나라도 추가하면 목록에 없는 IP에서는 출근이 거부돼요.
+          판단은 서버가 요청의 실제 소스 IP로 합니다(Apache 뒤라 X-Forwarded-For를 봅니다).
           <br />
-          ⚠️ 참고용 데모 구현입니다 — 클라이언트가 자체 보고하는 공인 IP로 판단하는 방식이라(브라우저에서 확인) 실제 보안 경계로 쓰려면 서버에서 요청의 실제 소스 IP를 검사하는 백엔드 연동이 필요해요.
+          ⚠️ IP는 <strong className="font-semibold text-slate-500">사무실 네트워크까지만</strong> 가릅니다 — 같은 WiFi를 쓰는 휴대폰도
+          공인 IP가 같아서 구분되지 않아요. 자리 PC에서만 찍히게 하려면 아래 &lsquo;출근 단말&rsquo;을 함께 등록하세요.
         </p>
 
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
