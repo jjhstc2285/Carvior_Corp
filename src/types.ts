@@ -258,6 +258,54 @@ export interface WorkLog {
   updatedAt: string;
 }
 
+// ─────────────────────────────────────────────────────────────
+// 차량 관리 — 외부 이동 리스트 / 주유·배터리 비용
+// ─────────────────────────────────────────────────────────────
+
+// 매입되어 단지로 들어온 차량. 어느 리스트에 뜰지는 체크박스 조합으로 계산한다(lib/vehicle.ts).
+export interface ManagedVehicle {
+  id: string;
+  vehicleNumber: string; // "12가3456" / "123가4567"
+  plateTail: string; // 뒤 4자리
+  vehicleModel: string;
+  prepared: boolean; // 상품화
+  advertised: boolean; // 광고 완료 — 상품화 없이는 켤 수 없다
+  moveBlocked: boolean; // 외부 이동 금지 — 켜지면 무조건 이동금지
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type VehicleExpenseKind = 'FUEL' | 'BATTERY';
+
+export const VEHICLE_EXPENSE_KIND_LABEL: Record<VehicleExpenseKind, string> = {
+  FUEL: '주유',
+  BATTERY: '배터리',
+};
+
+// 주유 비고 — 배터리에는 쓰지 않는다
+export type VehicleUsageNote = 'IN_PREP' | 'TEST_DRIVE' | 'SOLD';
+
+export const VEHICLE_USAGE_NOTE_LABEL: Record<VehicleUsageNote, string> = {
+  IN_PREP: '상품중',
+  TEST_DRIVE: '시승중',
+  SOLD: '판매완료',
+};
+
+// 등록할 때마다 쌓이는 이력. 금액 단위는 정산(만원)과 달리 '원'이다.
+export interface VehicleExpenseLog {
+  id: string;
+  vehicleId: string;
+  kind: VehicleExpenseKind;
+  amount: number; // 원
+  date: string; // YYYY-MM-DD
+  note: VehicleUsageNote | null;
+  employeeId: string;
+  vehicle: { id: string; vehicleNumber: string; vehicleModel: string };
+  employee: { id: string; name: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppState {
   employees: Employee[];
   records: AttendanceRecord[];

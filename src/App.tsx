@@ -12,6 +12,7 @@ import ConsultationModule from './components/consultation/ConsultationModule';
 import ParkingModule from './components/parking/ParkingModule';
 import VehiclePostModule from './components/vehiclePost/VehiclePostModule';
 import WorkLogModule from './components/workLog/WorkLogModule';
+import VehicleModule from './components/vehicle/VehicleModule';
 import LoginPage from './components/auth/LoginPage';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
@@ -20,12 +21,14 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   consultation: '알선 상담 관리',
   settlement: '정산 관리',
   parking: '주차장 관리',
+  vehicle: '차량 관리',
   vehiclePost: '매물 사진 등록',
 };
 
 function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'attendance') return role === 'EMPLOYEE' ? <EmployeeView /> : <AdminView />;
   if (module === 'workLog') return <WorkLogModule role={role} />;
+  if (module === 'vehicle') return <VehicleModule />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationModule role={role} />;
   if (module === 'vehiclePost') return <VehiclePostModule role={role} />;

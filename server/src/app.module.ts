@@ -11,6 +11,7 @@ import { SettlementsModule } from './settlements/settlements.module';
 import { ParkingModule } from './parking/parking.module';
 import { VehiclePostsModule } from './vehicle-posts/vehicle-posts.module';
 import { WorkLogsModule } from './work-logs/work-logs.module';
+import { VehiclesModule } from './vehicles/vehicles.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 
@@ -27,6 +28,7 @@ import { RolesGuard } from './auth/roles.guard';
     ParkingModule,
     VehiclePostsModule,
     WorkLogsModule,
+    VehiclesModule,
   ],
   providers: [
     // 전역 가드 — 기본은 로그인 필요, @Public() 붙은 곳만 예외.

@@ -1,0 +1,185 @@
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, VehicleExpenseKind } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { formatDateOnly, monthRange, toDateOnly, todayKst } from '../common/date.util';
+import {
+  PLATE_DUPLICATE_MESSAGE,
+  PLATE_FORMAT_MESSAGE,
+  PLATE_NOT_FOUND_MESSAGE,
+  isValidPlate,
+  normalizePlate,
+  plateTailOf,
+} from './vehicle.rules';
+import type {
+  CreateVehicleDto,
+  CreateVehicleExpenseDto,
+  UpdateVehicleDto,
+  UpdateVehicleExpenseDto,
+} from './dto/vehicle.dto';
+
+@Injectable()
+export class VehiclesService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  // ── 외부 이동 차량 리스트 ──────────────────────────────
+
+  findAll(params: { q?: string }) {
+    const where: Prisma.ManagedVehicleWhereInput = params.q
+      ? { OR: [{ vehicleNumber: { contains: params.q } }, { vehicleModel: { contains: params.q } }] }
+      : {};
+
+    // 어느 리스트에 뜰지는 체크박스 조합으로 화면에서 정한다(vehicle.rules 참고).
+    return this.prisma.managedVehicle.findMany({ where, orderBy: { createdAt: 'desc' } });
+  }
+
+  /** 뒤 4자리로 찾기 — 여러 대면 화면에서 선택박스를 띄운다. */
+  findByTail(tail: string) {
+    return this.prisma.managedVehicle.findMany({
+      where: { plateTail: tail },
+      orderBy: { vehicleNumber: 'asc' },
+    });
+  }
+
+  async create(dto: CreateVehicleDto) {
+    const vehicleNumber = this.assertPlate(dto.vehicleNumber);
+    await this.assertNotDuplicated(vehicleNumber);
+
+    return this.prisma.managedVehicle.create({
+      data: {
+        vehicleNumber,
+        plateTail: plateTailOf(vehicleNumber),
+        vehicleModel: dto.vehicleModel.trim(),
+      },
+    });
+  }
+
+  async update(id: string, dto: UpdateVehicleDto) {
+    const current = await this.findOne(id);
+
+    const vehicleNumber = dto.vehicleNumber !== undefined ? this.assertPlate(dto.vehicleNumber) : undefined;
+    if (vehicleNumber && vehicleNumber !== current.vehicleNumber) {
+      await this.assertNotDuplicated(vehicleNumber);
+    }
+
+    // 상품화를 끄면 광고완료도 같이 꺼진다.
+    // 화면에서는 상품화가 꺼져 있으면 광고완료를 못 누르게 막지만, API로도 그 조합이 못 들어오게 한다.
+    const prepared = dto.prepared ?? current.prepared;
+    const advertised = prepared ? (dto.advertised ?? current.advertised) : false;
+
+    return this.prisma.managedVehicle.update({
+      where: { id },
+      data: {
+        ...(vehicleNumber ? { vehicleNumber, plateTail: plateTailOf(vehicleNumber) } : {}),
+        ...(dto.vehicleModel !== undefined ? { vehicleModel: dto.vehicleModel.trim() } : {}),
+        ...(dto.prepared !== undefined ? { prepared } : {}),
+        ...(dto.prepared !== undefined || dto.advertised !== undefined ? { advertised } : {}),
+        ...(dto.moveBlocked !== undefined ? { moveBlocked: dto.moveBlocked } : {}),
+      },
+    });
+  }
+
+  /** 차량을 지우면 그 차의 주유·배터리 이력도 함께 사라진다(FK Cascade). */
+  async remove(id: string) {
+    await this.findOne(id);
+    await this.prisma.managedVehicle.delete({ where: { id } });
+  }
+
+  async findOne(id: string) {
+    const row = await this.prisma.managedVehicle.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException(PLATE_NOT_FOUND_MESSAGE);
+    return row;
+  }
+
+  // ── 주유 · 배터리 이력 ────────────────────────────────
+
+  private readonly expenseInclude = {
+    vehicle: { select: { id: true, vehicleNumber: true, vehicleModel: true } },
+    employee: { select: { id: true, name: true } },
+  };
+
+  private toExpenseView<T extends { date: Date }>(row: T) {
+    return { ...row, date: formatDateOnly(row.date) };
+  }
+
+  async findExpenses(params: { kind?: VehicleExpenseKind; vehicleId?: string; month?: string }) {
+    const where: Prisma.VehicleExpenseLogWhereInput = {
+      ...(params.kind ? { kind: params.kind } : {}),
+      ...(params.vehicleId ? { vehicleId: params.vehicleId } : {}),
+      ...(params.month ? { date: monthRange(params.month) } : {}),
+    };
+
+    const rows = await this.prisma.vehicleExpenseLog.findMany({
+      where,
+      include: this.expenseInclude,
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+    return rows.map((r) => this.toExpenseView(r));
+  }
+
+  async createExpense(employeeId: string, dto: CreateVehicleExpenseDto) {
+    await this.findOne(dto.vehicleId);
+    this.assertNoteAllowed(dto.kind, dto.note);
+
+    const row = await this.prisma.vehicleExpenseLog.create({
+      data: {
+        vehicleId: dto.vehicleId,
+        kind: dto.kind,
+        amount: dto.amount,
+        // 날짜를 안 주면 등록 시점(서버 기준 오늘, KST)으로 남긴다.
+        date: toDateOnly(dto.date ?? todayKst()),
+        note: dto.note ?? null,
+        employeeId,
+      },
+      include: this.expenseInclude,
+    });
+    return this.toExpenseView(row);
+  }
+
+  async updateExpense(id: string, dto: UpdateVehicleExpenseDto) {
+    const current = await this.findExpense(id);
+    this.assertNoteAllowed(current.kind, dto.note);
+
+    const row = await this.prisma.vehicleExpenseLog.update({
+      where: { id },
+      data: {
+        ...(dto.amount !== undefined ? { amount: dto.amount } : {}),
+        ...(dto.date !== undefined ? { date: toDateOnly(dto.date) } : {}),
+        ...(dto.note !== undefined ? { note: dto.note } : {}),
+      },
+      include: this.expenseInclude,
+    });
+    return this.toExpenseView(row);
+  }
+
+  async removeExpense(id: string) {
+    await this.findExpense(id);
+    await this.prisma.vehicleExpenseLog.delete({ where: { id } });
+  }
+
+  private async findExpense(id: string) {
+    const row = await this.prisma.vehicleExpenseLog.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('등록된 이력을 찾을 수 없습니다.');
+    return row;
+  }
+
+  /** 비고(상품중/시승중/판매완료)는 주유에만 있다. */
+  private assertNoteAllowed(kind: VehicleExpenseKind, note?: string | null): void {
+    if (note && kind === VehicleExpenseKind.BATTERY) {
+      throw new BadRequestException('배터리 등록에는 비고를 쓰지 않습니다.');
+    }
+  }
+
+  private assertPlate(value: string): string {
+    const vehicleNumber = normalizePlate(value);
+    if (!isValidPlate(vehicleNumber)) throw new BadRequestException(PLATE_FORMAT_MESSAGE);
+    return vehicleNumber;
+  }
+
+  private async assertNotDuplicated(vehicleNumber: string): Promise<void> {
+    const existing = await this.prisma.managedVehicle.findUnique({
+      where: { vehicleNumber },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException(PLATE_DUPLICATE_MESSAGE);
+  }
+}

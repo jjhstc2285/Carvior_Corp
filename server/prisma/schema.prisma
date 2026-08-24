@@ -60,6 +60,7 @@ model Employee {
   parkingVehicles      ParkingVehicle[]
   vehiclePosts         VehiclePost[]
   workLogs             WorkLog[]
+  vehicleExpenses      VehicleExpenseLog[]
 
   @@unique([provider, providerId])
   @@index([name])
@@ -408,4 +409,63 @@ model WorkLog {
 
   @@index([employeeId, date])
   @@index([date])
+}
+
+// ─────────────────────────────────────────────
+// ⑦ 차량 관리 — 외부 이동 리스트 / 주유·배터리 비용
+// ─────────────────────────────────────────────
+
+// 매입되어 단지로 들어온 차량.
+// 체크박스 세 개의 조합만으로 어느 리스트에 뜰지가 정해지므로 분류값은 따로 저장하지 않는다
+// (규칙이 바뀌어도 과거 데이터가 안 꼬이게 — 정산 파생값과 같은 방침).
+model ManagedVehicle {
+  id            String  @id @default(cuid())
+  vehicleNumber String  @unique // "12가3456" 또는 "123가4567"
+  plateTail     String // 뒤 4자리 — 주유·배터리 등록에서 이걸로 찾는다
+  vehicleModel  String
+  prepared      Boolean @default(false) // 상품화
+  advertised    Boolean @default(false) // 광고 완료 — 상품화 없이는 켤 수 없다
+  moveBlocked   Boolean @default(false) // 외부 이동 금지 — 켜지면 무조건 이동금지 리스트
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expenses VehicleExpenseLog[]
+
+  @@index([plateTail])
+  @@index([vehicleModel])
+}
+
+enum VehicleExpenseKind {
+  FUEL // 주유
+  BATTERY // 배터리
+}
+
+// 주유 비고 — 배터리에는 쓰지 않는다
+enum VehicleUsageNote {
+  IN_PREP // 상품중
+  TEST_DRIVE // 시승중
+  SOLD // 판매완료
+}
+
+// 주유·배터리 이력. 한 대에 계속 쌓이고, 등록 후 수정·삭제할 수 있다.
+// 금액 단위는 정산(만원)과 달리 '원'이다 — 주유비는 만원 단위로 떨어지지 않는다.
+model VehicleExpenseLog {
+  id         String             @id @default(cuid())
+  vehicleId  String
+  kind       VehicleExpenseKind
+  amount     Int                @default(0) // 원
+  date       DateTime           @db.Date
+  note       VehicleUsageNote? // 주유일 때만 채운다
+  employeeId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vehicle  ManagedVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  employee Employee       @relation(fields: [employeeId], references: [id])
+
+  @@index([vehicleId, date])
+  @@index([kind, date])
+  @@index([employeeId])
 }

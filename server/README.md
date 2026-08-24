@@ -199,6 +199,29 @@ Apache 설정은 [`../deploy/apache-skv1motors.conf`](../deploy/apache-skv1motor
 | PATCH | `/api/work-logs/:id` | 본인 or 관리자 | 내용·완료 여부·날짜·순서 수정 |
 | DELETE | `/api/work-logs/:id` | 본인 or 관리자 | 삭제 |
 
+### ⑦ 차량 관리
+
+| 메서드 | 경로 | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/api/vehicles?q=` | 로그인 | 매입 차량 전체 (분류는 저장 안 하고 체크박스로 계산) |
+| GET | `/api/vehicles/search?tail=1234` | 로그인 | 뒤 4자리로 찾기 — 여러 대면 다 내려줌 |
+| POST | `/api/vehicles` | 로그인 | 등록 — 번호 형식·중복 검사 |
+| PATCH | `/api/vehicles/:id` | 로그인 | 차량번호·차종 수정, 체크박스 3종 토글 |
+| DELETE | `/api/vehicles/:id` | 로그인 | 삭제 (주유·배터리 이력도 함께 삭제) |
+| GET | `/api/vehicles/expenses?kind=&vehicleId=&month=` | 로그인 | 주유·배터리 이력 |
+| POST | `/api/vehicles/expenses` | 로그인 | 이력 등록 (날짜 생략 시 서버 기준 오늘) |
+| PATCH/DELETE | `/api/vehicles/expenses/:id` | 로그인 | 이력 수정 / 삭제 |
+
+차량번호는 `12가3456` / `123가4567` 두 형식만 받고, 규칙과 오류 문구는
+[`src/vehicles/vehicle.rules.ts`](src/vehicles/vehicle.rules.ts) 한 곳에 모여 있습니다
+(프론트 쪽 같은 규칙은 `src/lib/vehicle.ts`).
+
+- 형식 오류 → `차량번호 형식을 확인해주세요.`
+- 중복 등록 → `동일한 차량번호가 있습니다.`
+- 뒤 4자리로 못 찾음 → `차량번호를 다시 확인해주세요.`
+
+상품화를 끄면 광고완료도 서버에서 같이 꺼집니다(화면에서 막는 것과 별개로 API로도 그 조합이 못 들어옵니다).
+
 기본이 **로그인 필요**이고 `@Public()`을 붙인 엔드포인트만 열려 있습니다.
 새 API를 추가할 때 인증을 깜빡해서 뚫리는 일을 막기 위한 구조입니다.
 
