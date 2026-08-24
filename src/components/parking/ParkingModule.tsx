@@ -80,7 +80,7 @@ export default function ParkingModule({ role }: Props) {
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="차량번호 또는 차종 검색"
+              placeholder="차량번호 또는 차량명 검색"
               className="w-56 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
             />
             <select value={lotFilter} onChange={e => setLotFilter(e.target.value)}
@@ -110,7 +110,7 @@ export default function ParkingModule({ role }: Props) {
                 <th className="px-5 py-2.5 font-medium">구역</th>
                 <th className="px-5 py-2.5 font-medium">위치</th>
                 <th className="px-5 py-2.5 font-medium">차량번호</th>
-                <th className="px-5 py-2.5 font-medium">차종</th>
+                <th className="px-5 py-2.5 font-medium">차량명</th>
                 <th className="px-5 py-2.5 font-medium">담당자</th>
                 <th className="px-5 py-2.5 font-medium">상태</th>
                 <th className="px-5 py-2.5 font-medium">최근 수정</th>

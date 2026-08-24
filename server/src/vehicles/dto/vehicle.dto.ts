@@ -16,12 +16,12 @@ import { PLATE_FORMAT_MESSAGE, PLATE_PATTERN } from '../vehicle.rules';
 
 export class CreateVehicleDto {
   @IsString() @Matches(PLATE_PATTERN, { message: PLATE_FORMAT_MESSAGE }) vehicleNumber!: string;
-  @IsString() @IsNotEmpty({ message: '차종을 입력해 주세요.' }) @MaxLength(60) vehicleModel!: string;
+  @IsString() @IsNotEmpty({ message: '차량명을 입력해 주세요.' }) @MaxLength(60) vehicleModel!: string;
 }
 
 export class UpdateVehicleDto {
   @IsOptional() @IsString() @Matches(PLATE_PATTERN, { message: PLATE_FORMAT_MESSAGE }) vehicleNumber?: string;
-  @IsOptional() @IsString() @IsNotEmpty({ message: '차종을 입력해 주세요.' }) @MaxLength(60) vehicleModel?: string;
+  @IsOptional() @IsString() @IsNotEmpty({ message: '차량명을 입력해 주세요.' }) @MaxLength(60) vehicleModel?: string;
 
   @IsOptional() @IsBoolean() prepared?: boolean; // 상품화
   @IsOptional() @IsBoolean() advertised?: boolean; // 광고 완료

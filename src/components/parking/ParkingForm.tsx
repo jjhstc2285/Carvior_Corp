@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Trash2, X } from 'lucide-react';
 import { useStore } from '../../store';
+import { ApiError } from '../../lib/api';
 import type { ParkingStatus, ParkingVehicle } from '../../types';
 import { PARKING_LOTS, PARKING_SLOTS } from '../../lib/parkingLayout';
 
@@ -24,26 +25,43 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [memo, setMemo] = useState(editing?.memo ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const zoneOptions = PARKING_LOTS.find(l => l.lot === lot)?.zones ?? [];
 
-  const handleSubmit = () => {
-    if (!lot.trim() || !zone.trim() || !vehicleNumber.trim()) {
-      setError('주차장, 구역, 차량번호는 필수 입력입니다.');
+  /**
+   * 저장이 끝난 뒤에 닫는다.
+   *
+   * 예전에는 저장을 기다리지 않고 바로 닫아서, 서버가 거부해도(예: 차량명 누락)
+   * 등록된 것처럼 보이고 구역도에는 아무것도 안 뜨는 상태가 됐다.
+   */
+  const handleSubmit = async () => {
+    if (!lot.trim() || !zone.trim() || !vehicleNumber.trim() || !vehicleModel.trim()) {
+      setError('주차장, 구역, 차량번호, 차량명은 필수 입력입니다.');
       return;
     }
-    upsertParkingVehicle({
-      id: editing?.id,
-      lot: lot.trim(),
-      zone: zone.trim(),
-      slot: slot.trim() || '-',
-      vehicleNumber: vehicleNumber.trim(),
-      vehicleModel: vehicleModel.trim(),
-      status,
-      employeeId,
-      memo,
-    });
-    onClose();
+
+    setSaving(true);
+    setError(null);
+    try {
+      await upsertParkingVehicle({
+        id: editing?.id,
+        lot: lot.trim(),
+        zone: zone.trim(),
+        slot: slot.trim() || '-',
+        vehicleNumber: vehicleNumber.trim(),
+        vehicleModel: vehicleModel.trim(),
+        status,
+        employeeId,
+        memo,
+      });
+      onClose();
+    } catch (e) {
+      // 중복 차량번호 같은 서버 판단은 여기서만 알 수 있다 — 그대로 보여준다.
+      setError(e instanceof ApiError ? e.message : '저장하지 못했습니다.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = () => {
@@ -111,7 +129,7 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">차종</label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">차량명 *</label>
             <input value={vehicleModel} onChange={e => setVehicleModel(e.target.value)}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
@@ -139,7 +157,13 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
           ) : <span />}
           <div className="flex gap-2">
             <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">취소</button>
-            <button onClick={handleSubmit} className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700">저장</button>
+            <button
+              onClick={() => void handleSubmit()}
+              disabled={saving}
+              className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {saving ? '저장 중…' : '저장'}
+            </button>
           </div>
         </div>
       </div>

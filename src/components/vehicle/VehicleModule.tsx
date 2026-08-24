@@ -21,7 +21,7 @@ export default function VehicleModule() {
         <p className="mt-1 text-sm text-slate-500">
           {tab === 'movement'
             ? '상품화·광고 상태에 따라 외부로 뺄 수 있는 차량이 자동으로 분류됩니다.'
-            : '차량번호 뒤 4자리만 넣으면 차종이 채워집니다. 등록한 이력은 나중에 고치거나 지울 수 있어요.'}
+            : '차량번호 뒤 4자리만 넣으면 차량명이 채워집니다. 등록한 이력은 나중에 고치거나 지울 수 있어요.'}
         </p>
       </div>
 

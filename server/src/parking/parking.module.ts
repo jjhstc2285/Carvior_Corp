@@ -12,7 +12,7 @@ export class UpsertParkingDto {
   @IsString() @IsNotEmpty({ message: '구역을 입력해 주세요.' }) @MaxLength(30) zone!: string;
   @IsString() @IsNotEmpty({ message: '위치를 입력해 주세요.' }) @MaxLength(20) slot!: string;
   @IsString() @IsNotEmpty({ message: '차량번호를 입력해 주세요.' }) @MaxLength(30) vehicleNumber!: string;
-  @IsString() @IsNotEmpty({ message: '차종을 입력해 주세요.' }) @MaxLength(60) vehicleModel!: string;
+  @IsString() @IsNotEmpty({ message: '차량명을 입력해 주세요.' }) @MaxLength(60) vehicleModel!: string;
   @IsOptional() @IsEnum(ParkingStatus) status?: ParkingStatus;
   @IsString() @IsNotEmpty() employeeId!: string;
   @IsOptional() @IsString() memo?: string;

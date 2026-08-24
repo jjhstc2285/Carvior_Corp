@@ -154,7 +154,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
             <input
               value={picked?.vehicleModel ?? ''}
               readOnly
-              placeholder="차종 (자동 입력)"
+              placeholder="차량명 (자동 입력)"
               className="w-48 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 outline-none"
             />
           )}
@@ -242,7 +242,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
                 <th className="px-4 py-3 font-medium">날짜</th>
                 <th className="px-3 py-3 font-medium">종류</th>
                 <th className="px-4 py-3 font-medium">차량번호</th>
-                <th className="px-4 py-3 font-medium">차종</th>
+                <th className="px-4 py-3 font-medium">차량명</th>
                 <th className="px-4 py-3 text-right font-medium">금액</th>
                 <th className="px-3 py-3 font-medium">비고</th>
                 <th className="px-3 py-3 font-medium">등록자</th>

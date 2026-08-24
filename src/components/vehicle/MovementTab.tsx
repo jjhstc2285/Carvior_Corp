@@ -52,7 +52,7 @@ export default function MovementTab({ api }: { api: VehiclesApi }) {
       return;
     }
     if (!vehicleModel) {
-      setFormError('차종을 입력해 주세요.');
+      setFormError('차량명을 입력해 주세요.');
       return;
     }
 
@@ -83,7 +83,7 @@ export default function MovementTab({ api }: { api: VehiclesApi }) {
           <input
             value={model}
             onChange={e => { setModel(e.target.value); setFormError(null); }}
-            placeholder="차종 입력"
+            placeholder="차량명 입력"
             className="w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
           />
           <button
@@ -120,7 +120,7 @@ export default function MovementTab({ api }: { api: VehiclesApi }) {
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="차량번호·차종 검색"
+          placeholder="차량번호·차량명 검색"
           className="ml-auto w-52 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
         />
       </div>
@@ -138,7 +138,7 @@ export default function MovementTab({ api }: { api: VehiclesApi }) {
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
                 <th className="px-4 py-3 font-medium">차량번호</th>
-                <th className="px-4 py-3 font-medium">차종</th>
+                <th className="px-4 py-3 font-medium">차량명</th>
                 <th className="px-3 py-3 text-center font-medium">상품화</th>
                 <th className="px-3 py-3 text-center font-medium">광고 완료</th>
                 <th className="px-3 py-3 text-center font-medium">외부 이동 금지</th>

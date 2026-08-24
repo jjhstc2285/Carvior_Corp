@@ -60,7 +60,7 @@ export default function SettlementForm({ editing, defaultEmployeeId, onClose }: 
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <label className="mb-1 block text-xs font-semibold text-slate-500">차량정보 (차종/차량번호)</label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">차량정보 (차량명/차량번호)</label>
             <input value={vehicleInfo} onChange={e => setVehicleInfo(e.target.value)} placeholder="예: 아반떼 CN7 (12가3456)"
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>

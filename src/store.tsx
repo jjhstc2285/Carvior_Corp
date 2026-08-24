@@ -212,9 +212,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Store>(() => {
     // 서버 상태가 정답이므로, 쓰기 후에는 전체를 다시 불러와 화면을 맞춘다.
     // 목록이 크지 않아 이 단순함이 낙관적 업데이트보다 낫다.
-    const run = async (fn: () => Promise<unknown>) => {
+    //
+    // 다만 구역도처럼 한 자리씩 계속 고치는 화면은 매번 열두 개 요청을 기다리게 되어
+    // 눈에 띄게 굼뜨다. 그런 곳은 reload에 '그 목록만 받는 함수'를 넘긴다.
+    const run = async (fn: () => Promise<unknown>, reload?: () => Promise<void>) => {
       await fn();
-      await load();
+      await (reload ?? load)();
+    };
+
+    const reloadParking = async () => {
+      const rows = await api<ParkingVehicle[]>('/parking');
+      setState(prev => ({ ...prev, parkingVehicles: rows.map(flatten) }));
     };
 
     return {
@@ -289,8 +297,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteConsultation: (id) => run(() => api(`/consultations/${id}`, { method: 'DELETE' })),
 
       // 주차는 칸(lot+zone+slot) 기준 upsert라 신규/수정 모두 POST 하나로 처리된다.
-      upsertParkingVehicle: ({ id: _id, ...body }) => run(() => api('/parking', { method: 'POST', body })),
-      deleteParkingVehicle: (id) => run(() => api(`/parking/${id}`, { method: 'DELETE' })),
+      upsertParkingVehicle: ({ id: _id, ...body }) =>
+        run(() => api('/parking', { method: 'POST', body }), reloadParking),
+      deleteParkingVehicle: (id) => run(() => api(`/parking/${id}`, { method: 'DELETE' }), reloadParking),
 
       upsertVehiclePost: ({ id, ...body }) =>
         run(() =>
