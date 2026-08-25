@@ -6,4 +6,5 @@ export type ModuleKey =
   | 'parking'
   | 'vehicle'
   | 'vehiclePost'
+  | 'purchaseList'
   | 'chat';

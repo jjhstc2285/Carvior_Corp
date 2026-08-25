@@ -61,8 +61,8 @@ model Employee {
   vehiclePosts         VehiclePost[]
   workLogs             WorkLog[]
   vehicleExpenses      VehicleExpenseLog[]
-  conversations        Conversation[]      @relation("ConversationEmployee")
-  adminConversations   Conversation[]      @relation("ConversationAdmin")
+  conversations        Conversation[]        @relation("ConversationEmployee")
+  adminConversations   Conversation[]        @relation("ConversationAdmin")
   chatMessages         ChatMessage[]
   pushSubscriptions    PushSubscription[]
 
@@ -559,4 +559,54 @@ model VehicleExpenseLog {
   @@index([vehicleId, date])
   @@index([kind, date])
   @@index([employeeId])
+}
+
+// ─────────────────────────────────────────────
+// ⑩ 매입리스트 — 재고금융(캐피탈 대출) 관리
+// ─────────────────────────────────────────────
+
+// 매입한 차를 캐피탈 재고금융으로 돌린 내역. 엑셀 '매입리스트' 시트를 대체한다.
+//
+// 정산관리의 매입 정산(PurchaseSettlement)과는 다른 장부다 —
+// 저쪽은 '얼마에 사서 얼마 남았나', 여기는 '어느 캐피탈에서 얼마 빌려 언제 갚나'다.
+//
+// 금액 단위는 정산(만원)과 달리 전부 '원'이다. 엑셀에 원 단위로 적어온 것을 그대로 옮긴다.
+model PurchaseListItem {
+  id            String    @id @default(cuid())
+  seq           Int // 순번 — 엑셀에서 쓰던 번호를 그대로 들고 온다
+  date          DateTime? @db.Date // 매입 날짜
+  vehicleNumber String    @db.VarChar(30)
+  vehicleName   String    @db.VarChar(60)
+  managerName   String    @db.VarChar(30) // 담당자 — 직원 계정이 없는 사람도 적혀서 이름 문자열로 둔다
+  askingPrice   Int       @default(0) // 제시가(원)
+  modelYear     String    @db.VarChar(10) // 년식 — "2016"
+  mileage       Int       @default(0) // 주행거리(km)
+
+  // 재고 — 실제로 어느 캐피탈에서 얼마를 받았나
+  stockCapital String? @db.VarChar(20) // 캐피탈사 이름. 'x'처럼 안 되는 경우도 그대로 적는다
+  stockAmount  Int     @default(0) // 금액(원)
+
+  // 재고가능금액 — 캐피탈사별로 얼마까지 가능한지 따로 적는다(원)
+  limitBmw     Int @default(0)
+  limitWoori   Int @default(0)
+  limitKb      Int @default(0)
+  limitMeritz  Int @default(0)
+  limitHana    Int @default(0)
+  limitHyundai Int @default(0)
+
+  note String @default("") @db.VarChar(255) // 비고 — 특이사항("10년경과" 등)
+
+  loanDate        DateTime? @db.Date // 대출일자
+  interestRate    Float? // 이율(%)
+  repayDate       DateTime? @db.Date // 상환일자 — 월별 현황은 이 날짜로 모은다
+  loanStatus      String    @default("") @db.VarChar(30) // 대출상황("입금완료" 등)
+  repaidDate      DateTime? @db.Date // 상환날짜 — 실제로 갚은 날
+  repaymentAmount Int       @default(0) // 상환금액(원) — 월별 현황의 합계 대상
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([repayDate])
+  @@index([vehicleNumber])
+  @@index([seq])
 }
