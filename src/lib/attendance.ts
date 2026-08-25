@@ -1,7 +1,14 @@
 import dayjs from 'dayjs';
 import type { AttendanceRecord, AttendanceRequest, AttendanceRequestKind, AttendanceStatus } from '../types';
 
-export const WORK_START = '09:00';
+/**
+ * 근무 시각 기준.
+ *
+ * 출근은 09:30:59까지 정상이다 — 기록이 'HH:mm'(초 버림)으로 남으므로 09:30:59는
+ * '09:30'으로 저장되고, 아래 판정이 '기준보다 늦으면 지각'이라 09:30은 통과하고
+ * 09:31부터 지각이 된다. 초까지 저장하도록 바꾸면 이 규칙도 같이 봐야 한다.
+ */
+export const WORK_START = '09:30';
 export const WORK_END = '18:00';
 
 function toMinutes(hhmm: string): number {
