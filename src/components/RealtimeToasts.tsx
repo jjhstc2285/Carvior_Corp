@@ -51,7 +51,8 @@ export default function RealtimeToasts({ onOpenChat }: { onOpenChat?: () => void
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex w-72 flex-col gap-2">
+    // 우측 하단은 채널톡 상담 버튼 자리라 그만큼 띄운다
+    <div className="fixed bottom-24 right-4 z-50 flex w-72 flex-col gap-2">
       {toasts.map(t => (
         <div
           key={t.id}
