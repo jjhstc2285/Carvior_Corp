@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import {
+  EMPTY_PREP_BREAKDOWN,
   EMPTY_VEHICLE_COST,
   PREP_COST_KINDS,
   PREP_COST_LABEL,
@@ -66,6 +67,12 @@ export default function PurchaseSettlementTab({ role }: Props) {
     prep: filtered.reduce((sum, s) => sum + prepTotalOf(s), 0),
     settlement: filtered.reduce((sum, s) => sum + s.settlementAmount, 0),
     vehicleCost: filtered.reduce((sum, s) => sum + (s.vehicleCost?.total ?? 0), 0),
+    // 상품화총비용을 항목 6개로 쪼갠 합계 — 어디에 돈이 몰렸는지 한눈에 보려고 둔다.
+    prepByKind: filtered.reduce((acc, s) => {
+      const b = breakdownOf(s);
+      for (const k of PREP_COST_KINDS) acc[k] += b[k];
+      return acc;
+    }, { ...EMPTY_PREP_BREAKDOWN }),
   }), [filtered]);
 
   const handleExport = () => {
@@ -125,6 +132,26 @@ export default function PurchaseSettlementTab({ role }: Props) {
           <p className="text-xs font-medium text-slate-400">차량비용 합계</p>
           <p className="mt-1 text-2xl font-bold text-sky-600">{NUM(totals.vehicleCost)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
           <p className="mt-0.5 text-[11px] text-slate-400">주유·배터리·주차·수리 자동 반영</p>
+        </div>
+      </div>
+
+      {/* 위 '상품화총비용 합계'를 항목 6개로 쪼갠 것 — 세로 합이 그 카드 숫자와 같다 */}
+      <div className="mb-4 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/40">
+        <div className="flex items-baseline justify-between border-b border-amber-200/70 px-4 py-2">
+          <span className="text-xs font-bold text-amber-800">상품화총비용 항목별</span>
+          <span className="text-[11px] text-amber-700/80">
+            합계 {NUM(totals.prep)}만원 · {totals.count}건 기준
+          </span>
+        </div>
+        <div className="grid grid-cols-3 divide-x divide-y divide-amber-200/60 sm:grid-cols-6 sm:divide-y-0">
+          {PREP_COST_KINDS.map(k => (
+            <div key={k} className="px-3 py-2.5 text-center">
+              <p className="text-[11px] font-medium text-amber-800/80">{PREP_COST_LABEL[k]}</p>
+              <p className={`mt-0.5 text-base font-bold ${totals.prepByKind[k] ? 'text-amber-700' : 'text-amber-700/25'}`}>
+                {NUM(totals.prepByKind[k])}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 
