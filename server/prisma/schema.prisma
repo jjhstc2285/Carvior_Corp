@@ -65,6 +65,7 @@ model Employee {
   adminConversations   Conversation[]        @relation("ConversationAdmin")
   chatMessages         ChatMessage[]
   pushSubscriptions    PushSubscription[]
+  purchaseIntakes      PurchaseIntake[]
 
   @@unique([provider, providerId])
   @@index([name])
@@ -609,4 +610,52 @@ model PurchaseListItem {
   @@index([repayDate])
   @@index([vehicleNumber])
   @@index([seq])
+}
+
+// ─────────────────────────────────────────────
+// ⑪ 매입 관리 — 차를 사올 때 받아 적는 인수 내역
+// ─────────────────────────────────────────────
+
+// 매입 담당이 카톡으로 주고받던 인수 내역을 그대로 옮긴 것.
+// 고객·실차확인·차량스펙·매입금액이 한 건에 다 들어간다.
+//
+// 매입리스트(PurchaseListItem)와는 다른 단계다 — 여기는 '사올 때 확인한 것',
+// 저기는 '사온 뒤 어느 캐피탈에 재고로 잡았나'다.
+//
+// 등록하면 같은 차량번호로 ManagedVehicle을 만들어 차량관리 탭에 바로 뜨게 한다.
+// 연결은 정산과 같은 방식으로 차량번호 문자열로 잡는다(FK를 걸면 차량을 지울 때
+// 매입 기록까지 묶여서, 서로 수명이 다른 두 장부가 엮인다).
+model PurchaseIntake {
+  id   String   @id @default(cuid())
+  date DateTime @db.Date // 매입일
+
+  customerPhone String @db.VarChar(20) // 고객번호
+  customerName  String @db.VarChar(30) // 고객이름
+  source        String @default("") @db.VarChar(120) // 매입처 — "아우디 평촌 류호성상조회장"
+  inspector     String @default("") @db.VarChar(60) // 실차 확인자 — "검차업체(예나)"
+
+  vehicleName   String @db.VarChar(150) // 차명 — 수입차는 트림까지 붙어 길다
+  vehicleNumber String @db.VarChar(30)
+  modelYear     String @default("") @db.VarChar(10) // 연식
+  fuel          String @default("") @db.VarChar(20) // 연료
+  keyCount      Int    @default(0) // 차키갯수
+  mileage       Int    @default(0) // 주행거리(km)
+  note          String @default("") @db.VarChar(255) // 특이사항
+
+  // 금액 단위는 매입리스트와 같은 '원'이다. 총액은 저장하지 않고 더해서 쓴다
+  // (계산식이 바뀌어도 과거 데이터가 안 꼬이게 — 정산 파생값과 같은 방침).
+  purchaseAmount Int @default(0) // 실매입금액
+  brokerFee      Int @default(0) // 구전
+
+  employeeId String // 등록자
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([date])
+  @@index([vehicleNumber])
+  @@index([customerName])
+  @@index([employeeId])
 }

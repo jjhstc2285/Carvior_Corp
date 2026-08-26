@@ -435,3 +435,37 @@ export interface PurchaseListSummary {
   repaymentTotal: number; // 그 달 상환금액 합계(원)
   stockTotal: number; // 그 달 재고금액 합계(원)
 }
+
+// ─────────────────────────────────────────────
+// 매입 관리 — 차를 사올 때 받아 적는 인수 내역
+// ─────────────────────────────────────────────
+
+// 매입리스트(재고금융)와는 다른 단계다 — 여기는 '사올 때 확인한 것'이다.
+// 금액 단위는 매입리스트와 같은 '원'이다.
+export interface PurchaseIntake {
+  id: string;
+  date: string; // YYYY-MM-DD
+
+  customerPhone: string; // 고객번호
+  customerName: string; // 고객이름
+  source: string; // 매입처
+  inspector: string; // 실차 확인자
+
+  vehicleName: string; // 차명
+  vehicleNumber: string;
+  modelYear: string; // 연식
+  fuel: string; // 연료
+  keyCount: number; // 차키갯수
+  mileage: number; // 주행거리(km)
+  note: string; // 특이사항
+
+  purchaseAmount: number; // 실매입금액(원)
+  brokerFee: number; // 구전(원)
+  /** 서버 파생값 — 실매입금액 + 구전. 저장하지 않는다. */
+  totalAmount: number;
+
+  employeeId: string;
+  employee?: { id: string; name: string; position: string };
+  createdAt: string;
+  updatedAt: string;
+}

@@ -15,6 +15,7 @@ import WorkLogModule from './components/workLog/WorkLogModule';
 import VehicleModule from './components/vehicle/VehicleModule';
 import ChatModule from './components/chat/ChatModule';
 import PurchaseListModule from './components/purchaseList/PurchaseListModule';
+import PurchaseIntakeModule from './components/purchaseIntake/PurchaseIntakeModule';
 import { useChatUnread } from './components/chat/useChat';
 import RealtimeToasts from './components/RealtimeToasts';
 import LoginPage from './components/auth/LoginPage';
@@ -27,6 +28,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   parking: '주차장 관리',
   vehicle: '차량 관리',
   vehiclePost: '매물 사진 등록',
+  purchaseIntake: '매입 관리',
   purchaseList: '매입리스트',
   chat: '메시지',
 };
@@ -36,6 +38,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'workLog') return <WorkLogModule role={role} />;
   if (module === 'vehicle') return <VehicleModule />;
   if (module === 'chat') return <ChatModule role={role} />;
+  if (module === 'purchaseIntake') return <PurchaseIntakeModule role={role} />;
   if (module === 'purchaseList') return <PurchaseListModule role={role} />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationModule role={role} />;
