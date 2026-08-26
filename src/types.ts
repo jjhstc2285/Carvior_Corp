@@ -145,6 +145,54 @@ export function brokerageSaleProfit(
 // ─────────────────────────────────────────────────────────────
 // 매입 정산 — 시트지 컬럼 그대로
 // ─────────────────────────────────────────────────────────────
+// ── 상품화 비용 명세 ──
+//
+// 항목 6종으로 나누고, 항목 안에서 다시 업체·카테고리별로 적는다.
+// 광택은 A광택집·B광택집으로 갈리고, 진단비는 플랫폼마다 광고 형태와 비용이 다르다.
+
+export const PREP_COST_KINDS = ['POLISH_WASH', 'DENT', 'PERFORMANCE', 'DELIVERY', 'REPAIR', 'DIAGNOSIS'] as const;
+
+export type PrepCostKind = (typeof PREP_COST_KINDS)[number];
+
+export const PREP_COST_LABEL: Record<PrepCostKind, string> = {
+  POLISH_WASH: '광택·세차',
+  DENT: '판금·덴트',
+  PERFORMANCE: '성능비',
+  DELIVERY: '탁송비',
+  REPAIR: '수리비',
+  DIAGNOSIS: '진단비',
+};
+
+/** 진단비는 플랫폼 수수료라 업체가 아니라 '어떤 광고 상품인지'를 적는다. */
+export const PREP_COST_VENDOR_HINT: Record<PrepCostKind, string> = {
+  POLISH_WASH: '광택집 이름',
+  DENT: '판금집 이름',
+  PERFORMANCE: '성능점 이름',
+  DELIVERY: '탁송업체',
+  REPAIR: '정비소 이름',
+  DIAGNOSIS: '플랫폼·광고상품',
+};
+
+export interface PurchasePrepCost {
+  id?: string;
+  kind: PrepCostKind;
+  vendor: string; // 업체·카테고리
+  amount: number; // 만원
+  memo: string;
+  sortOrder?: number;
+}
+
+export type PrepCostBreakdown = Record<PrepCostKind, number>;
+
+export const EMPTY_PREP_BREAKDOWN: PrepCostBreakdown = {
+  POLISH_WASH: 0,
+  DENT: 0,
+  PERFORMANCE: 0,
+  DELIVERY: 0,
+  REPAIR: 0,
+  DIAGNOSIS: 0,
+};
+
 export interface PurchaseSettlement {
   id: string;
   date: string; // 일자 YYYY-MM-DD
@@ -152,13 +200,8 @@ export interface PurchaseSettlement {
   vehicleNumber: string;
   transferFee: number; // 이전비 + 추가이전비
   purchasePrice: number; // 매입가
-  polishWashCost: number; // 광택 및 세차
-  dentCost: number; // 판금 및 덴트
-  performanceCost: number; // 성능비
-  deliveryCost: number; // 탁송비
-  repairCost: number; // 수리비
-  brokerFee: number; // 구전
-  diagnosisCost: number; // 진단비
+  brokerFee: number; // 구전 — 상품화가 아니라 별도 항목
+  prepCosts: PurchasePrepCost[]; // 상품화 비용 명세
   settlementAmount: number; // 정산금액
   newCarName: string; // 신차이름
   employeeId: string;
@@ -166,8 +209,14 @@ export interface PurchaseSettlement {
   memo: string;
   createdAt: string;
 
-  // ── 서버 파생값(차량관리 연동) ──
-  /** 차량번호가 일치하는 차량의 주유·배터리·주차 비용(원). 차량관리에 없는 번호면 0. */
+  // ── 서버 파생값 ──
+  /** 상품화총비용 — 명세를 더한 값 */
+  prepTotal?: number;
+  /** 항목별 합계 6칸 */
+  prepBreakdown?: PrepCostBreakdown;
+  /** 매입가 + 상품화총비용 */
+  grandTotal?: number;
+  /** 차량번호가 일치하는 차량의 주유·배터리·주차·수리 비용(원). 차량관리에 없는 번호면 0. */
   vehicleCost?: VehicleCostSummary;
   /** 최종 합계(원) = (매입+상품화총비용) × 10,000 + 차량비용 */
   grandTotalWon?: number;
@@ -198,20 +247,23 @@ export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
 /** 정산 금액 1 = 10,000원 (정산은 만원 단위, 차량비용은 원 단위) */
 export const WON_PER_UNIT = 10_000;
 
-export type PurchasePrepFields = Pick<
-  PurchaseSettlement,
-  'polishWashCost' | 'dentCost' | 'performanceCost' | 'deliveryCost' | 'repairCost' | 'brokerFee' | 'diagnosisCost'
->;
+// 상품화총비용 = 광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비
+// 구전과 이전비는 상품화가 아니라 별도 항목이라 제외한다.
+// (서버 settlement.calc.ts 와 같은 식 — 고칠 땐 양쪽을 같이 본다)
+export function purchasePrepTotal(costs: { amount: number }[]): number {
+  return costs.reduce((sum, c) => sum + c.amount, 0);
+}
 
-// 상품화총비용 = 광택및세차 + 판금및덴트 + 성능비 + 탁송비 + 수리비 + 구전 + 진단비
-// (이전비는 상품화가 아니라 별도 항목이라 여기 안 넣음 — 포함하려면 이 함수와 서버 calc만 고치면 됨)
-export function purchasePrepTotal(r: PurchasePrepFields): number {
-  return r.polishWashCost + r.dentCost + r.performanceCost + r.deliveryCost + r.repairCost + r.brokerFee + r.diagnosisCost;
+/** 항목별 합계 — 명세 여러 줄을 6칸으로 접는다. */
+export function prepBreakdown(costs: { kind: PrepCostKind; amount: number }[]): PrepCostBreakdown {
+  const result = { ...EMPTY_PREP_BREAKDOWN };
+  for (const c of costs) result[c.kind] += c.amount;
+  return result;
 }
 
 // 매입+상품화총비용 = 매입가 + 상품화총비용
-export function purchaseGrandTotal(r: PurchasePrepFields & Pick<PurchaseSettlement, 'purchasePrice'>): number {
-  return r.purchasePrice + purchasePrepTotal(r);
+export function purchaseGrandTotal(purchasePrice: number, prepTotal: number): number {
+  return purchasePrice + prepTotal;
 }
 
 export type ConsultationStatus = 'IN_PROGRESS' | 'CONTRACTED' | 'ON_HOLD' | 'CLOSED';

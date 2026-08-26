@@ -7,14 +7,17 @@ import {
   brokerageProfit,
   brokerageSaleProfit,
   netProfit,
+  prepBreakdown,
   purchaseGrandTotal,
   purchaseGrandTotalWon,
   purchasePrepTotal,
+  type PrepCostKind,
   type VehicleCostSummary,
 } from './settlement.calc';
 import { normalizePlate } from '../vehicles/vehicle.rules';
 import type {
   CreateBrokerageDto,
+  PrepCostInput,
   CreatePurchaseDto,
   CreateSettlementDto,
   UpdateBrokerageDto,
@@ -30,6 +33,34 @@ interface ListParams {
 }
 
 const EMPLOYEE_SELECT = { employee: { select: { id: true, name: true, position: true } } };
+
+/** 상품화 비용 명세는 화면에 적은 순서대로 보여준다. */
+const PREP_COST_INCLUDE = { prepCosts: { orderBy: { sortOrder: 'asc' } } } satisfies Prisma.PurchaseSettlementInclude;
+
+/** 조회 결과에서 파생값 계산에 필요한 최소 모양 */
+interface PurchaseRow {
+  date: Date;
+  purchasePrice: number;
+  prepCosts: { kind: PrepCostKind; amount: number }[];
+}
+
+/**
+ * 화면에서 온 명세를 저장할 모양으로 다듬는다.
+ *
+ * 0원짜리는 버린다 — 항목을 눌러만 보고 안 적은 줄이 그대로 넘어오기 때문이다.
+ * 순서는 배열 순서를 그대로 쓴다(화면에서 끌어 옮긴 순서가 곧 보고 싶은 순서다).
+ */
+function normalizePrepCosts(costs: PrepCostInput[] | undefined) {
+  return (costs ?? [])
+    .filter((c) => (c.amount ?? 0) > 0)
+    .map((c, sortOrder) => ({
+      kind: c.kind,
+      vendor: (c.vendor ?? '').trim(),
+      amount: c.amount ?? 0,
+      memo: (c.memo ?? '').trim(),
+      sortOrder,
+    }));
+}
 
 /**
  * 차량비용 종류를 요약의 어느 칸에 더할지.
@@ -181,7 +212,7 @@ export class SettlementsService {
     };
     const rows = await this.prisma.purchaseSettlement.findMany({
       where,
-      include: EMPLOYEE_SELECT,
+      include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
       orderBy: { date: 'desc' },
     });
 
@@ -231,68 +262,87 @@ export class SettlementsService {
     );
   }
 
-  private toPurchaseView<T extends Parameters<typeof purchaseGrandTotal>[0] & { date: Date }>(
-    row: T,
-    cost: VehicleCostSummary | undefined,
-  ) {
+  private toPurchaseView<T extends PurchaseRow>(row: T, cost: VehicleCostSummary | undefined) {
     const vehicleCost = cost ?? EMPTY_VEHICLE_COST;
+    // 상품화총비용과 항목별 합계는 명세를 더해서 낸다 — 저장하지 않는다.
+    const prepTotal = purchasePrepTotal(row.prepCosts);
     return {
       ...row,
       date: formatDateOnly(row.date),
-      prepTotal: purchasePrepTotal(row),
-      grandTotal: purchaseGrandTotal(row),
+      prepTotal,
+      prepBreakdown: prepBreakdown(row.prepCosts),
+      grandTotal: purchaseGrandTotal(row.purchasePrice, prepTotal),
       // 차량관리에서 자동으로 붙는 값 — 저장하지 않고 조회할 때마다 계산한다.
       vehicleCost,
-      grandTotalWon: purchaseGrandTotalWon(row, vehicleCost),
+      grandTotalWon: purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost),
     };
   }
 
   /** 단건 응답도 목록과 같은 모양이 되게 차량비용을 붙여준다. */
-  private async withVehicleCost<T extends Parameters<typeof purchaseGrandTotal>[0] & { date: Date; vehicleNumber: string }>(
-    row: T,
-  ) {
+  private async withVehicleCost<T extends PurchaseRow & { vehicleNumber: string }>(row: T) {
     const costs = await this.vehicleCostsByPlate([row.vehicleNumber]);
     return this.toPurchaseView(row, costs.get(normalizePlate(row.vehicleNumber)));
   }
 
   async createPurchase(dto: CreatePurchaseDto) {
-    const nums = {
-      transferFee: dto.transferFee ?? 0,
-      purchasePrice: dto.purchasePrice ?? 0,
-      polishWashCost: dto.polishWashCost ?? 0,
-      dentCost: dto.dentCost ?? 0,
-      performanceCost: dto.performanceCost ?? 0,
-      deliveryCost: dto.deliveryCost ?? 0,
-      repairCost: dto.repairCost ?? 0,
-      brokerFee: dto.brokerFee ?? 0,
-      diagnosisCost: dto.diagnosisCost ?? 0,
-    };
+    const prepCosts = normalizePrepCosts(dto.prepCosts);
+    const purchasePrice = dto.purchasePrice ?? 0;
+    const prepTotal = purchasePrepTotal(prepCosts);
+
     const row = await this.prisma.purchaseSettlement.create({
       data: {
         date: toDateOnly(dto.date),
         vehicleName: dto.vehicleName,
         vehicleNumber: dto.vehicleNumber,
-        ...nums,
+        transferFee: dto.transferFee ?? 0,
+        purchasePrice,
+        brokerFee: dto.brokerFee ?? 0,
         // 비워서 보내면 매입+상품화총비용을 그대로 정산금액으로 잡는다.
-        settlementAmount: dto.settlementAmount ?? purchaseGrandTotal(nums),
+        settlementAmount: dto.settlementAmount ?? purchaseGrandTotal(purchasePrice, prepTotal),
         newCarName: dto.newCarName ?? '',
         employeeId: dto.employeeId,
         status: dto.status ?? SettlementStatus.IN_PROGRESS,
         memo: dto.memo ?? '',
+        prepCosts: { create: prepCosts },
       },
-      include: EMPLOYEE_SELECT,
+      include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
     });
     return this.withVehicleCost(row);
   }
 
+  /**
+   * 수정.
+   * 명세는 통째로 갈아끼운다 — 줄 단위로 맞춰가며 고치는 것보다 화면에서 온 목록이 정답이다.
+   * 명세를 아예 안 보내면 건드리지 않는다(다른 칸만 고치는 경우).
+   */
   async updatePurchase(id: string, dto: UpdatePurchaseDto) {
     await this.assert('purchaseSettlement', id);
+    const { prepCosts, ...rest } = dto;
+
     const row = await this.prisma.purchaseSettlement.update({
       where: { id },
-      data: { ...this.stripDate(dto), ...(dto.date ? { date: toDateOnly(dto.date) } : {}) },
-      include: EMPLOYEE_SELECT,
+      data: {
+        ...this.stripDate(rest),
+        ...(dto.date ? { date: toDateOnly(dto.date) } : {}),
+        ...(prepCosts ? { prepCosts: { deleteMany: {}, create: normalizePrepCosts(prepCosts) } } : {}),
+      },
+      include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
     });
     return this.withVehicleCost(row);
+  }
+
+  /** 자동완성용 — 지금까지 쓴 업체·카테고리 이름. 항목별로 나눠서 준다. */
+  async prepVendors(): Promise<Record<string, string[]>> {
+    const rows = await this.prisma.purchasePrepCost.findMany({
+      where: { vendor: { not: '' } },
+      select: { kind: true, vendor: true },
+      distinct: ['kind', 'vendor'],
+      orderBy: { vendor: 'asc' },
+    });
+
+    const byKind: Record<string, string[]> = {};
+    for (const r of rows) (byKind[r.kind] ??= []).push(r.vendor);
+    return byKind;
   }
 
   async removePurchase(id: string) {

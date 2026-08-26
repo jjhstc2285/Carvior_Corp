@@ -5,10 +5,14 @@ import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import {
   EMPTY_VEHICLE_COST,
+  PREP_COST_KINDS,
+  PREP_COST_LABEL,
+  prepBreakdown,
   purchaseGrandTotal,
   purchasePrepTotal,
   SETTLEMENT_STATUS_LABEL,
   WON_PER_UNIT,
+  type PrepCostKind,
   type PurchaseSettlement,
   type SettlementStatus,
 } from '../../types';
@@ -42,13 +46,24 @@ export default function PurchaseSettlementTab({ role }: Props) {
 
   // 차량관리에서 붙는 비용 — 차량번호가 차량관리에 없으면 서버가 아무것도 안 붙이므로 0으로 본다.
   const costOf = (s: PurchaseSettlement) => s.vehicleCost ?? EMPTY_VEHICLE_COST;
+  /** 상품화총비용·항목별 합계는 서버가 명세를 더해서 내려준다. 없으면 화면에서 같은 식으로 낸다. */
+  const prepTotalOf = (s: PurchaseSettlement) => s.prepTotal ?? purchasePrepTotal(s.prepCosts ?? []);
+  const breakdownOf = (s: PurchaseSettlement) => s.prepBreakdown ?? prepBreakdown(s.prepCosts ?? []);
+  const grandTotalOf = (s: PurchaseSettlement) => s.grandTotal ?? purchaseGrandTotal(s.purchasePrice, prepTotalOf(s));
   /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
-  const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? purchaseGrandTotal(s) * WON_PER_UNIT + costOf(s).total;
+  const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) * WON_PER_UNIT + costOf(s).total;
+
+  /** 항목 칸에 마우스를 올리면 어느 업체에 얼마 썼는지 보인다. */
+  const vendorsOf = (s: PurchaseSettlement, kind: PrepCostKind) => {
+    const lines = (s.prepCosts ?? []).filter(c => c.kind === kind);
+    if (!lines.length) return `${PREP_COST_LABEL[kind]} 내역 없음`;
+    return lines.map(c => `${c.vendor || '미지정'} ${NUM(c.amount)}`).join(' / ');
+  };
 
   const totals = useMemo(() => ({
     count: filtered.length,
     purchase: filtered.reduce((sum, s) => sum + s.purchasePrice, 0),
-    prep: filtered.reduce((sum, s) => sum + purchasePrepTotal(s), 0),
+    prep: filtered.reduce((sum, s) => sum + prepTotalOf(s), 0),
     settlement: filtered.reduce((sum, s) => sum + s.settlementAmount, 0),
     vehicleCost: filtered.reduce((sum, s) => sum + (s.vehicleCost?.total ?? 0), 0),
   }), [filtered]);
@@ -60,15 +75,14 @@ export default function PurchaseSettlementTab({ role }: Props) {
       차량번호: s.vehicleNumber,
       '이전비+추가이전비': s.transferFee,
       매입가: s.purchasePrice,
-      '광택 및 세차': s.polishWashCost,
-      '판금 및 덴트': s.dentCost,
-      성능비: s.performanceCost,
-      탁송비: s.deliveryCost,
-      수리비: s.repairCost,
+      // 항목별 합계 6칸 — 업체별 세부는 '상품화 명세' 열에 풀어 쓴다.
+      ...Object.fromEntries(PREP_COST_KINDS.map(k => [PREP_COST_LABEL[k], breakdownOf(s)[k]])),
       구전: s.brokerFee,
-      진단비: s.diagnosisCost,
-      상품화총비용: purchasePrepTotal(s),
-      '매입+상품화총비용': purchaseGrandTotal(s),
+      상품화총비용: prepTotalOf(s),
+      '상품화 명세': (s.prepCosts ?? [])
+        .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount}`)
+        .join(' / '),
+      '매입+상품화총비용': grandTotalOf(s),
       정산금액: s.settlementAmount,
       // 아래 네 열만 '원' 단위다(차량관리에서 자동으로 붙는 값).
       '주유(원)': costOf(s).fuel,
@@ -156,9 +170,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">성능비</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">탁송비</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">수리비</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">구전</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">진단비</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">상품화총비용</th>
+                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">구전</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">매입+상품화</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">정산금액</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">차량비용(원)</th>
@@ -180,15 +194,14 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-slate-600">{s.vehicleNumber}</td>
                   <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.transferFee)}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600">{NUM(s.purchasePrice)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.polishWashCost)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.dentCost)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.performanceCost)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.deliveryCost)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.repairCost)}</td>
+                  {PREP_COST_KINDS.map(k => (
+                    <td key={k} className="px-3 py-2.5 text-right text-slate-500" title={vendorsOf(s, k)}>
+                      {NUM(breakdownOf(s)[k])}
+                    </td>
+                  ))}
+                  <td className="px-3 py-2.5 text-right font-medium text-amber-700">{NUM(prepTotalOf(s))}</td>
                   <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.brokerFee)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.diagnosisCost)}</td>
-                  <td className="px-3 py-2.5 text-right font-medium text-amber-700">{NUM(purchasePrepTotal(s))}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">{NUM(purchaseGrandTotal(s))}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">{NUM(grandTotalOf(s))}</td>
                   <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{NUM(s.settlementAmount)}</td>
                   <td
                     className="whitespace-nowrap px-3 py-2.5 text-right text-sky-700"

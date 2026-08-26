@@ -308,19 +308,22 @@ model BrokerageSettlement {
 // 매입 정산 — 시트지 컬럼 그대로.
 // 상품화총비용 / 매입+상품화총비용도 저장하지 않고 조회 시 계산한다.
 model PurchaseSettlement {
-  id               String           @id @default(cuid())
-  date             DateTime         @db.Date
-  vehicleName      String
-  vehicleNumber    String
-  transferFee      Int              @default(0) // 이전비 + 추가이전비
-  purchasePrice    Int              @default(0) // 매입가
-  polishWashCost   Int              @default(0) // 광택 및 세차
-  dentCost         Int              @default(0) // 판금 및 덴트
-  performanceCost  Int              @default(0) // 성능비
-  deliveryCost     Int              @default(0) // 탁송비
-  repairCost       Int              @default(0) // 수리비
-  brokerFee        Int              @default(0) // 구전
-  diagnosisCost    Int              @default(0) // 진단비
+  id            String   @id @default(cuid())
+  date          DateTime @db.Date
+  vehicleName   String
+  vehicleNumber String
+  transferFee   Int      @default(0) // 이전비 + 추가이전비
+  purchasePrice Int      @default(0) // 매입가
+  brokerFee     Int      @default(0) // 구전 — 상품화가 아니라 별도 항목이다
+
+  // ⚠️ 아래 6개는 PurchasePrepCost 명세로 옮겼다. 값을 옮겨둔 뒤 읽지도 쓰지도 않는다.
+  //    옮긴 숫자가 맞는지 운영에서 확인한 다음 컬럼을 지운다(그때까지는 되돌릴 수 있게 남겨둔다).
+  polishWashCost   Int              @default(0)
+  dentCost         Int              @default(0)
+  performanceCost  Int              @default(0)
+  deliveryCost     Int              @default(0)
+  repairCost       Int              @default(0)
+  diagnosisCost    Int              @default(0)
   settlementAmount Int              @default(0) // 정산금액
   newCarName       String           @default("") // 신차이름
   employeeId       String
@@ -330,7 +333,8 @@ model PurchaseSettlement {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee  Employee           @relation(fields: [employeeId], references: [id])
+  prepCosts PurchasePrepCost[]
 
   @@index([employeeId])
   @@index([date])
@@ -658,4 +662,42 @@ model PurchaseIntake {
   @@index([vehicleNumber])
   @@index([customerName])
   @@index([employeeId])
+}
+
+// ─────────────────────────────────────────────
+// ⑫ 매입 정산 — 상품화 비용 명세
+// ─────────────────────────────────────────────
+
+// 상품화 비용을 항목 6종으로 나누고, 항목 안에서 다시 업체·카테고리별로 적는다.
+// 광택은 A광택집·B광택집으로 갈리고, 진단비는 플랫폼마다 광고 형태와 비용이 다르다.
+//
+// 예전에는 매입 정산에 항목별 금액 컬럼 하나씩만 있어서 "광택 얼마"까지만 남았다.
+// 이제 이 명세가 원본이고, 항목별 합계와 상품화총비용은 조회할 때 더해서 낸다
+// (저장하면 계산식이 바뀔 때 과거 데이터가 꼬인다 — 이 저장소의 다른 파생값과 같은 방침).
+enum PrepCostKind {
+  POLISH_WASH // 광택·세차
+  DENT // 판금·덴트
+  PERFORMANCE // 성능비
+  DELIVERY // 탁송비
+  REPAIR // 수리비
+  DIAGNOSIS // 진단비 — 플랫폼 수수료
+}
+
+model PurchasePrepCost {
+  id           String       @id @default(cuid())
+  settlementId String
+  kind         PrepCostKind
+  vendor       String       @default("") @db.VarChar(60) // 업체·카테고리 — "A광택집", "엔카 프리미엄"
+  amount       Int          @default(0) // 만원 — 정산 화면과 같은 단위
+  memo         String       @default("") @db.VarChar(191)
+  sortOrder    Int          @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  settlement PurchaseSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  @@index([settlementId])
+  // 자동완성이 "지금까지 쓴 업체 이름"을 이 인덱스로 훑는다.
+  @@index([kind, vendor])
 }

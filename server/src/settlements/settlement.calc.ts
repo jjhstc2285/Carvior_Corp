@@ -42,29 +42,61 @@ export function brokerageSaleProfit(r: BrokerageFields): number {
 }
 
 // ── 매입 정산 ──
-export interface PurchasePrepFields {
-  polishWashCost: number;
-  dentCost: number;
-  performanceCost: number;
-  deliveryCost: number;
-  repairCost: number;
-  brokerFee: number;
-  diagnosisCost: number;
+//
+// 상품화 비용은 항목 6종으로 나뉘고, 항목 안에서 다시 업체·카테고리별 명세로 쌓인다.
+// (광택은 A광택집·B광택집, 진단비는 플랫폼마다 광고 형태와 비용이 다르다)
+//
+// 예전에는 항목마다 금액 컬럼 하나씩이었다. 지금은 명세가 원본이고 합계는 여기서 더한다.
+
+export const PREP_COST_KINDS = [
+  'POLISH_WASH',
+  'DENT',
+  'PERFORMANCE',
+  'DELIVERY',
+  'REPAIR',
+  'DIAGNOSIS',
+] as const;
+
+export type PrepCostKind = (typeof PREP_COST_KINDS)[number];
+
+export interface PrepCostLine {
+  kind: PrepCostKind;
+  amount: number;
+}
+
+export type PrepCostBreakdown = Record<PrepCostKind, number>;
+
+export function emptyPrepBreakdown(): PrepCostBreakdown {
+  return {
+    POLISH_WASH: 0,
+    DENT: 0,
+    PERFORMANCE: 0,
+    DELIVERY: 0,
+    REPAIR: 0,
+    DIAGNOSIS: 0,
+  };
+}
+
+/** 항목별 합계 — 명세 여러 줄을 6칸으로 접는다. */
+export function prepBreakdown(costs: PrepCostLine[]): PrepCostBreakdown {
+  const result = emptyPrepBreakdown();
+  for (const c of costs) result[c.kind] += c.amount;
+  return result;
 }
 
 /**
- * 상품화총비용 = 광택및세차 + 판금및덴트 + 성능비 + 탁송비 + 수리비 + 구전 + 진단비
- * 이전비는 상품화가 아니라 별도 항목이라 제외한다. 포함해야 하면 이 함수만 고치면 된다.
+ * 상품화총비용 = 광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비
+ *
+ * 구전과 이전비는 상품화가 아니라 별도 항목이라 제외한다.
+ * (구전은 예전에 여기 들어가 있었는데, 상품화 항목 6개만 세는 쪽으로 정리했다)
  */
-export function purchasePrepTotal(r: PurchasePrepFields): number {
-  return (
-    r.polishWashCost + r.dentCost + r.performanceCost + r.deliveryCost + r.repairCost + r.brokerFee + r.diagnosisCost
-  );
+export function purchasePrepTotal(costs: PrepCostLine[]): number {
+  return costs.reduce((sum, c) => sum + c.amount, 0);
 }
 
 /** 매입+상품화총비용 = 매입가 + 상품화총비용 */
-export function purchaseGrandTotal(r: PurchasePrepFields & { purchasePrice: number }): number {
-  return r.purchasePrice + purchasePrepTotal(r);
+export function purchaseGrandTotal(purchasePrice: number, prepTotal: number): number {
+  return purchasePrice + prepTotal;
 }
 
 // ── 차량비용(주유·배터리·주차) 연동 ──
@@ -99,8 +131,9 @@ export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
  * 단위가 다른 둘을 더할 수 있는 유일한 지점이라 원으로 환산해서 낸다.
  */
 export function purchaseGrandTotalWon(
-  r: PurchasePrepFields & { purchasePrice: number },
+  purchasePrice: number,
+  prepTotal: number,
   vehicleCost: VehicleCostSummary,
 ): number {
-  return purchaseGrandTotal(r) * WON_PER_UNIT + vehicleCost.total;
+  return purchaseGrandTotal(purchasePrice, prepTotal) * WON_PER_UNIT + vehicleCost.total;
 }

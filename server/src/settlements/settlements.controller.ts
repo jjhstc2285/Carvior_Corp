@@ -80,6 +80,12 @@ export class SettlementsController {
 
   // ── 매입 정산 ──
 
+  /** 상품화 비용 업체·카테고리 자동완성 — 지금까지 쓴 이름들 */
+  @Get('purchase/vendors')
+  prepVendors() {
+    return this.settlements.prepVendors();
+  }
+
   @Get('purchase')
   findPurchase(
     @CurrentUser() user: AuthUser,

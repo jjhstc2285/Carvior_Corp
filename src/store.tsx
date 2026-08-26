@@ -73,7 +73,7 @@ interface Store {
   deleteSettlement: (id: string) => Promise<void>;
   upsertBrokerageSettlement: (record: Upsert<BrokerageSettlement, 'createdAt'>) => Promise<void>;
   deleteBrokerageSettlement: (id: string) => Promise<void>;
-  upsertPurchaseSettlement: (record: Upsert<PurchaseSettlement, 'createdAt'>) => Promise<void>;
+  upsertPurchaseSettlement: (record: Upsert<PurchaseSettlement, 'createdAt' | 'prepTotal' | 'prepBreakdown' | 'grandTotal' | 'vehicleCost' | 'grandTotalWon'>) => Promise<void>;
   deletePurchaseSettlement: (id: string) => Promise<void>;
 
   upsertConsultation: (record: Upsert<ConsultationRecord, 'createdAt' | 'files'>) => Promise<void>;
