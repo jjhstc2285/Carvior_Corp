@@ -15,7 +15,7 @@ import { Type } from 'class-transformer';
 import { PrepCostKind, SettlementStatus } from '@prisma/client';
 import { DATE_PATTERN } from '../../common/dto';
 
-/** 금액 필드 공통 — 만원 단위 정수, 음수 불가 */
+/** 금액 필드 공통 — 정수, 음수 불가. 단위는 정산 종류마다 다르다(매입 정산만 '원', 나머지는 만원). */
 const Money = () =>
   applyDecorators(Type(() => Number), IsInt({ message: '금액은 정수여야 합니다.' }), Min(0, { message: '금액은 0 이상이어야 합니다.' }));
 

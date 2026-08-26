@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { WON_PER_MANWON, wonToManwon } from '../../lib/money';
 import {
   EMPTY_PREP_BREAKDOWN,
   EMPTY_VEHICLE_COST,
@@ -12,7 +13,6 @@ import {
   purchaseGrandTotal,
   purchasePrepTotal,
   SETTLEMENT_STATUS_LABEL,
-  WON_PER_UNIT,
   type PrepCostKind,
   type PurchaseSettlement,
   type SettlementStatus,
@@ -24,6 +24,8 @@ interface Props {
 }
 
 const NUM = (n: number) => n.toLocaleString();
+/** 매입 정산 금액은 원으로 저장하고 만원으로 보여준다(3.5 = 35,000원). */
+const MAN = (n: number) => wonToManwon(n);
 
 export default function PurchaseSettlementTab({ role }: Props) {
   const { state, deletePurchaseSettlement } = useStore();
@@ -52,13 +54,13 @@ export default function PurchaseSettlementTab({ role }: Props) {
   const breakdownOf = (s: PurchaseSettlement) => s.prepBreakdown ?? prepBreakdown(s.prepCosts ?? []);
   const grandTotalOf = (s: PurchaseSettlement) => s.grandTotal ?? purchaseGrandTotal(s.purchasePrice, prepTotalOf(s));
   /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
-  const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) * WON_PER_UNIT + costOf(s).total;
+  const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
 
   /** 항목 칸에 마우스를 올리면 어느 업체에 얼마 썼는지 보인다. */
   const vendorsOf = (s: PurchaseSettlement, kind: PrepCostKind) => {
     const lines = (s.prepCosts ?? []).filter(c => c.kind === kind);
     if (!lines.length) return `${PREP_COST_LABEL[kind]} 내역 없음`;
-    return lines.map(c => `${c.vendor || '미지정'} ${NUM(c.amount)}`).join(' / ');
+    return lines.map(c => `${c.vendor || '미지정'} ${MAN(c.amount)}`).join(' / ');
   };
 
   const totals = useMemo(() => ({
@@ -76,21 +78,25 @@ export default function PurchaseSettlementTab({ role }: Props) {
   }), [filtered]);
 
   const handleExport = () => {
+    // 엑셀에서 더하고 곱할 수 있게 문자열이 아니라 숫자로 넣는다.
+    // 저장은 원이지만 사람이 보는 단위는 만원이라 나눠서 내보낸다(35,000원 → 3.5).
+    const man = (won: number) => won / WON_PER_MANWON;
+
     const rows = filtered.map(s => ({
       일자: s.date,
       차량명: s.vehicleName,
       차량번호: s.vehicleNumber,
-      '이전비+추가이전비': s.transferFee,
-      매입가: s.purchasePrice,
+      '이전비+추가이전비(만원)': man(s.transferFee),
+      '매입가(만원)': man(s.purchasePrice),
       // 항목별 합계 6칸 — 업체별 세부는 '상품화 명세' 열에 풀어 쓴다.
-      ...Object.fromEntries(PREP_COST_KINDS.map(k => [PREP_COST_LABEL[k], breakdownOf(s)[k]])),
-      구전: s.brokerFee,
-      상품화총비용: prepTotalOf(s),
+      ...Object.fromEntries(PREP_COST_KINDS.map(k => [`${PREP_COST_LABEL[k]}(만원)`, man(breakdownOf(s)[k])])),
+      '구전(만원)': man(s.brokerFee),
+      '상품화총비용(만원)': man(prepTotalOf(s)),
       '상품화 명세': (s.prepCosts ?? [])
-        .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount}`)
+        .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${wonToManwon(c.amount)}`)
         .join(' / '),
-      '매입+상품화총비용': grandTotalOf(s),
-      정산금액: s.settlementAmount,
+      '매입+상품화총비용(만원)': man(grandTotalOf(s)),
+      '정산금액(만원)': man(s.settlementAmount),
       // 아래 네 열만 '원' 단위다(차량관리에서 자동으로 붙는 값).
       '주유(원)': costOf(s).fuel,
       '배터리(원)': costOf(s).battery,
@@ -118,15 +124,15 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">매입가 합계</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">{NUM(totals.purchase)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+          <p className="mt-1 text-2xl font-bold text-slate-800">{MAN(totals.purchase)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">상품화총비용 합계</p>
-          <p className="mt-1 text-2xl font-bold text-amber-600">{NUM(totals.prep)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+          <p className="mt-1 text-2xl font-bold text-amber-600">{MAN(totals.prep)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">정산금액 합계</p>
-          <p className="mt-1 text-2xl font-bold text-indigo-600">{NUM(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+          <p className="mt-1 text-2xl font-bold text-indigo-600">{MAN(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">차량비용 합계</p>
@@ -140,7 +146,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
         <div className="flex items-baseline justify-between border-b border-amber-200/70 px-4 py-2">
           <span className="text-xs font-bold text-amber-800">상품화총비용 항목별</span>
           <span className="text-[11px] text-amber-700/80">
-            합계 {NUM(totals.prep)}만원 · {totals.count}건 기준
+            합계 {MAN(totals.prep)}만원 · {totals.count}건 기준
           </span>
         </div>
         <div className="grid grid-cols-3 divide-x divide-y divide-amber-200/60 sm:grid-cols-6 sm:divide-y-0">
@@ -148,7 +154,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
             <div key={k} className="px-3 py-2.5 text-center">
               <p className="text-[11px] font-medium text-amber-800/80">{PREP_COST_LABEL[k]}</p>
               <p className={`mt-0.5 text-base font-bold ${totals.prepByKind[k] ? 'text-amber-700' : 'text-amber-700/25'}`}>
-                {NUM(totals.prepByKind[k])}
+                {MAN(totals.prepByKind[k])}
               </p>
             </div>
           ))}
@@ -219,17 +225,17 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{dayjs(s.date).format('M/D')}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-slate-700">{s.vehicleName}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-slate-600">{s.vehicleNumber}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.transferFee)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(s.purchasePrice)}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-500">{MAN(s.transferFee)}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">{MAN(s.purchasePrice)}</td>
                   {PREP_COST_KINDS.map(k => (
                     <td key={k} className="px-3 py-2.5 text-right text-slate-500" title={vendorsOf(s, k)}>
-                      {NUM(breakdownOf(s)[k])}
+                      {MAN(breakdownOf(s)[k])}
                     </td>
                   ))}
-                  <td className="px-3 py-2.5 text-right font-medium text-amber-700">{NUM(prepTotalOf(s))}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.brokerFee)}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">{NUM(grandTotalOf(s))}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{NUM(s.settlementAmount)}</td>
+                  <td className="px-3 py-2.5 text-right font-medium text-amber-700">{MAN(prepTotalOf(s))}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-500">{MAN(s.brokerFee)}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">{MAN(grandTotalOf(s))}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{MAN(s.settlementAmount)}</td>
                   <td
                     className="whitespace-nowrap px-3 py-2.5 text-right text-sky-700"
                     title={

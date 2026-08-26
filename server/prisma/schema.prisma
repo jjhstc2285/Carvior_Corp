@@ -307,6 +307,11 @@ model BrokerageSettlement {
 
 // 매입 정산 — 시트지 컬럼 그대로.
 // 상품화총비용 / 매입+상품화총비용도 저장하지 않고 조회 시 계산한다.
+//
+// ⚠️ 금액 단위가 다른 정산과 다르다. 여기만 '원'이다.
+//    광택 35,000원처럼 만원으로 안 떨어지는 비용이 흔한데 만원 정수로는 3.5를 못 담는다.
+//    소수로 저장하면 더할 때 오차가 생기므로 원 단위 정수로 두고 화면에서 만원으로 환산한다.
+//    덤으로 차량비용(원)과 단위가 같아져서 최종 합계를 낼 때 환산이 필요 없다.
 model PurchaseSettlement {
   id            String   @id @default(cuid())
   date          DateTime @db.Date
@@ -324,7 +329,7 @@ model PurchaseSettlement {
   deliveryCost     Int              @default(0)
   repairCost       Int              @default(0)
   diagnosisCost    Int              @default(0)
-  settlementAmount Int              @default(0) // 정산금액
+  settlementAmount Int              @default(0) // 정산금액(원)
   newCarName       String           @default("") // 신차이름
   employeeId       String
   status           SettlementStatus @default(IN_PROGRESS)
@@ -688,7 +693,7 @@ model PurchasePrepCost {
   settlementId String
   kind         PrepCostKind
   vendor       String       @default("") @db.VarChar(60) // 업체·카테고리 — "A광택집", "엔카 프리미엄"
-  amount       Int          @default(0) // 만원 — 정산 화면과 같은 단위
+  amount       Int          @default(0) // 원 — 매입 정산과 같은 단위(화면에서는 만원으로 보여준다)
   memo         String       @default("") @db.VarChar(191)
   sortOrder    Int          @default(0)
 

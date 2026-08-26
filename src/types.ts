@@ -244,8 +244,8 @@ export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
   count: 0,
 };
 
-/** 정산 금액 1 = 10,000원 (정산은 만원 단위, 차량비용은 원 단위) */
-export const WON_PER_UNIT = 10_000;
+// 매입 정산은 이제 원 단위로 저장한다(만원 정수로는 3.5를 못 담아서).
+// 만원 표기는 src/lib/money.ts 의 wonToManwon / manwonToWon 이 맡는다.
 
 // 상품화총비용 = 광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비
 // 구전과 이전비는 상품화가 아니라 별도 항목이라 제외한다.

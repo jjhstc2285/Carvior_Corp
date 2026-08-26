@@ -85,7 +85,7 @@ export function prepBreakdown(costs: PrepCostLine[]): PrepCostBreakdown {
 }
 
 /**
- * 상품화총비용 = 광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비
+ * 상품화총비용 = 광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비 (원)
  *
  * 구전과 이전비는 상품화가 아니라 별도 항목이라 제외한다.
  * (구전은 예전에 여기 들어가 있었는데, 상품화 항목 6개만 세는 쪽으로 정리했다)
@@ -102,11 +102,10 @@ export function purchaseGrandTotal(purchasePrice: number, prepTotal: number): nu
 // ── 차량비용(주유·배터리·주차) 연동 ──
 //
 // 차량관리에 쌓인 이력을 차량번호로 붙여서 매입 정산에 함께 보여준다.
-// 정산 금액은 만원 단위 정수인데 주유비는 만원으로 안 떨어져서(예: 25,000원),
-// 만원으로 반올림해 기존 항목에 섞지 않고 '원' 단위 항목을 따로 둔다.
+// 매입 정산도 원 단위라 이제 환산 없이 그대로 더한다(예전에는 만원↔원 환산이 필요했다).
 
-/** 정산 금액 1 = 10,000원 */
-export const WON_PER_UNIT = 10_000;
+/** 만원 표기용 — 화면에서만 쓴다. 저장·계산은 전부 원 단위 정수다. */
+export const WON_PER_MANWON = 10_000;
 
 export interface VehicleCostSummary {
   fuel: number; // 원
@@ -126,14 +125,11 @@ export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
   count: 0,
 };
 
-/**
- * 최종 합계(원) = (매입+상품화총비용) × 10,000 + 차량비용
- * 단위가 다른 둘을 더할 수 있는 유일한 지점이라 원으로 환산해서 낸다.
- */
+/** 최종 합계(원) = 매입 + 상품화총비용 + 차량비용. 셋 다 원이라 그냥 더한다. */
 export function purchaseGrandTotalWon(
   purchasePrice: number,
   prepTotal: number,
   vehicleCost: VehicleCostSummary,
 ): number {
-  return purchaseGrandTotal(purchasePrice, prepTotal) * WON_PER_UNIT + vehicleCost.total;
+  return purchaseGrandTotal(purchasePrice, prepTotal) + vehicleCost.total;
 }
