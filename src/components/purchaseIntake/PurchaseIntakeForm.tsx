@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { ClipboardPaste, X } from 'lucide-react';
 import { isValidPlate, normalizePlate, PLATE_MESSAGE } from '../../lib/vehicle';
 import type { PurchaseIntake } from '../../types';
+import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
 import { parseIntakeText } from './parseIntake';
 import type { PurchaseIntakeInput } from './usePurchaseIntake';
 
@@ -10,15 +11,6 @@ interface Props {
   editing: PurchaseIntake | null;
   onSave: (input: PurchaseIntakeInput) => Promise<string | null>;
   onClose: () => void;
-}
-
-function toNumber(value: string): number {
-  const digits = value.replace(/[^\d]/g, '');
-  return digits ? Number(digits) : 0;
-}
-
-function withComma(value: number): string {
-  return value ? value.toLocaleString() : '';
 }
 
 const FUEL_OPTIONS = ['가솔린', '디젤', 'LPG', '하이브리드', '전기', '가솔린+LPG'];
@@ -38,15 +30,15 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   const [modelYear, setModelYear] = useState(editing?.modelYear ?? '');
   const [fuel, setFuel] = useState(editing?.fuel ?? '');
   const [keyCount, setKeyCount] = useState(editing ? String(editing.keyCount) : '');
-  const [mileage, setMileage] = useState(withComma(editing?.mileage ?? 0));
+  const [mileage, setMileage] = useState(withCommas(editing?.mileage ?? 0));
   const [note, setNote] = useState(editing?.note ?? '');
-  const [purchaseAmount, setPurchaseAmount] = useState(withComma(editing?.purchaseAmount ?? 0));
-  const [brokerFee, setBrokerFee] = useState(withComma(editing?.brokerFee ?? 0));
+  const [purchaseAmount, setPurchaseAmount] = useState(withCommas(editing?.purchaseAmount ?? 0));
+  const [brokerFee, setBrokerFee] = useState(withCommas(editing?.brokerFee ?? 0));
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const total = toNumber(purchaseAmount) + toNumber(brokerFee);
+  const total = moneyToNumber(purchaseAmount) + moneyToNumber(brokerFee);
 
   /** 붙여넣은 카톡 양식에서 알아본 칸만 채운다 — 못 알아본 칸은 건드리지 않는다. */
   const applyPaste = () => {
@@ -71,15 +63,15 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
     put(parsed.keyCount, setKeyCount, '차키갯수');
     put(parsed.note, setNote, '특이사항');
     if (parsed.mileage) {
-      setMileage(withComma(parsed.mileage));
+      setMileage(withCommas(parsed.mileage));
       filled.push('주행거리');
     }
     if (parsed.purchaseAmount) {
-      setPurchaseAmount(withComma(parsed.purchaseAmount));
+      setPurchaseAmount(withCommas(parsed.purchaseAmount));
       filled.push('실매입금액');
     }
     if (parsed.brokerFee) {
-      setBrokerFee(withComma(parsed.brokerFee));
+      setBrokerFee(withCommas(parsed.brokerFee));
       filled.push('구전');
     }
 
@@ -115,11 +107,11 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       vehicleNumber: plate,
       modelYear: modelYear.trim(),
       fuel: fuel.trim(),
-      keyCount: toNumber(keyCount),
-      mileage: toNumber(mileage),
+      keyCount: moneyToNumber(keyCount),
+      mileage: moneyToNumber(mileage),
       note: note.trim(),
-      purchaseAmount: toNumber(purchaseAmount),
-      brokerFee: toNumber(brokerFee),
+      purchaseAmount: moneyToNumber(purchaseAmount),
+      brokerFee: moneyToNumber(brokerFee),
     });
     setSaving(false);
 
@@ -145,8 +137,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
 
   const money = (value: string, set: (v: string) => void, placeholder: string) => (
     <input
-      value={value}
-      onChange={e => set(withComma(toNumber(e.target.value)))}
+      value={withCommas(value)}
+      onChange={e => set(toMoneyValue(e.target.value))}
       inputMode="numeric"
       placeholder={placeholder}
       className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400"

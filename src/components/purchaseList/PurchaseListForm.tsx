@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { CAPITAL_LIMIT_COLUMNS, type PurchaseListItem } from '../../types';
+import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
 import type { PurchaseListInput } from './usePurchaseList';
 
 interface Props {
@@ -9,16 +10,6 @@ interface Props {
   managerNames: string[];
   onSave: (input: PurchaseListInput) => Promise<string | null>;
   onClose: () => void;
-}
-
-/** 자릿수 콤마를 붙여 보여주고, 서버에는 숫자만 보낸다. */
-function toNumber(value: string): number {
-  const digits = value.replace(/[^\d]/g, '');
-  return digits ? Number(digits) : 0;
-}
-
-function withComma(value: number): string {
-  return value ? value.toLocaleString() : '';
 }
 
 /** 캐피탈사 이름은 자주 쓰는 것만 골라 쓰고, 그 외에는 직접 입력한다. */
@@ -32,15 +23,15 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
   const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? '');
   const [managerName, setManagerName] = useState(editing?.managerName ?? '');
-  const [askingPrice, setAskingPrice] = useState(withComma(editing?.askingPrice ?? 0));
+  const [askingPrice, setAskingPrice] = useState(withCommas(editing?.askingPrice ?? 0));
   const [modelYear, setModelYear] = useState(editing?.modelYear ?? '');
-  const [mileage, setMileage] = useState(withComma(editing?.mileage ?? 0));
+  const [mileage, setMileage] = useState(withCommas(editing?.mileage ?? 0));
 
   const [stockCapital, setStockCapital] = useState(editing?.stockCapital ?? '');
-  const [stockAmount, setStockAmount] = useState(withComma(editing?.stockAmount ?? 0));
+  const [stockAmount, setStockAmount] = useState(withCommas(editing?.stockAmount ?? 0));
 
   const [limits, setLimits] = useState<Record<string, string>>(() =>
-    Object.fromEntries(CAPITAL_LIMIT_COLUMNS.map(c => [c.key, withComma(editing?.[c.key] ?? 0)])),
+    Object.fromEntries(CAPITAL_LIMIT_COLUMNS.map(c => [c.key, withCommas(editing?.[c.key] ?? 0)])),
   );
 
   const [note, setNote] = useState(editing?.note ?? '');
@@ -49,7 +40,7 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
   const [repayDate, setRepayDate] = useState(editing?.repayDate ?? '');
   const [loanStatus, setLoanStatus] = useState(editing?.loanStatus ?? '');
   const [repaidDate, setRepaidDate] = useState(editing?.repaidDate ?? '');
-  const [repaymentAmount, setRepaymentAmount] = useState(withComma(editing?.repaymentAmount ?? 0));
+  const [repaymentAmount, setRepaymentAmount] = useState(withCommas(editing?.repaymentAmount ?? 0));
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -68,12 +59,12 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
       vehicleNumber: vehicleNumber.trim(),
       vehicleName: vehicleName.trim(),
       managerName: managerName.trim(),
-      askingPrice: toNumber(askingPrice),
+      askingPrice: moneyToNumber(askingPrice),
       modelYear: modelYear.trim(),
-      mileage: toNumber(mileage),
+      mileage: moneyToNumber(mileage),
       stockCapital: stockCapital.trim(),
-      stockAmount: toNumber(stockAmount),
-      ...Object.fromEntries(CAPITAL_LIMIT_COLUMNS.map(c => [c.key, toNumber(limits[c.key] ?? '')])),
+      stockAmount: moneyToNumber(stockAmount),
+      ...Object.fromEntries(CAPITAL_LIMIT_COLUMNS.map(c => [c.key, moneyToNumber(limits[c.key] ?? '')])),
       note: note.trim(),
       loanDate,
       // 이율은 소수라 콤마 처리를 하지 않는다. 빈 칸은 아예 안 보낸다.
@@ -81,7 +72,7 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
       repayDate,
       loanStatus,
       repaidDate,
-      repaymentAmount: toNumber(repaymentAmount),
+      repaymentAmount: moneyToNumber(repaymentAmount),
     });
     setSaving(false);
 
@@ -91,8 +82,8 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
 
   const money = (value: string, set: (v: string) => void, placeholder: string) => (
     <input
-      value={value}
-      onChange={e => set(withComma(toNumber(e.target.value)))}
+      value={withCommas(value)}
+      onChange={e => set(toMoneyValue(e.target.value))}
       inputMode="numeric"
       placeholder={placeholder}
       className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400"

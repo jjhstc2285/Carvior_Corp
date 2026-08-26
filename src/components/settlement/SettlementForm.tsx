@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useStore } from '../../store';
 import { netProfit, type SettlementRecord, type SettlementStatus } from '../../types';
 import dayjs from 'dayjs';
+import { toMoneyValue, withCommas } from '../../lib/money';
 
 interface Props {
   editing: SettlementRecord | null;
@@ -78,23 +79,23 @@ export default function SettlementForm({ editing, defaultEmployeeId, onClose }: 
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">매입가 (만원) *</label>
-            <input type="number" value={purchaseCost} onChange={e => setPurchaseCost(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+            <input value={withCommas(purchaseCost)} onChange={e => setPurchaseCost(toMoneyValue(e.target.value))} inputMode="numeric"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">상품화 비용 (만원)</label>
-            <input type="number" value={prepCost} onChange={e => setPrepCost(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+            <input value={withCommas(prepCost)} onChange={e => setPrepCost(toMoneyValue(e.target.value))} inputMode="numeric"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">판매금액 (만원) *</label>
-            <input type="number" value={saleAmount} onChange={e => setSaleAmount(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+            <input value={withCommas(saleAmount)} onChange={e => setSaleAmount(toMoneyValue(e.target.value))} inputMode="numeric"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">수수료 (만원)</label>
-            <input type="number" value={feeAmount} onChange={e => setFeeAmount(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+            <input value={withCommas(feeAmount)} onChange={e => setFeeAmount(toMoneyValue(e.target.value))} inputMode="numeric"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400" />
           </div>
           <div className="col-span-2">
             <label className="mb-1 block text-xs font-semibold text-slate-500">정산 상태</label>

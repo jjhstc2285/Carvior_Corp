@@ -1,3 +1,5 @@
+import { toMoneyValue, withCommas } from '../../lib/money';
+
 // 알선/매입 정산 폼이 같이 쓰는 입력 조각 — 컬럼이 많아서 매번 같은 마크업을 반복하지 않으려고 뺐다.
 const INPUT_CLASS = 'w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400';
 
@@ -31,7 +33,12 @@ export function DateField({ label, value, onChange, className }: {
   );
 }
 
-// 금액 입력 — 단위는 앱 전체가 만원 기준
+/**
+ * 금액 입력 — 단위는 정산 화면 전체가 만원 기준.
+ *
+ * type="number"로는 쉼표를 못 넣어서 text로 받는다. 화면에는 세 자리마다 쉼표를 붙이고
+ * onChange로는 숫자만 넘긴다 — 쓰는 쪽 코드는 예전과 똑같이 Number()로 받으면 된다.
+ */
 export function MoneyField({ label, value, onChange, required, className }: {
   label: string;
   value: string;
@@ -42,7 +49,13 @@ export function MoneyField({ label, value, onChange, required, className }: {
   return (
     <div className={className}>
       <label className="mb-1 block text-xs font-semibold text-slate-500">{label}{required && ' *'}</label>
-      <input type="number" value={value} onChange={e => onChange(e.target.value)} placeholder="0" className={`${INPUT_CLASS} text-right`} />
+      <input
+        value={withCommas(value)}
+        onChange={e => onChange(toMoneyValue(e.target.value))}
+        inputMode="numeric"
+        placeholder="0"
+        className={`${INPUT_CLASS} text-right`}
+      />
     </div>
   );
 }

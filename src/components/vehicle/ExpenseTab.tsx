@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import dayjs from 'dayjs';
 import { BatteryCharging, Fuel, Plus, Trash2, Wrench } from 'lucide-react';
 import { PLATE_MESSAGE, formatWon } from '../../lib/vehicle';
+import { toMoneyValue, withCommas } from '../../lib/money';
 import {
   VEHICLE_EXPENSE_KIND_LABEL,
   VEHICLE_USAGE_NOTE_LABEL,
@@ -163,11 +164,11 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
           {matches.length > 0 && (
             <>
               <input
-                value={amount}
-                onChange={e => { setAmount(e.target.value.replace(/[^\d,]/g, '')); setFormError(null); }}
+                value={withCommas(amount)}
+                onChange={e => { setAmount(toMoneyValue(e.target.value)); setFormError(null); }}
                 inputMode="numeric"
                 placeholder="금액(원)"
-                className="w-36 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                className="w-36 rounded-lg border border-slate-200 px-3 py-2 text-right text-sm outline-none focus:border-indigo-400"
               />
 
               {kind === 'FUEL' && (
@@ -308,7 +309,7 @@ function ExpenseRow({ log, onEdit, onRemove }: RowProps) {
         <td className="px-4 py-2 font-mono text-slate-700">{log.vehicle.vehicleNumber}</td>
         <td className="px-4 py-2 text-slate-500">{log.vehicle.vehicleModel}</td>
         <td className="px-4 py-2 text-right">
-          <input value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d,]/g, ''))} inputMode="numeric"
+          <input value={withCommas(amount)} onChange={e => setAmount(toMoneyValue(e.target.value))} inputMode="numeric"
             className="w-28 rounded border border-slate-200 px-2 py-1 text-right text-xs outline-none focus:border-indigo-400" />
         </td>
         <td className="px-3 py-2">
