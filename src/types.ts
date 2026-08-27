@@ -291,7 +291,7 @@ export const CONSULTATION_STATUS_LABEL: Record<ConsultationStatus, string> = {
  * 상담 유입 경로 — 버튼으로 눌러 채운다.
  * 목록에 없는 곳도 있어서 칸은 자유 입력으로 열어둔다.
  */
-export const CONSULTATION_PLATFORMS = ['엔카', 'KB차차차', '보배드림', '헤이딜러', '당근마켓', '직접문의'] as const;
+export const CONSULTATION_PLATFORMS = ['엔카', '차차차', '오토벨', '114', '자사몰', '인스타', '기타'] as const;
 
 export interface ConsultationRecord {
   id: string;
