@@ -2,7 +2,7 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../store';
-import { ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
+import { ATTENDANCE_REQUEST_KIND_HINT, ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
 
 interface Props {
 
@@ -32,9 +32,11 @@ export default function AttendanceRequestModal({ onClose }: Props) {
             <X size={18} />
           </button>
         </div>
-        <p className="mt-1 text-sm text-slate-500">연차(휴가) 또는 외근·출장으로 정상 출퇴근이 어려운 날을 미리 신청하세요.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          연차·외근은 미리 신청하고, 지각·조퇴는 지난 날짜를 골라 소명하세요.
+        </p>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-3 gap-2">
           {(Object.entries(ATTENDANCE_REQUEST_KIND_LABEL) as [AttendanceRequestKind, string][]).map(([k, label]) => (
             <button
               key={k}
@@ -45,6 +47,7 @@ export default function AttendanceRequestModal({ onClose }: Props) {
             </button>
           ))}
         </div>
+        <p className="mt-2 text-[11px] text-slate-400">{ATTENDANCE_REQUEST_KIND_HINT[kind]}</p>
 
         <div className="mt-3">
           <label className="mb-1 block text-xs font-semibold text-slate-500">날짜</label>

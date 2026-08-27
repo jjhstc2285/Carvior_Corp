@@ -48,11 +48,12 @@ export default function CalendarView({ month, records, requests }: Props) {
 
           // 미래 근무일인데 연차/외근 신청이 없으면 아직 알 수 없으니 상태 표시 안 함.
           // 휴무·승인된 연차/외근은 미래여도 이미 확정된 사실이라 항상 표시.
+          // 소명은 이미 찍힌 지각·조퇴를 되돌리는 것이라 지난 날에만 의미가 있어 computeStatus에 맡긴다.
           let status: AttendanceStatus | null = null;
           if (!workday) status = 'dayOff';
           else if (approvedKind === 'ANNUAL_LEAVE') status = 'annualLeave';
           else if (approvedKind === 'FIELD_WORK') status = 'fieldWork';
-          else if (!future) status = computeStatus(record, dateStr);
+          else if (!future) status = computeStatus(record, dateStr, approvedKind);
 
           const showBigX = status === 'dayOff' || status === 'annualLeave';
 
@@ -70,7 +71,7 @@ export default function CalendarView({ month, records, requests }: Props) {
                 <span className={inMonth ? 'text-slate-600' : 'text-slate-300'}>{d.date()}</span>
                 {status && <span className={`h-1.5 w-1.5 rounded-full ${DOTS[status]}`} title={STATUS_LABEL[status]} />}
               </div>
-              {inMonth && workday && !approvedKind && record?.clockIn && (
+              {inMonth && workday && approvedKind !== 'ANNUAL_LEAVE' && approvedKind !== 'FIELD_WORK' && record?.clockIn && (
                 <p className="relative mt-1 truncate text-[10px] text-slate-400">{record.clockIn}{record.clockOut ? `-${record.clockOut}` : ''}</p>
               )}
             </div>

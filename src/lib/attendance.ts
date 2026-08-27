@@ -25,6 +25,20 @@ export function computeStatus(record: AttendanceRecord | undefined, date: string
   if (approvedKind === 'ANNUAL_LEAVE') return 'annualLeave';
   if (approvedKind === 'FIELD_WORK') return 'fieldWork';
 
+  const status = rawStatus(record, date);
+
+  // 지각·조퇴 소명이 승인되면 그날을 정상 출근으로 본다.
+  // 다만 '누락'까지 덮지는 않는다 — 출퇴근을 아예 안 찍은 날은 소명할 대상이 없고,
+  // 그건 시각을 채워 넣는 정정 요청으로 처리해야 한다. (찍힌 시각 자체는 그대로 남는다)
+  if (approvedKind === 'LATE_EXCUSE' && (status === 'late' || status === 'earlyLeave' || status === 'lateAndEarly')) {
+    return 'normal';
+  }
+  return status;
+}
+
+/** 출퇴근 시각만 보고 내리는 판정 — 승인된 신청은 위(computeStatus)에서 따로 다룬다. */
+function rawStatus(record: AttendanceRecord | undefined, date: string): AttendanceStatus {
+
   const isPast = dayjs(date).isBefore(dayjs(), 'day');
   const isToday = dayjs(date).isSame(dayjs(), 'day');
 
@@ -85,7 +99,7 @@ export const STATUS_COLOR: Record<AttendanceStatus, string> = {
   fieldWork: 'bg-sky-50 text-sky-600 ring-sky-500/20',
 };
 
-// 그날 승인된 연차/외근 신청이 있으면 그 종류를 반환 — computeStatus의 approvedKind 인자로 넘겨 씀
+// 그날 승인된 신청(연차·외근·소명)이 있으면 그 종류를 반환 — computeStatus의 approvedKind 인자로 넘겨 씀
 export function approvedRequestKind(requests: AttendanceRequest[], employeeId: string, date: string): AttendanceRequestKind | null {
   return requests.find(r => r.employeeId === employeeId && r.date === date && r.status === 'APPROVED')?.kind ?? null;
 }

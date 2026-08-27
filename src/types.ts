@@ -24,11 +24,19 @@ export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
 };
 
 // 근태 신청 종류 — 연차(휴가)는 쉬는 날, 외근/출장은 정상 근무지만 출퇴근을 못 찍는 경우
-export type AttendanceRequestKind = 'ANNUAL_LEAVE' | 'FIELD_WORK';
+export type AttendanceRequestKind = 'ANNUAL_LEAVE' | 'FIELD_WORK' | 'LATE_EXCUSE';
 
 export const ATTENDANCE_REQUEST_KIND_LABEL: Record<AttendanceRequestKind, string> = {
   ANNUAL_LEAVE: '연차',
   FIELD_WORK: '외근/출장',
+  LATE_EXCUSE: '지각·조퇴 소명',
+};
+
+/** 신청 화면에서 종류별로 무엇을 적는 자리인지 알려준다. */
+export const ATTENDANCE_REQUEST_KIND_HINT: Record<AttendanceRequestKind, string> = {
+  ANNUAL_LEAVE: '쉬는 날입니다. 출퇴근을 안 찍어도 결근으로 잡히지 않습니다.',
+  FIELD_WORK: '정상 근무지만 출퇴근을 못 찍는 날입니다.',
+  LATE_EXCUSE: '이미 지각·조퇴로 찍힌 날의 사유를 적습니다. 승인되면 그날이 정상 출근으로 바뀝니다.',
 };
 
 // 연차 — 근로기준법 기준 연 15일 고정으로 단순화(입사연차 가산 등은 미반영, MVP 틀)

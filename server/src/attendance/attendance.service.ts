@@ -10,6 +10,7 @@ import { PushService } from '../push/push.service';
 const KIND_LABEL: Record<AttendanceRequestKind, string> = {
   ANNUAL_LEAVE: '연차',
   FIELD_WORK: '외근/출장',
+  LATE_EXCUSE: '지각·조퇴 소명',
 };
 
 /** 단말 키는 원본을 저장하지 않는다 — 조회는 해시로 한다(비밀번호와 달리 조회 키라 SHA-256). */

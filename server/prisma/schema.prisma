@@ -133,6 +133,7 @@ model CorrectionRequest {
 enum AttendanceRequestKind {
   ANNUAL_LEAVE // 연차
   FIELD_WORK // 외근/출장
+  LATE_EXCUSE // 지각·조퇴 소명 — 승인되면 그날을 정상 출근으로 본다
 }
 
 model AttendanceRequest {
