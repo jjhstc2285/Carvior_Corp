@@ -6,6 +6,7 @@ import { useStore } from '../../store';
 import { CAPITAL_LIMIT_COLUMNS, type PurchaseListItem, type Role } from '../../types';
 import PurchaseListForm from './PurchaseListForm';
 import { usePurchaseList } from './usePurchaseList';
+import { alertError, confirmDanger } from '../../lib/alert';
 
 interface Props {
   role: Role;
@@ -46,9 +47,9 @@ export default function PurchaseListModule({ role }: Props) {
   };
 
   const handleDelete = async (item: PurchaseListItem) => {
-    if (!confirm(`${item.vehicleNumber} ${item.vehicleName} 항목을 지울까요?`)) return;
+    if (!(await confirmDanger(`${item.vehicleNumber} ${item.vehicleName} 항목을 지울까요?`))) return;
     const failed = await api.remove(item.id);
-    if (failed) alert(failed);
+    if (failed) void alertError('삭제하지 못했습니다', failed);
   };
 
   const handleExport = () => {

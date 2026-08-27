@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { MonitorCheck, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError, getDeviceId, setDevice } from '../lib/api';
+import { confirmDanger } from '../lib/alert';
 
 interface AttendanceDevice {
   id: string;
@@ -63,7 +64,7 @@ export default function AttendanceDeviceSettings() {
   };
 
   const remove = async (device: AttendanceDevice) => {
-    if (!confirm(`'${device.label}' 단말 등록을 해제할까요?\n이 PC에서는 더 이상 출근을 찍을 수 없게 됩니다.`)) return;
+    if (!(await confirmDanger(`'${device.label}' 단말 등록을 해제할까요?`, '이 PC에서는 더 이상 출근을 찍을 수 없게 됩니다.', '해제'))) return;
     try {
       await api(`/attendance/devices/${device.id}`, { method: 'DELETE' });
       if (device.id === myDeviceId) setDevice(null);

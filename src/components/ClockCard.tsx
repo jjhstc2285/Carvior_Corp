@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { useStore } from '../store';
 import { useCurrentIp } from '../lib/useCurrentIp';
+import { ApiError } from '../lib/api';
+import { alertError } from '../lib/alert';
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 const FULL_WORK_MINUTES = 8 * 60;
@@ -13,6 +15,30 @@ function toMinutes(hhmm: string): number {
 
 export default function ClockCard() {
   const { state, clockIn, clockOut } = useStore();
+
+  /**
+   * 출퇴근 등록은 서버가 막는 경우가 있다(등록 안 된 PC, 사무실 밖 네트워크).
+   * 예전에는 그 오류를 아무도 안 받아서 버튼을 눌러도 화면에 변화가 없었다 —
+   * 왜 안 되는지, 무엇을 해야 하는지까지 띄운다.
+   */
+  const punch = async (action: () => Promise<void>) => {
+    try {
+      await action();
+    } catch (e) {
+      const code = e instanceof ApiError ? e.code : null;
+      const message = e instanceof ApiError ? e.message : '잠시 후 다시 시도해 주세요.';
+
+      if (code === 'DEVICE_REQUIRED') {
+        await alertError('출근 PC 등록이 필요합니다', message, '관리자에게 이 PC를 출근 단말로 등록해 달라고 요청하세요.');
+        return;
+      }
+      if (code === 'IP_NOT_ALLOWED') {
+        await alertError('사무실 네트워크가 아닙니다', message, '사무실 WiFi에 연결한 뒤 다시 눌러 주세요.');
+        return;
+      }
+      await alertError('등록하지 못했습니다', message);
+    }
+  };
   const { ip, loading: ipLoading, error: ipError } = useCurrentIp();
   const [, forceTick] = useState(0);
 
@@ -104,7 +130,7 @@ export default function ClockCard() {
 
           <div className="flex gap-2">
             <button
-              onClick={() => clockIn()}
+              onClick={() => void punch(clockIn)}
               disabled={!canClockIn}
               className="rounded-lg px-5 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
               style={canClockIn ? { backgroundColor: '#4f7cff' } : undefined}
@@ -112,7 +138,7 @@ export default function ClockCard() {
               출근
             </button>
             <button
-              onClick={() => clockOut()}
+              onClick={() => void punch(clockOut)}
               disabled={!canClockOut}
               className="rounded-lg bg-slate-800 px-5 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
             >

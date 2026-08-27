@@ -73,7 +73,11 @@ export class AttendanceService {
   private async assertClockInAllowed(clientIp: string, deviceToken?: string): Promise<void> {
     const whitelist = await this.prisma.ipWhitelist.findMany({ select: { ip: true } });
     if (whitelist.length > 0 && !whitelist.some((w) => w.ip === clientIp)) {
-      throw new ForbiddenException(`사무실 네트워크에서만 출근 등록이 가능합니다. (현재 IP: ${clientIp})`);
+      // code를 같이 내려준다 — 화면이 문구를 뒤져서 원인을 알아내지 않아도 되게.
+      throw new ForbiddenException({
+        code: 'IP_NOT_ALLOWED',
+        message: `사무실 네트워크에서만 출근 등록이 가능합니다. (현재 IP: ${clientIp})`,
+      });
     }
 
     const deviceCount = await this.prisma.attendanceDevice.count({ where: { active: true } });
@@ -84,7 +88,10 @@ export class AttendanceService {
       : null;
 
     if (!device?.active) {
-      throw new ForbiddenException('등록된 출근 단말(사무실 PC)에서만 출근 등록이 가능합니다.');
+      throw new ForbiddenException({
+        code: 'DEVICE_REQUIRED',
+        message: '등록된 출근 단말(사무실 PC)에서만 출근 등록이 가능합니다.',
+      });
     }
 
     await this.prisma.attendanceDevice.update({

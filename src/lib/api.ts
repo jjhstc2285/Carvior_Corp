@@ -72,10 +72,16 @@ export function setDevice(value: DeviceRegistration | null): void {
 
 export class ApiError extends Error {
   readonly status: number;
+  /**
+   * 서버가 붙여준 원인 코드. 화면이 문구를 뒤져서 원인을 알아내지 않아도 되게 쓴다
+   * (예: 출근 거부가 'PC 미등록'인지 '사무실 밖'인지).
+   */
+  readonly code: string | null;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code: string | null = null) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -118,7 +124,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
   if (!res.ok) {
     const message = extractMessage(data) ?? `요청에 실패했습니다. (${res.status})`;
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, extractCode(data));
   }
 
   return data as T;
@@ -134,6 +140,12 @@ function extractMessage(data: unknown): string | null {
   if (Array.isArray(message)) return message[0] as string;
   if (typeof message === 'string') return message;
   return null;
+}
+
+function extractCode(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const code = (data as { code?: unknown }).code;
+  return typeof code === 'string' ? code : null;
 }
 
 export async function uploadPhotos(files: File[]): Promise<string[]> {

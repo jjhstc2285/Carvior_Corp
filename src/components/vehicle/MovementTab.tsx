@@ -12,6 +12,7 @@ import {
 } from '../../lib/vehicle';
 import type { ManagedVehicle } from '../../types';
 import type { VehiclesApi } from './useVehicles';
+import { confirmDanger } from '../../lib/alert';
 
 export default function MovementTab({ api }: { api: VehiclesApi }) {
   const { vehicles, addVehicle, toggleFlag, removeVehicle } = api;
@@ -167,8 +168,8 @@ interface RowProps {
 function VehicleRow({ vehicle, onToggle, onRemove }: RowProps) {
   const list = vehicleListOf(vehicle);
 
-  const confirmRemove = () => {
-    if (confirm(`${vehicle.vehicleNumber} 차량을 목록에서 지울까요?\n등록된 주유·배터리 이력도 함께 삭제됩니다.`)) {
+  const confirmRemove = async () => {
+    if (await confirmDanger(`${vehicle.vehicleNumber} 차량을 목록에서 지울까요?`, '등록된 주유·배터리 이력도 함께 삭제됩니다.')) {
       void onRemove(vehicle.id);
     }
   };
@@ -218,7 +219,7 @@ function VehicleRow({ vehicle, onToggle, onRemove }: RowProps) {
       </td>
 
       <td className="px-3 py-3 text-right">
-        <button onClick={confirmRemove} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500" aria-label="삭제">
+        <button onClick={() => void confirmRemove()} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500" aria-label="삭제">
           <Trash2 size={14} />
         </button>
       </td>

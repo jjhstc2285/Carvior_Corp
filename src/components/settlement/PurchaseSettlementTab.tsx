@@ -18,6 +18,7 @@ import {
   type SettlementStatus,
 } from '../../types';
 import PurchaseSettlementForm from './PurchaseSettlementForm';
+import { confirmDanger } from '../../lib/alert';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -260,7 +261,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
                       <button onClick={() => { setEditing(s); setFormOpen(true); }} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => { if (confirm('삭제할까요?')) deletePurchaseSettlement(s.id); }} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
+                      <button onClick={() => void confirmDanger('매입 정산 내역을 삭제할까요?', '상품화 비용 명세도 함께 지워집니다.').then(ok => { if (ok) void deletePurchaseSettlement(s.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
                         <Trash2 size={14} />
                       </button>
                     </div>

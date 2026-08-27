@@ -5,6 +5,7 @@ import { useStore } from '../../store';
 import { VEHICLE_POST_SITES, type VehiclePost } from '../../types';
 import VehiclePostForm from './VehiclePostForm';
 import VehiclePostDetail from './VehiclePostDetail';
+import { confirmDanger } from '../../lib/alert';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -97,7 +98,7 @@ export default function VehiclePostModule({ role }: Props) {
                   <button onClick={() => { setEditing(post); setFormOpen(true); }}
                     className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
                   {(role === 'ADMIN' || post.employeeId === state.currentEmployeeId) && (
-                    <button onClick={() => { if (confirm('이 매물 글을 삭제할까요?')) deleteVehiclePost(post.id); }}
+                    <button onClick={() => void confirmDanger('이 매물 글을 삭제할까요?').then(ok => { if (ok) void deleteVehiclePost(post.id); })}
                       className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500" aria-label="삭제">
                       <Trash2 size={14} />
                     </button>

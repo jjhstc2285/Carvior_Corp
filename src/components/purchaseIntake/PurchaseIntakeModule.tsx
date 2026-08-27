@@ -5,6 +5,7 @@ import { Car, Download, Plus, Trash2 } from 'lucide-react';
 import type { PurchaseIntake, Role } from '../../types';
 import PurchaseIntakeForm from './PurchaseIntakeForm';
 import { usePurchaseIntake } from './usePurchaseIntake';
+import { alertError, confirmDanger } from '../../lib/alert';
 
 interface Props {
   role: Role;
@@ -25,9 +26,9 @@ export default function PurchaseIntakeModule({ role }: Props) {
   const total = api.items.reduce((sum, r) => sum + r.totalAmount, 0);
 
   const handleDelete = async (item: PurchaseIntake) => {
-    if (!confirm(`${item.vehicleNumber} ${item.customerName} 매입 내역을 지울까요?\n차량 관리에 올라간 차는 그대로 남습니다.`)) return;
+    if (!(await confirmDanger(`${item.vehicleNumber} ${item.customerName} 매입 내역을 지울까요?`, '차량 관리에 올라간 차는 그대로 남습니다.'))) return;
     const failed = await api.remove(item.id);
-    if (failed) alert(failed);
+    if (failed) void alertError('삭제하지 못했습니다', failed);
   };
 
   const handleExport = () => {

@@ -13,6 +13,7 @@ import {
   type VehicleUsageNote,
 } from '../../types';
 import type { VehiclesApi } from './useVehicles';
+import { confirmDanger } from '../../lib/alert';
 
 const NOTE_KEYS = Object.keys(VEHICLE_USAGE_NOTE_LABEL) as VehicleUsageNote[];
 
@@ -381,7 +382,7 @@ function ExpenseRow({ log, onEdit, onRemove }: RowProps) {
       <td className="px-3 py-3 text-right whitespace-nowrap">
         <button onClick={startEdit} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
         <button
-          onClick={() => { if (confirm('이 이력을 삭제할까요?')) void onRemove(log.id); }}
+          onClick={() => void confirmDanger('이 이력을 삭제할까요?').then(ok => { if (ok) void onRemove(log.id); })}
           className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
           aria-label="삭제"
         >

@@ -5,6 +5,7 @@ import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { brokerageProfit, brokerageSaleProfit, SETTLEMENT_STATUS_LABEL, type BrokerageSettlement, type SettlementStatus } from '../../types';
 import BrokerageSettlementForm from './BrokerageSettlementForm';
+import { confirmDanger } from '../../lib/alert';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -172,7 +173,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
                         <button onClick={() => { setEditing(s); setFormOpen(true); }} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                           <Pencil size={14} />
                         </button>
-                        <button onClick={() => { if (confirm('삭제할까요?')) deleteBrokerageSettlement(s.id); }} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
+                        <button onClick={() => void confirmDanger('알선 정산 내역을 삭제할까요?').then(ok => { if (ok) void deleteBrokerageSettlement(s.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
                           <Trash2 size={14} />
                         </button>
                       </div>

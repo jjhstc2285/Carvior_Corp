@@ -4,6 +4,7 @@ import { useStore } from '../../store';
 import { ApiError } from '../../lib/api';
 import type { ParkingStatus, ParkingVehicle } from '../../types';
 import { PARKING_LOTS, PARKING_SLOTS } from '../../lib/parkingLayout';
+import { confirmDanger } from '../../lib/alert';
 
 interface Props {
   editing: ParkingVehicle | null;
@@ -64,9 +65,9 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!editing) return;
-    if (confirm('이 위치의 차량 기록을 비울까요?')) {
+    if (await confirmDanger('이 위치의 차량 기록을 비울까요?', undefined, '비우기')) {
       deleteParkingVehicle(editing.id);
       onClose();
     }
@@ -151,7 +152,7 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
 
         <div className="mt-5 flex items-center justify-between">
           {editing ? (
-            <button onClick={handleDelete} className="flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-red-500 hover:bg-red-50">
+            <button onClick={() => void handleDelete()} className="flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-red-500 hover:bg-red-50">
               <Trash2 size={13} /> 이 위치 비우기
             </button>
           ) : <span />}

@@ -5,6 +5,7 @@ import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
+import { confirmDanger } from '../../lib/alert';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -139,7 +140,7 @@ export default function ParkingModule({ role }: Props) {
                     <td className="px-5 py-2.5">
                       <div className="flex justify-end gap-1.5">
                         <button onClick={() => { setEditing(v); setPresetPosition(null); setFormOpen(true); }} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
-                        <button onClick={() => { if (confirm('삭제할까요?')) deleteParkingVehicle(v.id); }} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
+                        <button onClick={() => void confirmDanger('이 위치의 차량 기록을 삭제할까요?').then(ok => { if (ok) void deleteParkingVehicle(v.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
                           <Trash2 size={14} />
                         </button>
                       </div>
