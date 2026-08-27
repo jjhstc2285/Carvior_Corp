@@ -3,15 +3,23 @@ import { ConsultationStatus } from '@prisma/client';
 import { DATE_PATTERN, TIME_PATTERN } from '../../common/dto';
 
 export class CreateConsultationDto {
+  /** 유입 경로 — 엔카·KB차차차 등. 목록에 없는 곳도 있어서 자유 입력으로 둔다. */
+  @IsOptional() @IsString() @MaxLength(30) platform?: string;
+
   @IsString()
   @IsNotEmpty({ message: '차량번호를 입력해 주세요.' })
   @MaxLength(30)
   vehicleNumber!: string;
 
+  @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
+
   @IsString()
-  @IsNotEmpty({ message: '고객명을 입력해 주세요.' })
-  @MaxLength(50)
-  customerName!: string;
+  @IsNotEmpty({ message: '손님번호를 입력해 주세요.' })
+  @MaxLength(20)
+  customerPhone!: string;
+
+  /** 예전 양식의 고객명. 새로 등록할 때는 안 쓰지만 기존 상담을 고칠 때 넘어온다. */
+  @IsOptional() @IsString() @MaxLength(50) customerName?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -37,7 +45,10 @@ export class CreateConsultationDto {
 }
 
 export class UpdateConsultationDto {
+  @IsOptional() @IsString() @MaxLength(30) platform?: string;
   @IsOptional() @IsString() @MaxLength(30) vehicleNumber?: string;
+  @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
+  @IsOptional() @IsString() @MaxLength(20) customerPhone?: string;
   @IsOptional() @IsString() @MaxLength(50) customerName?: string;
   @IsOptional() @IsString() employeeId?: string;
   @IsOptional() @IsEnum(ConsultationStatus) status?: ConsultationStatus;

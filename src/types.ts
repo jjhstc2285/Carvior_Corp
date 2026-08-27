@@ -285,9 +285,19 @@ export const CONSULTATION_STATUS_LABEL: Record<ConsultationStatus, string> = {
   CLOSED: '종결',
 };
 
+/**
+ * 상담 유입 경로 — 버튼으로 눌러 채운다.
+ * 목록에 없는 곳도 있어서 칸은 자유 입력으로 열어둔다.
+ */
+export const CONSULTATION_PLATFORMS = ['엔카', 'KB차차차', '보배드림', '헤이딜러', '당근마켓', '직접문의'] as const;
+
 export interface ConsultationRecord {
   id: string;
+  platform: string; // 유입 경로
   vehicleNumber: string;
+  vehicleName: string; // 차명
+  customerPhone: string; // 손님번호
+  /** 예전 양식의 고객명 — 손님번호로 바꾸기 전 상담에만 남아 있다 */
   customerName: string;
   employeeId: string; // 담당자
   status: ConsultationStatus;

@@ -18,7 +18,7 @@ const STATUS_COLOR: Record<string, string> = {
 export default function CustomerHistoryModal({ customerName, onClose }: Props) {
   const { state } = useStore();
   const history = state.consultations
-    .filter(c => c.customerName === customerName)
+    .filter(c => (c.customerPhone || c.customerName) === customerName)
     .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
@@ -27,7 +27,7 @@ export default function CustomerHistoryModal({ customerName, onClose }: Props) {
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4" onClick={onClose}>
       <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">{customerName}님 상담 이력</h3>
+          <h3 className="text-base font-bold text-slate-800">{customerName} 상담 이력</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>

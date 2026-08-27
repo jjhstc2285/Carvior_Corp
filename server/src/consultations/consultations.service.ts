@@ -27,7 +27,13 @@ export class ConsultationsService {
       ...(params.employeeId ? { employeeId: params.employeeId } : {}),
       ...(params.q
         ? {
-            OR: [{ vehicleNumber: { contains: params.q } }, { customerName: { contains: params.q } }],
+            OR: [
+              { vehicleNumber: { contains: params.q } },
+              { vehicleName: { contains: params.q } },
+              { customerPhone: { contains: params.q } },
+              { customerName: { contains: params.q } },
+              { platform: { contains: params.q } },
+            ],
           }
         : {}),
     };
@@ -59,8 +65,11 @@ export class ConsultationsService {
   async create(dto: CreateConsultationDto) {
     const row = await this.prisma.consultation.create({
       data: {
+        platform: dto.platform?.trim() ?? '',
         vehicleNumber: dto.vehicleNumber,
-        customerName: dto.customerName,
+        vehicleName: dto.vehicleName?.trim() ?? '',
+        customerPhone: dto.customerPhone.trim(),
+        customerName: dto.customerName?.trim() ?? '',
         employeeId: dto.employeeId,
         status: dto.status ?? ConsultationStatus.IN_PROGRESS,
         date: toDateOnly(dto.date),
@@ -78,8 +87,11 @@ export class ConsultationsService {
     const row = await this.prisma.consultation.update({
       where: { id },
       data: {
+        ...(dto.platform !== undefined ? { platform: dto.platform.trim() } : {}),
         ...(dto.vehicleNumber !== undefined ? { vehicleNumber: dto.vehicleNumber } : {}),
-        ...(dto.customerName !== undefined ? { customerName: dto.customerName } : {}),
+        ...(dto.vehicleName !== undefined ? { vehicleName: dto.vehicleName.trim() } : {}),
+        ...(dto.customerPhone !== undefined ? { customerPhone: dto.customerPhone.trim() } : {}),
+        ...(dto.customerName !== undefined ? { customerName: dto.customerName.trim() } : {}),
         ...(dto.employeeId !== undefined ? { employeeId: dto.employeeId } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.date !== undefined ? { date: toDateOnly(dto.date) } : {}),

@@ -210,10 +210,18 @@ enum ConsultationStatus {
   CLOSED
 }
 
+// 알선 상담. 카톡으로 주고받던 양식을 그대로 옮겼다 —
+// 플랫폼 / 차량번호 / 차명 / 손님번호 / 내용.
+//
+// 고객명(customerName)은 예전 양식의 흔적이다. 새 양식은 이름 대신 손님번호로 부르지만,
+// 이미 이름으로 적어둔 상담이 있어서 지우지 않고 남긴다(화면에서는 번호가 없을 때만 보인다).
 model Consultation {
   id              String             @id @default(cuid())
+  platform        String             @default("") @db.VarChar(30) // 엔카·KB차차차 등 유입 경로
   vehicleNumber   String
-  customerName    String
+  vehicleName     String             @default("") @db.VarChar(60) // 차명
+  customerPhone   String             @default("") @db.VarChar(20) // 손님번호
+  customerName    String             @default("")
   employeeId      String
   status          ConsultationStatus @default(IN_PROGRESS)
   date            DateTime           @db.Date
@@ -229,7 +237,7 @@ model Consultation {
 
   @@index([employeeId])
   @@index([vehicleNumber])
-  @@index([customerName])
+  @@index([customerPhone])
   @@index([date])
 }
 

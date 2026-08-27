@@ -2,7 +2,7 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
-import type { ConsultationRecord, ConsultationStatus } from '../../types';
+import { CONSULTATION_PLATFORMS, type ConsultationRecord, type ConsultationStatus } from '../../types';
 
 interface Props {
   editing: ConsultationRecord | null;
@@ -12,8 +12,10 @@ interface Props {
 
 export default function ConsultationForm({ editing, defaultEmployeeId, onClose }: Props) {
   const { state, upsertConsultation } = useStore();
+  const [platform, setPlatform] = useState(editing?.platform ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
-  const [customerName, setCustomerName] = useState(editing?.customerName ?? '');
+  const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? '');
+  const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [status, setStatus] = useState<ConsultationStatus>(editing?.status ?? 'IN_PROGRESS');
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
@@ -23,14 +25,18 @@ export default function ConsultationForm({ editing, defaultEmployeeId, onClose }
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = () => {
-    if (!vehicleNumber.trim() || !customerName.trim() || !content.trim()) {
-      setError('차량번호, 고객명, 상담내용은 필수 입력입니다.');
+    if (!vehicleNumber.trim() || !customerPhone.trim() || !content.trim()) {
+      setError('차량번호, 손님번호, 내용은 필수 입력입니다.');
       return;
     }
     upsertConsultation({
       id: editing?.id,
+      platform: platform.trim(),
       vehicleNumber: vehicleNumber.trim(),
-      customerName: customerName.trim(),
+      vehicleName: vehicleName.trim(),
+      customerPhone: customerPhone.trim(),
+      // 예전 양식으로 적힌 고객명은 건드리지 않고 그대로 넘긴다.
+      customerName: editing?.customerName ?? '',
       employeeId,
       status,
       date,
@@ -52,15 +58,42 @@ export default function ConsultationForm({ editing, defaultEmployeeId, onClose }
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        {/* 카톡으로 주고받던 양식 순서 그대로 — 플랫폼 / 차량번호 / 차명 / 손님번호 / 내용 */}
+        <div className="mt-4">
+          <label className="mb-1 block text-xs font-semibold text-slate-500">플랫폼</label>
+          <div className="mb-1.5 flex flex-wrap gap-1">
+            {CONSULTATION_PLATFORMS.map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPlatform(p)}
+                className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors ${
+                  platform === p ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          <input value={platform} onChange={e => setPlatform(e.target.value)} placeholder="위에서 고르거나 직접 입력"
+            className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">차량번호 *</label>
-            <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="12가3456"
+            <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="42더8955"
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">고객명 *</label>
-            <input value={customerName} onChange={e => setCustomerName(e.target.value)}
+            <label className="mb-1 block text-xs font-semibold text-slate-500">차명</label>
+            <input value={vehicleName} onChange={e => setVehicleName(e.target.value)} placeholder="QM5"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+          </div>
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-semibold text-slate-500">손님번호 *</label>
+            <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="010-0000-0000"
+              inputMode="tel"
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
           <div>
@@ -96,8 +129,9 @@ export default function ConsultationForm({ editing, defaultEmployeeId, onClose }
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
           <div className="col-span-2">
-            <label className="mb-1 block text-xs font-semibold text-slate-500">상담내용 *</label>
-            <textarea value={content} onChange={e => setContent(e.target.value)} rows={3}
+            <label className="mb-1 block text-xs font-semibold text-slate-500">내용 *</label>
+            <textarea value={content} onChange={e => setContent(e.target.value)} rows={4}
+              placeholder="예) 다른 차량도 있으면 보고 싶음 / 예산 300-400 / 오후 3시~4시 방문"
               className="w-full resize-none rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-indigo-400" />
           </div>
         </div>
