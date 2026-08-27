@@ -203,9 +203,12 @@ model AttendanceDevice {
 // ② 알선 상담
 // ─────────────────────────────────────────────
 
+// 상담 → 계약 → 판매완료 → (정산) 순으로 간다.
+// 보류·종결은 그 흐름에서 빠지는 갈래다.
 enum ConsultationStatus {
   IN_PROGRESS
   CONTRACTED
+  SOLD // 판매완료 — 출고까지 끝난 건. 여기서부터 정산 대상이 된다
   ON_HOLD
   CLOSED
 }
@@ -233,6 +236,10 @@ model Consultation {
   // 날짜만 따로 두면 달력에 방문 예정을 띄울 수 있다.
   visitDate DateTime? @db.Date
   visitTime String    @default("") @db.VarChar(30)
+
+  // 출고할 때 카톡방에 "12가3456 입금1000만원 동주 출고완료"처럼 올린다.
+  // 그 입금액을 여기 남겨두면 정산으로 넘길 때 다시 묻지 않아도 된다(만원).
+  depositAmount Int @default(0)
 
   nextContactDate DateTime? @db.Date
 

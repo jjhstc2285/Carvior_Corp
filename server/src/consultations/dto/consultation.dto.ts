@@ -1,4 +1,5 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ConsultationStatus } from '@prisma/client';
 import { DATE_PATTERN, TIME_PATTERN } from '../../common/dto';
 
@@ -46,6 +47,9 @@ export class CreateConsultationDto {
   /** 방문 시각 — "오후 3시~4시"처럼 적힌 그대로 받는다 */
   @IsOptional() @IsString() @MaxLength(30) visitTime?: string;
 
+  /** 출고 입금액(만원) */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) depositAmount?: number;
+
   @IsOptional()
   @Matches(DATE_PATTERN, { message: 'nextContactDate는 YYYY-MM-DD 형식이어야 합니다.' })
   nextContactDate?: string | null;
@@ -58,6 +62,7 @@ export class UpdateConsultationDto {
   @IsOptional() @IsString() @MaxLength(20) customerPhone?: string;
   @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/) visitDate?: string | null;
   @IsOptional() @IsString() @MaxLength(30) visitTime?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) depositAmount?: number;
   @IsOptional() @IsString() @MaxLength(50) customerName?: string;
   @IsOptional() @IsString() employeeId?: string;
   @IsOptional() @IsEnum(ConsultationStatus) status?: ConsultationStatus;

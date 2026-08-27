@@ -78,6 +78,7 @@ export class ConsultationsService {
         content: dto.content,
         visitDate: toDateOnlyOrNull(dto.visitDate),
         visitTime: dto.visitTime?.trim() ?? '',
+        depositAmount: dto.depositAmount ?? 0,
         nextContactDate: toDateOnlyOrNull(dto.nextContactDate),
       },
       include: this.include,
@@ -102,6 +103,7 @@ export class ConsultationsService {
         ...(dto.content !== undefined ? { content: dto.content } : {}),
         ...(dto.visitDate !== undefined ? { visitDate: toDateOnlyOrNull(dto.visitDate) } : {}),
         ...(dto.visitTime !== undefined ? { visitTime: dto.visitTime.trim() } : {}),
+        ...(dto.depositAmount !== undefined ? { depositAmount: dto.depositAmount } : {}),
         ...(dto.nextContactDate !== undefined
           ? { nextContactDate: toDateOnlyOrNull(dto.nextContactDate) }
           : {}),

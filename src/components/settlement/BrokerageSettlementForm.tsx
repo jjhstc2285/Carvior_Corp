@@ -8,15 +8,20 @@ import { CalcRow, DateField, EmployeeField, MoneyField, StatusField, TextField }
 interface Props {
   editing: BrokerageSettlement | null;
   defaultEmployeeId: string;
+  /** 판매완료된 상담에서 넘어올 때 — 차량과 입금액을 미리 채운다 */
+  preset?: { vehicleNumber: string; vehicleName: string; totalSaleAmount: number; employeeId: string };
   onClose: () => void;
 }
 
-export default function BrokerageSettlementForm({ editing, defaultEmployeeId, onClose }: Props) {
+export default function BrokerageSettlementForm({ editing, defaultEmployeeId, preset, onClose }: Props) {
   const { state, upsertBrokerageSettlement } = useStore();
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
-  const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
-  const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? '');
-  const [totalSaleAmount, setTotalSaleAmount] = useState(editing?.totalSaleAmount?.toString() ?? '');
+  const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? preset?.vehicleNumber ?? '');
+  const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? preset?.vehicleName ?? '');
+  // 상담에서 넘어왔으면 출고 때 적어둔 입금액을 판매금액으로 먼저 채운다(고치면 된다).
+  const [totalSaleAmount, setTotalSaleAmount] = useState(
+    editing?.totalSaleAmount?.toString() ?? (preset?.totalSaleAmount ? String(preset.totalSaleAmount) : ''),
+  );
   const [ownerDeposit, setOwnerDeposit] = useState(editing?.ownerDeposit?.toString() ?? '');
   const [transferFee, setTransferFee] = useState(editing?.transferFee?.toString() ?? '0');
   const [transferFeeBalance, setTransferFeeBalance] = useState(editing?.transferFeeBalance?.toString() ?? '0');
@@ -25,7 +30,7 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, on
   const [insuranceFee, setInsuranceFee] = useState(editing?.insuranceFee?.toString() ?? '0');
   const [etcCost, setEtcCost] = useState(editing?.etcCost?.toString() ?? '0');
   const [settlementAmount, setSettlementAmount] = useState(editing?.settlementAmount?.toString() ?? '');
-  const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
+  const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? preset?.employeeId ?? defaultEmployeeId);
   const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
   const [memo, setMemo] = useState(editing?.memo ?? '');
   const [error, setError] = useState<string | null>(null);

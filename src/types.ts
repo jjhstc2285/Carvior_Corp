@@ -276,11 +276,13 @@ export function purchaseGrandTotal(purchasePrice: number, prepTotal: number): nu
   return purchasePrice + prepTotal;
 }
 
-export type ConsultationStatus = 'IN_PROGRESS' | 'CONTRACTED' | 'ON_HOLD' | 'CLOSED';
+// 상담 → 계약 → 판매완료 → (정산) 순으로 간다. 보류·종결은 그 흐름에서 빠지는 갈래다.
+export type ConsultationStatus = 'IN_PROGRESS' | 'CONTRACTED' | 'SOLD' | 'ON_HOLD' | 'CLOSED';
 
 export const CONSULTATION_STATUS_LABEL: Record<ConsultationStatus, string> = {
   IN_PROGRESS: '진행중',
   CONTRACTED: '계약',
+  SOLD: '판매완료',
   ON_HOLD: '보류',
   CLOSED: '종결',
 };
@@ -308,6 +310,8 @@ export interface ConsultationRecord {
   visitDate: string | null;
   /** 방문 시각 — "오후 3시~4시"처럼 적힌 그대로 둔다(범위나 두루뭉술한 표현이 많다) */
   visitTime: string;
+  /** 출고 시 입금액(만원) — 카톡방에 올리는 "입금1000만원"이 이 값이다 */
+  depositAmount: number;
   nextContactDate: string | null; // 다음 연락 예정일
   files: { id: string; fileName: string; url: string }[];
   createdAt: string;

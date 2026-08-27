@@ -33,6 +33,26 @@ async function copyKakao(c: ConsultationRecord) {
   }
 }
 
+/**
+ * 출고 카톡 양식 — "12가3456 입금1000만원 동주 출고완료"
+ * 이 한 줄이 카톡방에 올라가면 광고팀이 전산을 내리고 판매완료 처리를 한다.
+ */
+async function copyRelease(c: ConsultationRecord, staffName: string) {
+  const text = [
+    c.vehicleNumber,
+    c.depositAmount ? `입금${c.depositAmount}만원` : '입금',
+    staffName,
+    '출고완료',
+  ].join(' ');
+
+  try {
+    await navigator.clipboard.writeText(text);
+    await alertSuccess('출고 양식으로 복사했습니다', text);
+  } catch {
+    await alertError('복사하지 못했습니다', text);
+  }
+}
+
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
 }
@@ -40,6 +60,7 @@ interface Props {
 const STATUS_COLOR: Record<ConsultationStatus, string> = {
   IN_PROGRESS: 'bg-blue-50 text-blue-700 ring-blue-600/20',
   CONTRACTED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  SOLD: 'bg-indigo-600 text-white ring-indigo-700/20',
   ON_HOLD: 'bg-amber-50 text-amber-700 ring-amber-600/20',
   CLOSED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
 };
@@ -255,9 +276,18 @@ export default function ConsultationModule({ role }: Props) {
                   <td className="max-w-xs truncate px-4 py-2.5 text-slate-500" title={c.content}>{c.content}</td>
                   <td className="px-5 py-2.5">
                     <div className="flex justify-end gap-1.5">
-                      <button onClick={() => void copyKakao(c)} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100" title="카톡 양식으로 복사">
+                      <button onClick={() => void copyKakao(c)} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100" title="상담 카톡 양식으로 복사">
                         <Copy size={13} />
                       </button>
+                      {c.status === 'SOLD' && (
+                        <button
+                          onClick={() => void copyRelease(c, employeeOf(c.employeeId)?.name ?? '')}
+                          className="rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                          title="출고 양식으로 복사 — 카톡방에 올리면 광고팀이 전산을 내립니다"
+                        >
+                          출고
+                        </button>
+                      )}
                       <button onClick={() => { setEditing(c); setPreset(undefined); setFormOpen(true); }} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
                       <button onClick={() => void confirmDanger('상담 내역을 삭제할까요?').then(ok => { if (ok) void deleteConsultation(c.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
                         <Trash2 size={14} />

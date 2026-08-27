@@ -2,7 +2,7 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
-import { CONSULTATION_PLATFORMS, type ConsultationRecord, type ConsultationStatus } from '../../types';
+import { CONSULTATION_PLATFORMS, CONSULTATION_STATUS_LABEL, type ConsultationRecord, type ConsultationStatus } from '../../types';
 
 interface Props {
   editing: ConsultationRecord | null;
@@ -23,6 +23,7 @@ export default function ConsultationForm({ editing, defaultEmployeeId, preset, o
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
   const [time, setTime] = useState(editing?.time ?? dayjs().format('HH:mm'));
   const [content, setContent] = useState(editing?.content ?? '');
+  const [depositAmount, setDepositAmount] = useState(editing ? String(editing.depositAmount || '') : '');
   const [visitDate, setVisitDate] = useState(editing?.visitDate ?? '');
   const [visitTime, setVisitTime] = useState(editing?.visitTime ?? '');
   const [nextContactDate, setNextContactDate] = useState(editing?.nextContactDate ?? '');
@@ -46,6 +47,7 @@ export default function ConsultationForm({ editing, defaultEmployeeId, preset, o
       date,
       time,
       content: content.trim(),
+      depositAmount: Number(depositAmount.replace(/[^\d]/g, '')) || 0,
       visitDate: visitDate || null,
       visitTime: visitTime.trim(),
       nextContactDate: nextContactDate || null,
@@ -113,10 +115,9 @@ export default function ConsultationForm({ editing, defaultEmployeeId, preset, o
             <label className="mb-1 block text-xs font-semibold text-slate-500">상담 상태</label>
             <select value={status} onChange={e => setStatus(e.target.value as ConsultationStatus)}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-              <option value="IN_PROGRESS">진행중</option>
-              <option value="CONTRACTED">계약</option>
-              <option value="ON_HOLD">보류</option>
-              <option value="CLOSED">종결</option>
+              {(Object.entries(CONSULTATION_STATUS_LABEL) as [ConsultationStatus, string][]).map(([k, label]) => (
+                <option key={k} value={k}>{label}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -129,6 +130,20 @@ export default function ConsultationForm({ editing, defaultEmployeeId, preset, o
             <input type="time" value={time} onChange={e => setTime(e.target.value)}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
+          {/* 출고 카톡("입금1000만원")에 들어가는 금액. 판매완료로 바꿀 때만 묻는다. */}
+          {status === 'SOLD' && (
+            <div className="col-span-2">
+              <label className="mb-1 block text-xs font-semibold text-slate-500">입금액 (만원)</label>
+              <input
+                value={depositAmount ? Number(depositAmount).toLocaleString() : ''}
+                onChange={e => setDepositAmount(e.target.value.replace(/[^\d]/g, ''))}
+                inputMode="numeric"
+                placeholder="1000"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
+              />
+            </div>
+          )}
+
           {/* 카톡 양식에 "오후 3시~4시 방문"처럼 적혀 온다. 시각은 적힌 그대로 받는다. */}
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">방문 예정일</label>

@@ -5,6 +5,7 @@ import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { brokerageProfit, brokerageSaleProfit, SETTLEMENT_STATUS_LABEL, type BrokerageSettlement, type SettlementStatus } from '../../types';
 import BrokerageSettlementForm from './BrokerageSettlementForm';
+import PendingSettlementVehicles from './PendingSettlementVehicles';
 import { confirmDanger } from '../../lib/alert';
 
 interface Props {
@@ -21,6 +22,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<BrokerageSettlement | null>(null);
+  const [preset, setPreset] = useState<{ vehicleNumber: string; vehicleName: string; totalSaleAmount: number; employeeId: string } | undefined>();
 
   const scoped = role === 'EMPLOYEE'
     ? state.brokerageSettlements.filter(s => s.employeeId === state.currentEmployeeId)
@@ -69,6 +71,20 @@ export default function BrokerageSettlementTab({ role }: Props) {
 
   return (
     <>
+      <PendingSettlementVehicles
+        onStart={c => {
+          setEditing(null);
+          setPreset({
+            vehicleNumber: c.vehicleNumber,
+            vehicleName: c.vehicleName,
+            // 출고 때 적어둔 입금액을 판매금액으로 먼저 채운다 — 다르면 폼에서 고친다.
+            totalSaleAmount: c.depositAmount,
+            employeeId: c.employeeId,
+          });
+          setFormOpen(true);
+        }}
+      />
+
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">총 건수</p>
@@ -108,7 +124,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download size={14} /> 엑셀 다운로드
           </button>
-          <button onClick={() => { setEditing(null); setFormOpen(true); }}
+          <button onClick={() => { setEditing(null); setPreset(undefined); setFormOpen(true); }}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700">
             <Plus size={14} /> 알선 정산 추가
           </button>
@@ -170,7 +186,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex justify-end gap-1">
-                        <button onClick={() => { setEditing(s); setFormOpen(true); }} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                        <button onClick={() => { setEditing(s); setPreset(undefined); setFormOpen(true); }} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                           <Pencil size={14} />
                         </button>
                         <button onClick={() => void confirmDanger('알선 정산 내역을 삭제할까요?').then(ok => { if (ok) void deleteBrokerageSettlement(s.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
@@ -187,7 +203,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
       </div>
 
       {formOpen && (
-        <BrokerageSettlementForm editing={editing} defaultEmployeeId={state.currentEmployeeId} onClose={() => setFormOpen(false)} />
+        <BrokerageSettlementForm editing={editing} defaultEmployeeId={state.currentEmployeeId} preset={preset} onClose={() => setFormOpen(false)} />
       )}
     </>
   );
