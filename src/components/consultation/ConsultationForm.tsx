@@ -7,14 +7,16 @@ import { CONSULTATION_PLATFORMS, type ConsultationRecord, type ConsultationStatu
 interface Props {
   editing: ConsultationRecord | null;
   defaultEmployeeId: string;
+  /** 차량관리에서 고른 차로 열 때 — 차량번호·차명을 미리 채운다 */
+  preset?: { vehicleNumber: string; vehicleName: string };
   onClose: () => void;
 }
 
-export default function ConsultationForm({ editing, defaultEmployeeId, onClose }: Props) {
+export default function ConsultationForm({ editing, defaultEmployeeId, preset, onClose }: Props) {
   const { state, upsertConsultation } = useStore();
   const [platform, setPlatform] = useState(editing?.platform ?? '');
-  const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
-  const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? '');
+  const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? preset?.vehicleNumber ?? '');
+  const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? preset?.vehicleName ?? '');
   const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [status, setStatus] = useState<ConsultationStatus>(editing?.status ?? 'IN_PROGRESS');

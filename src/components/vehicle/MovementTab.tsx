@@ -118,6 +118,12 @@ export default function MovementTab({ api }: { api: VehiclesApi }) {
             {VEHICLE_LIST_LABEL[key]} {counts[key]}
           </button>
         ))}
+        {/* 상품화·광고완료를 다 체크한 차가 상담 화면으로 넘어간다는 걸 여기서 알려준다 */}
+        {counts.MOVABLE > 0 && (
+          <span className="text-[11px] text-emerald-700">
+            상품화·광고 완료 {counts.MOVABLE}대는 상담 관리에서 바로 상담을 걸 수 있어요
+          </span>
+        )}
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}

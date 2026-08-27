@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { CalendarDays, Copy, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
-import { CONSULTATION_STATUS_LABEL, type ConsultationRecord, type ConsultationStatus } from '../../types';
+import { CONSULTATION_STATUS_LABEL, type ConsultationRecord, type ConsultationStatus, type ManagedVehicle } from '../../types';
 import ConsultationForm from './ConsultationForm';
 import CustomerHistoryModal from './CustomerHistoryModal';
+import SellableVehicles from './SellableVehicles';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 
@@ -48,6 +49,7 @@ export default function ConsultationModule({ role }: Props) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<ConsultationStatus | 'all'>('all');
   const [formOpen, setFormOpen] = useState(false);
+  const [preset, setPreset] = useState<{ vehicleNumber: string; vehicleName: string } | undefined>();
   const [editing, setEditing] = useState<ConsultationRecord | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'calendar'>('list');
@@ -105,6 +107,12 @@ export default function ConsultationModule({ role }: Props) {
     return events;
   };
 
+  // 이미 상담이 등록된 차는 목록에서 흐리게 보여준다(막지는 않는다 — 같은 차에 문의가 여러 번 온다).
+  const consultedNumbers = useMemo(
+    () => new Set(state.consultations.map(c => c.vehicleNumber)),
+    [state.consultations],
+  );
+
   const staffStats = useMemo(() => {
     if (role !== 'ADMIN') return [];
     return state.employees.map(emp => {
@@ -122,12 +130,21 @@ export default function ConsultationModule({ role }: Props) {
           받은 카톡 양식 그대로 등록합니다. 손님번호를 누르면 그 손님의 지난 상담이 모여 나옵니다.
         </p>
         <button
-          onClick={() => { setEditing(null); setFormOpen(true); }}
+          onClick={() => { setEditing(null); setPreset(undefined); setFormOpen(true); }}
           className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
         >
           <Plus size={15} /> 상담 등록
         </button>
       </div>
+
+      <SellableVehicles
+        consultedNumbers={consultedNumbers}
+        onStart={(v: ManagedVehicle) => {
+          setEditing(null);
+          setPreset({ vehicleNumber: v.vehicleNumber, vehicleName: v.vehicleModel });
+          setFormOpen(true);
+        }}
+      />
 
       {role === 'ADMIN' && staffStats.length > 0 && (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
@@ -241,7 +258,7 @@ export default function ConsultationModule({ role }: Props) {
                       <button onClick={() => void copyKakao(c)} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100" title="카톡 양식으로 복사">
                         <Copy size={13} />
                       </button>
-                      <button onClick={() => { setEditing(c); setFormOpen(true); }} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
+                      <button onClick={() => { setEditing(c); setPreset(undefined); setFormOpen(true); }} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
                       <button onClick={() => void confirmDanger('상담 내역을 삭제할까요?').then(ok => { if (ok) void deleteConsultation(c.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
                         <Trash2 size={14} />
                       </button>
@@ -256,7 +273,7 @@ export default function ConsultationModule({ role }: Props) {
       )}
 
       {formOpen && (
-        <ConsultationForm editing={editing} defaultEmployeeId={state.currentEmployeeId} onClose={() => setFormOpen(false)} />
+        <ConsultationForm editing={editing} defaultEmployeeId={state.currentEmployeeId} preset={preset} onClose={() => setFormOpen(false)} />
       )}
       {historyCustomer && (
         <CustomerHistoryModal customerName={historyCustomer} onClose={() => setHistoryCustomer(null)} />
