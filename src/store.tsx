@@ -81,6 +81,8 @@ interface Store {
 
   upsertParkingVehicle: (record: Upsert<ParkingVehicle, 'updatedAt'>) => Promise<void>;
   deleteParkingVehicle: (id: string) => Promise<void>;
+  /** 구역도에서 끌어다 놓기 — 빈 칸이면 이동, 차가 있으면 맞바꿈 */
+  moveParkingVehicle: (id: string, to: { lot: string; zone: string; slot: string }) => Promise<void>;
 
   upsertVehiclePost: (record: {
     id?: string;
@@ -300,6 +302,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertParkingVehicle: ({ id: _id, ...body }) =>
         run(() => api('/parking', { method: 'POST', body }), reloadParking),
       deleteParkingVehicle: (id) => run(() => api(`/parking/${id}`, { method: 'DELETE' }), reloadParking),
+      moveParkingVehicle: (id, to) =>
+        run(() => api('/parking/move', { method: 'POST', body: { id, ...to } }), reloadParking),
 
       upsertVehiclePost: ({ id, ...body }) =>
         run(() =>

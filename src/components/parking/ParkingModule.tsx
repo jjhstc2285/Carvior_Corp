@@ -5,7 +5,7 @@ import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
-import { confirmDanger } from '../../lib/alert';
+import { alertError, confirmDanger } from '../../lib/alert';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -100,7 +100,7 @@ export default function ParkingModule({ role }: Props) {
       </div>
 
       {view === 'grid' ? (
-        <ParkingGrid role={role} onCellClick={handleCellClick} />
+        <ParkingGrid role={role} onCellClick={handleCellClick} onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)} />
       ) : (
       <div className="rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
