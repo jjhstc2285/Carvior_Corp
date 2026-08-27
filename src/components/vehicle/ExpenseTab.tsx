@@ -1,10 +1,12 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import dayjs from 'dayjs';
-import { BatteryCharging, Fuel, Plus, Trash2, Wrench } from 'lucide-react';
+import { BatteryCharging, Fuel, MoreHorizontal, Plus, Trash2, Wrench } from 'lucide-react';
 import { PLATE_MESSAGE, formatWon } from '../../lib/vehicle';
 import { toMoneyValue, withCommas } from '../../lib/money';
 import {
   VEHICLE_EXPENSE_KIND_LABEL,
+  VEHICLE_EXPENSE_MEMO_KINDS,
+  VEHICLE_EXPENSE_MEMO_PLACEHOLDER,
   VEHICLE_USAGE_NOTE_LABEL,
   type VehicleExpenseKind,
   type VehicleExpenseLog,
@@ -18,18 +20,23 @@ const NOTE_KEYS = Object.keys(VEHICLE_USAGE_NOTE_LABEL) as VehicleUsageNote[];
  * 화면에서 직접 등록하는 종류. 주차비(PARKING)는 주차장 관리에서 자동으로 쌓이므로
  * 여기 목록에는 없다 — 라벨 목록을 그대로 쓰면 손으로 못 넣는 종류까지 버튼이 생긴다.
  */
-const KIND_KEYS: VehicleExpenseKind[] = ['FUEL', 'BATTERY', 'REPAIR'];
+const KIND_KEYS: VehicleExpenseKind[] = ['FUEL', 'BATTERY', 'REPAIR', 'ETC'];
 
 /** 종류별 배지 색 — 목록에서 한눈에 갈리게 */
 const KIND_BADGE: Record<VehicleExpenseKind, string> = {
   FUEL: 'bg-orange-50 text-orange-600',
   BATTERY: 'bg-sky-50 text-sky-600',
   REPAIR: 'bg-violet-50 text-violet-600',
+  ETC: 'bg-slate-100 text-slate-600',
 };
+
+/** 이 종류에는 '무엇에 썼는지' 메모를 받는다 */
+const takesMemo = (kind: VehicleExpenseKind) => VEHICLE_EXPENSE_MEMO_KINDS.includes(kind);
 
 function KindIcon({ kind, size = 14 }: { kind: VehicleExpenseKind; size?: number }) {
   if (kind === 'FUEL') return <Fuel size={size} />;
   if (kind === 'BATTERY') return <BatteryCharging size={size} />;
+  if (kind === 'ETC') return <MoreHorizontal size={size} />;
   return <Wrench size={size} />;
 }
 
@@ -40,6 +47,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
   const [tail, setTail] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [amount, setAmount] = useState('');
+  const [memo, setMemo] = useState('');
   const [note, setNote] = useState<VehicleUsageNote>('IN_PREP');
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,6 +94,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
       kind,
       amount: won,
       ...(kind === 'FUEL' ? { note } : {}),
+      ...(takesMemo(kind) ? { memo: memo.trim() } : {}),
     });
     setBusy(false);
     setFormError(failed);
@@ -93,6 +102,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
       setTail('');
       setSelectedId('');
       setAmount('');
+      setMemo('');
     }
   };
 
@@ -183,6 +193,16 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
                 </select>
               )}
 
+              {/* 항목 이름만으로는 무엇에 쓴 돈인지 알 수 없어서 여기서 받는다 */}
+              {takesMemo(kind) && (
+                <input
+                  value={memo}
+                  onChange={e => setMemo(e.target.value)}
+                  placeholder={VEHICLE_EXPENSE_MEMO_PLACEHOLDER}
+                  className="min-w-56 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                />
+              )}
+
               <button
                 type="submit"
                 disabled={busy}
@@ -233,7 +253,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center">
           <Fuel size={26} className="mx-auto text-slate-300" />
-          <p className="mt-2 text-sm text-slate-400">등록된 주유·배터리 이력이 없습니다.</p>
+          <p className="mt-2 text-sm text-slate-400">등록된 차량비용 이력이 없습니다.</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
@@ -246,6 +266,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
                 <th className="px-4 py-3 font-medium">차량명</th>
                 <th className="px-4 py-3 text-right font-medium">금액</th>
                 <th className="px-3 py-3 font-medium">비고</th>
+                <th className="px-3 py-3 font-medium">내용</th>
                 <th className="px-3 py-3 font-medium">등록자</th>
                 <th className="px-3 py-3" />
               </tr>
@@ -273,12 +294,14 @@ function ExpenseRow({ log, onEdit, onRemove }: RowProps) {
   const [amount, setAmount] = useState(String(log.amount));
   const [date, setDate] = useState(log.date);
   const [note, setNote] = useState<VehicleUsageNote>(log.note ?? 'IN_PREP');
+  const [memo, setMemo] = useState(log.memo ?? '');
   const [error, setError] = useState<string | null>(null);
 
   const startEdit = () => {
     setAmount(String(log.amount));
     setDate(log.date);
     setNote(log.note ?? 'IN_PREP');
+    setMemo(log.memo ?? '');
     setError(null);
     setEditing(true);
   };
@@ -293,6 +316,7 @@ function ExpenseRow({ log, onEdit, onRemove }: RowProps) {
       amount: won,
       date,
       ...(log.kind === 'FUEL' ? { note } : {}),
+      ...(takesMemo(log.kind) ? { memo: memo.trim() } : {}),
     });
     setError(failed);
     if (!failed) setEditing(false);
@@ -322,6 +346,14 @@ function ExpenseRow({ log, onEdit, onRemove }: RowProps) {
             <span className="text-slate-300">—</span>
           )}
         </td>
+        <td className="px-3 py-2">
+          {takesMemo(log.kind) ? (
+            <input value={memo} onChange={e => setMemo(e.target.value)} placeholder={VEHICLE_EXPENSE_MEMO_PLACEHOLDER}
+              className="w-48 rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-indigo-400" />
+          ) : (
+            <span className="text-slate-300">—</span>
+          )}
+        </td>
         <td className="px-3 py-2 text-xs text-slate-400">{log.employee.name}</td>
         <td className="px-3 py-2 text-right whitespace-nowrap">
           {error && <span className="mr-2 text-[11px] text-red-500">{error}</span>}
@@ -344,6 +376,7 @@ function ExpenseRow({ log, onEdit, onRemove }: RowProps) {
       <td className="px-4 py-3 text-slate-600">{log.vehicle.vehicleModel}</td>
       <td className="px-4 py-3 text-right font-semibold text-slate-800">{formatWon(log.amount)}</td>
       <td className="px-3 py-3 text-slate-500">{log.note ? VEHICLE_USAGE_NOTE_LABEL[log.note] : <span className="text-slate-300">—</span>}</td>
+      <td className="px-3 py-3 text-slate-600">{log.memo || <span className="text-slate-300">—</span>}</td>
       <td className="px-3 py-3 text-xs text-slate-400">{log.employee.name}</td>
       <td className="px-3 py-3 text-right whitespace-nowrap">
         <button onClick={startEdit} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>

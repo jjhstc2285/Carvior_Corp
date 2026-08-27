@@ -68,11 +68,12 @@ function normalizePrepCosts(costs: PrepCostInput[] | undefined) {
  * Record로 못박아서 종류가 늘면 여기서 컴파일 에러가 나게 한다 —
  * 예전에는 "나머지는 주차"로 처리해서, 수리비를 추가하면 조용히 주차비에 섞였다.
  */
-const COST_FIELD: Record<VehicleExpenseKind, 'fuel' | 'battery' | 'parking' | 'repair'> = {
+const COST_FIELD: Record<VehicleExpenseKind, 'fuel' | 'battery' | 'parking' | 'repair' | 'etc'> = {
   [VehicleExpenseKind.FUEL]: 'fuel',
   [VehicleExpenseKind.BATTERY]: 'battery',
   [VehicleExpenseKind.PARKING]: 'parking',
   [VehicleExpenseKind.REPAIR]: 'repair',
+  [VehicleExpenseKind.ETC]: 'etc',
 };
 
 @Injectable()

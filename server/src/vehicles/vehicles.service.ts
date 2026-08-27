@@ -128,6 +128,7 @@ export class VehiclesService {
         // 날짜를 안 주면 등록 시점(서버 기준 오늘, KST)으로 남긴다.
         date: toDateOnly(dto.date ?? todayKst()),
         note: dto.note ?? null,
+        memo: dto.memo?.trim() ?? '',
         employeeId,
       },
       include: this.expenseInclude,
@@ -145,6 +146,7 @@ export class VehiclesService {
         ...(dto.amount !== undefined ? { amount: dto.amount } : {}),
         ...(dto.date !== undefined ? { date: toDateOnly(dto.date) } : {}),
         ...(dto.note !== undefined ? { note: dto.note } : {}),
+        ...(dto.memo !== undefined ? { memo: dto.memo.trim() } : {}),
       },
       include: this.expenseInclude,
     });

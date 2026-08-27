@@ -230,7 +230,8 @@ export interface VehicleCostSummary {
   fuel: number; // 주유
   battery: number; // 배터리
   parking: number; // 주차
-  repair: number; // 수리
+  repair: number; // 소모품·수리
+  etc: number; // 기타
   total: number;
   count: number; // 이력 건수
 }
@@ -240,6 +241,7 @@ export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
   battery: 0,
   parking: 0,
   repair: 0,
+  etc: 0,
   total: 0,
   count: 0,
 };
@@ -358,13 +360,24 @@ export interface ManagedVehicle {
   updatedAt: string;
 }
 
-export type VehicleExpenseKind = 'FUEL' | 'BATTERY' | 'REPAIR';
+export type VehicleExpenseKind = 'FUEL' | 'BATTERY' | 'REPAIR' | 'ETC';
 
 export const VEHICLE_EXPENSE_KIND_LABEL: Record<VehicleExpenseKind, string> = {
   FUEL: '주유',
   BATTERY: '배터리',
-  REPAIR: '수리',
+  REPAIR: '소모품 수리',
+  ETC: '기타',
 };
+
+/**
+ * 메모를 받는 종류.
+ * 항목 이름만으로는 무엇에 쓴 돈인지 알 수 없는 것들이다 —
+ * 같은 '소모품 수리'라도 타이어인지 썬팅인지가 나중에 정산에서 갈린다.
+ */
+export const VEHICLE_EXPENSE_MEMO_KINDS: VehicleExpenseKind[] = ['REPAIR', 'ETC'];
+
+/** 무엇을 적으면 되는지 보여주는 예시 — 실제로 자주 올라오는 항목들이다. */
+export const VEHICLE_EXPENSE_MEMO_PLACEHOLDER = '사이드미러, 블랙박스, 썬팅, 타이어, 와이퍼, 케미칼류, 유리';
 
 // 주유 비고 — 배터리에는 쓰지 않는다
 export type VehicleUsageNote = 'IN_PREP' | 'TEST_DRIVE' | 'SOLD';
@@ -383,6 +396,7 @@ export interface VehicleExpenseLog {
   amount: number; // 원
   date: string; // YYYY-MM-DD
   note: VehicleUsageNote | null;
+  memo: string; // 무엇에 쓴 돈인지 — 소모품·수리와 기타에서 쓴다
   employeeId: string;
   vehicle: { id: string; vehicleNumber: string; vehicleModel: string };
   employee: { id: string; name: string };

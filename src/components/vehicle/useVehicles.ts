@@ -15,6 +15,8 @@ export interface NewExpense {
   kind: VehicleExpenseKind;
   amount: number;
   note?: VehicleUsageNote;
+  /** 무엇에 쓴 돈인지 — 소모품 수리·기타에서 쓴다 */
+  memo?: string;
 }
 
 export type VehicleFlags = Pick<ManagedVehicle, 'prepared' | 'advertised' | 'moveBlocked'>;
@@ -29,7 +31,7 @@ export interface VehiclesApi {
   toggleFlag: (vehicle: ManagedVehicle, patch: Partial<VehicleFlags>) => Promise<void>;
   removeVehicle: (id: string) => Promise<void>;
   addExpense: (input: NewExpense) => Promise<string | null>;
-  editExpense: (id: string, patch: { amount?: number; date?: string; note?: VehicleUsageNote }) => Promise<string | null>;
+  editExpense: (id: string, patch: { amount?: number; date?: string; note?: VehicleUsageNote; memo?: string }) => Promise<string | null>;
   removeExpense: (id: string) => Promise<void>;
   reload: () => Promise<void>;
 }

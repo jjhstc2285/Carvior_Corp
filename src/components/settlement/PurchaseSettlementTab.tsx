@@ -101,7 +101,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
       '주유(원)': costOf(s).fuel,
       '배터리(원)': costOf(s).battery,
       '주차(원)': costOf(s).parking,
-      '수리(원)': costOf(s).repair,
+      '소모품 수리(원)': costOf(s).repair,
+      '기타(원)': costOf(s).etc,
       '차량비용 합계(원)': costOf(s).total,
       '총합계(원)': totalWonOf(s),
       신차이름: s.newCarName,
@@ -137,7 +138,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">차량비용 합계</p>
           <p className="mt-1 text-2xl font-bold text-sky-600">{NUM(totals.vehicleCost)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
-          <p className="mt-0.5 text-[11px] text-slate-400">주유·배터리·주차·수리 자동 반영</p>
+          <p className="mt-0.5 text-[11px] text-slate-400">주유·배터리·주차·소모품 수리·기타 자동 반영</p>
         </div>
       </div>
 
@@ -240,7 +241,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
                     className="whitespace-nowrap px-3 py-2.5 text-right text-sky-700"
                     title={
                       costOf(s).count > 0
-                        ? `주유 ${NUM(costOf(s).fuel)} / 배터리 ${NUM(costOf(s).battery)} / 주차 ${NUM(costOf(s).parking)} / 수리 ${NUM(costOf(s).repair)} (${costOf(s).count}건)`
+                        ? `주유 ${NUM(costOf(s).fuel)} / 배터리 ${NUM(costOf(s).battery)} / 주차 ${NUM(costOf(s).parking)} / 소모품 수리 ${NUM(costOf(s).repair)} / 기타 ${NUM(costOf(s).etc)} (${costOf(s).count}건)`
                         : '차량관리에 등록된 이력이 없습니다.'
                     }
                   >

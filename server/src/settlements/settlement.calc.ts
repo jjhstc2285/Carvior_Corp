@@ -111,7 +111,8 @@ export interface VehicleCostSummary {
   fuel: number; // 원
   battery: number; // 원
   parking: number; // 원
-  repair: number; // 원
+  repair: number; // 원 — 소모품·수리
+  etc: number; // 원 — 기타
   total: number; // 원
   count: number; // 이력 건수
 }
@@ -121,6 +122,7 @@ export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
   battery: 0,
   parking: 0,
   repair: 0,
+  etc: 0,
   total: 0,
   count: 0,
 };

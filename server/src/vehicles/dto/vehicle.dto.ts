@@ -46,12 +46,16 @@ export class CreateVehicleExpenseDto {
 
   /** 주유일 때만 쓴다(배터리에 보내면 무시하지 않고 막는다) */
   @IsOptional() @IsEnum(VehicleUsageNote) note?: VehicleUsageNote;
+
+  /** 무엇에 쓴 돈인지 — 소모품·수리와 기타에서 쓴다 */
+  @IsOptional() @IsString() @MaxLength(191) memo?: string;
 }
 
 export class UpdateVehicleExpenseDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) amount?: number;
   @IsOptional() @Matches(DATE_PATTERN, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) date?: string;
   @IsOptional() @IsEnum(VehicleUsageNote) note?: VehicleUsageNote;
+  @IsOptional() @IsString() @MaxLength(191) memo?: string;
 }
 
 export class VehicleExpenseQueryDto {
