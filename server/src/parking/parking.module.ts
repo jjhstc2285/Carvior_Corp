@@ -185,8 +185,12 @@ export class ParkingController {
     return this.parking.upsert(dto);
   }
 
-  /** 구역도에서 끌어다 놓기 — 빈 칸이면 이동, 차가 있으면 맞바꿈 */
-  @Roles(Role.ADMIN)
+  /**
+   * 구역도에서 끌어다 놓기 — 빈 칸이면 이동, 차가 있으면 맞바꿈.
+   *
+   * 등록·삭제와 달리 관리자로 막지 않는다. 차를 실제로 옮기는 건 현장에서 하는 일이고,
+   * 자리만 바뀔 뿐 내용은 그대로라 되돌리기도 쉽다.
+   */
   @Post('move')
   @HttpCode(200)
   move(@Body() dto: MoveParkingDto) {
