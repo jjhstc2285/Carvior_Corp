@@ -106,14 +106,11 @@ export default function ExportConsultationModule() {
   };
 
   return (
-    <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">수출 상담 관리</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            카비오에서 성사된 계약을 그대로 가져옵니다. 금액 단위는 <b>만원</b>입니다.
-          </p>
-        </div>
+    <>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <p className="text-sm text-slate-500">
+          카비오에서 성사된 계약을 그대로 가져옵니다. 금액 단위는 <b>만원</b>입니다.
+        </p>
         <div className="flex shrink-0 items-center gap-2">
           <button
             onClick={() => void load()}
@@ -245,6 +242,6 @@ export default function ExportConsultationModule() {
           </table>
         </div>
       </div>
-    </div>
+    </>
   );
 }

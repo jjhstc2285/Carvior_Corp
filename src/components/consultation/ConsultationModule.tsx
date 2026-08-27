@@ -105,12 +105,11 @@ export default function ConsultationModule({ role }: Props) {
   }, [state.consultations, state.employees, role]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">{role === 'EMPLOYEE' ? '내 상담 목록' : '알선 상담 관리'}</h1>
-          <p className="mt-1 text-sm text-slate-500">차량번호·고객명으로 검색하고, 고객을 클릭하면 이전 상담 이력을 바로 확인할 수 있어요.</p>
-        </div>
+    <>
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-slate-500">
+          받은 카톡 양식 그대로 등록합니다. 손님번호를 누르면 그 손님의 지난 상담이 모여 나옵니다.
+        </p>
         <button
           onClick={() => { setEditing(null); setFormOpen(true); }}
           className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
@@ -240,6 +239,6 @@ export default function ConsultationModule({ role }: Props) {
       {historyCustomer && (
         <CustomerHistoryModal customerName={historyCustomer} onClose={() => setHistoryCustomer(null)} />
       )}
-    </div>
+    </>
   );
 }
