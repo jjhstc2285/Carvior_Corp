@@ -17,6 +17,7 @@ import { ChatModule } from './chat/chat.module';
 import { PushModule } from './push/push.module';
 import { PurchaseListModule } from './purchase-list/purchase-list.module';
 import { PurchaseIntakeModule } from './purchase-intake/purchase-intake.module';
+import { CarviorModule } from './carvior/carvior.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 
@@ -39,6 +40,7 @@ import { RolesGuard } from './auth/roles.guard';
     PushModule,
     PurchaseListModule,
     PurchaseIntakeModule,
+    CarviorModule,
   ],
   providers: [
     // 전역 가드 — 기본은 로그인 필요, @Public() 붙은 곳만 예외.

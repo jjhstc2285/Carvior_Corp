@@ -9,6 +9,7 @@ import EmployeeView from './components/EmployeeView';
 import AdminView from './components/AdminView';
 import SettlementModule from './components/settlement/SettlementModule';
 import ConsultationModule from './components/consultation/ConsultationModule';
+import ExportConsultationModule from './components/exportConsultation/ExportConsultationModule';
 import ParkingModule from './components/parking/ParkingModule';
 import VehiclePostModule from './components/vehiclePost/VehiclePostModule';
 import WorkLogModule from './components/workLog/WorkLogModule';
@@ -24,6 +25,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   attendance: '출퇴근 관리',
   workLog: '작업일지',
   consultation: '알선 상담 관리',
+  exportConsultation: '수출 상담 관리',
   settlement: '정산 관리',
   parking: '주차장 관리',
   vehicle: '차량 관리',
@@ -42,6 +44,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'purchaseList') return <PurchaseListModule role={role} />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationModule role={role} />;
+  if (module === 'exportConsultation') return <ExportConsultationModule />;
   if (module === 'vehiclePost') return <VehiclePostModule role={role} />;
   return <ParkingModule role={role} />;
 }
