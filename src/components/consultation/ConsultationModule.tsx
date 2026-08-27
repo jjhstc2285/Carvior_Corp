@@ -19,6 +19,8 @@ async function copyKakao(c: ConsultationRecord) {
     `차명: ${c.vehicleName}`,
     `손님번호: ${c.customerPhone || c.customerName}`,
     `내용: ${c.content}`,
+    // 방문 예정은 적혀 있을 때만 붙인다 — 빈 줄이 따라가면 붙여넣은 쪽이 지저분해진다.
+    ...(c.visitDate || c.visitTime ? [`방문예정: ${[c.visitDate, c.visitTime].filter(Boolean).join(' ')}`] : []),
   ].join(String.fromCharCode(10));
 
   try {
@@ -79,6 +81,15 @@ export default function ConsultationModule({ role }: Props) {
           sublabel: CONSULTATION_STATUS_LABEL[c.status],
           colorClass: STATUS_COLOR[c.status].replace(/ ring-\S+/, ''),
           dotClass: c.status === 'CONTRACTED' ? 'bg-emerald-400' : c.status === 'ON_HOLD' ? 'bg-amber-400' : c.status === 'CLOSED' ? 'bg-gray-400' : 'bg-blue-400',
+        });
+      }
+      if (c.visitDate === dateStr) {
+        events.push({
+          id: `visit-${c.id}`,
+          label: `${label} 방문${c.visitTime ? ` ${c.visitTime}` : ''}`,
+          sublabel: '방문 예정',
+          colorClass: 'bg-indigo-50 text-indigo-700',
+          dotClass: 'bg-indigo-400',
         });
       }
       if (c.nextContactDate === dateStr) {
@@ -180,6 +191,7 @@ export default function ConsultationModule({ role }: Props) {
                 <th className="px-4 py-2.5 font-medium">차명</th>
                 <th className="px-4 py-2.5 font-medium">손님번호</th>
                 {role === 'ADMIN' && <th className="px-4 py-2.5 font-medium">담당자</th>}
+                <th className="px-4 py-2.5 font-medium">방문예정</th>
                 <th className="px-4 py-2.5 font-medium">상태</th>
                 <th className="px-4 py-2.5 font-medium">내용</th>
                 <th className="px-5 py-2.5 font-medium text-right">관리</th>
@@ -187,7 +199,7 @@ export default function ConsultationModule({ role }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">상담 내역이 없습니다.</td></tr>
+                <tr><td colSpan={10} className="px-5 py-10 text-center text-sm text-slate-400">상담 내역이 없습니다.</td></tr>
               )}
               {filtered.map(c => (
                 <tr key={c.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -208,7 +220,17 @@ export default function ConsultationModule({ role }: Props) {
                     </button>
                   </td>
                   {role === 'ADMIN' && <td className="px-4 py-2.5 text-slate-500">{employeeOf(c.employeeId)?.name}</td>}
-                  <td className="px-5 py-2.5">
+                  <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">
+                    {c.visitDate || c.visitTime ? (
+                      <>
+                        {c.visitDate && <span className="font-medium">{dayjs(c.visitDate).format('M/D')}</span>}
+                        {c.visitTime && <span className="ml-1 text-slate-500">{c.visitTime}</span>}
+                      </>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_COLOR[c.status]}`}>
                       {CONSULTATION_STATUS_LABEL[c.status]}
                     </span>

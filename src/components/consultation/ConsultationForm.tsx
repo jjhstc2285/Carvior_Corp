@@ -21,6 +21,8 @@ export default function ConsultationForm({ editing, defaultEmployeeId, onClose }
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
   const [time, setTime] = useState(editing?.time ?? dayjs().format('HH:mm'));
   const [content, setContent] = useState(editing?.content ?? '');
+  const [visitDate, setVisitDate] = useState(editing?.visitDate ?? '');
+  const [visitTime, setVisitTime] = useState(editing?.visitTime ?? '');
   const [nextContactDate, setNextContactDate] = useState(editing?.nextContactDate ?? '');
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +44,8 @@ export default function ConsultationForm({ editing, defaultEmployeeId, onClose }
       date,
       time,
       content: content.trim(),
+      visitDate: visitDate || null,
+      visitTime: visitTime.trim(),
       nextContactDate: nextContactDate || null,
       
     });
@@ -121,6 +125,17 @@ export default function ConsultationForm({ editing, defaultEmployeeId, onClose }
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">상담시각</label>
             <input type="time" value={time} onChange={e => setTime(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+          </div>
+          {/* 카톡 양식에 "오후 3시~4시 방문"처럼 적혀 온다. 시각은 적힌 그대로 받는다. */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">방문 예정일</label>
+            <input type="date" value={visitDate ?? ''} onChange={e => setVisitDate(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">방문 시각</label>
+            <input value={visitTime} onChange={e => setVisitTime(e.target.value)} placeholder="오후 3시~4시"
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
           <div className="col-span-2">

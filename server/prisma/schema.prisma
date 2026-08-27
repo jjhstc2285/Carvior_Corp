@@ -216,18 +216,25 @@ enum ConsultationStatus {
 // 고객명(customerName)은 예전 양식의 흔적이다. 새 양식은 이름 대신 손님번호로 부르지만,
 // 이미 이름으로 적어둔 상담이 있어서 지우지 않고 남긴다(화면에서는 번호가 없을 때만 보인다).
 model Consultation {
-  id              String             @id @default(cuid())
-  platform        String             @default("") @db.VarChar(30) // 엔카·KB차차차 등 유입 경로
-  vehicleNumber   String
-  vehicleName     String             @default("") @db.VarChar(60) // 차명
-  customerPhone   String             @default("") @db.VarChar(20) // 손님번호
-  customerName    String             @default("")
-  employeeId      String
-  status          ConsultationStatus @default(IN_PROGRESS)
-  date            DateTime           @db.Date
-  time            String // "HH:mm"
-  content         String             @db.Text
-  nextContactDate DateTime?          @db.Date
+  id            String             @id @default(cuid())
+  platform      String             @default("") @db.VarChar(30) // 엔카·KB차차차 등 유입 경로
+  vehicleNumber String
+  vehicleName   String             @default("") @db.VarChar(60) // 차명
+  customerPhone String             @default("") @db.VarChar(20) // 손님번호
+  customerName  String             @default("")
+  employeeId    String
+  status        ConsultationStatus @default(IN_PROGRESS)
+  date          DateTime           @db.Date
+  time          String // "HH:mm"
+  content       String             @db.Text
+
+  // 손님이 언제 오기로 했는가. 카톡 양식에 "오후 3시~4시 방문"처럼 적혀 오는데,
+  // 시간이 범위이거나 두루뭉술한 경우가 많아 시각은 적힌 그대로 문자열로 둔다.
+  // 날짜만 따로 두면 달력에 방문 예정을 띄울 수 있다.
+  visitDate DateTime? @db.Date
+  visitTime String    @default("") @db.VarChar(30)
+
+  nextContactDate DateTime? @db.Date
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -239,6 +246,7 @@ model Consultation {
   @@index([vehicleNumber])
   @@index([customerPhone])
   @@index([date])
+  @@index([visitDate])
 }
 
 model ConsultationFile {

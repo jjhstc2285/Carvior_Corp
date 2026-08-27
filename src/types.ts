@@ -304,6 +304,10 @@ export interface ConsultationRecord {
   date: string; // YYYY-MM-DD, 상담일시(날짜만)
   time: string; // HH:mm
   content: string; // 상담내용
+  /** 손님 방문 예정일 */
+  visitDate: string | null;
+  /** 방문 시각 — "오후 3시~4시"처럼 적힌 그대로 둔다(범위나 두루뭉술한 표현이 많다) */
+  visitTime: string;
   nextContactDate: string | null; // 다음 연락 예정일
   files: { id: string; fileName: string; url: string }[];
   createdAt: string;

@@ -13,10 +13,11 @@ export class ConsultationsService {
     files: { select: { id: true, fileName: true, url: true } },
   };
 
-  private toView<T extends { date: Date; nextContactDate: Date | null }>(row: T) {
+  private toView<T extends { date: Date; visitDate: Date | null; nextContactDate: Date | null }>(row: T) {
     return {
       ...row,
       date: formatDateOnly(row.date),
+      visitDate: formatDateOnlyOrNull(row.visitDate),
       nextContactDate: formatDateOnlyOrNull(row.nextContactDate),
     };
   }
@@ -75,6 +76,8 @@ export class ConsultationsService {
         date: toDateOnly(dto.date),
         time: dto.time,
         content: dto.content,
+        visitDate: toDateOnlyOrNull(dto.visitDate),
+        visitTime: dto.visitTime?.trim() ?? '',
         nextContactDate: toDateOnlyOrNull(dto.nextContactDate),
       },
       include: this.include,
@@ -97,6 +100,8 @@ export class ConsultationsService {
         ...(dto.date !== undefined ? { date: toDateOnly(dto.date) } : {}),
         ...(dto.time !== undefined ? { time: dto.time } : {}),
         ...(dto.content !== undefined ? { content: dto.content } : {}),
+        ...(dto.visitDate !== undefined ? { visitDate: toDateOnlyOrNull(dto.visitDate) } : {}),
+        ...(dto.visitTime !== undefined ? { visitTime: dto.visitTime.trim() } : {}),
         ...(dto.nextContactDate !== undefined
           ? { nextContactDate: toDateOnlyOrNull(dto.nextContactDate) }
           : {}),

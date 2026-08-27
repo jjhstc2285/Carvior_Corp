@@ -39,6 +39,13 @@ export class CreateConsultationDto {
   @IsNotEmpty({ message: '상담내용을 입력해 주세요.' })
   content!: string;
 
+  /** 손님 방문 예정일 */
+  @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/, { message: 'visitDate는 YYYY-MM-DD 형식이어야 합니다.' })
+  visitDate?: string | null;
+
+  /** 방문 시각 — "오후 3시~4시"처럼 적힌 그대로 받는다 */
+  @IsOptional() @IsString() @MaxLength(30) visitTime?: string;
+
   @IsOptional()
   @Matches(DATE_PATTERN, { message: 'nextContactDate는 YYYY-MM-DD 형식이어야 합니다.' })
   nextContactDate?: string | null;
@@ -49,6 +56,8 @@ export class UpdateConsultationDto {
   @IsOptional() @IsString() @MaxLength(30) vehicleNumber?: string;
   @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
   @IsOptional() @IsString() @MaxLength(20) customerPhone?: string;
+  @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/) visitDate?: string | null;
+  @IsOptional() @IsString() @MaxLength(30) visitTime?: string;
   @IsOptional() @IsString() @MaxLength(50) customerName?: string;
   @IsOptional() @IsString() employeeId?: string;
   @IsOptional() @IsEnum(ConsultationStatus) status?: ConsultationStatus;
