@@ -25,12 +25,31 @@ export default function AttendanceDeviceSettings() {
   const [label, setLabel] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const myDeviceId = getDeviceId();
+  // '등록됨'으로 보이는데도 출근이 막힐 때, 사용자가 직접 다시 등록하겠다고 연 상태
+  const [reRegister, setReRegister] = useState(false);
+  const [myDeviceId, setMyDeviceId] = useState(getDeviceId());
 
+  /**
+   * 브라우저에 남은 기록만 보고 "등록됨"이라 하면 안 된다.
+   *
+   * 서버에서 그 단말을 지웠거나 꺼두면, 출근은 막히는데 화면은 등록됐다고 말한다 —
+   * 재등록 칸이 안 나와서 손쓸 방법이 없어진다. 서버 목록에 살아 있을 때만 등록으로 본다.
+   */
   const load = useCallback(async () => {
     try {
-      setDevices(await api<AttendanceDevice[]>('/attendance/devices'));
+      const rows = await api<AttendanceDevice[]>('/attendance/devices');
+      setDevices(rows);
       setError(null);
+
+      const saved = getDeviceId();
+      const alive = saved ? rows.some(d => d.id === saved && d.active) : false;
+      if (saved && !alive) {
+        // 서버에 없는 키는 들고 있어봐야 출근을 막을 뿐이다.
+        setDevice(null);
+        setMyDeviceId(null);
+      } else {
+        setMyDeviceId(saved);
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '단말 목록을 불러오지 못했습니다.');
     }
@@ -57,6 +76,8 @@ export default function AttendanceDeviceSettings() {
         body: { label: name, ...(fingerprint ? { fingerprint } : {}) },
       });
       setDevice({ id: created.id, token: created.token });
+      setMyDeviceId(created.id);
+      setReRegister(false);
       setLabel('');
       setError(null);
       await load();
@@ -71,7 +92,7 @@ export default function AttendanceDeviceSettings() {
     if (!(await confirmDanger(`'${device.label}' 단말 등록을 해제할까요?`, '이 PC에서는 더 이상 출근을 찍을 수 없게 됩니다.', '해제'))) return;
     try {
       await api(`/attendance/devices/${device.id}`, { method: 'DELETE' });
-      if (device.id === myDeviceId) setDevice(null);
+      if (device.id === myDeviceId) { setDevice(null); setMyDeviceId(null); }
       setError(null);
       await load();
     } catch (e) {
@@ -107,10 +128,19 @@ export default function AttendanceDeviceSettings() {
           브라우저 데이터를 지우거나 시크릿 모드로 열면 다시 등록해야 해요.
         </p>
 
-        {myDeviceId ? (
-          <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
-            ✓ 지금 보고 있는 이 PC는 출근 단말로 등록돼 있습니다.
-          </p>
+        {myDeviceId && !reRegister ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2">
+            <p className="text-xs font-medium text-emerald-700">
+              ✓ 지금 보고 있는 이 PC는 출근 단말로 등록돼 있습니다.
+            </p>
+            {/* 등록돼 보이는데도 출근이 막히는 경우가 있다 — 그때 손쓸 길을 남겨둔다. */}
+            <button
+              onClick={() => setReRegister(true)}
+              className="ml-auto text-[11px] font-semibold text-emerald-700 underline hover:text-emerald-800"
+            >
+              그래도 출근이 안 되면 다시 등록
+            </button>
+          </div>
         ) : (
           <div className="mt-3 flex gap-2">
             <input
