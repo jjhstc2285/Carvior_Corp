@@ -71,6 +71,24 @@ export function setDevice(value: DeviceRegistration | null): void {
 }
 
 /**
+ * 이 브라우저의 지문. 계산이 비동기(SHA-256)라 요청마다 기다릴 수 없어 한 번 구해 들고 있는다.
+ *
+ * 요청에 같이 실어 보내면 서버가 두 가지에 쓴다:
+ *  - 지문 없이 예전에 등록된 단말을 출근 한 번으로 채워 넣기
+ *  - 사용기록을 지워 키를 잃었을 때 그 PC를 알아보기
+ */
+let fingerprint = '';
+
+void (async () => {
+  try {
+    const { deviceFingerprint } = await import('./deviceFingerprint');
+    fingerprint = await deviceFingerprint();
+  } catch {
+    // 지문을 못 만들어도 기존 방식(저장된 키)은 그대로 동작한다.
+  }
+})();
+
+/**
  * 단말 키 되찾기.
  *
  * 인터넷 사용기록을 지우면 저장해둔 키가 사라진다. 그때마다 관리자를 불러 다시 등록하는 대신,
@@ -82,8 +100,6 @@ export async function recoverDevice(): Promise<void> {
   if (getDeviceId()) return; // 이미 등록된 브라우저
 
   try {
-    const { deviceFingerprint } = await import('./deviceFingerprint');
-    const fingerprint = await deviceFingerprint();
     if (!fingerprint) return;
 
     const res = await api<{ recovered: boolean; id?: string; token?: string; label?: string }>(
@@ -124,6 +140,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   if (device) headers['X-Device-Token'] = device.token;
+  if (fingerprint) headers['X-Device-Fingerprint'] = fingerprint;
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
 
   let res: Response;

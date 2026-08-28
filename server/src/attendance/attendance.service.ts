@@ -40,8 +40,8 @@ export class AttendanceService {
    * 출근 등록.
    * 허용 조건은 IP와 단말 두 가지이고, 등록된 것만 검사한다(둘 다 비어 있으면 제한 없음).
    */
-  async clockIn(employeeId: string, clientIp: string, deviceToken?: string) {
-    await this.assertClockInAllowed(clientIp, deviceToken);
+  async clockIn(employeeId: string, clientIp: string, deviceToken?: string, fingerprint?: string) {
+    await this.assertClockInAllowed(clientIp, deviceToken, fingerprint);
 
     const date = toDateOnly(todayKst());
     const existing = await this.prisma.attendanceRecord.findUnique({
@@ -70,7 +70,7 @@ export class AttendanceService {
    * 공인 IP로 나오기 때문에, "그 자리 PC인가"는 등록된 단말 키로 따로 가린다.
    * 각 조건은 등록된 게 하나라도 있을 때만 적용된다 — 설정 전에는 아무도 못 찍게 막지 않는다.
    */
-  private async assertClockInAllowed(clientIp: string, deviceToken?: string): Promise<void> {
+  private async assertClockInAllowed(clientIp: string, deviceToken?: string, fingerprint?: string): Promise<void> {
     const whitelist = await this.prisma.ipWhitelist.findMany({ select: { ip: true } });
     if (whitelist.length > 0 && !whitelist.some((w) => w.ip === clientIp)) {
       // code를 같이 내려준다 — 화면이 문구를 뒤져서 원인을 알아내지 않아도 되게.
@@ -98,6 +98,34 @@ export class AttendanceService {
       where: { id: device.id },
       data: { lastUsedAt: new Date() },
     });
+
+    await this.backfillFingerprint(device, fingerprint);
+  }
+
+  /**
+   * 지문이 비어 있는 단말에 지금 들어온 지문을 채워 넣는다.
+   *
+   * 지문을 도입하기 전에 등록된 단말들은 지문이 없다. 그렇다고 자리마다 찾아다니며
+   * 다시 등록하게 할 이유는 없다 — 그 PC들은 아직 키를 가지고 있으니, 평소처럼 출근을
+   * 한 번 찍으면 그때 채워진다. 키가 유효하다는 건 서버가 이미 확인한 뒤다.
+   *
+   * 실패는 삼킨다. 같은 지문을 다른 단말이 이미 쓰고 있으면(같은 기종 PC) 유니크에 걸리는데,
+   * 그것 때문에 출근이 막히면 안 된다.
+   */
+  private async backfillFingerprint(
+    device: { id: string; fingerprint: string | null },
+    fingerprint?: string,
+  ): Promise<void> {
+    if (!fingerprint || device.fingerprint) return;
+
+    try {
+      await this.prisma.attendanceDevice.update({
+        where: { id: device.id },
+        data: { fingerprint },
+      });
+    } catch {
+      // 지문이 겹치는 단말이 이미 있다 — 이 단말은 되찾기를 못 쓸 뿐, 출근은 그대로 된다.
+    }
   }
 
   // ── 출근 단말 ──────────────────────────────

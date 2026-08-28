@@ -40,8 +40,10 @@ export class AttendanceController {
     @CurrentUser() user: AuthUser,
     @Ip() ip: string,
     @Headers('x-device-token') deviceToken?: string,
+    // 지문을 같이 받아, 예전에 등록돼 지문이 없는 단말을 출근 한 번으로 채운다.
+    @Headers('x-device-fingerprint') fingerprint?: string,
   ) {
-    return this.attendance.clockIn(user.id, ip, deviceToken);
+    return this.attendance.clockIn(user.id, ip, deviceToken, fingerprint);
   }
 
   @Post('clock-out')
