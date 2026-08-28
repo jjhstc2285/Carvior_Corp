@@ -117,6 +117,16 @@ export class AttendanceService {
    * 지문도 같이 받아둔다 — 나중에 사용기록을 지워 키가 날아가도 이걸로 알아본다.
    */
   async registerDevice(label: string, fingerprint?: string) {
+    // 지문은 유니크다. 같은 PC를 지우지 않고 다시 등록하면 옛 항목이 지문을 쥐고 있어,
+    // 그대로 두면 새 항목은 지문 없이 등록되고 되찾기가 조용히 안 된다.
+    // 방금 등록한 쪽이 그 PC의 최신 상태이므로 지문을 옮겨 온다.
+    if (fingerprint) {
+      await this.prisma.attendanceDevice.updateMany({
+        where: { fingerprint },
+        data: { fingerprint: null },
+      });
+    }
+
     const token = randomBytes(32).toString('base64url');
     const device = await this.prisma.attendanceDevice.create({
       data: { label, tokenHash: hashDeviceToken(token), fingerprint: fingerprint || null },
