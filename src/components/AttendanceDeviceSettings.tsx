@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { MonitorCheck, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError, getDeviceId, setDevice } from '../lib/api';
+import { deviceFingerprint } from '../lib/deviceFingerprint';
 import { confirmDanger } from '../lib/alert';
 
 interface AttendanceDevice {
@@ -47,10 +48,13 @@ export default function AttendanceDeviceSettings() {
     }
     setBusy(true);
     try {
+      // 지문을 같이 보낸다 — 나중에 사용기록을 지워 키가 날아가도 이걸로 이 PC를 알아본다.
+      const fingerprint = await deviceFingerprint();
+
       // 키 원본은 이 응답에서만 내려온다 — 받은 즉시 이 브라우저에 저장한다.
       const created = await api<AttendanceDevice & { token: string }>('/attendance/devices', {
         method: 'POST',
-        body: { label: name },
+        body: { label: name, ...(fingerprint ? { fingerprint } : {}) },
       });
       setDevice({ id: created.id, token: created.token });
       setLabel('');

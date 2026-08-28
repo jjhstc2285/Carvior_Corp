@@ -5,6 +5,7 @@ import {
   AddIpDto,
   CreateAttendanceRequestDto,
   CreateCorrectionDto,
+  RecoverDeviceDto,
   RegisterDeviceDto,
   ReviewDto,
 } from './dto/attendance.dto';
@@ -173,7 +174,22 @@ export class AttendanceController {
   @Roles(Role.ADMIN)
   @Post('devices')
   registerDevice(@Body() dto: RegisterDeviceDto) {
-    return this.attendance.registerDevice(dto.label);
+    return this.attendance.registerDevice(dto.label, dto.fingerprint);
+  }
+
+  /**
+   * 단말 키 되찾기.
+   *
+   * 브라우저 사용기록을 지우면 키가 날아간다. 그때마다 관리자를 부르지 않아도 되게,
+   * 사무실 IP 안에서 지문이 맞으면 키를 새로 내준다. 로그인할 때 조용히 부른다.
+   *
+   * 관리자로 막지 않는다 — 자리 PC를 쓰는 직원 본인이 겪는 일이다.
+   * 되찾을 수 없으면 그냥 recovered:false 를 돌려준다(왜 안 되는지는 알려주지 않는다).
+   */
+  @Post('devices/recover')
+  @HttpCode(200)
+  recoverDevice(@Ip() ip: string, @Body() dto: RecoverDeviceDto) {
+    return this.attendance.recoverDevice(ip, dto.fingerprint);
   }
 
   @Roles(Role.ADMIN)

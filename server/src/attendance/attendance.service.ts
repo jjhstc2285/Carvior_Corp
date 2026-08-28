@@ -113,14 +113,47 @@ export class AttendanceService {
   /**
    * 단말 등록. 키 원본은 이 응답에서만 볼 수 있고, 서버에는 해시만 남는다.
    * 등록을 누른 그 브라우저가 키를 받아 저장하므로 반드시 해당 PC에서 눌러야 한다.
+   *
+   * 지문도 같이 받아둔다 — 나중에 사용기록을 지워 키가 날아가도 이걸로 알아본다.
    */
-  async registerDevice(label: string) {
+  async registerDevice(label: string, fingerprint?: string) {
     const token = randomBytes(32).toString('base64url');
     const device = await this.prisma.attendanceDevice.create({
-      data: { label, tokenHash: hashDeviceToken(token) },
+      data: { label, tokenHash: hashDeviceToken(token), fingerprint: fingerprint || null },
       select: { id: true, label: true, active: true, lastUsedAt: true, createdAt: true },
     });
     return { ...device, token };
+  }
+
+  /**
+   * 키 되찾기.
+   *
+   * 브라우저 사용기록을 지우면 단말 키가 날아간다. 매번 관리자를 불러 다시 등록하는 대신,
+   * 지문이 맞는 단말이 있으면 키를 새로 내준다.
+   *
+   * 다만 사무실 IP 안에서만 내준다. 지문은 같은 기종이면 겹칠 수 있고 흉내도 낼 수 있지만
+   * 사무실 네트워크는 그렇지 않다 — 둘을 함께 봐야 '그 자리 PC'라고 할 수 있다.
+   * IP 화이트리스트를 아예 안 쓰는 설치에서는 이 복구를 하지 않는다(가려낼 방법이 없다).
+   */
+  async recoverDevice(clientIp: string, fingerprint: string) {
+    if (!fingerprint) return { recovered: false as const };
+
+    const whitelist = await this.prisma.ipWhitelist.findMany({ select: { ip: true } });
+    if (whitelist.length === 0 || !whitelist.some((w) => w.ip === clientIp)) {
+      return { recovered: false as const };
+    }
+
+    const device = await this.prisma.attendanceDevice.findUnique({ where: { fingerprint } });
+    if (!device?.active) return { recovered: false as const };
+
+    // 옛 키는 못 쓰게 갈아끼운다 — 지운 브라우저에 남아 있을 리 없고, 남아 있다면 그게 문제다.
+    const token = randomBytes(32).toString('base64url');
+    await this.prisma.attendanceDevice.update({
+      where: { id: device.id },
+      data: { tokenHash: hashDeviceToken(token) },
+    });
+
+    return { recovered: true as const, id: device.id, label: device.label, token };
   }
 
   async removeDevice(id: string) {

@@ -191,9 +191,18 @@ model IpWhitelist {
 // 그래서 등록한 PC 브라우저에만 키를 심어두고, 그 키를 들고 온 요청만 출근을 찍게 한다.
 // 키 원본은 발급 때 한 번만 내려주고 서버에는 해시만 남긴다(유출돼도 DB에서 원본이 안 나오게).
 model AttendanceDevice {
-  id         String    @id @default(cuid())
-  tokenHash  String    @unique // 발급한 키의 SHA-256
-  label      String // 어느 자리 PC인지 알아볼 이름
+  id        String @id @default(cuid())
+  tokenHash String @unique // 발급한 키의 SHA-256
+  label     String // 어느 자리 PC인지 알아볼 이름
+
+  // 브라우저 저장소에 심은 키는 '인터넷 사용기록 삭제'에 같이 날아간다(쿠키·세션도 마찬가지).
+  // 그때 다시 등록하러 오지 않아도 되게, 그 PC를 알아볼 지문을 서버에 남겨둔다.
+  // 화면 크기·시간대·CPU 코어 수 같은 값을 모아 해시한 것이라 기록을 지워도 그대로다.
+  //
+  // 지문만으로 통과시키지는 않는다 — 사무실 IP 안에서만 키를 다시 내준다.
+  // 지문은 흉내낼 수 있지만 사무실 네트워크는 그렇지 않다.
+  fingerprint String? @unique
+
   active     Boolean   @default(true)
   lastUsedAt DateTime? // 마지막으로 이 단말에서 출근이 찍힌 시각
   createdAt  DateTime  @default(now())

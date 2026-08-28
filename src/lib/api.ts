@@ -70,6 +70,32 @@ export function setDevice(value: DeviceRegistration | null): void {
   }
 }
 
+/**
+ * 단말 키 되찾기.
+ *
+ * 인터넷 사용기록을 지우면 저장해둔 키가 사라진다. 그때마다 관리자를 불러 다시 등록하는 대신,
+ * 사무실 IP 안에서 지문이 맞으면 서버가 키를 새로 내준다.
+ *
+ * 로그인할 때 한 번 조용히 부른다 — 되찾을 게 없으면 아무 일도 일어나지 않는다.
+ */
+export async function recoverDevice(): Promise<void> {
+  if (getDeviceId()) return; // 이미 등록된 브라우저
+
+  try {
+    const { deviceFingerprint } = await import('./deviceFingerprint');
+    const fingerprint = await deviceFingerprint();
+    if (!fingerprint) return;
+
+    const res = await api<{ recovered: boolean; id?: string; token?: string; label?: string }>(
+      '/attendance/devices/recover',
+      { method: 'POST', body: { fingerprint } },
+    );
+    if (res.recovered && res.id && res.token) setDevice({ id: res.id, token: res.token });
+  } catch {
+    // 되찾기는 부가 동작이다 — 실패해도 로그인 흐름을 막지 않는다.
+  }
+}
+
 export class ApiError extends Error {
   readonly status: number;
   /**

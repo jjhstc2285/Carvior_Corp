@@ -52,7 +52,14 @@ export class AddIpDto {
   label?: string;
 }
 
+/** 키를 잃은 브라우저가 자기 지문을 들고 온다 */
+export class RecoverDeviceDto {
+  @IsString() @IsNotEmpty() @MaxLength(64) fingerprint!: string;
+}
+
 export class RegisterDeviceDto {
+  /** 이 브라우저를 알아볼 지문 — 사용기록을 지워도 남는다 */
+  @IsOptional() @IsString() @MaxLength(64) fingerprint?: string;
   /** 어느 자리 PC인지 알아볼 이름 — 예: "1층 카운터 PC" */
   @IsString()
   @IsNotEmpty({ message: '단말 이름을 입력해 주세요.' })

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { getToken, UNAUTHORIZED_EVENT } from './lib/api';
+import { getToken, recoverDevice, UNAUTHORIZED_EVENT } from './lib/api';
 import { fetchMe, logoutLocal, type AuthUser } from './lib/auth';
 import { connectSocket, disconnectSocket } from './lib/socket';
 import { syncPushSubscription } from './lib/push';
@@ -64,6 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 이미 알림을 켜둔 기기면 구독을 서버에 다시 저장한다 —
     // 같은 기기에서 계정을 바꿔 로그인한 경우 알림이 엉뚱한 사람에게 가지 않게.
     void syncPushSubscription();
+    // 사용기록을 지워 단말 키가 날아갔으면 사무실 안에서 조용히 되찾는다.
+    void recoverDevice();
     return () => {
       disconnectSocket();
       shutdownChannelTalk();
