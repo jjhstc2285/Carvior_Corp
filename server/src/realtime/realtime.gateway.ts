@@ -9,6 +9,14 @@ import { PrismaService } from '../prisma/prisma.service';
 export const REALTIME_EVENT = {
   /** 알림이 하나 생겼다(승인/반려·출퇴근 누락 등) */
   notification: 'notification',
+  /**
+   * 근태 승인함이 바뀌었다(신청이 들어오거나 처리됐다).
+   *
+   * 알림(notification)과 따로 두는 이유: 알림은 '읽을 거리'라 목록만 갱신하면 되지만,
+   * 이건 화면의 승인 대기 목록을 다시 받아야 한다. 한 이벤트로 뭉치면 알림이 올 때마다
+   * 관계없는 목록까지 다시 받게 된다.
+   */
+  attendanceInbox: 'attendance:inbox',
   /** 새 메시지가 도착했다 */
   chatMessage: 'chat:message',
   /** 내가 보낸 메시지를 상대가 읽었다 */

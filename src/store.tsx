@@ -211,6 +211,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, [user]);
 
+  /**
+   * 근태 승인함 — 신청이 들어오거나 처리되면 그 두 목록만 다시 받는다.
+   *
+   * 알림과 따로 듣는 이유: 알림은 읽을 거리라 목록만 갱신하면 되지만, 승인함은 화면에
+   * 떠 있는 대기 목록이 바뀌어야 한다. 예전에는 알림 토스트만 뜨고 목록은 그대로여서
+   * 매번 새로고침해야 했다.
+   */
+  useEffect(() => {
+    if (!user) return;
+    return onSocketEvent(SOCKET_EVENT.attendanceInbox, () => {
+      void Promise.all([
+        api<CorrectionRequest[]>('/attendance/corrections'),
+        api<AttendanceRequest[]>('/attendance/requests'),
+      ])
+        .then(([requests, attendanceRequests]) =>
+          setState(prev => ({
+            ...prev,
+            requests: requests.map(flatten),
+            attendanceRequests: attendanceRequests.map(flatten),
+          })),
+        )
+        .catch(() => {
+          // 실패해도 다음 새로고침에 맞춰진다.
+        });
+    });
+  }, [user]);
+
   const value = useMemo<Store>(() => {
     // 서버 상태가 정답이므로, 쓰기 후에는 전체를 다시 불러와 화면을 맞춘다.
     // 목록이 크지 않아 이 단순함이 낙관적 업데이트보다 낫다.

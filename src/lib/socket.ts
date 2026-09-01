@@ -13,6 +13,8 @@ import { getToken } from './api';
 /** 서버 src/realtime/realtime.gateway.ts 의 REALTIME_EVENT 와 맞춰야 한다. */
 export const SOCKET_EVENT = {
   notification: 'notification',
+  /** 근태 승인함이 바뀌었다 — 신청이 들어오거나 처리됐다 */
+  attendanceInbox: 'attendance:inbox',
   chatMessage: 'chat:message',
   chatRead: 'chat:read',
 } as const;

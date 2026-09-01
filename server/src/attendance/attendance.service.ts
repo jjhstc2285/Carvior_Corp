@@ -396,11 +396,14 @@ export class AttendanceService {
 
     // 브라우저를 열어둔 관리자에게는 새로고침 없이 바로 뜨게 한다.
     // 실패해도 알림 자체는 DB에 남았으므로 요청을 되돌리지 않는다.
-    this.realtime.toEmployees(
-      admins.map((a) => a.id),
-      REALTIME_EVENT.notification,
-      { type, message, date: formatDateOnly(date) },
-    );
+    const adminIds = admins.map((a) => a.id);
+    this.realtime.toEmployees(adminIds, REALTIME_EVENT.notification, {
+      type,
+      message,
+      date: formatDateOnly(date),
+    });
+    // 승인 대기 목록도 같이 갱신되게 한다 — 알림만 뜨고 목록이 그대로면 새로고침해야 한다.
+    this.realtime.toEmployees(adminIds, REALTIME_EVENT.attendanceInbox, { reason: type });
 
     // 브라우저를 닫아둔 관리자에게는 웹 푸시로 간다. 발송을 기다리지 않는다(실패해도 무시).
     void this.push.sendToEmployees(
@@ -418,6 +421,9 @@ export class AttendanceService {
       message,
       date: formatDateOnly(date),
     });
+    this.realtime.toEmployee(employeeId, REALTIME_EVENT.attendanceInbox, { reason: type });
+    // 관리자가 여러 명이라 한 명이 처리하면 나머지 화면의 대기 목록도 같이 줄어야 한다.
+    this.realtime.toAdmins(REALTIME_EVENT.attendanceInbox, { reason: type });
     void this.push.sendToEmployees([employeeId], {
       title: '새 알림',
       body: message,
