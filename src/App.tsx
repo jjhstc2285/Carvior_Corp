@@ -46,7 +46,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
   if (module === 'vehiclePost') return <VehiclePostModule role={role} />;
-  return <ParkingModule />;
+  return <ParkingModule isAdmin={role === 'ADMIN'} />;
 }
 
 function AuthedApp({ role }: { role: Role }) {

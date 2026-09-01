@@ -1,8 +1,12 @@
 import { Body, Controller, Delete, Get, HttpCode, Module, Param, Patch, Post, Query } from '@nestjs/common';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { ParkingStatus, Prisma } from '@prisma/client';
+import { ParkingStatus, Prisma, Role } from '@prisma/client';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { parseParkingSheet, type ParsedSpot, type SkippedCell } from './sheet-import';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+import { Roles } from '../auth/roles.decorator';
 
 // ── DTO ──────────────────────────────
 
@@ -37,9 +41,111 @@ export class UpdateParkingDto {
 
 const EMPLOYEE_SELECT = { employee: { select: { id: true, name: true } } };
 
+/** 시트를 CSV로 받는 주소 — 시트가 바뀌면 .env 로 갈아끼운다. */
+const DEFAULT_SHEET_CSV =
+  'https://docs.google.com/spreadsheets/d/1SmBh_Grnd5yBiwY4jOxkRjz0P1GK2GilNgiSc8j3EIk/export?format=csv&gid=1762776087';
+
+export interface SheetPreview {
+  /** 들어올 자리 */
+  spots: (ParsedSpot & { vehicleModel: string; occupiedBy?: string })[];
+  /** 못 넣는 칸과 그 이유 */
+  skipped: SkippedCell[];
+}
+
 @Injectable()
 export class ParkingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
+
+  // ── 구글 시트 한 번 가져오기 ──────────────────────────────
+
+  /**
+   * 시트를 읽어 무엇이 들어올지 보여준다(아직 쓰지 않는다).
+   *
+   * 한 번 옮기고 끝낼 일이라 미리보기를 따로 둔다 — 백 대가 넘는 자리를 확인 없이
+   * 덮어쓰면 무엇이 바뀌었는지 알 방법이 없다.
+   */
+  async previewSheet(): Promise<SheetPreview> {
+    const { spots, skipped } = parseParkingSheet(await this.fetchSheet());
+
+    // 차량관리에 있는 차면 차량명을 같이 채운다(시트에는 번호만 있다).
+    const known = await this.prisma.managedVehicle.findMany({
+      where: { vehicleNumber: { in: spots.map((s) => s.vehicleNumber) } },
+      select: { vehicleNumber: true, vehicleModel: true },
+    });
+    const modelOf = new Map(known.map((v) => [v.vehicleNumber, v.vehicleModel]));
+
+    // 이미 앱에 등록된 차는 어디에 있는지 알려준다 — 덮어쓸지 판단할 근거가 된다.
+    const existing = await this.prisma.parkingVehicle.findMany({
+      where: { vehicleNumber: { in: spots.map((s) => s.vehicleNumber) } },
+      select: { vehicleNumber: true, lot: true, zone: true, slot: true },
+    });
+    const placedAt = new Map(existing.map((v) => [v.vehicleNumber, `${v.lot} ${v.zone} ${v.slot}`]));
+
+    return {
+      spots: spots.map((s) => ({
+        ...s,
+        vehicleModel: modelOf.get(s.vehicleNumber) ?? '',
+        ...(placedAt.has(s.vehicleNumber) ? { occupiedBy: placedAt.get(s.vehicleNumber) } : {}),
+      })),
+      skipped,
+    };
+  }
+
+  /**
+   * 실제로 옮긴다.
+   *
+   * 시트에 있는 차는 시트 자리로 맞춘다 — 앱 어딘가에 이미 있으면 그 자리를 비우고 옮긴다.
+   * 한 트랜잭션으로 묶어, 중간에 끊겨 절반만 옮겨진 상태가 남지 않게 한다.
+   */
+  async importSheet(user: AuthUser) {
+    const { spots } = await this.previewSheet();
+    if (spots.length === 0) return { imported: 0 };
+
+    await this.prisma.$transaction(async (tx) => {
+      // 같은 차가 앱의 다른 자리에 있으면 먼저 치운다(칸도 차량번호도 겹치면 안 된다).
+      await tx.parkingVehicle.deleteMany({
+        where: { vehicleNumber: { in: spots.map((s) => s.vehicleNumber) } },
+      });
+
+      for (const s of spots) {
+        await tx.parkingVehicle.upsert({
+          where: { lot_zone_slot: { lot: s.lot, zone: s.zone, slot: s.slot } },
+          create: {
+            lot: s.lot,
+            zone: s.zone,
+            slot: s.slot,
+            vehicleNumber: s.vehicleNumber,
+            vehicleModel: s.vehicleModel,
+            status: ParkingStatus.DISPLAY,
+            employeeId: user.id,
+            memo: s.memo,
+          },
+          update: {
+            vehicleNumber: s.vehicleNumber,
+            vehicleModel: s.vehicleModel,
+            employeeId: user.id,
+            memo: s.memo,
+          },
+        });
+      }
+    });
+
+    return { imported: spots.length };
+  }
+
+  private async fetchSheet(): Promise<string> {
+    const url = this.config.get<string>('PARKING_SHEET_CSV_URL', DEFAULT_SHEET_CSV);
+    const res = await fetch(url, { redirect: 'follow' });
+    if (!res.ok) {
+      throw new BadRequestException(
+        '구글 시트를 읽지 못했습니다. 시트가 "링크가 있는 모든 사용자에게 공개"인지 확인해 주세요.',
+      );
+    }
+    return res.text();
+  }
 
   findAll(params: { q?: string; lot?: string; status?: ParkingStatus }) {
     const where: Prisma.ParkingVehicleWhereInput = {
@@ -187,6 +293,21 @@ export class ParkingController {
   @Post()
   upsert(@Body() dto: UpsertParkingDto) {
     return this.parking.upsert(dto);
+  }
+
+  /** 시트에서 무엇이 들어올지 미리 본다 — 아직 쓰지 않는다. */
+  @Roles(Role.ADMIN)
+  @Get('sheet/preview')
+  previewSheet() {
+    return this.parking.previewSheet();
+  }
+
+  /** 실제로 옮긴다. 한 번 하고 끝낼 일이라 관리자만 부른다. */
+  @Roles(Role.ADMIN)
+  @Post('sheet/import')
+  @HttpCode(200)
+  importSheet(@CurrentUser() user: AuthUser) {
+    return this.parking.importSheet(user);
   }
 
   /**

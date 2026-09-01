@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
+import { Download, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
+import SheetImportModal from './SheetImportModal';
 import { alertError, confirmDanger } from '../../lib/alert';
 
 const STATUS_COLOR: Record<ParkingStatus, string> = {
@@ -15,8 +16,9 @@ const STATUS_COLOR: Record<ParkingStatus, string> = {
 };
 
 // 주차 자리는 등록·이동·비우기 모두 현장에서 하는 일이라 권한을 나누지 않는다.
-export default function ParkingModule() {
-  const { state, deleteParkingVehicle } = useStore();
+// 시트 가져오기만 관리자다 — 한 번에 백 대가 넘는 자리를 덮어쓰는 일이라서.
+export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
+  const { state, deleteParkingVehicle, refresh } = useStore();
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [query, setQuery] = useState('');
   const [lotFilter, setLotFilter] = useState('all');
@@ -24,6 +26,7 @@ export default function ParkingModule() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ParkingVehicle | null>(null);
   const [presetPosition, setPresetPosition] = useState<{ lot: string; zone: string; slot: string } | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const lots = useMemo(() => Array.from(new Set(state.parkingVehicles.map(v => v.lot))).sort(), [state.parkingVehicles]);
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
@@ -48,12 +51,22 @@ export default function ParkingModule() {
           <h1 className="text-xl font-bold text-slate-900">주차장 차량 위치 관리</h1>
           <p className="mt-1 text-sm text-slate-500">주차장 → 구역 → 위치별로 차량을 조회하고 관리합니다. 칸을 클릭해서 바로 등록/수정하세요. (기존 엑셀 시트지 대체)</p>
         </div>
-        <button
-          onClick={() => { setEditing(null); setPresetPosition(null); setFormOpen(true); }}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          <Plus size={15} /> 차량 등록
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={() => setImportOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <Download size={15} /> 시트에서 가져오기
+            </button>
+          )}
+          <button
+            onClick={() => { setEditing(null); setPresetPosition(null); setFormOpen(true); }}
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            <Plus size={15} /> 차량 등록
+          </button>
+        </div>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -147,6 +160,10 @@ export default function ParkingModule() {
           </table>
         </div>
       </div>
+      )}
+
+      {importOpen && (
+        <SheetImportModal onClose={() => setImportOpen(false)} onImported={() => void refresh()} />
       )}
 
       {formOpen && (
