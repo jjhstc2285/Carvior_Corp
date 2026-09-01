@@ -561,3 +561,41 @@ export interface PurchaseIntake {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─────────────────────────────────────────────
+// 청소 관리 대장
+// ─────────────────────────────────────────────
+
+// 벽에 붙여두고 손으로 체크하던 대장을 그대로 옮긴 것.
+// 항목이 늘거나 줄면 여기와 서버 CleaningLog 모델을 같이 고친다.
+export const CLEANING_ITEMS = [
+  { key: 'sweep', label: '쓸기' },
+  { key: 'wipe', label: '닦기' },
+  { key: 'waterPurifier', label: '정수기' },
+  { key: 'shredder', label: '파쇄기' },
+  { key: 'trashBin', label: '쓰레기통' },
+  { key: 'paperCup', label: '종이컵' },
+  { key: 'broomClean', label: '빗자루닦기' },
+] as const;
+
+export type CleaningItemKey = (typeof CLEANING_ITEMS)[number]['key'];
+
+export interface CleaningLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  employeeId: string;
+  employee?: { id: string; name: string; position: string };
+
+  sweep: boolean;
+  wipe: boolean;
+  waterPurifier: boolean;
+  shredder: boolean;
+  trashBin: boolean;
+  paperCup: boolean;
+  broomClean: boolean;
+
+  note: string; // 기타
+  createdAt: string;
+  updatedAt: string;
+}

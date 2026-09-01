@@ -1,4 +1,4 @@
-import { CalendarClock, Car, ClipboardList, Handshake, Images, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Users2, X } from 'lucide-react';
+import { CalendarClock, Car, ClipboardList, Handshake, Sparkles, Images, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Users2, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 
 interface Props {
@@ -20,6 +20,7 @@ const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[]
   { key: 'vehiclePost', label: '매물 사진 등록', icon: Images },
   { key: 'purchaseIntake', label: '매입 관리', icon: Handshake },
   { key: 'purchaseList', label: '매입리스트', icon: ClipboardList },
+  { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
   { key: 'chat', label: '메시지', icon: MessageSquare },
 ];
 

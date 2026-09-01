@@ -66,6 +66,7 @@ model Employee {
   chatMessages         ChatMessage[]
   pushSubscriptions    PushSubscription[]
   purchaseIntakes      PurchaseIntake[]
+  cleaningLogs         CleaningLog[]
 
   @@unique([provider, providerId])
   @@index([name])
@@ -742,4 +743,36 @@ model PurchasePrepCost {
   @@index([settlementId])
   // 자동완성이 "지금까지 쓴 업체 이름"을 이 인덱스로 훑는다.
   @@index([kind, vendor])
+}
+
+// ─────────────────────────────────────────────
+// ⑬ 청소 관리 대장
+// ─────────────────────────────────────────────
+
+// 벽에 붙여두고 손으로 체크하던 대장을 그대로 옮긴 것.
+// 날짜·담당자·시간을 적고 항목마다 체크한다.
+model CleaningLog {
+  id         String   @id @default(cuid())
+  date       DateTime @db.Date
+  employeeId String
+  time       String   @db.VarChar(5) // "HH:mm" — 청소한 시각
+
+  // 대장의 체크 칸. 늘거나 줄면 여기와 프론트 CLEANING_ITEMS 를 같이 고친다.
+  sweep         Boolean @default(false) // 쓸기
+  wipe          Boolean @default(false) // 닦기
+  waterPurifier Boolean @default(false) // 정수기
+  shredder      Boolean @default(false) // 파쇄기
+  trashBin      Boolean @default(false) // 쓰레기통
+  paperCup      Boolean @default(false) // 종이컵
+  broomClean    Boolean @default(false) // 빗자루닦기
+
+  note String @default("") @db.VarChar(191) // 기타
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([date])
+  @@index([employeeId])
 }

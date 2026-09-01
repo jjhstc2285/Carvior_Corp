@@ -8,4 +8,5 @@ export type ModuleKey =
   | 'vehiclePost'
   | 'purchaseIntake'
   | 'purchaseList'
+  | 'cleaning'
   | 'chat';
