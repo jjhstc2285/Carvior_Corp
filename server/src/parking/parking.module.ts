@@ -1,9 +1,8 @@
 import { Body, Controller, Delete, Get, HttpCode, Module, Param, Patch, Post, Query } from '@nestjs/common';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { ParkingStatus, Prisma, Role } from '@prisma/client';
+import { ParkingStatus, Prisma } from '@prisma/client';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Roles } from '../auth/roles.decorator';
 
 // ── DTO ──────────────────────────────
 
@@ -202,13 +201,18 @@ export class ParkingController {
     return this.parking.move(dto);
   }
 
-  @Roles(Role.ADMIN)
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateParkingDto) {
     return this.parking.update(id, dto);
   }
 
-  @Roles(Role.ADMIN)
+  /**
+   * 칸 비우기.
+   *
+   * 등록·이동과 마찬가지로 관리자로 막지 않는다 — 차가 빠지면 그 자리를 비우는 것도
+   * 현장에서 하는 일이다. 지워도 잃는 건 자리 정보뿐이라 다시 적으면 된다
+   * (차량관리의 차량 자체와 달리 주유·수리 이력이 딸려 사라지지 않는다).
+   */
   @Delete(':id')
   @HttpCode(204)
   async remove(@Param('id') id: string) {

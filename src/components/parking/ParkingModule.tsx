@@ -7,10 +7,6 @@ import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
 import { alertError, confirmDanger } from '../../lib/alert';
 
-interface Props {
-  role: 'EMPLOYEE' | 'ADMIN';
-}
-
 const STATUS_COLOR: Record<ParkingStatus, string> = {
   DISPLAY: 'bg-blue-50 text-blue-700 ring-blue-600/20',
   RESERVED: 'bg-amber-50 text-amber-700 ring-amber-600/20',
@@ -18,7 +14,8 @@ const STATUS_COLOR: Record<ParkingStatus, string> = {
   MOVING: 'bg-gray-100 text-gray-600 ring-gray-500/20',
 };
 
-export default function ParkingModule({ role }: Props) {
+// 주차 자리는 등록·이동·비우기 모두 현장에서 하는 일이라 권한을 나누지 않는다.
+export default function ParkingModule() {
   const { state, deleteParkingVehicle } = useStore();
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [query, setQuery] = useState('');
@@ -138,12 +135,9 @@ export default function ParkingModule({ role }: Props) {
                     <td className="px-5 py-2.5">
                       <div className="flex justify-end gap-1.5">
                         <button onClick={() => { setEditing(v); setPresetPosition(null); setFormOpen(true); }} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
-                        {/* 지운 건 되돌릴 수 없어 삭제만 관리자로 남긴다 */}
-                        {role === 'ADMIN' && (
-                          <button onClick={() => void confirmDanger('이 위치의 차량 기록을 삭제할까요?').then(ok => { if (ok) void deleteParkingVehicle(v.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        <button onClick={() => void confirmDanger('이 위치의 차량 기록을 삭제할까요?').then(ok => { if (ok) void deleteParkingVehicle(v.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   )}
