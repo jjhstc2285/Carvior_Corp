@@ -109,7 +109,7 @@ export default function SheetImportModal({ onClose, onImported }: Props) {
           </button>
         </div>
         <p className="mt-1 text-xs text-slate-500">
-          시트의 <b>차량번호를 모두 차량관리에 등록</b>하고, 본관 주차 배치를 자리에 맞춰 옮깁니다.
+          시트의 <b>차량번호를 모두 차량관리에 등록</b>하고, 본관·외부 주차 배치를 자리에 맞춰 옮깁니다.
           옮긴 뒤에는 이 화면이 정답이고 시트는 보지 않습니다.
         </p>
 
@@ -184,11 +184,11 @@ export default function SheetImportModal({ onClose, onImported }: Props) {
             )}
 
             <p className="mt-3 text-[11px] text-slate-400">
-              차량번호는 시트 어디에 적혀 있든 전부 차량관리에 올라갑니다(외부 주차장 포함).
+              차량번호는 시트 어디에 적혀 있든 전부 차량관리에 올라갑니다.
               <b> 차량명은 시트에 없어 비워둡니다</b> — 차량 관리에서 나중에 채우시면 됩니다.
               <br />
-              다만 <b>자리 배치</b>는 본관(B4F·5F·B2F)만 옮깁니다. 외부 주차장은 시트에 구역 이름과
-              앞/뒤 구분이 없어 자리를 맞추려면 추측이 들어갑니다.
+              외부 주차장(평동·고색동·배양동)은 시트에 구역 이름이 없어, 시트에 놓인 순서대로
+              왼쪽부터 <b>1번·2번…</b>, 위에서부터 <b>1행·2행…</b>으로 넣습니다. 자리 순서는 시트 그대로입니다.
             </p>
 
             <div className="mt-4 flex justify-end gap-2">

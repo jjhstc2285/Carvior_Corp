@@ -6,7 +6,20 @@ export interface ParkingLotConfig {
   zones: string[];
   /** 어느 건물·구역 묶음인지 — 화면에서 묶어 보여준다 */
   group: '본관' | '외부';
+  /**
+   * 한 구역에 몇 대를 겹쳐 대는지. 안 주면 본관 기본값(앞1·앞2·뒤1·뒤2)을 쓴다.
+   *
+   * 외부 주차장은 시트에서도 앞/뒤 구분 없이 줄만 늘어서 있고 줄 수도 제각각이라
+   * (평동 3줄, 배양동 12줄) 주차장마다 따로 정한다.
+   */
+  slots?: string[];
 }
+
+/** 1행·2행 … N행 */
+const rowSlots = (n: number): string[] => Array.from({ length: n }, (_, i) => `${i + 1}행`);
+
+/** 1번·2번 … N번 */
+const numberedZones = (n: number): string[] => Array.from({ length: n }, (_, i) => `${i + 1}번`);
 
 /**
  * 한 구역 안에 차를 앞뒤로 겹쳐 대는 실제 주차장 관행을 반영 — 구역 하나당 앞/뒤로 각 2대까지.
@@ -43,45 +56,21 @@ export const PARKING_LOTS: ParkingLotConfig[] = [
 
   // ── 외부 ──────────────────────────────
   //
-  // 시트지의 외부 주차장은 구역 이름 없이 칸만 늘어서 있어서, 왼쪽부터 번호를 붙였다.
-  // 칸 수는 시트에 차가 들어차 있던 폭에 맞췄다 — 실제와 다르면 이 목록만 고치면 된다.
-  {
-    lot: '평동 20-23',
-    group: '외부',
-    bandColor: '#fdba74',
-    zones: ['1번', '2번', '3번', '4번', '5번', '6번', '7번', '8번', '9번', '10번', '11번'],
-  },
-  {
-    lot: '고색동 205-1',
-    group: '외부',
-    bandColor: '#a5b4fc',
-    zones: ['1번', '2번', '3번', '4번'],
-  },
-  {
-    lot: '고색동 213-4',
-    group: '외부',
-    bandColor: '#67e8f9',
-    zones: ['1번', '2번', '3번', '4번', '5번', '6번', '7번', '8번', '9번', '10번', '11번', '12번'],
-  },
-  {
-    lot: '고색동 218-1 (팬슬)',
-    group: '외부',
-    bandColor: '#d8b4fe',
-    zones: ['1번', '2번', '3번', '4번', '5번', '6번', '7번'],
-  },
-  {
-    lot: '고색동 203-2',
-    group: '외부',
-    bandColor: '#fca5a5',
-    zones: ['1번', '2번', '3번', '4번', '5번', '6번'],
-  },
-  {
-    lot: '배양동 58-13',
-    group: '외부',
-    bandColor: '#bef264',
-    zones: ['1번', '2번', '3번', '4번'],
-  },
+  // 시트지의 외부 주차장은 구역 이름이 없고 줄 수도 제각각이다(평동 3줄, 배양동 12줄).
+  // 그래서 왼쪽부터 번호(1번·2번…), 위에서부터 줄(1행·2행…)로 잡았다.
+  // 칸 수는 시트에 차가 들어차 있던 범위에 맞췄다 — 실제와 다르면 이 목록만 고치면 된다.
+  { lot: '평동 20-23', group: '외부', bandColor: '#fdba74', zones: numberedZones(11), slots: rowSlots(3) },
+  { lot: '고색동 218-1 (팬슬)', group: '외부', bandColor: '#d8b4fe', zones: numberedZones(7), slots: rowSlots(3) },
+  { lot: '고색동 205-1', group: '외부', bandColor: '#a5b4fc', zones: numberedZones(3), slots: rowSlots(8) },
+  { lot: '고색동 213-4', group: '외부', bandColor: '#67e8f9', zones: numberedZones(8), slots: rowSlots(2) },
+  { lot: '고색동 203-2', group: '외부', bandColor: '#fca5a5', zones: numberedZones(5), slots: rowSlots(5) },
+  { lot: '배양동 58-13', group: '외부', bandColor: '#bef264', zones: numberedZones(7), slots: rowSlots(12) },
 ];
+
+/** 그 주차장이 쓰는 줄 목록 — 안 정해뒀으면 본관 기본값 */
+export function slotsOf(lot: ParkingLotConfig): readonly string[] {
+  return lot.slots ?? PARKING_SLOTS;
+}
 
 /** 화면 상단 묶음 탭 — 본관과 외부를 따로 본다(다 펼치면 표가 너무 길다). */
 export const PARKING_GROUPS = ['본관', '외부'] as const;

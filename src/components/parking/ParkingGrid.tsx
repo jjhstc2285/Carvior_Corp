@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core';
 import { useStore } from '../../store';
 import type { ParkingStatus, ParkingVehicle } from '../../types';
-import { PARKING_GROUPS, PARKING_LOTS, PARKING_SLOTS, type ParkingGroup } from '../../lib/parkingLayout';
+import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup } from '../../lib/parkingLayout';
 
 interface Props {
   onCellClick: (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => void;
@@ -157,7 +157,13 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
           ))}
         </div>
 
-        {PARKING_LOTS.filter(l => l.group === group).map(({ lot, bandColor, zones }) => (
+        {PARKING_LOTS.filter(l => l.group === group).map(config => {
+          const { lot, bandColor, zones } = config;
+          const slots = slotsOf(config);
+          // 본관은 앞/뒤 두 대씩 겹쳐 대서 묶음 이름을 세로로 합쳐 보여준다.
+          // 외부는 그냥 줄이 늘어서 있을 뿐이라 줄 이름을 그대로 적는다.
+          const grouped = slots.length === 4 && slots[0] === '앞1';
+          return (
           <div key={lot} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-xs">
@@ -176,13 +182,13 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {PARKING_SLOTS.map((slot, i) => {
-                    const isFirstOfGroup = slot.startsWith('앞') ? slot === '앞1' : slot === '뒤1';
-                    const groupLabel = slot.startsWith('앞') ? '앞' : '뒤';
+                  {slots.map((slot, i) => {
+                    const isFirstOfGroup = !grouped || slot === '앞1' || slot === '뒤1';
+                    const groupLabel = grouped ? (slot.startsWith('앞') ? '앞' : '뒤') : slot;
                     return (
-                      <tr key={slot} className={i === 2 ? 'border-t-2 border-t-slate-300' : ''}>
+                      <tr key={slot} className={grouped && i === 2 ? 'border-t-2 border-t-slate-300' : ''}>
                         {isFirstOfGroup && (
-                          <td rowSpan={2} className="border border-slate-100 bg-slate-50 px-1 text-center align-middle font-semibold text-slate-500">
+                          <td rowSpan={grouped ? 2 : 1} className="border border-slate-100 bg-slate-50 px-1 text-center align-middle text-[11px] font-semibold text-slate-500">
                             {groupLabel}
                           </td>
                         )}
@@ -205,7 +211,8 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
               </table>
             </div>
           </div>
-        ))}
+          );
+        })}
 
         <div className="flex flex-wrap gap-3 text-xs text-slate-500">
           {(Object.entries(STATUS_DOT) as [ParkingStatus, string][]).map(([status, dot]) => (
