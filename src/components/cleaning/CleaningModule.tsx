@@ -5,27 +5,29 @@ import { Download, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { useStore } from '../../store';
-import { CLEANING_ITEMS, type CleaningItemKey, type CleaningLog, type Role } from '../../types';
+import { CLEANING_FLOORS, type CleaningItemKey, type CleaningLog, type Role } from '../../types';
 
 interface Props {
   role: Role;
 }
 
-type CheckState = Record<CleaningItemKey, boolean>;
-
-const EMPTY_CHECKS = Object.fromEntries(CLEANING_ITEMS.map(i => [i.key, false])) as CheckState;
+type CheckState = Partial<Record<CleaningItemKey, boolean>>;
 
 /**
  * 청소 관리 대장.
  *
  * 벽에 붙여두고 손으로 체크하던 종이를 그대로 옮겼다 —
- * 날짜 / 담당자 / 시간 / 항목 체크 7칸 / 기타.
+ * 날짜 / 청소 담당자 / 시간 / 항목 체크 / 기타.
+ *
+ * 층마다 대장이 따로 있고 항목도 다르다(5층은 파쇄기·종이컵, 1층은 물걸레).
+ * 어떤 층에 무엇이 있는지는 types.ts 의 CLEANING_FLOORS 가 정한다.
  *
  * 청소를 막 끝내고 적는 흐름이라 날짜·시간·담당자는 미리 채워둔다.
  * 표에서도 체크를 바로 눌러 고칠 수 있다(빠뜨린 걸 나중에 채우는 일이 잦다).
  */
 export default function CleaningModule({ role }: Props) {
   const { state } = useStore();
+  const [floorKey, setFloorKey] = useState(CLEANING_FLOORS[0].key);
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   const [rows, setRows] = useState<CleaningLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,7 @@ export default function CleaningModule({ role }: Props) {
   const reqId = useRef(0);
 
   // 등록 줄 — 지금 시각과 본인으로 채워 둔다.
-  const [checks, setChecks] = useState<CheckState>({ ...EMPTY_CHECKS });
+  const [checks, setChecks] = useState<CheckState>({});
   const [note, setNote] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [time, setTime] = useState(() => dayjs().format('HH:mm'));
@@ -41,13 +43,16 @@ export default function CleaningModule({ role }: Props) {
   const [busy, setBusy] = useState(false);
 
   const isAdmin = role === 'ADMIN';
+  // 지금 보고 있는 층의 항목 목록 — 표·등록·엑셀이 모두 이걸 따른다.
+  const floor = CLEANING_FLOORS.find(f => f.key === floorKey) ?? CLEANING_FLOORS[0];
+  const items = floor.items;
 
   const load = useCallback(async () => {
     const myReq = ++reqId.current;
     setLoading(true);
     setError(null);
     try {
-      const data = await api<CleaningLog[]>(`/cleaning?month=${month}`);
+      const data = await api<CleaningLog[]>(`/cleaning?month=${month}&floor=${floorKey}`);
       if (myReq !== reqId.current) return;
       setRows(data);
     } catch (e) {
@@ -56,7 +61,7 @@ export default function CleaningModule({ role }: Props) {
     } finally {
       if (myReq === reqId.current) setLoading(false);
     }
-  }, [month]);
+  }, [month, floorKey]);
 
   useEffect(() => {
     void load();
@@ -85,9 +90,9 @@ export default function CleaningModule({ role }: Props) {
     try {
       await api('/cleaning', {
         method: 'POST',
-        body: { date, time, employeeId, ...checks, note: note.trim() },
+        body: { floor: floorKey, date, time, employeeId, ...checks, note: note.trim() },
       });
-      setChecks({ ...EMPTY_CHECKS });
+      setChecks({});
       setNote('');
       setTime(dayjs().format('HH:mm'));
       await load();
@@ -126,16 +131,16 @@ export default function CleaningModule({ role }: Props) {
       날짜: r.date,
       '청소 담당자': r.employee?.name ?? employeeName(r.employeeId),
       시간: r.time,
-      ...Object.fromEntries(CLEANING_ITEMS.map(i => [i.label, r[i.key] ? 'V' : ''])),
+      ...Object.fromEntries(items.map(i => [i.label, r[i.key] ? 'V' : ''])),
       기타: r.note,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '청소관리대장');
-    XLSX.writeFile(wb, `청소관리대장_${month}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, `${floor.label} 청소관리대장`);
+    XLSX.writeFile(wb, `청소관리대장_${floor.label}_${month}.xlsx`);
   };
 
-  const allChecked = CLEANING_ITEMS.every(i => checks[i.key]);
+  const allChecked = items.every(i => checks[i.key]);
 
   return (
     <div className="mx-auto max-w-[1300px] px-4 py-6 sm:px-6 sm:py-8">
@@ -152,6 +157,21 @@ export default function CleaningModule({ role }: Props) {
         >
           <Download size={15} /> 엑셀
         </button>
+      </div>
+
+      {/* 층마다 대장이 따로 있고 항목도 다르다 */}
+      <div className="mb-4 flex w-fit rounded-lg bg-slate-100 p-0.5 text-sm">
+        {CLEANING_FLOORS.map(f => (
+          <button
+            key={f.key}
+            onClick={() => { setFloorKey(f.key); setChecks({}); }}
+            className={`rounded-md px-4 py-1.5 font-medium transition-colors ${
+              floorKey === f.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {/* 등록 줄 — 대장 한 줄을 그대로 적는 모양 */}
@@ -178,7 +198,7 @@ export default function CleaningModule({ role }: Props) {
           </div>
           <button
             type="button"
-            onClick={() => setChecks(allChecked ? { ...EMPTY_CHECKS } : Object.fromEntries(CLEANING_ITEMS.map(i => [i.key, true])) as CheckState)}
+            onClick={() => setChecks(allChecked ? {} : Object.fromEntries(items.map(i => [i.key, true])) as CheckState)}
             className="ml-auto flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200"
           >
             <Sparkles size={12} /> {allChecked ? '전체 해제' : '전체 체크'}
@@ -186,7 +206,7 @@ export default function CleaningModule({ role }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          {CLEANING_ITEMS.map(item => (
+          {items.map(item => (
             <button
               key={item.key}
               type="button"
@@ -248,7 +268,7 @@ export default function CleaningModule({ role }: Props) {
                 <th className="px-3 py-2.5 text-left font-medium">날짜</th>
                 <th className="px-3 py-2.5 text-left font-medium">청소 담당자</th>
                 <th className="px-3 py-2.5 text-left font-medium">시간</th>
-                {CLEANING_ITEMS.map(i => (
+                {items.map(i => (
                   <th key={i.key} className="px-2 py-2.5 text-center font-medium">{i.label}</th>
                 ))}
                 <th className="px-3 py-2.5 text-left font-medium">기타</th>
@@ -258,8 +278,8 @@ export default function CleaningModule({ role }: Props) {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={CLEANING_ITEMS.length + 5} className="px-5 py-10 text-center text-sm text-slate-400">
-                    {loading ? '불러오는 중…' : `${dayjs(month).format('M월')} 청소 기록이 없습니다.`}
+                  <td colSpan={items.length + 5} className="px-5 py-10 text-center text-sm text-slate-400">
+                    {loading ? '불러오는 중…' : `${floor.label} ${dayjs(month).format('M월')} 청소 기록이 없습니다.`}
                   </td>
                 </tr>
               )}
@@ -268,7 +288,7 @@ export default function CleaningModule({ role }: Props) {
                   <td className="px-3 py-2 text-slate-600">{dayjs(r.date).format('M/D')}</td>
                   <td className="px-3 py-2 font-medium text-slate-700">{r.employee?.name ?? employeeName(r.employeeId)}</td>
                   <td className="px-3 py-2 text-slate-500">{r.time}</td>
-                  {CLEANING_ITEMS.map(i => (
+                  {items.map(i => (
                     <td key={i.key} className="px-2 py-2 text-center">
                       {/* 빠뜨린 항목을 나중에 채우는 일이 잦아 표에서 바로 누를 수 있게 둔다 */}
                       <button

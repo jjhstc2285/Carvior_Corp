@@ -567,21 +567,61 @@ export interface PurchaseIntake {
 // ─────────────────────────────────────────────
 
 // 벽에 붙여두고 손으로 체크하던 대장을 그대로 옮긴 것.
-// 항목이 늘거나 줄면 여기와 서버 CleaningLog 모델을 같이 고친다.
-export const CLEANING_ITEMS = [
-  { key: 'sweep', label: '쓸기' },
-  { key: 'wipe', label: '닦기' },
-  { key: 'waterPurifier', label: '정수기' },
-  { key: 'shredder', label: '파쇄기' },
-  { key: 'trashBin', label: '쓰레기통' },
-  { key: 'paperCup', label: '종이컵' },
-  { key: 'broomClean', label: '빗자루닦기' },
-] as const;
+//
+// 층마다 대장이 따로 있고 항목도 다르다. 겹치는 것(쓸기·정수기·쓰레기·빗자루)은 저장 칸을
+// 같이 쓰되 층에서 부르는 이름으로 보여준다 — 층이 늘면 여기에 한 줄 더 넣고,
+// 새 항목이 필요하면 서버 CleaningLog 모델에 칸을 늘린다.
+export type CleaningItemKey =
+  | 'sweep'
+  | 'wipe'
+  | 'waterPurifier'
+  | 'shredder'
+  | 'trashBin'
+  | 'paperCup'
+  | 'broomClean'
+  | 'wetMop';
 
-export type CleaningItemKey = (typeof CLEANING_ITEMS)[number]['key'];
+export interface CleaningItem {
+  key: CleaningItemKey;
+  label: string;
+}
+
+export interface CleaningFloor {
+  key: string;
+  label: string;
+  items: CleaningItem[];
+}
+
+export const CLEANING_FLOORS: CleaningFloor[] = [
+  {
+    key: '5F',
+    label: '5층',
+    items: [
+      { key: 'sweep', label: '쓸기' },
+      { key: 'wipe', label: '닦기' },
+      { key: 'waterPurifier', label: '정수기' },
+      { key: 'shredder', label: '파쇄기' },
+      { key: 'trashBin', label: '쓰레기통' },
+      { key: 'paperCup', label: '종이컵' },
+      { key: 'broomClean', label: '빗자루닦기' },
+    ],
+  },
+  {
+    key: '1F',
+    label: '1층',
+    items: [
+      { key: 'sweep', label: '쓸기' },
+      { key: 'broomClean', label: '빗자루 청소' },
+      { key: 'wetMop', label: '물걸레' },
+      { key: 'waterPurifier', label: '정수기정리' },
+      { key: 'trashBin', label: '쓰레기 비움' },
+    ],
+  },
+];
 
 export interface CleaningLog {
   id: string;
+  floor: string; // '5F' | '1F'
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   employeeId: string;
@@ -594,6 +634,7 @@ export interface CleaningLog {
   trashBin: boolean;
   paperCup: boolean;
   broomClean: boolean;
+  wetMop: boolean;
 
   note: string; // 기타
   createdAt: string;

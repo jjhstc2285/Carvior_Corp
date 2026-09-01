@@ -753,18 +753,22 @@ model PurchasePrepCost {
 // 날짜·담당자·시간을 적고 항목마다 체크한다.
 model CleaningLog {
   id         String   @id @default(cuid())
+  floor      String   @default("5F") @db.VarChar(10) // 층 — 층마다 체크 항목이 다르다
   date       DateTime @db.Date
   employeeId String
   time       String   @db.VarChar(5) // "HH:mm" — 청소한 시각
 
-  // 대장의 체크 칸. 늘거나 줄면 여기와 프론트 CLEANING_ITEMS 를 같이 고친다.
+  // 대장의 체크 칸. 어느 층에서 어떤 이름으로 쓰는지는 프론트 CLEANING_FLOORS 가 정한다 —
+  // 층마다 항목이 다르지만 겹치는 것(쓸기·정수기·쓰레기·빗자루)은 같은 칸을 쓴다.
+  // 칸이 늘거나 줄면 여기와 그 목록을 같이 고친다.
   sweep         Boolean @default(false) // 쓸기
   wipe          Boolean @default(false) // 닦기
-  waterPurifier Boolean @default(false) // 정수기
+  waterPurifier Boolean @default(false) // 정수기 / 정수기정리
   shredder      Boolean @default(false) // 파쇄기
-  trashBin      Boolean @default(false) // 쓰레기통
+  trashBin      Boolean @default(false) // 쓰레기통 / 쓰레기 비움
   paperCup      Boolean @default(false) // 종이컵
-  broomClean    Boolean @default(false) // 빗자루닦기
+  broomClean    Boolean @default(false) // 빗자루닦기 / 빗자루 청소
+  wetMop        Boolean @default(false) // 물걸레
 
   note String @default("") @db.VarChar(191) // 기타
 
@@ -773,6 +777,6 @@ model CleaningLog {
 
   employee Employee @relation(fields: [employeeId], references: [id])
 
-  @@index([date])
+  @@index([floor, date])
   @@index([employeeId])
 }

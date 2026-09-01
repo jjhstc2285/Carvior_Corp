@@ -25,6 +25,9 @@ const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 // ── DTO ──────────────────────────────
 
 export class CreateCleaningDto {
+  /** 층 — 층마다 체크 항목이 다르다 */
+  @IsOptional() @IsString() @MaxLength(10) floor?: string;
+
   /** 안 주면 서버 기준 오늘(KST) */
   @IsOptional() @Matches(DATE_PATTERN, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) date?: string;
   /** 안 주면 지금 시각(KST) */
@@ -39,6 +42,7 @@ export class CreateCleaningDto {
   @IsOptional() @IsBoolean() trashBin?: boolean;
   @IsOptional() @IsBoolean() paperCup?: boolean;
   @IsOptional() @IsBoolean() broomClean?: boolean;
+  @IsOptional() @IsBoolean() wetMop?: boolean;
 
   @IsOptional() @IsString() @MaxLength(191) note?: string;
 }
@@ -56,12 +60,14 @@ export class UpdateCleaningDto {
   @IsOptional() @IsBoolean() trashBin?: boolean;
   @IsOptional() @IsBoolean() paperCup?: boolean;
   @IsOptional() @IsBoolean() broomClean?: boolean;
+  @IsOptional() @IsBoolean() wetMop?: boolean;
 
   @IsOptional() @IsString() @MaxLength(191) note?: string;
 }
 
 export class CleaningQueryDto {
   @IsOptional() @Matches(MONTH_PATTERN, { message: 'month는 YYYY-MM 형식이어야 합니다.' }) month?: string;
+  @IsOptional() @IsString() @MaxLength(10) floor?: string;
 }
 
 // ── Service ──────────────────────────────
@@ -71,7 +77,10 @@ export class CleaningService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(params: CleaningQueryDto) {
-    const where: Prisma.CleaningLogWhereInput = params.month ? { date: monthRange(params.month) } : {};
+    const where: Prisma.CleaningLogWhereInput = {
+      ...(params.month ? { date: monthRange(params.month) } : {}),
+      ...(params.floor ? { floor: params.floor } : {}),
+    };
 
     const rows = await this.prisma.cleaningLog.findMany({
       where,
@@ -85,6 +94,7 @@ export class CleaningService {
   async create(user: AuthUser, dto: CreateCleaningDto) {
     const row = await this.prisma.cleaningLog.create({
       data: {
+        floor: dto.floor || '5F',
         date: toDateOnly(dto.date || todayKst()),
         time: dto.time || nowTimeKst(),
         employeeId: dto.employeeId || user.id,
@@ -95,6 +105,7 @@ export class CleaningService {
         trashBin: dto.trashBin ?? false,
         paperCup: dto.paperCup ?? false,
         broomClean: dto.broomClean ?? false,
+        wetMop: dto.wetMop ?? false,
         note: dto.note?.trim() ?? '',
       },
       include: { employee: { select: { id: true, name: true, position: true } } },
@@ -117,6 +128,7 @@ export class CleaningService {
         trashBin: dto.trashBin,
         paperCup: dto.paperCup,
         broomClean: dto.broomClean,
+        wetMop: dto.wetMop,
         note: dto.note?.trim(),
       },
       include: { employee: { select: { id: true, name: true, position: true } } },
