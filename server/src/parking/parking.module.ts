@@ -4,7 +4,8 @@ import { ParkingStatus, Prisma, Role } from '@prisma/client';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { parseParkingSheet, type ParsedSpot, type SkippedCell } from './sheet-import';
+import { collectPlates, parseParkingSheet, type ParsedSpot, type SkippedCell } from './sheet-import';
+import { plateTailOf } from '../vehicles/vehicle.rules';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
 
@@ -50,6 +51,10 @@ export interface SheetPreview {
   spots: (ParsedSpot & { vehicleModel: string; occupiedBy?: string })[];
   /** 못 넣는 칸과 그 이유 */
   skipped: SkippedCell[];
+  /** 시트에 있는데 차량관리에 없는 차량번호 — 같이 등록한다 */
+  newVehicles: string[];
+  /** 시트 전체에서 찾은 차량번호 수(이미 등록된 것 포함) */
+  plateCount: number;
 }
 
 @Injectable()
@@ -68,7 +73,17 @@ export class ParkingService {
    * 덮어쓰면 무엇이 바뀌었는지 알 방법이 없다.
    */
   async previewSheet(): Promise<SheetPreview> {
-    const { spots, skipped } = parseParkingSheet(await this.fetchSheet());
+    const csv = await this.fetchSheet();
+    const { spots, skipped } = parseParkingSheet(csv);
+
+    // 자리 배치와 별개로, 시트 어디에 적혀 있든 차량번호는 전부 차량관리에 올린다.
+    const plates = collectPlates(csv);
+    const registered = await this.prisma.managedVehicle.findMany({
+      where: { vehicleNumber: { in: plates } },
+      select: { vehicleNumber: true },
+    });
+    const registeredSet = new Set(registered.map((v) => v.vehicleNumber));
+    const newVehicles = plates.filter((p) => !registeredSet.has(p));
 
     // 차량관리에 있는 차면 차량명을 같이 채운다(시트에는 번호만 있다).
     const known = await this.prisma.managedVehicle.findMany({
@@ -91,6 +106,8 @@ export class ParkingService {
         ...(placedAt.has(s.vehicleNumber) ? { occupiedBy: placedAt.get(s.vehicleNumber) } : {}),
       })),
       skipped,
+      newVehicles,
+      plateCount: plates.length,
     };
   }
 
@@ -101,10 +118,21 @@ export class ParkingService {
    * 한 트랜잭션으로 묶어, 중간에 끊겨 절반만 옮겨진 상태가 남지 않게 한다.
    */
   async importSheet(user: AuthUser) {
-    const { spots } = await this.previewSheet();
-    if (spots.length === 0) return { imported: 0 };
+    const { spots, newVehicles } = await this.previewSheet();
 
     await this.prisma.$transaction(async (tx) => {
+      // 차량관리에 없는 차를 먼저 올린다. 차명은 시트에 없어서 비워두고 나중에 채운다.
+      if (newVehicles.length > 0) {
+        await tx.managedVehicle.createMany({
+          data: newVehicles.map((vehicleNumber) => ({
+            vehicleNumber,
+            plateTail: plateTailOf(vehicleNumber),
+            vehicleModel: '',
+          })),
+          skipDuplicates: true,
+        });
+      }
+
       // 같은 차가 앱의 다른 자리에 있으면 먼저 치운다(칸도 차량번호도 겹치면 안 된다).
       await tx.parkingVehicle.deleteMany({
         where: { vehicleNumber: { in: spots.map((s) => s.vehicleNumber) } },
@@ -133,7 +161,7 @@ export class ParkingService {
       }
     });
 
-    return { imported: spots.length };
+    return { imported: spots.length, vehiclesAdded: newVehicles.length };
   }
 
   private async fetchSheet(): Promise<string> {

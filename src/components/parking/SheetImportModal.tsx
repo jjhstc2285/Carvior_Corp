@@ -23,6 +23,10 @@ interface Skipped {
 interface Preview {
   spots: Spot[];
   skipped: Skipped[];
+  /** 시트에 있는데 차량관리에 없는 차량번호 — 같이 등록된다 */
+  newVehicles: string[];
+  /** 시트 전체에서 찾은 차량번호 수 */
+  plateCount: number;
 }
 
 interface Props {
@@ -71,7 +75,7 @@ export default function SheetImportModal({ onClose, onImported }: Props) {
   const run = async () => {
     if (!preview) return;
     const ok = await confirmDanger(
-      `${preview.spots.length}대를 시트 자리로 맞출까요?`,
+      `차량 ${preview.newVehicles.length}대를 등록하고 ${preview.spots.length}대를 시트 자리로 맞출까요?`,
       moved.length > 0
         ? `이 중 ${moved.length}대는 앱에 이미 다른 자리로 등록돼 있어 시트 자리로 옮겨집니다.`
         : undefined,
@@ -81,8 +85,11 @@ export default function SheetImportModal({ onClose, onImported }: Props) {
 
     setBusy(true);
     try {
-      const res = await api<{ imported: number }>('/parking/sheet/import', { method: 'POST' });
-      await alertSuccess(`${res.imported}대를 가져왔습니다`, '이제부터는 이 화면이 정답입니다. 시트는 보지 않습니다.');
+      const res = await api<{ imported: number; vehiclesAdded: number }>('/parking/sheet/import', { method: 'POST' });
+      await alertSuccess(
+        `차량 ${res.vehiclesAdded}대 등록, ${res.imported}대 배치 완료`,
+        '차량명은 비어 있습니다 — 차량 관리에서 채워 주세요.',
+      );
       onImported();
       onClose();
     } catch (e) {
@@ -102,7 +109,8 @@ export default function SheetImportModal({ onClose, onImported }: Props) {
           </button>
         </div>
         <p className="mt-1 text-xs text-slate-500">
-          시트의 주차 배치를 한 번 옮겨옵니다. 옮긴 뒤에는 <b>이 화면이 정답</b>이고 시트는 보지 않습니다.
+          시트의 <b>차량번호를 모두 차량관리에 등록</b>하고, 본관 주차 배치를 자리에 맞춰 옮깁니다.
+          옮긴 뒤에는 이 화면이 정답이고 시트는 보지 않습니다.
         </p>
 
         {loading && <p className="py-10 text-center text-sm text-slate-400">시트를 읽는 중…</p>}
@@ -110,9 +118,16 @@ export default function SheetImportModal({ onClose, onImported }: Props) {
 
         {preview && (
           <>
-            <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-2.5">
+                <p className="text-[11px] text-emerald-700/80">차량관리에 등록</p>
+                <p className="text-xl font-bold text-emerald-700">
+                  {preview.newVehicles.length}<span className="ml-0.5 text-xs text-slate-400">대</span>
+                </p>
+                <p className="text-[10px] text-slate-400">시트 전체 {preview.plateCount}대 중 새 차량</p>
+              </div>
               <div className="rounded-xl border border-slate-200 px-3 py-2.5">
-                <p className="text-[11px] text-slate-400">가져올 차량</p>
+                <p className="text-[11px] text-slate-400">자리에 배치</p>
                 <p className="text-xl font-bold text-indigo-600">{preview.spots.length}<span className="ml-0.5 text-xs text-slate-400">대</span></p>
               </div>
               <div className="rounded-xl border border-slate-200 px-3 py-2.5">
@@ -169,8 +184,11 @@ export default function SheetImportModal({ onClose, onImported }: Props) {
             )}
 
             <p className="mt-3 text-[11px] text-slate-400">
-              외부 주차장(평동·고색동·배양동)은 시트에 구역 이름과 앞/뒤 구분이 없어 가져오지 않습니다.
-              그 차들은 화면에서 직접 넣어 주세요.
+              차량번호는 시트 어디에 적혀 있든 전부 차량관리에 올라갑니다(외부 주차장 포함).
+              <b> 차량명은 시트에 없어 비워둡니다</b> — 차량 관리에서 나중에 채우시면 됩니다.
+              <br />
+              다만 <b>자리 배치</b>는 본관(B4F·5F·B2F)만 옮깁니다. 외부 주차장은 시트에 구역 이름과
+              앞/뒤 구분이 없어 자리를 맞추려면 추측이 들어갑니다.
             </p>
 
             <div className="mt-4 flex justify-end gap-2">
@@ -179,10 +197,10 @@ export default function SheetImportModal({ onClose, onImported }: Props) {
               </button>
               <button
                 onClick={() => void run()}
-                disabled={busy || preview.spots.length === 0}
+                disabled={busy || (preview.spots.length === 0 && preview.newVehicles.length === 0)}
                 className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                <Download size={15} /> {busy ? '가져오는 중…' : `${preview.spots.length}대 가져오기`}
+                <Download size={15} /> {busy ? '가져오는 중…' : '가져오기'}
               </button>
             </div>
           </>

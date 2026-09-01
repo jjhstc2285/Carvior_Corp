@@ -89,6 +89,24 @@ function parseCsv(text: string): string[][] {
 
 const at = (rows: string[][], r: number, c: number) => (rows[r]?.[c] ?? '').trim();
 
+/**
+ * 시트 전체를 훑어 차량번호를 모은다.
+ *
+ * 자리 배치와 달리 어느 칸에 있든 상관없다 — 외부 주차장이든 메모 옆이든,
+ * 차량번호 꼴이면 우리가 들고 있는 차다. 차량관리에 올려두면 주유·수리비를 붙이고
+ * 상담·정산에서 차량번호로 찾을 수 있다.
+ */
+export function collectPlates(csv: string): string[] {
+  const seen = new Set<string>();
+  for (const row of parseCsv(csv)) {
+    for (const cell of row) {
+      const plate = normalizePlate(cell.trim());
+      if (isValidPlate(plate)) seen.add(plate);
+    }
+  }
+  return [...seen];
+}
+
 export function parseParkingSheet(csv: string): SheetParseResult {
   const rows = parseCsv(csv);
   const spots: ParsedSpot[] = [];
