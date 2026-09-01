@@ -579,7 +579,9 @@ export type CleaningItemKey =
   | 'trashBin'
   | 'paperCup'
   | 'broomClean'
-  | 'wetMop';
+  | 'wetMop'
+  | 'boxDisposal'
+  | 'deskTidy';
 
 export interface CleaningItem {
   key: CleaningItemKey;
@@ -590,6 +592,8 @@ export interface CleaningFloor {
   key: string;
   label: string;
   items: CleaningItem[];
+  /** 대장 위에 붙여두는 주의사항 — 체크하는 게 아니라 청소할 때 지킬 일이다 */
+  notice?: string;
 }
 
 export const CLEANING_FLOORS: CleaningFloor[] = [
@@ -601,10 +605,13 @@ export const CLEANING_FLOORS: CleaningFloor[] = [
       { key: 'wipe', label: '닦기' },
       { key: 'waterPurifier', label: '정수기' },
       { key: 'shredder', label: '파쇄기' },
-      { key: 'trashBin', label: '쓰레기통' },
-      { key: 'paperCup', label: '종이컵' },
+      { key: 'trashBin', label: '쓰레기통 누르기' },
+      { key: 'paperCup', label: '종이컵 정리' },
       { key: 'broomClean', label: '빗자루닦기' },
+      { key: 'boxDisposal', label: '박스 버리기' },
+      { key: 'deskTidy', label: '책상 정리' },
     ],
+    notice: '형광등으로 바꾸고 청소해야 잘 보입니다.',
   },
   {
     key: '1F',
@@ -635,6 +642,8 @@ export interface CleaningLog {
   paperCup: boolean;
   broomClean: boolean;
   wetMop: boolean;
+  boxDisposal: boolean;
+  deskTidy: boolean;
 
   note: string; // 기타
   createdAt: string;

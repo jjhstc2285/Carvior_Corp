@@ -43,6 +43,8 @@ export class CreateCleaningDto {
   @IsOptional() @IsBoolean() paperCup?: boolean;
   @IsOptional() @IsBoolean() broomClean?: boolean;
   @IsOptional() @IsBoolean() wetMop?: boolean;
+  @IsOptional() @IsBoolean() boxDisposal?: boolean;
+  @IsOptional() @IsBoolean() deskTidy?: boolean;
 
   @IsOptional() @IsString() @MaxLength(191) note?: string;
 }
@@ -61,6 +63,8 @@ export class UpdateCleaningDto {
   @IsOptional() @IsBoolean() paperCup?: boolean;
   @IsOptional() @IsBoolean() broomClean?: boolean;
   @IsOptional() @IsBoolean() wetMop?: boolean;
+  @IsOptional() @IsBoolean() boxDisposal?: boolean;
+  @IsOptional() @IsBoolean() deskTidy?: boolean;
 
   @IsOptional() @IsString() @MaxLength(191) note?: string;
 }
@@ -106,6 +110,8 @@ export class CleaningService {
         paperCup: dto.paperCup ?? false,
         broomClean: dto.broomClean ?? false,
         wetMop: dto.wetMop ?? false,
+        boxDisposal: dto.boxDisposal ?? false,
+        deskTidy: dto.deskTidy ?? false,
         note: dto.note?.trim() ?? '',
       },
       include: { employee: { select: { id: true, name: true, position: true } } },
@@ -129,6 +135,8 @@ export class CleaningService {
         paperCup: dto.paperCup,
         broomClean: dto.broomClean,
         wetMop: dto.wetMop,
+        boxDisposal: dto.boxDisposal,
+        deskTidy: dto.deskTidy,
         note: dto.note?.trim(),
       },
       include: { employee: { select: { id: true, name: true, position: true } } },

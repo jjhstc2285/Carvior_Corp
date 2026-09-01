@@ -769,6 +769,8 @@ model CleaningLog {
   paperCup      Boolean @default(false) // 종이컵
   broomClean    Boolean @default(false) // 빗자루닦기 / 빗자루 청소
   wetMop        Boolean @default(false) // 물걸레
+  boxDisposal   Boolean @default(false) // 박스 버리기
+  deskTidy      Boolean @default(false) // 책상 정리
 
   note String @default("") @db.VarChar(191) // 기타
 
