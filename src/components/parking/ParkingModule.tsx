@@ -38,7 +38,7 @@ export default function ParkingModule({ role }: Props) {
     .sort((a, b) => a.lot.localeCompare(b.lot) || a.zone.localeCompare(b.zone));
 
   const handleCellClick = (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => {
-    if (role !== 'ADMIN' && !existing) return;
+    // 차를 대고 자리를 적는 건 현장에서 하는 일이라 직원도 빈 칸을 누를 수 있다.
     setPresetPosition({ lot, zone, slot });
     setEditing(existing);
     setFormOpen(true);
@@ -51,14 +51,12 @@ export default function ParkingModule({ role }: Props) {
           <h1 className="text-xl font-bold text-slate-900">주차장 차량 위치 관리</h1>
           <p className="mt-1 text-sm text-slate-500">주차장 → 구역 → 위치별로 차량을 조회하고 관리합니다. 칸을 클릭해서 바로 등록/수정하세요. (기존 엑셀 시트지 대체)</p>
         </div>
-        {role === 'ADMIN' && (
-          <button
-            onClick={() => { setEditing(null); setPresetPosition(null); setFormOpen(true); }}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-          >
-            <Plus size={15} /> 차량 등록
-          </button>
-        )}
+        <button
+          onClick={() => { setEditing(null); setPresetPosition(null); setFormOpen(true); }}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+        >
+          <Plus size={15} /> 차량 등록
+        </button>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -100,7 +98,7 @@ export default function ParkingModule({ role }: Props) {
       </div>
 
       {view === 'grid' ? (
-        <ParkingGrid role={role} onCellClick={handleCellClick} onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)} />
+        <ParkingGrid onCellClick={handleCellClick} onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)} />
       ) : (
       <div className="rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
@@ -115,12 +113,12 @@ export default function ParkingModule({ role }: Props) {
                 <th className="px-5 py-2.5 font-medium">담당자</th>
                 <th className="px-5 py-2.5 font-medium">상태</th>
                 <th className="px-5 py-2.5 font-medium">최근 수정</th>
-                {role === 'ADMIN' && <th className="px-5 py-2.5 font-medium text-right">관리</th>}
+                <th className="px-5 py-2.5 font-medium text-right">관리</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={role === 'ADMIN' ? 9 : 8} className="px-5 py-10 text-center text-sm text-slate-400">조건에 맞는 차량이 없습니다.</td></tr>
+                <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">조건에 맞는 차량이 없습니다.</td></tr>
               )}
               {filtered.map(v => (
                 <tr key={v.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -136,13 +134,16 @@ export default function ParkingModule({ role }: Props) {
                     </span>
                   </td>
                   <td className="px-5 py-2.5 text-xs text-slate-400">{dayjs(v.updatedAt).format('M/D HH:mm')}</td>
-                  {role === 'ADMIN' && (
+                  {(
                     <td className="px-5 py-2.5">
                       <div className="flex justify-end gap-1.5">
                         <button onClick={() => { setEditing(v); setPresetPosition(null); setFormOpen(true); }} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
-                        <button onClick={() => void confirmDanger('이 위치의 차량 기록을 삭제할까요?').then(ok => { if (ok) void deleteParkingVehicle(v.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
-                          <Trash2 size={14} />
-                        </button>
+                        {/* 지운 건 되돌릴 수 없어 삭제만 관리자로 남긴다 */}
+                        {role === 'ADMIN' && (
+                          <button onClick={() => void confirmDanger('이 위치의 차량 기록을 삭제할까요?').then(ok => { if (ok) void deleteParkingVehicle(v.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}

@@ -12,10 +12,9 @@ import {
 } from '@dnd-kit/core';
 import { useStore } from '../../store';
 import type { ParkingStatus, ParkingVehicle } from '../../types';
-import { PARKING_LOTS, PARKING_SLOTS } from '../../lib/parkingLayout';
+import { PARKING_GROUPS, PARKING_LOTS, PARKING_SLOTS, type ParkingGroup } from '../../lib/parkingLayout';
 
 interface Props {
-  role: 'EMPLOYEE' | 'ADMIN';
   onCellClick: (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => void;
   /** 끌어다 놓기 실패를 화면에 알린다 */
   onMoveError: (message: string) => void;
@@ -47,12 +46,10 @@ function cellKey(p: CellPos): string {
 function ParkingCell({
   pos,
   vehicle,
-  canEdit,
   onClick,
 }: {
   pos: CellPos;
   vehicle: ParkingVehicle | null;
-  canEdit: boolean;
   onClick: () => void;
 }) {
   const { setNodeRef: dropRef, isOver } = useDroppable({ id: `cell:${cellKey(pos)}`, data: pos });
@@ -69,16 +66,13 @@ function ParkingCell({
         {...attributes}
         {...listeners}
         onClick={onClick}
-        disabled={!canEdit && !vehicle}
         className={`flex h-11 w-full flex-col items-center justify-center gap-0.5 px-1 text-center transition-colors ${
           isOver
             ? 'bg-indigo-200 ring-2 ring-inset ring-indigo-500'
             : vehicle
               ? 'bg-orange-100 hover:bg-orange-200'
               : 'bg-white hover:bg-slate-50'
-        } ${isDragging ? 'opacity-30' : ''} ${!canEdit && !vehicle ? 'cursor-default' : ''} ${
-          vehicle ? 'cursor-grab active:cursor-grabbing' : ''
-        }`}
+        } ${isDragging ? 'opacity-30' : ''} ${vehicle ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         {vehicle ? (
           <span className="flex items-center gap-1 font-mono font-semibold text-slate-800">
@@ -94,16 +88,17 @@ function ParkingCell({
 }
 
 // 요청받은 엑셀 시트지(주차장 배너 → 구역 컬럼 → 앞/뒤 겹주차 행)를 그대로 재현한 그리드.
-// 영화관 좌석표처럼 셀을 클릭하면 그 자리의 차량을 등록/수정/비울 수 있다(관리자만).
+// 영화관 좌석표처럼 셀을 클릭하면 그 자리의 차량을 등록·수정할 수 있다.
+// 등록·이동은 현장에서 하는 일이라 직원도 한다(삭제만 목록 화면에서 관리자로 막는다).
 //
 // 차를 끌어다 다른 칸에 놓으면 자리를 옮긴다. 그 칸에 차가 있으면 서로 자리를 바꾼다.
 // 실제 이동은 서버가 한 트랜잭션으로 처리한다 — 화면에서 두 번 나눠 부르면
 // 중간에 끊겼을 때 두 차가 같은 칸에 있거나 한 대가 사라진다.
-export default function ParkingGrid({ role, onCellClick, onMoveError }: Props) {
+export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
   const { state, moveParkingVehicle } = useStore();
   const [dragging, setDragging] = useState<ParkingVehicle | null>(null);
-
-  const canEdit = role === 'ADMIN';
+  // 주차장이 열 곳이 넘어 다 펼치면 표가 너무 길다 — 본관/외부로 나눠 본다.
+  const [group, setGroup] = useState<ParkingGroup>('본관');
 
   /**
    * 손가락으로도 끌 수 있게 포인터 하나로 마우스·터치를 같이 받는다.
@@ -144,7 +139,25 @@ export default function ParkingGrid({ role, onCellClick, onMoveError }: Props) {
           차를 <b>꾹 눌러</b> 다른 칸에 놓으면 자리가 바뀝니다. 그 칸에 차가 있으면 서로 맞바뀝니다. (휴대폰도 됩니다)
         </p>
 
-        {PARKING_LOTS.map(({ lot, bandColor, zones }) => (
+        {/* 묶음 탭 — 어느 주차장에 차가 몇 대 있는지도 같이 보여준다 */}
+        <div className="flex w-fit rounded-lg bg-slate-100 p-0.5 text-sm">
+          {PARKING_GROUPS.map(g => (
+            <button
+              key={g}
+              onClick={() => setGroup(g)}
+              className={`rounded-md px-4 py-1.5 font-medium transition-colors ${
+                group === g ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {g}
+              <span className="ml-1 text-xs text-slate-400">
+                {state.parkingVehicles.filter(v => PARKING_LOTS.some(l => l.group === g && l.lot === v.lot)).length}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {PARKING_LOTS.filter(l => l.group === group).map(({ lot, bandColor, zones }) => (
           <div key={lot} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-xs">
@@ -181,8 +194,7 @@ export default function ParkingGrid({ role, onCellClick, onMoveError }: Props) {
                               key={zone}
                               pos={pos}
                               vehicle={v}
-                              canEdit={canEdit}
-                              onClick={() => onCellClick(lot, zone, slot, v)}
+                                                  onClick={() => onCellClick(lot, zone, slot, v)}
                             />
                           );
                         })}

@@ -179,7 +179,12 @@ export class ParkingController {
     return this.parking.findAll({ q, lot, status });
   }
 
-  @Roles(Role.ADMIN)
+  /**
+   * 칸 등록·수정.
+   *
+   * 관리자로 막지 않는다 — 차를 대고 자리를 적는 건 현장에서 하는 일이다.
+   * 지우는 것만 관리자로 남긴다(자리를 잘못 적은 건 다시 적으면 되지만, 지운 건 되돌릴 수 없다).
+   */
   @Post()
   upsert(@Body() dto: UpsertParkingDto) {
     return this.parking.upsert(dto);
