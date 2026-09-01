@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import ApprovalInbox from './ApprovalInbox';
+import SignupApprovals from './SignupApprovals';
 import AttendanceRequestInbox from './AttendanceRequestInbox';
 import MonthlyDashboard from './MonthlyDashboard';
 import IpWhitelistSettings from './IpWhitelistSettings';
@@ -15,6 +16,8 @@ export default function AdminView() {
 
       <div className="space-y-6">
         <AttendanceRequestInbox />
+        {/* 가입 승인은 대기 건이 있을 때만 나타난다 — 없으면 자리를 차지하지 않는다 */}
+        <SignupApprovals />
         <ApprovalInbox />
         <IpWhitelistSettings />
         <AttendanceDeviceSettings />

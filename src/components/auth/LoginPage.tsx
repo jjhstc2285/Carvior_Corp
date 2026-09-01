@@ -3,12 +3,14 @@ import { Loader2, LogIn, Users2 } from 'lucide-react';
 import { useAuth } from '../../authStore';
 import { loginWithPassword } from '../../lib/auth';
 import { ApiError } from '../../lib/api';
+import SignupForm from './SignupForm';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -29,7 +31,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600">
@@ -39,6 +41,9 @@ export default function LoginPage() {
           <p className="mt-1 text-sm text-slate-500">사내 계정으로 로그인해 주세요.</p>
         </div>
 
+        {mode === 'signup' ? (
+          <SignupForm onBack={() => setMode('login')} />
+        ) : (
         <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5">
           <label className="mb-1 block text-xs font-semibold text-slate-500">아이디</label>
           <input
@@ -69,12 +74,18 @@ export default function LoginPage() {
             로그인
           </button>
         </form>
+        )}
 
-        <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-400">
-          계정이 없거나 비밀번호를 잊으셨다면 관리자에게 문의해 주세요.
-          <br />
-          카카오·네이버 로그인은 준비 중입니다.
-        </p>
+        {mode === 'login' && (
+          <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-400">
+            계정이 없으신가요?{' '}
+            <button onClick={() => setMode('signup')} className="font-semibold text-indigo-600 underline hover:text-indigo-700">
+              회원가입 신청
+            </button>
+            <br />
+            비밀번호를 잊으셨다면 관리자에게 문의해 주세요. 카카오·네이버 로그인은 준비 중입니다.
+          </p>
+        )}
       </div>
     </div>
   );

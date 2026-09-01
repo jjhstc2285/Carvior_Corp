@@ -1,7 +1,10 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Role, SignupStatus } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto, LinkEmployeeDto, LoginDto, SocialLoginDto } from './dto/login.dto';
+import { ReviewSignupDto, SignupDto } from './dto/signup.dto';
 import { Public } from './public.decorator';
+import { Roles } from './roles.decorator';
 import { CurrentUser, type AuthUser } from './current-user.decorator';
 
 @Controller('auth')
@@ -13,6 +16,28 @@ export class AuthController {
   @HttpCode(200)
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
+  }
+
+  /** 회원가입 신청 — 로그인 전이라 열어둔다. 승인 전에는 로그인되지 않는다. */
+  @Public()
+  @Post('signup')
+  @HttpCode(200)
+  signup(@Body() dto: SignupDto) {
+    return this.auth.signup(dto);
+  }
+
+  /** 대기 중인 가입 신청 — 관리자만 */
+  @Roles(Role.ADMIN)
+  @Get('signups')
+  signups(@Query('status') status?: SignupStatus) {
+    return this.auth.listSignups(status);
+  }
+
+  @Roles(Role.ADMIN)
+  @Post('signups/:id/review')
+  @HttpCode(200)
+  reviewSignup(@Param('id') id: string, @Body() dto: ReviewSignupDto) {
+    return this.auth.reviewSignup(id, dto);
   }
 
   @Public()
