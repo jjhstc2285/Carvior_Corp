@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 /**
- * 카비오(carvior.store) 파트너 API 연동.
+ * 카비어(carvior.store) 파트너 API 연동.
  *
  * 저쪽에서 성사된 계약을 읽어와 수출 상담 화면에 띄운다. 읽기 전용이다.
  *
@@ -40,7 +40,7 @@ export interface CarviorContract {
   /** 차키 갯수 */
   keyCount: number | null;
   /**
-   * 구전. 2026-09 현재 카비오는 이 값을 안 내려준다 — 저쪽에 칸이 생기면
+   * 구전. 2026-09 현재 카비어는 이 값을 안 내려준다 — 저쪽에 칸이 생기면
    * 그대로 흘러오도록 자리만 열어뒀다(없으면 undefined 라 매입 등록에서 0으로 둔다).
    */
   brokerFee?: number | null;
@@ -77,7 +77,7 @@ export class CarviorService {
   async findContracts(): Promise<CarviorContract[]> {
     if (!this.enabled) {
       throw new ServiceUnavailableException(
-        '카비오 연동이 설정되지 않았습니다. 서버 .env의 CARVIOR_CLIENT_ID/SECRET을 확인해 주세요.',
+        '카비어 연동이 설정되지 않았습니다. 서버 .env의 CARVIOR_CLIENT_ID/SECRET을 확인해 주세요.',
       );
     }
 
@@ -101,8 +101,8 @@ export class CarviorService {
     }
 
     if (!res.ok) {
-      this.logger.warn(`카비오 조회 실패 ${res.status}: ${path}`);
-      throw new ServiceUnavailableException('카비오에서 계약 목록을 가져오지 못했습니다.');
+      this.logger.warn(`카비어 조회 실패 ${res.status}: ${path}`);
+      throw new ServiceUnavailableException('카비어에서 계약 목록을 가져오지 못했습니다.');
     }
     return res;
   }
@@ -121,13 +121,13 @@ export class CarviorService {
     });
 
     if (!res.ok) {
-      this.logger.error(`카비오 토큰 발급 실패 ${res.status}`);
-      throw new ServiceUnavailableException('카비오 인증에 실패했습니다. 발급받은 열쇠를 확인해 주세요.');
+      this.logger.error(`카비어 토큰 발급 실패 ${res.status}`);
+      throw new ServiceUnavailableException('카비어 인증에 실패했습니다. 발급받은 열쇠를 확인해 주세요.');
     }
 
     const body = (await res.json()) as { access_token?: string; expires_in?: number };
     if (!body.access_token) {
-      throw new ServiceUnavailableException('카비오 인증 응답에 토큰이 없습니다.');
+      throw new ServiceUnavailableException('카비어 인증 응답에 토큰이 없습니다.');
     }
 
     this.token = body.access_token;

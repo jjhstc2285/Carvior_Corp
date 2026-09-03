@@ -19,7 +19,7 @@ interface Skipped {
 }
 
 interface Preview {
-  /** 카비오가 준 계약 수(취소 제외) */
+  /** 카비어가 준 계약 수(취소 제외) */
   total: number;
   items: PreviewItem[];
   skipped: Skipped[];
@@ -31,7 +31,7 @@ interface Props {
 }
 
 /**
- * 카비오에서 성사된 계약을 매입 내역으로 한 번에 옮긴다.
+ * 카비어에서 성사된 계약을 매입 내역으로 한 번에 옮긴다.
  *
  * 백 건 가까이 한꺼번에 들어가는 일이라, 무엇이 들어오고 무엇이 빠지는지 먼저 보여준다.
  * 이미 매입 관리에 있는 차량번호는 건너뛴다 — 두 번 눌러도 중복이 생기지 않는다.
@@ -53,7 +53,7 @@ export default function CarviorImportModal({ onClose, onImported }: Props) {
       setPreview(data);
     } catch (e) {
       if (myReq !== reqId.current) return;
-      setError(e instanceof ApiError ? e.message : '카비오 계약을 읽지 못했습니다.');
+      setError(e instanceof ApiError ? e.message : '카비어 계약을 읽지 못했습니다.');
     } finally {
       if (myReq === reqId.current) setLoading(false);
     }
@@ -66,8 +66,8 @@ export default function CarviorImportModal({ onClose, onImported }: Props) {
   const run = async () => {
     if (!preview || preview.items.length === 0) return;
     const ok = await confirmDanger(
-      `카비오 계약 ${preview.items.length}건을 매입 관리에 등록할까요?`,
-      '차량 관리에도 그 차들이 함께 올라갑니다. 구전·고객번호·연식·연료는 카비오에 없는 값이라 비어 있습니다.',
+      `카비어 계약 ${preview.items.length}건을 매입 관리에 등록할까요?`,
+      '차량 관리에도 그 차들이 함께 올라갑니다. 구전·고객번호·연식·연료는 카비어에 없는 값이라 비어 있습니다.',
       '일괄 등록',
     );
     if (!ok) return;
@@ -97,24 +97,24 @@ export default function CarviorImportModal({ onClose, onImported }: Props) {
     >
       <div className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">카비오에서 일괄 등록</h3>
+          <h3 className="text-base font-bold text-slate-800">카비어에서 일괄 등록</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
         </div>
         <p className="mt-1 text-xs text-slate-500">
-          카비오에서 성사된 계약을 매입 내역으로 옮깁니다. 취소된 계약과 <b>이미 매입 관리에 있는 차량번호는 건너뜁니다</b> —
+          카비어에서 성사된 계약을 매입 내역으로 옮깁니다. 취소된 계약과 <b>이미 매입 관리에 있는 차량번호는 건너뜁니다</b> —
           여러 번 눌러도 중복되지 않습니다.
         </p>
 
-        {loading && <p className="py-10 text-center text-sm text-slate-400">카비오를 읽는 중…</p>}
+        {loading && <p className="py-10 text-center text-sm text-slate-400">카비어를 읽는 중…</p>}
         {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{error}</p>}
 
         {preview && (
           <>
             <div className="mt-4 grid grid-cols-3 gap-3">
               <div className="rounded-xl border border-slate-200 px-3 py-2.5">
-                <p className="text-[11px] text-slate-400">카비오 계약</p>
+                <p className="text-[11px] text-slate-400">카비어 계약</p>
                 <p className="text-xl font-bold text-slate-700">
                   {preview.total}
                   <span className="ml-0.5 text-xs text-slate-400">건</span>
@@ -186,9 +186,9 @@ export default function CarviorImportModal({ onClose, onImported }: Props) {
             )}
 
             <p className="mt-3 text-[11px] text-slate-400">
-              금액은 카비오의 <b>만원</b>을 <b>원</b>으로 바꿔 넣습니다. 작성자·계약금·잔금은 특이사항에 한 줄로 남깁니다.
+              금액은 카비어의 <b>만원</b>을 <b>원</b>으로 바꿔 넣습니다. 작성자·계약금·잔금은 특이사항에 한 줄로 남깁니다.
               <br />
-              <b>구전·고객번호·연식·연료는 카비오가 안 내려주는 값</b>이라 비어 있습니다 — 등록 후 목록에서 채우시면 됩니다.
+              <b>구전·고객번호·연식·연료는 카비어가 안 내려주는 값</b>이라 비어 있습니다 — 등록 후 목록에서 채우시면 됩니다.
             </p>
 
             <div className="mt-4 flex justify-end gap-2">

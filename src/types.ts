@@ -307,7 +307,7 @@ export const CONSULTATION_KIND_LABEL: Record<ConsultationKind, string> = {
 /** 유입 경로 빠른 선택 — 수출은 들어오는 곳이 다르다. 어느 쪽이든 직접 입력도 된다. */
 export const CONSULTATION_PLATFORMS_BY_KIND: Record<ConsultationKind, readonly string[]> = {
   BROKERAGE: CONSULTATION_PLATFORMS,
-  EXPORT: ['카비오', '딜러', '직거래', '기타'],
+  EXPORT: ['카비어', '딜러', '직거래', '기타'],
 };
 
 export interface ConsultationRecord {
