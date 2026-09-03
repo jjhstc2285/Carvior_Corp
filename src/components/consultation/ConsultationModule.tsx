@@ -69,6 +69,7 @@ export default function ConsultationModule({ role }: Props) {
   const { state, deleteConsultation } = useStore();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<ConsultationStatus | 'all'>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
   const [preset, setPreset] = useState<{ vehicleNumber: string; vehicleName: string } | undefined>();
   const [editing, setEditing] = useState<ConsultationRecord | null>(null);
@@ -76,11 +77,10 @@ export default function ConsultationModule({ role }: Props) {
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [calMonth, setCalMonth] = useState(() => dayjs().startOf('month'));
 
-  const scoped = role === 'EMPLOYEE'
-    ? state.consultations.filter(c => c.employeeId === state.currentEmployeeId)
-    : state.consultations;
-
-  const filtered = scoped
+  // 직급과 상관없이 전체 상담을 본다 — 상담을 받은 사람과 뒤를 이어받는 사람이 다르다.
+  // 내 것만 보고 싶으면 담당자에서 고른다.
+  const filtered = state.consultations
+    .filter(c => ownerFilter === 'all' || c.employeeId === ownerFilter)
     .filter(c => statusFilter === 'all' || c.status === statusFilter)
     .filter(c => {
       const q = query.trim();
@@ -148,7 +148,7 @@ export default function ConsultationModule({ role }: Props) {
     <>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-slate-500">
-          받은 카톡 양식 그대로 등록합니다. 손님번호를 누르면 그 손님의 지난 상담이 모여 나옵니다.
+          받은 카톡 양식 그대로 등록합니다. <b>전체 상담이 다 보입니다</b> — 손님번호를 누르면 그 손님의 지난 상담이 모여 나옵니다.
         </p>
         <button
           onClick={() => { setEditing(null); setPreset(undefined); setFormOpen(true); }}
@@ -189,6 +189,16 @@ export default function ConsultationModule({ role }: Props) {
           placeholder="차량번호 또는 고객명 검색"
           className="w-56 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
         />
+        <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
+          <option value="all">담당자 전체</option>
+          {state.currentEmployeeId && <option value={state.currentEmployeeId}>내 상담만</option>}
+          {state.employees
+            .filter(e => e.id !== state.currentEmployeeId)
+            .map(e => (
+              <option key={e.id} value={e.id}>{e.name}</option>
+            ))}
+        </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as ConsultationStatus | 'all')}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
           <option value="all">전체 상태</option>
@@ -228,7 +238,7 @@ export default function ConsultationModule({ role }: Props) {
                 <th className="px-4 py-2.5 font-medium">차량번호</th>
                 <th className="px-4 py-2.5 font-medium">차명</th>
                 <th className="px-4 py-2.5 font-medium">손님번호</th>
-                {role === 'ADMIN' && <th className="px-4 py-2.5 font-medium">담당자</th>}
+                <th className="px-4 py-2.5 font-medium">담당자</th>
                 <th className="px-4 py-2.5 font-medium">방문예정</th>
                 <th className="px-4 py-2.5 font-medium">상태</th>
                 <th className="px-4 py-2.5 font-medium">내용</th>
@@ -257,7 +267,7 @@ export default function ConsultationModule({ role }: Props) {
                       {c.customerPhone || c.customerName || '—'}
                     </button>
                   </td>
-                  {role === 'ADMIN' && <td className="px-4 py-2.5 text-slate-500">{employeeOf(c.employeeId)?.name}</td>}
+                  <td className="px-4 py-2.5 text-slate-500">{employeeOf(c.employeeId)?.name}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">
                     {c.visitDate || c.visitTime ? (
                       <>

@@ -26,7 +26,7 @@ export default function ConsultationHub({ role }: Props) {
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-slate-900">{role === 'EMPLOYEE' ? '내 상담 목록' : '상담 관리'}</h1>
+        <h1 className="text-xl font-bold text-slate-900">상담 관리</h1>
       </div>
 
       <div className="mb-5 flex w-fit rounded-lg bg-slate-100 p-0.5 text-sm">
