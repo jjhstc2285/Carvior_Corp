@@ -5,6 +5,7 @@ import AttendanceRequestInbox from './AttendanceRequestInbox';
 import MonthlyDashboard from './MonthlyDashboard';
 import IpWhitelistSettings from './IpWhitelistSettings';
 import AttendanceDeviceSettings from './AttendanceDeviceSettings';
+import EmployeeSettings from './EmployeeSettings';
 
 export default function AdminView() {
   return (
@@ -21,6 +22,7 @@ export default function AdminView() {
         <ApprovalInbox />
         <IpWhitelistSettings />
         <AttendanceDeviceSettings />
+        <EmployeeSettings />
         <MonthlyDashboard />
       </div>
     </div>
