@@ -11,6 +11,12 @@ interface CarSpec {
   count: number;
 }
 
+/** 서버는 못 찾으면 이름을 줄여가며 다시 찾는다 — 무엇으로 찾았는지 같이 온다. */
+interface SearchResult {
+  query: string;
+  specs: CarSpec[];
+}
+
 interface Props {
   /** 부르는 화면에 적힌 차명 — 열자마자 그걸로 찾아둔다 */
   defaultQuery: string;
@@ -75,6 +81,8 @@ export default function PriceCheckModal({
   const [sameFuelOnly, setSameFuelOnly] = useState(Boolean(targetFuel));
   const [query, setQuery] = useState(defaultQuery);
   const [specs, setSpecs] = useState<CarSpec[] | null>(null);
+  /** 서버가 실제로 찾은 이름. 적어 넣은 것과 다르면 화면에 알린다 */
+  const [usedQuery, setUsedQuery] = useState('');
   const [picked, setPicked] = useState<CarSpec | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
@@ -89,9 +97,10 @@ export default function PriceCheckModal({
     setError(null);
     setPicked(null);
     try {
-      const rows = await api<CarSpec[]>(`/carvior/car-spec/search?q=${encodeURIComponent(q)}`);
+      const res = await api<SearchResult>(`/carvior/car-spec/search?q=${encodeURIComponent(q)}`);
       if (myReq !== reqId.current) return;
-      setSpecs(rows);
+      setSpecs(res.specs);
+      setUsedQuery(res.query);
     } catch (e) {
       if (myReq !== reqId.current) return;
       setError(e instanceof ApiError ? e.message : '시세를 불러오지 못했습니다.');
@@ -232,7 +241,16 @@ export default function PriceCheckModal({
           <div className="mt-4">
             {loading && <p className="py-8 text-center text-sm text-slate-400">불러오는 중…</p>}
             {!loading && specs?.length === 0 && (
-              <p className="py-8 text-center text-sm text-slate-400">그 이름으로 찾은 등급이 없습니다.</p>
+              <p className="py-8 text-center text-sm text-slate-400">
+                “{query.trim()}”로 찾은 등급이 없습니다. 차명을 짧게 줄여 보세요 — SM6, K7, 그랜저.
+              </p>
+            )}
+
+            {/* 이름을 바꿔 찾은 걸 모르면 엉뚱한 차 등급을 고르게 된다 */}
+            {!loading && specs && specs.length > 0 && usedQuery !== query.trim() && (
+              <p className="mb-2 rounded-lg bg-amber-50/60 px-3 py-2 text-[11px] text-amber-800">
+                “{query.trim()}”로는 못 찾아서 <b>“{usedQuery}”</b>로 찾았습니다. 아래에서 맞는 등급을 골라 주세요.
+              </p>
             )}
             {!loading && specs && specs.length > 0 && (
               <div className="max-h-80 space-y-1.5 overflow-y-auto">

@@ -30,6 +30,62 @@ const TOKEN_PATH = '/api/v1/partner-api/oauth/token';
  */
 const CAR_SPEC_PATH = '/api/v1/external/car-spec';
 
+/**
+ * 저쪽 검색은 적어 넣은 낱말이 **전부** 맞아야 결과를 준다.
+ * 그래서 우리가 들고 있는 차명을 그대로 넣으면 대개 빈손으로 돌아온다 —
+ * "르노(삼성) SM6", "아우디 A5(2세대) 40TDI quattro" 처럼 괄호와 모델 코드가 붙어 있다.
+ *
+ * 우리 표기와 저쪽 표기가 다른 것들. 사람이 고쳐 치게 하지 않고 여기서 맞춰준다.
+ */
+const SPELLING_VARIANTS: [RegExp, string][] = [
+  [/산타페/g, '싼타페'],
+  [/소나타/g, '쏘나타'],
+  [/그렌[저져]/g, '그랜저'],
+  [/액센트/g, '엑센트'], // 저쪽은 '엑센트'로 적는다
+  // "올뉴 코란도"처럼 우리끼리 붙이는 세대 수식어. 저쪽 등급 이름에는 없다.
+  [/(올\s*뉴|더\s*뉴|뉴)\s*/g, ''],
+  [/르노\s*삼성|삼성\s*르노/g, '르노'],
+];
+
+/**
+ * 찾아볼 이름 후보를 좁은 것부터 넓은 것 순으로 만든다.
+ *
+ * 넓은 쪽부터 찾으면 "K7" 하나로 온 등급이 다 나와서 어느 게 그 차인지 알 수 없다.
+ * 좁은 쪽이 맞으면 그게 제일 정확하니 거기서 멈춘다.
+ */
+export function searchCandidates(name: string): string[] {
+  const out: string[] = [];
+  const add = (x: string) => {
+    const t = x.split(/\s+/).filter(Boolean).join(' ');
+    if (t && !out.includes(t)) out.push(t);
+  };
+
+  add(name);
+  const spelled = SPELLING_VARIANTS.reduce((acc, [from, to]) => acc.replace(from, to), name);
+  add(spelled);
+
+  // 괄호 안은 우리끼리 쓰는 세대 표기라 저쪽엔 없다 — "(2세대)", "(삼성)"
+  const bare = spelled.replace(/\([^)]*\)/g, ' ');
+  add(bare);
+
+  // 이름과 모델 코드를 붙여 적는 사람이 많다 — "벤츠C220", "티구안2.0", "봉고3".
+  // 저쪽은 띄어 적어서 그대로는 안 잡힌다. 한글과 영문·숫자 사이를 벌려준다.
+  const spaced = bare
+    .replace(/([가-힣])([A-Za-z0-9])/g, '$1 $2')
+    .replace(/([A-Za-z0-9])([가-힣])/g, '$1 $2');
+  add(spaced);
+
+  // 뒤에 붙은 트림·구동 표기부터 하나씩 떼어낸다 — 앞쪽이 차명일 가능성이 높다.
+  const tokens = spaced.split(/\s+/).filter(Boolean);
+  for (let i = tokens.length - 1; i > 0; i -= 1) add(tokens.slice(0, i).join(' '));
+
+  // 그래도 없으면 낱말 하나씩. 긴 것부터 — "SM6" 가 "르노" 보다 좁다.
+  for (const t of [...tokens].sort((a, b) => b.length - a.length)) add(t);
+
+  // 저쪽을 열 번씩 두드리지 않는다. 여기까지 못 찾으면 사람이 고쳐 치는 게 빠르다.
+  return out.slice(0, 7);
+}
+
 /** 차명 검색 결과 한 줄 — 제조사·모델·등급과 그 등급으로 올라온 매물 수 */
 export interface CarSpec {
   manufacturer: string;
@@ -118,9 +174,18 @@ export class CarviorService {
     return body.data ?? [];
   }
 
-  /** 차명으로 등급을 찾는다 — "K7" 처럼 적으면 그 차의 등급들이 나온다. */
-  async searchSpecs(q: string): Promise<CarSpec[]> {
-    return this.publicGet<CarSpec>(`${CAR_SPEC_PATH}/search`, { q });
+  /**
+   * 차명으로 등급을 찾는다.
+   *
+   * 적어 넣은 이름 그대로 못 찾으면 낱말을 줄여가며 다시 찾는다. 무엇으로 찾았는지
+   * 같이 돌려주는 이유: 이름을 바꿔 찾은 걸 모르면 엉뚱한 차 등급을 고르게 된다.
+   */
+  async searchSpecs(q: string): Promise<{ query: string; specs: CarSpec[] }> {
+    for (const candidate of searchCandidates(q)) {
+      const specs = await this.publicGet<CarSpec>(`${CAR_SPEC_PATH}/search`, { q: candidate });
+      if (specs.length > 0) return { query: candidate, specs };
+    }
+    return { query: q.trim(), specs: [] };
   }
 
   /** 고른 등급으로 올라와 있는 매물 — 시세 곡선을 그리는 재료다. */
@@ -222,7 +287,7 @@ export class CarviorController {
   searchSpecs(@Query('q') q?: string) {
     const term = (q ?? '').trim();
     // 빈 검색어로 저쪽을 두드리지 않는다 — 글자를 지웠을 때도 요청이 나간다.
-    return term ? this.carvior.searchSpecs(term) : [];
+    return term ? this.carvior.searchSpecs(term) : { query: '', specs: [] };
   }
 
   /** 시세 조회 — 고른 등급의 매물 */
