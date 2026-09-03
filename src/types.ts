@@ -339,8 +339,10 @@ export type ParkingStatus = 'DISPLAY' | 'SOLD' | 'RESERVED' | 'MOVING';
 
 export const PARKING_STATUS_LABEL: Record<ParkingStatus, string> = {
   DISPLAY: '전시중',
-  SOLD: '판매완료',
-  RESERVED: '예약중',
+  // DB 값은 그대로 두고 이름만 바꾼다 — 예전 자료를 옮기지 않아도 되고,
+  // 부르는 이름은 앞으로도 또 바뀔 수 있다.
+  SOLD: '엔카 진단예정',
+  RESERVED: '출고대기',
   MOVING: '이동중',
 };
 
@@ -354,8 +356,6 @@ export interface ParkingVehicle {
   status: ParkingStatus;
   employeeId: string; // 담당자
   memo: string;
-  /** 주차된 모습(전면) 한 장. 없으면 빈 문자열 */
-  photoUrl: string;
   updatedAt: string;
 }
 

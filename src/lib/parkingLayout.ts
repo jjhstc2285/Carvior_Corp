@@ -65,8 +65,8 @@ export const PARKING_LOTS: ParkingLotConfig[] = [
   { lot: '고색동 213-4', group: '외부', bandColor: '#67e8f9', zones: numberedZones(8), slots: rowSlots(2) },
   { lot: '고색동 203-2', group: '외부', bandColor: '#fca5a5', zones: numberedZones(5), slots: rowSlots(5) },
   { lot: '배양동 58-13', group: '외부', bandColor: '#bef264', zones: numberedZones(7), slots: rowSlots(12) },
-  // 4,000만원 이상 고가차를 따로 두는 곳. 시트지에 없어서 칸 수는 임시다 — 실제와 맞춰 고치면 된다.
-  { lot: '배양동 창고', group: '외부', bandColor: '#fcd34d', zones: numberedZones(6), slots: rowSlots(3) },
+  // 4,000만원 이상 고가차를 따로 두는 곳. 다섯 대까지 들어간다.
+  { lot: '배양동 창고', group: '외부', bandColor: '#fcd34d', zones: numberedZones(5), slots: rowSlots(1) },
 ];
 
 /** 그 주차장이 쓰는 줄 목록 — 안 정해뒀으면 본관 기본값 */

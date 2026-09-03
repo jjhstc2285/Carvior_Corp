@@ -191,14 +191,6 @@ function extractCode(data: unknown): string | null {
   return typeof code === 'string' ? code : null;
 }
 
-/** 주차된 모습 한 장. 매물 사진과 달리 자리마다 한 장뿐이라 따로 둔다. */
-export async function uploadParkingPhoto(file: File): Promise<string> {
-  const form = new FormData();
-  form.append('file', file);
-  const res = await api<{ url: string }>('/parking/photo', { method: 'POST', formData: form });
-  return res.url;
-}
-
 export async function uploadPhotos(files: File[]): Promise<string[]> {
   const form = new FormData();
   files.forEach((f) => form.append('files', f));

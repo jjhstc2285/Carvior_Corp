@@ -8,13 +8,7 @@ import ParkingGrid from './ParkingGrid';
 import SheetImportModal from './SheetImportModal';
 import MoveSuggestions from './MoveSuggestions';
 import { alertError, confirmDanger } from '../../lib/alert';
-
-const STATUS_COLOR: Record<ParkingStatus, string> = {
-  DISPLAY: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-  RESERVED: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  SOLD: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  MOVING: 'bg-gray-100 text-gray-600 ring-gray-500/20',
-};
+import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
 // 주차 자리는 등록·이동·비우기 모두 현장에서 하는 일이라 권한을 나누지 않는다.
 // 시트 가져오기만 관리자다 — 한 번에 백 대가 넘는 자리를 덮어쓰는 일이라서.
@@ -138,21 +132,11 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
                   <td className="px-5 py-2.5 text-slate-600">{v.lot}</td>
                   <td className="px-5 py-2.5 text-slate-600">{v.zone}</td>
                   <td className="px-5 py-2.5 text-slate-500">{v.slot}</td>
-                  <td className="px-5 py-2.5 font-mono font-medium text-slate-700">
-                    <span className="flex items-center gap-1.5">
-                      {v.vehicleNumber}
-                      {/* 주차된 모습 — 눌러서 원본을 새 탭으로 연다 */}
-                      {v.photoUrl && (
-                        <a href={v.photoUrl} target="_blank" rel="noreferrer" title="주차 사진 보기">
-                          <img src={v.photoUrl} alt="" className="h-7 w-10 rounded object-cover ring-1 ring-slate-200" />
-                        </a>
-                      )}
-                    </span>
-                  </td>
+                  <td className="px-5 py-2.5 font-mono font-medium text-slate-700">{v.vehicleNumber}</td>
                   <td className="px-5 py-2.5 text-slate-600">{v.vehicleModel}</td>
                   <td className="px-5 py-2.5 text-slate-500">{employeeOf(v.employeeId)?.name ?? '-'}</td>
                   <td className="px-5 py-2.5">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_COLOR[v.status]}`}>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${PARKING_STATUS_STYLE[v.status].pill}`}>
                       {PARKING_STATUS_LABEL[v.status]}
                     </span>
                   </td>

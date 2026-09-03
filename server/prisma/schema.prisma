@@ -412,8 +412,6 @@ model ParkingVehicle {
   status        ParkingStatus @default(DISPLAY)
   employeeId    String
   memo          String        @db.Text
-  // 주차된 모습(전면) 한 장. 어느 칸에 어떻게 세웠는지 글로 적기 어려운 걸 사진이 대신한다.
-  photoUrl      String        @default("") @db.VarChar(255)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

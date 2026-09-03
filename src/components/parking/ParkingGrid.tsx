@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Camera } from 'lucide-react';
 import {
   DndContext,
   DragOverlay,
@@ -12,21 +11,15 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { useStore } from '../../store';
-import type { ParkingStatus, ParkingVehicle } from '../../types';
+import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup } from '../../lib/parkingLayout';
+import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
 interface Props {
   onCellClick: (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => void;
   /** 끌어다 놓기 실패를 화면에 알린다 */
   onMoveError: (message: string) => void;
 }
-
-const STATUS_DOT: Record<ParkingStatus, string> = {
-  DISPLAY: 'bg-blue-400',
-  RESERVED: 'bg-amber-400',
-  SOLD: 'bg-emerald-400',
-  MOVING: 'bg-gray-400',
-};
 
 interface CellPos {
   lot: string;
@@ -71,17 +64,15 @@ function ParkingCell({
           isOver
             ? 'bg-indigo-200 ring-2 ring-inset ring-indigo-500'
             : vehicle
-              ? 'bg-orange-100 hover:bg-orange-200'
+              ? PARKING_STATUS_STYLE[vehicle.status].cell
               : 'bg-white hover:bg-slate-50'
         } ${isDragging ? 'opacity-30' : ''} ${vehicle ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         {vehicle ? (
           <>
-            <span className="flex items-center gap-1 font-mono font-semibold text-slate-800">
-              <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[vehicle.status]}`} />
+            <span className="flex items-center gap-1 font-mono font-semibold">
+              <span className={`h-1.5 w-1.5 rounded-full ${PARKING_STATUS_STYLE[vehicle.status].dot}`} />
               {vehicle.vehicleNumber}
-              {/* 주차된 모습을 찍어둔 자리 — 눌러서 열면 사진이 나온다 */}
-              {vehicle.photoUrl && <Camera size={10} className="text-slate-400" />}
             </span>
             {/*
               메모는 "3시", "재검", "외부 고색"처럼 그 자리에서 바로 알아야 하는 말이 적힌다.
@@ -89,7 +80,7 @@ function ParkingCell({
               길면 잘라 보여주고 전체는 마우스를 올려 본다.
             */}
             {vehicle.memo && (
-              <span className="w-full truncate text-[10px] leading-tight text-slate-500" title={vehicle.memo}>
+              <span className="w-full truncate text-[10px] leading-tight opacity-70" title={vehicle.memo}>
                 {vehicle.memo}
               </span>
             )}
@@ -229,10 +220,15 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
           );
         })}
 
-        <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-          {(Object.entries(STATUS_DOT) as [ParkingStatus, string][]).map(([status, dot]) => (
-            <span key={status} className="flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${dot}`} /> {status}
+        {/* 칸 색과 같은 색으로 보여준다 — 범례가 구역도와 다르면 볼 이유가 없다 */}
+        <div className="flex flex-wrap gap-2 text-xs">
+          {(Object.keys(PARKING_STATUS_STYLE) as ParkingStatus[]).map(status => (
+            <span
+              key={status}
+              className={`flex items-center gap-1.5 rounded-md px-2 py-1 font-medium ${PARKING_STATUS_STYLE[status].cell}`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${PARKING_STATUS_STYLE[status].dot}`} />
+              {PARKING_STATUS_LABEL[status]}
             </span>
           ))}
         </div>
@@ -241,8 +237,10 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
       {/* 끌고 있는 동안 손가락·커서를 따라다니는 조각 */}
       <DragOverlay>
         {dragging && (
-          <div className="flex items-center gap-1 rounded-lg border-2 border-indigo-500 bg-orange-100 px-2 py-1.5 font-mono text-xs font-semibold text-slate-800 shadow-lg">
-            <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[dragging.status]}`} />
+          <div
+            className={`flex items-center gap-1 rounded-lg border-2 border-indigo-500 px-2 py-1.5 font-mono text-xs font-semibold shadow-lg ${PARKING_STATUS_STYLE[dragging.status].cell}`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${PARKING_STATUS_STYLE[dragging.status].dot}`} />
             {dragging.vehicleNumber}
           </div>
         )}

@@ -9,15 +9,7 @@ import {
   Patch,
   Post,
   Query,
-  UploadedFile,
-  UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { randomUUID } from 'crypto';
-import { existsSync, mkdirSync } from 'fs';
-import { unlink } from 'fs/promises';
-import { extname, join } from 'path';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ParkingStatus, Prisma, Role } from '@prisma/client';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
@@ -27,15 +19,6 @@ import { collectPlates, parseParkingSheet, type ParsedSpot, type SkippedCell } f
 import { plateTailOf } from '../vehicles/vehicle.rules';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
-
-// 매물 사진과 같은 자리에 둔다 — Apache 가 /uploads 를 정적으로 내보내고 있어서
-// 이 경로가 곧 브라우저에서 여는 주소가 된다.
-const UPLOAD_DIR = process.env.UPLOAD_DIR ?? './uploads';
-const PHOTO_DIR = join(UPLOAD_DIR, 'parking');
-const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8MB — 화면에서 줄여 올리므로 넉넉한 상한
-const ALLOWED_IMAGE = /^image\/(jpeg|png|webp|heic|heif)$/;
-
-if (!existsSync(PHOTO_DIR)) mkdirSync(PHOTO_DIR, { recursive: true });
 
 // ── DTO ──────────────────────────────
 
@@ -48,8 +31,6 @@ export class UpsertParkingDto {
   @IsOptional() @IsEnum(ParkingStatus) status?: ParkingStatus;
   @IsString() @IsNotEmpty() employeeId!: string;
   @IsOptional() @IsString() memo?: string;
-  /** 주차된 모습(전면) 한 장. 빈 문자열이면 지운다는 뜻이다. */
-  @IsOptional() @IsString() @MaxLength(255) photoUrl?: string;
 }
 
 /** 자리 이동 — 끌어다 놓은 칸 */
@@ -66,7 +47,6 @@ export class UpdateParkingDto {
   @IsOptional() @IsEnum(ParkingStatus) status?: ParkingStatus;
   @IsOptional() @IsString() employeeId?: string;
   @IsOptional() @IsString() memo?: string;
-  @IsOptional() @IsString() @MaxLength(255) photoUrl?: string;
 }
 
 // ── Service ──────────────────────────────
@@ -235,13 +215,7 @@ export class ParkingService {
       );
     }
 
-    // 사진을 바꾸거나 지우면 옛 파일은 아무도 못 보게 된다 — 디스크에만 남지 않게 지운다.
-    const before = await this.prisma.parkingVehicle.findUnique({
-      where: { lot_zone_slot: { lot: dto.lot, zone: dto.zone, slot: dto.slot } },
-      select: { photoUrl: true },
-    });
-
-    const saved = await this.prisma.parkingVehicle.upsert({
+    return this.prisma.parkingVehicle.upsert({
       where: { lot_zone_slot: { lot: dto.lot, zone: dto.zone, slot: dto.slot } },
       create: {
         lot: dto.lot,
@@ -252,7 +226,6 @@ export class ParkingService {
         status: dto.status ?? ParkingStatus.DISPLAY,
         employeeId: dto.employeeId,
         memo: dto.memo ?? '',
-        photoUrl: dto.photoUrl ?? '',
       },
       update: {
         vehicleNumber: dto.vehicleNumber,
@@ -260,15 +233,9 @@ export class ParkingService {
         ...(dto.status ? { status: dto.status } : {}),
         employeeId: dto.employeeId,
         memo: dto.memo ?? '',
-        ...(dto.photoUrl !== undefined ? { photoUrl: dto.photoUrl } : {}),
       },
       include: EMPLOYEE_SELECT,
     });
-
-    if (before?.photoUrl && before.photoUrl !== saved.photoUrl) {
-      await this.deletePhoto(before.photoUrl);
-    }
-    return saved;
   }
 
   /**
@@ -335,24 +302,7 @@ export class ParkingService {
   /** 칸 비우기 */
   async remove(id: string) {
     await this.assertExists(id);
-    const row = await this.prisma.parkingVehicle.findUnique({
-      where: { id },
-      select: { photoUrl: true },
-    });
     await this.prisma.parkingVehicle.delete({ where: { id } });
-    // 자리를 비우면 사진도 같이 지운다 — 파일만 남으면 아무도 못 찾고 용량만 먹는다.
-    if (row?.photoUrl) await this.deletePhoto(row.photoUrl);
-  }
-
-  /** 파일이 이미 없거나 권한이 없어도 자리 비우기 자체를 막을 이유는 없다. */
-  private async deletePhoto(url: string): Promise<void> {
-    const fileName = url.split('/').pop();
-    if (!fileName) return;
-    try {
-      await unlink(join(PHOTO_DIR, fileName));
-    } catch {
-      // 무시
-    }
   }
 
   private async assertExists(id: string) {
@@ -371,37 +321,6 @@ export class ParkingController {
   @Get()
   findAll(@Query('q') q?: string, @Query('lot') lot?: string, @Query('status') status?: ParkingStatus) {
     return this.parking.findAll({ q, lot, status });
-  }
-
-  /**
-   * 주차 사진 한 장 — 자리를 저장하기 전에 먼저 올리고, 받은 주소를 photoUrl 로 같이 보낸다.
-   *
-   * 원본 파일명은 쓰지 않고 UUID로 바꾼다(경로 조작·한글 파일명 문제 회피).
-   * 사진은 현장에서 찍어 올리는 거라 관리자로 막지 않는다.
-   */
-  @Post('photo')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: PHOTO_DIR,
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname).toLowerCase() || '.jpg';
-          cb(null, `${randomUUID()}${ext}`);
-        },
-      }),
-      limits: { fileSize: MAX_FILE_SIZE, files: 1 },
-      fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_IMAGE.test(file.mimetype)) {
-          cb(new BadRequestException('이미지 파일만 올릴 수 있습니다.'), false);
-          return;
-        }
-        cb(null, true);
-      },
-    }),
-  )
-  uploadPhoto(@UploadedFile() file?: Express.Multer.File) {
-    if (!file) throw new BadRequestException('업로드할 사진이 없습니다.');
-    return { url: `/uploads/parking/${file.filename}` };
   }
 
   /**
