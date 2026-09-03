@@ -1,12 +1,41 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConsultationKind, ConsultationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizePlate } from '../vehicles/vehicle.rules';
 import { formatDateOnly, formatDateOnlyOrNull, toDateOnly, toDateOnlyOrNull } from '../common/date.util';
 import type { CreateConsultationDto, UpdateConsultationDto } from './dto/consultation.dto';
 
 @Injectable()
 export class ConsultationsService {
+  private readonly logger = new Logger(ConsultationsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * 판매완료된 차의 주차 자리를 비운다.
+   *
+   * 출고되어 마당에 없는 차가 구역도에 남아 있으면 그 칸을 아무도 못 쓴다.
+   * 자리를 비우는 것뿐이고 차량 관리의 차는 그대로 둔다 — 주유·수리 이력이 붙어 있고,
+   * 되사오는 일도 있다.
+   *
+   * 차량번호는 사람이 손으로 적는 값이라 띄어쓰기가 섞여 들어온다. 있는 그대로와
+   * 정리한 꼴 둘 다로 찾는다.
+   *
+   * 실패해도 상담 저장은 그대로 둔다 — 자리 하나 때문에 판매완료 처리를 못 하면 안 된다.
+   */
+  private async clearParkingSpot(vehicleNumber: string): Promise<void> {
+    const candidates = [...new Set([vehicleNumber, normalizePlate(vehicleNumber)])].filter(Boolean);
+    if (candidates.length === 0) return;
+
+    try {
+      const { count } = await this.prisma.parkingVehicle.deleteMany({
+        where: { vehicleNumber: { in: candidates } },
+      });
+      if (count > 0) this.logger.log(`판매완료로 주차 자리를 비웠습니다: ${vehicleNumber}`);
+    } catch (e) {
+      this.logger.warn(`주차 자리를 비우지 못했습니다(${vehicleNumber}): ${(e as Error).message}`);
+    }
+  }
 
   private readonly include = {
     employee: { select: { id: true, name: true, position: true } },
@@ -85,6 +114,8 @@ export class ConsultationsService {
       },
       include: this.include,
     });
+
+    if (row.status === ConsultationStatus.SOLD) await this.clearParkingSpot(row.vehicleNumber);
     return this.toView(row);
   }
 
@@ -113,6 +144,9 @@ export class ConsultationsService {
       },
       include: this.include,
     });
+
+    // 이미 판매완료였다가 다른 칸만 고친 경우에도 한 번 더 비운다 — 자리를 다시 적었을 수 있다.
+    if (row.status === ConsultationStatus.SOLD) await this.clearParkingSpot(row.vehicleNumber);
     return this.toView(row);
   }
 
