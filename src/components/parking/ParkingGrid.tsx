@@ -67,7 +67,7 @@ function ParkingCell({
         {...attributes}
         {...listeners}
         onClick={onClick}
-        className={`flex h-11 w-full flex-col items-center justify-center gap-0.5 px-1 text-center transition-colors ${
+        className={`flex min-h-11 w-full flex-col items-center justify-center gap-0.5 px-1 py-1 text-center transition-colors ${
           isOver
             ? 'bg-indigo-200 ring-2 ring-inset ring-indigo-500'
             : vehicle
@@ -76,12 +76,24 @@ function ParkingCell({
         } ${isDragging ? 'opacity-30' : ''} ${vehicle ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         {vehicle ? (
-          <span className="flex items-center gap-1 font-mono font-semibold text-slate-800">
-            <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[vehicle.status]}`} />
-            {vehicle.vehicleNumber}
-            {/* 주차된 모습을 찍어둔 자리 — 눌러서 열면 사진이 나온다 */}
-            {vehicle.photoUrl && <Camera size={10} className="text-slate-400" />}
-          </span>
+          <>
+            <span className="flex items-center gap-1 font-mono font-semibold text-slate-800">
+              <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[vehicle.status]}`} />
+              {vehicle.vehicleNumber}
+              {/* 주차된 모습을 찍어둔 자리 — 눌러서 열면 사진이 나온다 */}
+              {vehicle.photoUrl && <Camera size={10} className="text-slate-400" />}
+            </span>
+            {/*
+              메모는 "3시", "재검", "외부 고색"처럼 그 자리에서 바로 알아야 하는 말이 적힌다.
+              칸이 좁아 한 줄로는 차량번호에 묻히니 아래 줄에 따로 둔다.
+              길면 잘라 보여주고 전체는 마우스를 올려 본다.
+            */}
+            {vehicle.memo && (
+              <span className="w-full truncate text-[10px] leading-tight text-slate-500" title={vehicle.memo}>
+                {vehicle.memo}
+              </span>
+            )}
+          </>
         ) : (
           <span className="text-slate-300">·</span>
         )}

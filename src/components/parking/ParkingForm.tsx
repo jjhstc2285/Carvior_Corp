@@ -29,6 +29,7 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
   const [photoUrl, setPhotoUrl] = useState(editing?.photoUrl ?? '');
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -43,6 +44,12 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
   const handlePhoto = async (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
+
+    // 끌어놓기·붙여넣기로는 아무 파일이나 들어올 수 있다.
+    if (!file.type.startsWith('image/')) {
+      setError('이미지 파일만 올릴 수 있습니다.');
+      return;
+    }
 
     setUploading(true);
     setError(null);
@@ -192,22 +199,47 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
                 </button>
               </div>
             ) : (
+              /*
+               * PC에서는 끌어놓기·붙여넣기, 휴대폰에서는 눌러서 카메라·앨범.
+               * 휴대폰은 파일을 끌어놓을 수 없어서 누르는 길을 없애면 아예 못 올린다 —
+               * 끌어놓기는 더해지는 것이지 대신하는 게 아니다.
+               */
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
+                onDragOver={e => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  void handlePhoto(e.dataTransfer.files);
+                }}
+                onPaste={e => void handlePhoto(e.clipboardData.files)}
                 disabled={uploading}
-                className="flex h-20 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 text-sm font-medium text-slate-400 hover:border-indigo-300 hover:text-indigo-500 disabled:opacity-50"
+                className={`flex h-20 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-sm font-medium transition-colors disabled:opacity-50 ${
+                  dragOver
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-600'
+                    : 'border-slate-300 text-slate-400 hover:border-indigo-300 hover:text-indigo-500'
+                }`}
               >
-                {uploading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
-                {uploading ? '올리는 중…' : '사진 찍기 · 고르기'}
+                <span className="flex items-center gap-1.5">
+                  {uploading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+                  {uploading ? '올리는 중…' : dragOver ? '여기에 놓으세요' : '사진 찍기 · 고르기'}
+                </span>
+                {!uploading && !dragOver && (
+                  <span className="text-[11px] font-normal text-slate-300">끌어놓거나 붙여넣어도 됩니다</span>
+                )}
               </button>
             )}
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
-              // 휴대폰에서는 카메라가 바로 열린다 — 자리에 서서 찍어 올리는 흐름이다.
-              capture="environment"
+              // capture 를 주면 휴대폰이 카메라만 열어서 이미 찍어둔 사진을 못 쓴다.
+              // 안 주면 카메라와 앨범 중 고르게 물어본다.
               onChange={e => void handlePhoto(e.target.files)}
               className="hidden"
             />
