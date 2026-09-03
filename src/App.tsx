@@ -18,6 +18,7 @@ import ChatModule from './components/chat/ChatModule';
 import CleaningModule from './components/cleaning/CleaningModule';
 import PurchaseListModule from './components/purchaseList/PurchaseListModule';
 import PurchaseIntakeModule from './components/purchaseIntake/PurchaseIntakeModule';
+import StockFinanceModule from './components/vehicle/StockFinanceModule';
 import { useChatUnread } from './components/chat/useChat';
 import { useIdleAway } from './hooks/useIdleAway';
 import { useStore } from './store';
@@ -34,6 +35,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   vehiclePost: '매물 사진 등록',
   purchaseIntake: '매입 관리',
   purchaseList: '매입리스트',
+  stockFinance: '재고금융 (제시)',
   cleaning: '청소 관리 대장',
   chat: '메시지',
 };
@@ -46,6 +48,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'cleaning') return <CleaningModule role={role} />;
   if (module === 'purchaseIntake') return <PurchaseIntakeModule role={role} />;
   if (module === 'purchaseList') return <PurchaseListModule role={role} />;
+  if (module === 'stockFinance') return <StockFinanceModule />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
   if (module === 'vehiclePost') return <VehiclePostModule role={role} />;
