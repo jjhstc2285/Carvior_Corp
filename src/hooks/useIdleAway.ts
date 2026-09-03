@@ -25,6 +25,32 @@ const CHECK_MS = 60 * 1000;
 /** 사람이 만지고 있다는 신호. passive 로 붙여 스크롤을 막지 않는다. */
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const;
 
+/**
+ * 지금 자리비움을 올려야 하는가.
+ *
+ * 판단만 따로 떼어 둔다 — 타이머·이벤트에 얽혀 있으면 규칙이 맞는지 확인할 수가 없다.
+ */
+export function shouldReportAway(input: {
+  now: number;
+  lastActivity: number;
+  /** 이번에 비운 걸 이미 올렸는지 */
+  reported: boolean;
+  employeeId: string | null;
+  today: string;
+  records: AttendanceRecord[];
+}): boolean {
+  const { now, lastActivity, reported, employeeId, today, records } = input;
+
+  if (!employeeId) return false;
+  // 한 번 올렸으면 돌아올 때까지 다시 올리지 않는다 — 30분마다 계속 올리면 알림이 도배된다.
+  if (reported) return false;
+  if (now - lastActivity < IDLE_MS) return false;
+
+  // 출근 전이거나 이미 퇴근했으면 자리를 비운 게 아니다.
+  const record = records.find(r => r.employeeId === employeeId && r.date === today);
+  return Boolean(record?.clockIn) && !record?.clockOut;
+}
+
 interface Options {
   /** 지금 로그인한 직원. 없으면 아무것도 안 한다 */
   employeeId: string | null;
@@ -63,13 +89,17 @@ export function useIdleAway({ employeeId, records, submit }: Options): void {
 
     const check = async () => {
       const { employeeId: id, records: rows, submit: send } = latest.current;
-      if (!id || reported.current) return;
-      if (Date.now() - lastActivity.current < IDLE_MS) return;
-
-      // 출근 전이거나 이미 퇴근했으면 자리를 비운 게 아니다.
       const today = dayjs().format('YYYY-MM-DD');
-      const record = rows.find(r => r.employeeId === id && r.date === today);
-      if (!record?.clockIn || record.clockOut) return;
+
+      const due = shouldReportAway({
+        now: Date.now(),
+        lastActivity: lastActivity.current,
+        reported: reported.current,
+        employeeId: id,
+        today,
+        records: rows,
+      });
+      if (!due) return;
 
       // 먼저 올렸다고 표시한다. 요청이 오가는 사이에 다음 차례가 돌아 두 번 올리는 걸 막는다.
       reported.current = true;
