@@ -121,6 +121,8 @@ export default function PriceCheckModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reqId = useRef(0);
+  /** 바깥을 눌러 시작했는지 — 창 안에서 시작한 끌기는 닫지 않는다 */
+  const pressedBackdrop = useRef(false);
 
   const search = useCallback(async (term: string) => {
     const q = term.trim();
@@ -141,6 +143,15 @@ export default function PriceCheckModal({
       if (myReq === reqId.current) setLoading(false);
     }
   }, []);
+
+  // 창이 커서 바깥을 누르기 번거롭다. Esc 로도 닫는다.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   // 차명이 적혀 있으면 열자마자 찾아둔다 — 이미 아는 걸 다시 치게 하지 않는다.
   useEffect(() => {
@@ -218,10 +229,24 @@ export default function PriceCheckModal({
     const px = (x: number) => CHART.left + (x / xScale.max) * plotW;
     const py = (y: number) => CHART.top + plotH - (y / yScale.max) * plotH;
 
+    /*
+     * 곡선은 매물이 실제로 있는 구간에서만 그린다.
+     *
+     * 2차식이라 데이터가 없는 쪽으로 늘리면 포물선이 되돌아 올라간다 — 주행거리가
+     * 늘수록 값이 오르는 것처럼 보인다. 없는 데를 그려서 될 일이 아니다.
+     * 대상 차가 그 밖에 있으면 거기까지만 늘린다(그건 아래에서 따로 알린다).
+     */
+    const xs = fit.points.map(p => p.x);
+    const from = Math.min(...xs, targetX || Infinity);
+    const to = Math.max(...xs, targetX);
+
     const path = Array.from({ length: 41 }, (_, i) => {
-      const x = (xScale.max * i) / 40;
+      const x = from + ((to - from) * i) / 40;
       return `${i === 0 ? 'M' : 'L'}${px(x).toFixed(1)},${py(Math.max(0, fit.curve(x))).toFixed(1)}`;
     }).join(' ');
+
+    // 대상 차가 매물 범위 밖이면 그 값은 넘겨짚은 것이다.
+    const extrapolated = targetX > 0 && (targetX < Math.min(...xs) || targetX > Math.max(...xs));
 
     return {
       px,
@@ -230,17 +255,33 @@ export default function PriceCheckModal({
       xTicks: Array.from({ length: Math.round(xScale.max / xScale.step) + 1 }, (_, i) => xScale.step * i),
       yTicks: Array.from({ length: Math.round(yScale.max / yScale.step) + 1 }, (_, i) => yScale.step * i),
       targetX: mileage != null && mileage > 0 ? targetX : null,
+      extrapolated,
     };
   }, [fit, mileage]);
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8"
-      onClick={onClose}
+      /*
+       * 바깥을 눌러 닫는다. 다만 '누르기 시작한 곳'이 바깥일 때만 닫는다 —
+       * 창 안에서 글자를 끌어 고르다 밖에서 손을 떼면, 닫을 생각이 없었는데 닫히고
+       * 찾아둔 게 사라진다.
+       *
+       * 창이 커서 바깥 여백이 좁다. 여백을 넉넉히 줘 실수로 닫히는 일을 줄인다.
+       */
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-6 sm:p-10"
+      onMouseDown={e => {
+        pressedBackdrop.current = e.target === e.currentTarget;
+      }}
+      onClick={e => {
+        if (e.target === e.currentTarget && pressedBackdrop.current) onClose();
+      }}
     >
-      <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">시세 조회</h3>
+          <h3 className="text-base font-bold text-slate-800">
+            시세 조회
+            <span className="ml-2 text-[11px] font-normal text-slate-400">Esc 로 닫기</span>
+          </h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
@@ -399,11 +440,50 @@ export default function PriceCheckModal({
 
             {loading && <p className="py-10 text-center text-sm text-slate-400">매물을 불러오는 중…</p>}
 
-            {!loading && !fit && (
+            {!loading && !fit && compared.length === 0 && (
               <p className="rounded-xl bg-slate-50 py-8 text-center text-sm text-slate-400">
-                조건에 맞는 매물이 모자랍니다({compared.length}건 / 전체 {listings.length}건).
-                시세를 내려면 네 건 이상 있어야 합니다 — 위에서 연식·연료 조건을 넓혀 보세요.
+                조건에 맞는 매물이 없습니다(전체 {listings.length}건). 위에서 조건을 넓혀 보세요.
               </p>
+            )}
+
+            {/*
+              매물이 넷보다 적으면 곡선을 못 그린다. 그렇다고 아무것도 안 보여주면
+              얼마에 올라와 있는지조차 모른 채 창을 닫게 된다 — 곡선만 빼고 호가는 보여준다.
+              범위라고 부르지 않는다. 두세 건은 시세가 아니라 그냥 그 차들의 값이다.
+            */}
+            {!loading && !fit && compared.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3">
+                <p className="text-xs font-bold text-amber-900">
+                  올라온 매물이 {compared.length}건뿐이라 시세 곡선은 내지 않습니다
+                </p>
+                <p className="mt-0.5 text-[11px] text-amber-800/80">
+                  주행거리에 맞춰 값을 내려면 네 건 이상 있어야 합니다. 지금 올라와 있는 호가는 이렇습니다.
+                </p>
+                <p className="mt-1.5 text-2xl font-black text-slate-900">
+                  {Math.min(...compared.map(l => l.priceManwon)).toLocaleString()}
+                  {compared.length > 1 &&
+                    ` ~ ${Math.max(...compared.map(l => l.priceManwon)).toLocaleString()}`}
+                  <span className="ml-1 text-sm font-bold text-slate-400">만원</span>
+                </p>
+                {onPick && (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {[...new Set(compared.map(l => l.priceManwon))]
+                      .sort((a, b) => a - b)
+                      .map(v => (
+                        <button
+                          key={v}
+                          onClick={() => {
+                            onPick(v * 10000);
+                            onClose();
+                          }}
+                          className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                        >
+                          {withCommas(v * 10000)}원으로 넣기
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {!loading && fit && chart && (
@@ -477,6 +557,12 @@ export default function PriceCheckModal({
                       {fit.low.toLocaleString()} ~ {fit.high.toLocaleString()}
                       <span className="ml-1 text-sm font-bold text-slate-400">만원</span>
                     </p>
+                    {/* 매물이 없는 구간의 값은 곡선을 늘려 짐작한 것이다 — 그대로 믿으면 안 된다 */}
+                    {chart.extrapolated && (
+                      <p className="mt-1 text-[11px] font-semibold text-amber-700">
+                        대상 차의 주행거리가 올라온 매물 범위 밖입니다 — 곡선을 늘려 짐작한 값이라 실제와 벌어질 수 있습니다.
+                      </p>
+                    )}
                     {onPick && (
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {[fit.low, Math.round((fit.low + fit.high) / 2 / 10) * 10, fit.high].map((v, i) => (
