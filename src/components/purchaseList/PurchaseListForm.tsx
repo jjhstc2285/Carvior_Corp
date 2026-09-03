@@ -13,7 +13,6 @@ interface Props {
 }
 
 /** 캐피탈사 이름은 자주 쓰는 것만 골라 쓰고, 그 외에는 직접 입력한다. */
-const CAPITAL_OPTIONS = ['우리', '케이비', 'KB', '하나', '메리츠', '현대', 'BMW', '제이비', '엠지', 'x'];
 
 const LOAN_STATUS_OPTIONS = ['', '입금완료', '신청중', '심사중', '거절', '상환완료'];
 
@@ -27,8 +26,6 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
   const [modelYear, setModelYear] = useState(editing?.modelYear ?? '');
   const [mileage, setMileage] = useState(withCommas(editing?.mileage ?? 0));
 
-  const [stockCapital, setStockCapital] = useState(editing?.stockCapital ?? '');
-  const [stockAmount, setStockAmount] = useState(withCommas(editing?.stockAmount ?? 0));
 
   const [limits, setLimits] = useState<Record<string, string>>(() =>
     Object.fromEntries(CAPITAL_LIMIT_COLUMNS.map(c => [c.key, withCommas(editing?.[c.key] ?? 0)])),
@@ -37,7 +34,6 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
   const [note, setNote] = useState(editing?.note ?? '');
   const [loanDate, setLoanDate] = useState(editing?.loanDate ?? '');
   const [interestRate, setInterestRate] = useState(editing?.interestRate != null ? String(editing.interestRate) : '');
-  const [repayDate, setRepayDate] = useState(editing?.repayDate ?? '');
   const [loanStatus, setLoanStatus] = useState(editing?.loanStatus ?? '');
   const [repaidDate, setRepaidDate] = useState(editing?.repaidDate ?? '');
   const [repaymentAmount, setRepaymentAmount] = useState(withCommas(editing?.repaymentAmount ?? 0));
@@ -62,14 +58,15 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
       askingPrice: moneyToNumber(askingPrice),
       modelYear: modelYear.trim(),
       mileage: moneyToNumber(mileage),
-      stockCapital: stockCapital.trim(),
-      stockAmount: moneyToNumber(stockAmount),
+      // 차량 관리로 옮겼지만 예전에 적어둔 값은 건드리지 않는다.
+      stockCapital: editing?.stockCapital ?? '',
+      stockAmount: editing?.stockAmount ?? 0,
       ...Object.fromEntries(CAPITAL_LIMIT_COLUMNS.map(c => [c.key, moneyToNumber(limits[c.key] ?? '')])),
       note: note.trim(),
       loanDate,
       // 이율은 소수라 콤마 처리를 하지 않는다. 빈 칸은 아예 안 보낸다.
       ...(interestRate.trim() ? { interestRate: Number(interestRate) } : {}),
-      repayDate,
+      repayDate: editing?.repayDate ?? '',
       loanStatus,
       repaidDate,
       repaymentAmount: moneyToNumber(repaymentAmount),
@@ -152,26 +149,16 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
           ))}
         </datalist>
 
-        <p className="mt-5 mb-2 text-xs font-bold text-slate-600">재 고</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {field(
-            '캐피탈',
-            <input
-              value={stockCapital}
-              onChange={e => setStockCapital(e.target.value)}
-              list="purchase-list-capitals"
-              placeholder="우리"
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
-            />,
-          )}
-          {field('금액(원)', money(stockAmount, setStockAmount, '7,000,000'))}
-        </div>
-
-        <datalist id="purchase-list-capitals">
-          {CAPITAL_OPTIONS.map(name => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
+        {/*
+          재고(할부사·금액)와 상환일자는 여기서 적지 않는다.
+          같은 값을 두 곳에서 적으면 한쪽만 채워둔 차가 다른 쪽 월별 현황에서 빠진다.
+          차 한 대씩 처리하는 화면인 차량 관리 → 재고금융으로 모았다.
+          이 화면에 이미 적혀 있던 값은 그대로 남아 목록·엑셀에서 보인다.
+        */}
+        <p className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
+          <b className="text-slate-700">재고(할부사·금액)와 상환일자는 차량 관리 → 재고금융 (제시)</b> 에서 넣습니다.
+          한 곳에서만 적어야 월별 상환 현황에서 빠지는 차가 없습니다.
+        </p>
 
         <p className="mt-5 mb-2 text-xs font-bold text-slate-600">재고가능금액</p>
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
@@ -203,7 +190,6 @@ export default function PurchaseListForm({ editing, managerNames, onSave, onClos
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
             />,
           )}
-          {field('상환일자', dateInput(repayDate, setRepayDate))}
           {field(
             '대출상황',
             <select

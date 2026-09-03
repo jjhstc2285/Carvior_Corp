@@ -8,6 +8,8 @@ interface Props {
   onMobileClose: () => void;
   /** 메시지 메뉴에 붙는 안 읽은 개수 */
   chatUnread?: number;
+  /** 이 사람이 볼 수 없는 메뉴는 아예 안 그린다 */
+  canSeePurchaseList: boolean;
 }
 
 const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[] = [
@@ -24,7 +26,16 @@ const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[]
   { key: 'chat', label: '메시지', icon: MessageSquare },
 ];
 
-export default function Sidebar({ active, onChange, mobileOpen, onMobileClose, chatUnread = 0 }: Props) {
+export default function Sidebar({
+  active,
+  onChange,
+  mobileOpen,
+  onMobileClose,
+  chatUnread = 0,
+  canSeePurchaseList,
+}: Props) {
+  // 매입리스트(재고금융 대장)는 사무장과 관리자만 본다.
+  const navItems = NAV_ITEMS.filter(item => item.key !== 'purchaseList' || canSeePurchaseList);
   const content = (
     <>
       <div className="flex items-center justify-between px-4 py-4">
@@ -40,7 +51,7 @@ export default function Sidebar({ active, onChange, mobileOpen, onMobileClose, c
       </div>
 
       <nav className="flex-1 space-y-0.5 px-3">
-        {NAV_ITEMS.map(item => {
+        {navItems.map(item => {
           const Icon = item.icon;
           const isActive = active === item.key;
           return (

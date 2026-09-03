@@ -4,6 +4,8 @@ import { Role } from '@prisma/client';
 export interface AuthUser {
   id: string;
   name: string;
+  /** 직급 — 대표 / 본부장 / 사무장 … 화면을 직급으로 가르는 데 쓴다 */
+  position: string;
   role: Role;
 }
 

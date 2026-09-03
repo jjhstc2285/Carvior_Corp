@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StoreProvider } from './store';
 import { AuthProvider, useAuth } from './authStore';
+import { canSeePurchaseList } from './lib/permissions';
 import type { ModuleKey } from './modules';
 import type { Role } from './types';
 import Sidebar from './components/Sidebar';
@@ -52,10 +53,15 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
 }
 
 function AuthedApp({ role }: { role: Role }) {
+  const { user } = useAuth();
+  const seePurchaseList = canSeePurchaseList(user);
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
   const { state, submitAttendanceRequest } = useStore();
+
+  // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
+  const shownModule: ModuleKey = module === 'purchaseList' && !seePurchaseList ? 'attendance' : module;
 
   // 어느 화면에 있든 재야 해서 앱 껍데기에 단다.
   useIdleAway({
@@ -67,21 +73,22 @@ function AuthedApp({ role }: { role: Role }) {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar
-        active={module}
+        active={shownModule}
         onChange={setModule}
         mobileOpen={mobileNavOpen}
         onMobileClose={() => setMobileNavOpen(false)}
         chatUnread={chatUnread}
+        canSeePurchaseList={seePurchaseList}
       />
       <div className="min-w-0 flex-1">
         <TopBar
-          title={MODULE_TITLE[module]}
+          title={MODULE_TITLE[shownModule]}
           role={role}
           onMenuClick={() => setMobileNavOpen(true)}
           chatUnread={chatUnread}
           onOpenChat={() => setModule('chat')}
         />
-        <ModuleContent module={module} role={role} />
+        <ModuleContent module={shownModule} role={role} />
       </div>
 
       {/* 어느 화면에 있어도 실시간 알림·메시지를 놓치지 않게 앱 전체에 하나만 띄운다 */}

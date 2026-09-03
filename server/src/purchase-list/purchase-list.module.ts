@@ -16,6 +16,8 @@ import { Type } from 'class-transformer';
 import { IsInt, IsNumber, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+import { assertOfficeManager } from '../auth/office-manager';
 import { formatDateOnlyOrNull, monthRange, toDateOnly, todayKst } from '../common/date.util';
 
 // 빈 문자열도 받는다 — @IsOptional() 은 undefined 만 건너뛰므로, 날짜 칸을 비운 요청(date: '')이
@@ -243,37 +245,42 @@ export class PurchaseListService {
 /**
  * 매입리스트 — 재고금융(캐피탈 대출) 장부.
  *
- * 전 직원이 보고 쓴다. 담당자가 자기 차를 적는 화면이라 관리자로 막지 않는다
- * (누가 맡은 차인지는 담당자 칸으로 남는다).
+ * 사무장과 관리자만 본다. 재고금융은 사무장이 맡아 보는 장부라 전 직원에게 열어둘
+ * 이유가 없다. 화면에서 메뉴를 감추는 것만으로는 막은 게 아니라 여기서 한 번 더 가린다.
  */
 @Controller('purchase-list')
 export class PurchaseListController {
   constructor(private readonly purchaseList: PurchaseListService) {}
 
   @Get()
-  findAll(@Query() query: PurchaseListQueryDto) {
+  findAll(@CurrentUser() user: AuthUser, @Query() query: PurchaseListQueryDto) {
+    assertOfficeManager(user);
     return this.purchaseList.findAll(query);
   }
 
   /** 월별 현황 상단의 합계 — /purchase-list/summary?month=2026-09 */
   @Get('summary')
-  summary(@Query() query: PurchaseListQueryDto) {
+  summary(@CurrentUser() user: AuthUser, @Query() query: PurchaseListQueryDto) {
+    assertOfficeManager(user);
     return this.purchaseList.monthlySummary(query.month);
   }
 
   @Post()
-  create(@Body() dto: CreatePurchaseListDto) {
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreatePurchaseListDto) {
+    assertOfficeManager(user);
     return this.purchaseList.create(dto);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdatePurchaseListDto) {
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdatePurchaseListDto) {
+    assertOfficeManager(user);
     return this.purchaseList.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id') id: string) {
+  async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    assertOfficeManager(user);
     await this.purchaseList.remove(id);
   }
 }
