@@ -9,6 +9,9 @@ interface SignupRequest {
   loginId: string;
   name: string;
   position: string;
+  department: string;
+  /** 같은 이름의 퇴사자가 있다 — 막지는 않고 알려만 준다 */
+  formerEmployee: boolean;
   phone: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   /** 신청한 브라우저 지문 — 있으면 그 PC를 출근 단말로 함께 등록할 수 있다 */
@@ -98,6 +101,21 @@ export default function SignupApprovals() {
                 <p className="text-sm font-bold text-slate-800">
                   {r.name}
                   {r.position && <span className="ml-1 text-xs font-normal text-slate-400">{r.position}</span>}
+                  {r.department && (
+                    <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
+                      {r.department}
+                    </span>
+                  )}
+                  {/*
+                    퇴사자는 로그인이 막히지만 새 아이디로 다시 신청하면 새 계정이 만들어져
+                    그대로 들어온다. 막지 않는다 — 재입사도 있고 동명이인도 있다.
+                    승인하는 사람이 알고 누르게만 한다.
+                  */}
+                  {r.formerEmployee && (
+                    <span className="ml-1 rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-bold text-red-600">
+                      같은 이름의 퇴사자 있음
+                    </span>
+                  )}
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">
                   <span className="font-mono">{r.loginId}</span>

@@ -59,6 +59,7 @@ export class AuthService {
         passwordHash: await bcrypt.hash(dto.password, 12),
         name: dto.name.trim(),
         position: dto.position?.trim() ?? '',
+        department: dto.department ?? '',
         phone: dto.phone?.trim() ?? '',
         fingerprint: dto.fingerprint || null,
       },
@@ -69,14 +70,22 @@ export class AuthService {
   }
 
   /** 관리자 화면의 대기 목록. 해시는 절대 내려보내지 않는다. */
-  listSignups(status?: SignupStatus) {
-    return this.prisma.signupRequest.findMany({
+  /**
+   * 가입 신청 목록.
+   *
+   * 같은 이름의 퇴사자가 있으면 알려준다. 퇴사자는 로그인이 막히지만 새 아이디로
+   * 다시 신청하면 새 계정이 만들어져 그대로 들어온다. 막지는 않는다 — 재입사도 있고
+   * 동명이인도 있다. 승인하는 사람이 알고 누르게만 한다.
+   */
+  async listSignups(status?: SignupStatus) {
+    const rows = await this.prisma.signupRequest.findMany({
       where: status ? { status } : {},
       select: {
         id: true,
         loginId: true,
         name: true,
         position: true,
+        department: true,
         phone: true,
         status: true,
         reviewedAt: true,
@@ -87,6 +96,17 @@ export class AuthService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const pendingNames = rows.filter((r) => r.status === SignupStatus.PENDING).map((r) => r.name);
+    if (pendingNames.length === 0) return rows.map((r) => ({ ...r, formerEmployee: false }));
+
+    const former = await this.prisma.employee.findMany({
+      where: { name: { in: pendingNames }, active: false },
+      select: { name: true },
+    });
+    const formerNames = new Set(former.map((e) => e.name));
+
+    return rows.map((r) => ({ ...r, formerEmployee: formerNames.has(r.name) }));
   }
 
   /**
@@ -121,6 +141,7 @@ export class AuthService {
         data: {
           name: req.name,
           position: req.position || '사원',
+          department: req.department || null,
           role: Role.EMPLOYEE,
           active: true,
           provider: AuthProvider.LOCAL,

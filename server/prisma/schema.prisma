@@ -884,6 +884,7 @@ model SignupRequest {
   passwordHash String
   name         String @db.VarChar(30)
   position     String @default("") @db.VarChar(30)
+  department   String @default("") @db.VarChar(30) // 소속 팀 — 작업일지를 팀끼리 나눠 본다
   phone        String @default("") @db.VarChar(20)
 
   // 신청한 브라우저의 지문. 승인할 때 "이 PC를 출근 단말로도 등록" 을 고르면 쓴다.

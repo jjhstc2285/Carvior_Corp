@@ -3,7 +3,7 @@ import { RotateCcw, UserMinus, Users2 } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../lib/alert';
 import { useStore } from '../store';
-import type { Employee } from '../types';
+import { DEPARTMENTS, type Employee } from '../types';
 
 /**
  * 직원 관리 — 퇴사 처리와 복직.
@@ -57,6 +57,20 @@ export default function EmployeeSettings() {
     }
   };
 
+  const setDepartment = async (employee: Employee, department: string) => {
+    setBusyId(employee.id);
+    try {
+      await api(`/employees/${employee.id}`, { method: 'PATCH', body: { department: department || null } });
+      await load();
+      // 작업일지가 이 값으로 팀을 가르니 전역 목록도 같이 받아둔다.
+      await refresh();
+    } catch (e) {
+      void alertError('팀을 바꾸지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const confirmLeave = async (employee: Employee) => {
     const ok = await confirmDanger(
       `${employee.name}님을 퇴사 처리할까요?`,
@@ -90,7 +104,7 @@ export default function EmployeeSettings() {
                 <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
                   <th className="px-3 py-2 font-medium">이름</th>
                   <th className="px-3 py-2 font-medium">직급</th>
-                  <th className="px-3 py-2 font-medium">부서</th>
+                  <th className="px-3 py-2 font-medium">팀</th>
                   <th className="px-3 py-2 font-medium">권한</th>
                   <th className="px-3 py-2 text-right font-medium">관리</th>
                 </tr>
@@ -108,7 +122,22 @@ export default function EmployeeSettings() {
                       )}
                     </td>
                     <td className="px-3 py-2">{e.position}</td>
-                    <td className="px-3 py-2 text-xs">{e.department ?? '-'}</td>
+                    {/* 작업일지가 이 값으로 팀을 가른다 — 비어 있으면 본인 것만 보인다 */}
+                    <td className="px-3 py-2">
+                      <select
+                        value={e.department ?? ''}
+                        onChange={ev => void setDepartment(e, ev.target.value)}
+                        disabled={busyId === e.id}
+                        className={`rounded-lg border px-1.5 py-1 text-xs outline-none focus:border-indigo-400 disabled:opacity-50 ${
+                          e.department ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
+                        }`}
+                      >
+                        <option value="">팀 없음</option>
+                        {DEPARTMENTS.map(d => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-3 py-2 text-xs">{e.role === 'ADMIN' ? '관리자' : '직원'}</td>
                     <td className="px-3 py-2 text-right">
                       {e.active ? (
@@ -136,6 +165,8 @@ export default function EmployeeSettings() {
           </div>
 
           <p className="mt-2 text-[11px] text-slate-400">
+            <b>팀</b>은 작업일지를 나눠 보는 기준입니다 — 같은 팀끼리 서로의 일지가 보이고, 팀이 없으면 본인 것만 보입니다.
+            <br />
             퇴사 처리해도 <b>기록은 지워지지 않습니다</b> — 출퇴근·정산·상담이 그 사람을 가리키고 있어서
             실제로 지우면 이력이 통째로 사라집니다. 목록과 담당자 선택에서만 빠집니다.
           </p>

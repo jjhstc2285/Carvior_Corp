@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { deviceFingerprint } from '../../lib/deviceFingerprint';
 import { alertSuccess } from '../../lib/alert';
+import { DEPARTMENTS } from '../../types';
 
 interface Props {
   onBack: () => void;
@@ -25,6 +26,7 @@ export default function SignupForm({ onBack }: Props) {
   const [passwordAgain, setPasswordAgain] = useState('');
   const [name, setName] = useState('');
   const [position, setPosition] = useState('');
+  const [department, setDepartment] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,6 +61,7 @@ export default function SignupForm({ onBack }: Props) {
           password,
           name: name.trim(),
           position: position.trim(),
+          department,
           phone: phone.trim(),
           ...(fingerprint ? { fingerprint } : {}),
         },
@@ -114,6 +117,16 @@ export default function SignupForm({ onBack }: Props) {
       <div className="grid grid-cols-2 gap-3">
         {field('이름', <input value={name} onChange={e => { setName(e.target.value); setError(null); }} placeholder="홍길동" className={INPUT} />)}
         {field('직급', <input value={position} onChange={e => setPosition(e.target.value)} placeholder="사원" className={INPUT} />)}
+        {/* 작업일지를 팀끼리 나눠 보므로 어느 팀인지 처음부터 받아둔다 */}
+        {field(
+          '소속 팀',
+          <select value={department} onChange={e => setDepartment(e.target.value)} className={INPUT}>
+            <option value="">나중에 정함</option>
+            {DEPARTMENTS.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>,
+        )}
       </div>
       {field('휴대폰 번호', <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" inputMode="tel" className={INPUT} />, '선택 — 적어두면 관리자가 본인 확인에 씁니다')}
 

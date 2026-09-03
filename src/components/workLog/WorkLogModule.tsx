@@ -73,9 +73,14 @@ export default function WorkLogModule({ role }: Props) {
       dotClass: log.done ? 'bg-emerald-400' : 'bg-indigo-400',
     }));
 
+  // 직원은 같은 팀 일지를 함께 본다 — 화면 이름이 '내 작업일지'면 남의 것이 왜 보이나 싶다.
+  const myTeam = state.employees.find(e => e.id === state.currentEmployeeId)?.department;
+
   const viewerName =
     !isAdmin || view === 'self'
-      ? '내 작업일지'
+      ? myTeam
+        ? `${myTeam} 작업일지`
+        : '내 작업일지'
       : isAllView
         ? '전 직원 작업일지'
         : `${employeeName(view)} 작업일지`;
@@ -89,7 +94,13 @@ export default function WorkLogModule({ role }: Props) {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">작업일지</h1>
-          <p className="mt-1 text-sm text-slate-500">요일별로 할 일을 적어두고 처리한 건 체크해 두세요.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            요일별로 할 일을 적어두고 처리한 건 체크해 두세요.
+            {!isAdmin &&
+              (myTeam
+                ? ` 같은 ${myTeam} 사람들의 일지가 함께 보입니다.`
+                : ' 팀이 정해지면 같은 팀 일지가 함께 보입니다.')}
+          </p>
         </div>
 
         {isAdmin && (

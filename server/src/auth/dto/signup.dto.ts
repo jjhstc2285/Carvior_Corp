@@ -1,4 +1,5 @@
 import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { DEPARTMENTS } from '../../employees/departments';
 
 /**
  * 회원가입 신청.
@@ -20,6 +21,8 @@ export class SignupDto {
 
   @IsString() @IsNotEmpty({ message: '이름을 입력해 주세요.' }) @MaxLength(30) name!: string;
   @IsOptional() @IsString() @MaxLength(30) position?: string;
+  /** 소속 팀 — 작업일지를 팀끼리 나눠 보는 기준이다 */
+  @IsOptional() @IsIn(DEPARTMENTS as unknown as string[]) department?: string;
   @IsOptional() @IsString() @MaxLength(20) phone?: string;
 
   /** 신청한 브라우저의 지문 — 승인할 때 출근 단말로 같이 등록할 수 있다 */
