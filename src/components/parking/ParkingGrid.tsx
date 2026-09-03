@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Camera } from 'lucide-react';
 import {
   DndContext,
   DragOverlay,
@@ -78,6 +79,8 @@ function ParkingCell({
           <span className="flex items-center gap-1 font-mono font-semibold text-slate-800">
             <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[vehicle.status]}`} />
             {vehicle.vehicleNumber}
+            {/* 주차된 모습을 찍어둔 자리 — 눌러서 열면 사진이 나온다 */}
+            {vehicle.photoUrl && <Camera size={10} className="text-slate-400" />}
           </span>
         ) : (
           <span className="text-slate-300">·</span>

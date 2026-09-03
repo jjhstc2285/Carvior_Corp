@@ -138,7 +138,17 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
                   <td className="px-5 py-2.5 text-slate-600">{v.lot}</td>
                   <td className="px-5 py-2.5 text-slate-600">{v.zone}</td>
                   <td className="px-5 py-2.5 text-slate-500">{v.slot}</td>
-                  <td className="px-5 py-2.5 font-mono font-medium text-slate-700">{v.vehicleNumber}</td>
+                  <td className="px-5 py-2.5 font-mono font-medium text-slate-700">
+                    <span className="flex items-center gap-1.5">
+                      {v.vehicleNumber}
+                      {/* 주차된 모습 — 눌러서 원본을 새 탭으로 연다 */}
+                      {v.photoUrl && (
+                        <a href={v.photoUrl} target="_blank" rel="noreferrer" title="주차 사진 보기">
+                          <img src={v.photoUrl} alt="" className="h-7 w-10 rounded object-cover ring-1 ring-slate-200" />
+                        </a>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-5 py-2.5 text-slate-600">{v.vehicleModel}</td>
                   <td className="px-5 py-2.5 text-slate-500">{employeeOf(v.employeeId)?.name ?? '-'}</td>
                   <td className="px-5 py-2.5">

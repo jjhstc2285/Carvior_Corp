@@ -354,6 +354,8 @@ export interface ParkingVehicle {
   status: ParkingStatus;
   employeeId: string; // 담당자
   memo: string;
+  /** 주차된 모습(전면) 한 장. 없으면 빈 문자열 */
+  photoUrl: string;
   updatedAt: string;
 }
 
