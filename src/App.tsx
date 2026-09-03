@@ -18,6 +18,8 @@ import CleaningModule from './components/cleaning/CleaningModule';
 import PurchaseListModule from './components/purchaseList/PurchaseListModule';
 import PurchaseIntakeModule from './components/purchaseIntake/PurchaseIntakeModule';
 import { useChatUnread } from './components/chat/useChat';
+import { useIdleAway } from './hooks/useIdleAway';
+import { useStore } from './store';
 import RealtimeToasts from './components/RealtimeToasts';
 import LoginPage from './components/auth/LoginPage';
 
@@ -53,6 +55,14 @@ function AuthedApp({ role }: { role: Role }) {
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
+  const { state, submitAttendanceRequest } = useStore();
+
+  // 어느 화면에 있든 재야 해서 앱 껍데기에 단다.
+  useIdleAway({
+    employeeId: state.currentEmployeeId,
+    records: state.records,
+    submit: submitAttendanceRequest,
+  });
 
   return (
     <div className="flex min-h-screen bg-slate-50">

@@ -335,14 +335,29 @@ export class AttendanceService {
       }
     }
 
+    /*
+     * 자리비움은 허락을 구하는 게 아니라 알리는 기록이다. 승인 대기로 두면 관리자
+     * 승인함에 처리할 게 아닌 것들이 쌓여, 정작 판단이 필요한 연차·소명이 묻힌다.
+     * 그래서 바로 확정하고 알림만 보낸다.
+     */
+    const away = dto.kind === AttendanceRequestKind.AWAY;
+
     const req = await this.prisma.attendanceRequest.create({
-      data: { employeeId, date, kind: dto.kind, reason: dto.reason },
+      data: {
+        employeeId,
+        date,
+        kind: dto.kind,
+        reason: dto.reason,
+        ...(away ? { status: RequestStatus.APPROVED, reviewedAt: new Date() } : {}),
+      },
       include: { employee: { select: { name: true } } },
     });
 
     await this.notifyAdmins(
       NotificationType.ATTENDANCE_REQUEST,
-      `${req.employee.name}님이 ${dto.date} ${KIND_LABEL[dto.kind]}을 신청했습니다.`,
+      away
+        ? `${req.employee.name}님 자리비움 — ${dto.reason}`
+        : `${req.employee.name}님이 ${dto.date} ${KIND_LABEL[dto.kind]}을 신청했습니다.`,
       employeeId,
       date,
     );
