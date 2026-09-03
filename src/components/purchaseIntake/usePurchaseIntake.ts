@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import { onSocketEvent, SOCKET_EVENT } from '../../lib/socket';
 import type { PurchaseIntake } from '../../types';
 
 /**
@@ -58,6 +59,9 @@ export function usePurchaseIntake(month: string, query: string): PurchaseIntakeA
   useEffect(() => {
     void load();
   }, [load]);
+
+  // 카비오에서 계약이 자동으로 들어오면 열어둔 목록도 따라가게 한다 — 새로고침하지 않아도 보이게.
+  useEffect(() => onSocketEvent(SOCKET_EVENT.purchaseIntake, () => void load()), [load]);
 
   const add = useCallback(
     async (input: PurchaseIntakeInput) => {

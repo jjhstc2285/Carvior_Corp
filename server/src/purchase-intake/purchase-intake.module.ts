@@ -8,11 +8,17 @@ import {
   Logger,
   Module,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
   Param,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Role } from '@prisma/client';
+import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
+import { RealtimeModule } from '../realtime/realtime.module';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { Prisma } from '@prisma/client';
@@ -99,7 +105,7 @@ export class PurchaseIntakeService {
    *
    * 카비오에 없는 값(고객번호·연식·연료·구전)은 비워둔다 — 사람이 나중에 채운다.
    */
-  async importFromCarvior(user: AuthUser, dryRun: boolean) {
+  async importFromCarvior(employeeId: string, dryRun: boolean) {
     const contracts = (await this.carvior.findContracts()).filter((c) => c.status !== 'CANCELLED');
 
     const existing = new Set(
@@ -162,7 +168,7 @@ export class PurchaseIntakeService {
             note: this.carviorNote(contract),
             purchaseAmount: (contract.purchasePrice ?? 0) * WON_PER_MANWON,
             brokerFee: (contract.brokerFee ?? 0) * WON_PER_MANWON,
-            employeeId: user.id,
+            employeeId,
           },
         });
         await this.syncManagedVehicle(plate, contract.carModel ?? '');
@@ -329,6 +335,103 @@ export class PurchaseIntakeService {
   }
 }
 
+// ── 자동 등록 ──────────────────────────────
+
+/**
+ * 카비오에 새 계약이 생기면 매입 관리에 알아서 들어오게 한다.
+ *
+ * 버튼을 눌러야만 들어오면 누가 언제 눌렀는지에 따라 목록이 달라진다. 계약은 하루에도
+ * 몇 건씩 생기는데 그때마다 사람이 챙길 수는 없다.
+ *
+ * 주기는 CARVIOR_AUTO_IMPORT_MINUTES(기본 10분)로 정하고, 0을 주면 아예 끈다.
+ * 카비오가 죽어 있어도 서버는 그대로 돌아야 하므로 실패는 로그만 남기고 넘어간다.
+ *
+ * 등록자는 CARVIOR_IMPORT_EMPLOYEE_ID, 없으면 가장 먼저 만든 관리자로 남긴다 —
+ * 매입 내역은 등록자가 필수라 누구든 하나는 있어야 한다.
+ */
+@Injectable()
+export class CarviorAutoImportService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(CarviorAutoImportService.name);
+  private timer: NodeJS.Timeout | null = null;
+  /** 한 번이 늦어지면 다음 차례와 겹친다 — 겹치면 같은 계약을 두 번 넣으려 든다. */
+  private running = false;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly intake: PurchaseIntakeService,
+    private readonly carvior: CarviorService,
+    private readonly realtime: RealtimeGateway,
+    private readonly config: ConfigService,
+  ) {}
+
+  onModuleInit(): void {
+    const minutes = Number(this.config.get<string>('CARVIOR_AUTO_IMPORT_MINUTES', '10'));
+    if (!this.carvior.enabled) {
+      this.logger.log('카비오 열쇠가 없어 자동 등록을 켜지 않습니다.');
+      return;
+    }
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      this.logger.log('CARVIOR_AUTO_IMPORT_MINUTES=0 — 자동 등록을 끕니다.');
+      return;
+    }
+
+    // 서버가 막 뜬 순간엔 DB 연결이 아직 자리를 잡는 중이라 조금 두고 시작한다.
+    setTimeout(() => void this.tick(), 30_000).unref?.();
+    this.timer = setInterval(() => void this.tick(), minutes * 60_000);
+    this.timer.unref?.();
+    this.logger.log(`카비오 자동 등록 ${minutes}분마다`);
+  }
+
+  onModuleDestroy(): void {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  private async tick(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+    try {
+      const employeeId = await this.importerId();
+      if (!employeeId) {
+        this.logger.warn('등록자로 쓸 관리자가 없어 자동 등록을 건너뜁니다.');
+        return;
+      }
+
+      const res = (await this.intake.importFromCarvior(employeeId, false)) as {
+        imported: number;
+      };
+
+      // 새로 들어온 게 없으면 조용히 넘어간다 — 10분마다 로그를 남길 일이 아니다.
+      if (res.imported > 0) {
+        this.logger.log(`카비오에서 ${res.imported}건을 매입 관리에 등록했습니다.`);
+        this.realtime.toAll(REALTIME_EVENT.purchaseIntake, { imported: res.imported });
+      }
+    } catch (e) {
+      this.logger.warn(`카비오 자동 등록 실패: ${(e as Error).message}`);
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async importerId(): Promise<string | null> {
+    const configured = this.config.get<string>('CARVIOR_IMPORT_EMPLOYEE_ID', '');
+    if (configured) {
+      const found = await this.prisma.employee.findUnique({
+        where: { id: configured },
+        select: { id: true },
+      });
+      if (found) return found.id;
+      this.logger.warn(`CARVIOR_IMPORT_EMPLOYEE_ID(${configured}) 로 직원을 찾지 못했습니다.`);
+    }
+
+    const admin = await this.prisma.employee.findFirst({
+      where: { role: Role.ADMIN, active: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    return admin?.id ?? null;
+  }
+}
+
 // ── Controller ──────────────────────────────
 
 /**
@@ -365,18 +468,18 @@ export class PurchaseIntakeController {
   /** 카비오 계약 일괄 등록 — 무엇이 들어오고 무엇이 빠지는지 먼저 본다. */
   @Get('carvior/preview')
   preview(@CurrentUser() user: AuthUser) {
-    return this.intake.importFromCarvior(user, true);
+    return this.intake.importFromCarvior(user.id, true);
   }
 
   @Post('carvior/import')
   importCarvior(@CurrentUser() user: AuthUser) {
-    return this.intake.importFromCarvior(user, false);
+    return this.intake.importFromCarvior(user.id, false);
   }
 }
 
 @Module({
-  imports: [CarviorModule],
+  imports: [CarviorModule, RealtimeModule],
   controllers: [PurchaseIntakeController],
-  providers: [PurchaseIntakeService],
+  providers: [PurchaseIntakeService, CarviorAutoImportService],
 })
 export class PurchaseIntakeModule {}

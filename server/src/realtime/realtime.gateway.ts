@@ -21,6 +21,13 @@ export const REALTIME_EVENT = {
   chatMessage: 'chat:message',
   /** 내가 보낸 메시지를 상대가 읽었다 */
   chatRead: 'chat:read',
+  /**
+   * 매입 내역이 바뀌었다 — 카비오에서 자동으로 들어온 계약이 있다.
+   *
+   * 알림(notification)과 따로 두는 이유는 근태 승인함과 같다. 이건 읽을 거리가 아니라
+   * 열려 있는 매입 관리 목록을 다시 받아야 한다는 신호다.
+   */
+  purchaseIntake: 'purchase:intake',
 } as const;
 
 export type RealtimeEvent = (typeof REALTIME_EVENT)[keyof typeof REALTIME_EVENT];
@@ -113,6 +120,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   /** 관리자 전원 — 누가 관리자인지 조회하지 않아도 되게 접속 때 방에 넣어둔다. */
   toAdmins(event: RealtimeEvent, payload: unknown): void {
     this.server?.to(ADMIN_ROOM).emit(event, payload);
+  }
+
+  /**
+   * 접속한 사람 전원. 누구의 것도 아닌 공용 목록이 바뀌었을 때 쓴다(매입 내역 등).
+   * 개인 알림에는 쓰지 않는다 — 남의 알림까지 가면 안 된다.
+   */
+  toAll(event: RealtimeEvent, payload: unknown): void {
+    this.server?.emit(event, payload);
   }
 
   /** 토큰은 handshake.auth 로 받는 게 기본이고, 쿼리스트링도 허용한다(디버깅 편의). */

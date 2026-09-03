@@ -17,6 +17,8 @@ export const SOCKET_EVENT = {
   attendanceInbox: 'attendance:inbox',
   chatMessage: 'chat:message',
   chatRead: 'chat:read',
+  /** 매입 내역이 바뀌었다 — 카비오에서 자동으로 들어온 계약이 있다 */
+  purchaseIntake: 'purchase:intake',
 } as const;
 
 export type SocketEvent = (typeof SOCKET_EVENT)[keyof typeof SOCKET_EVENT];

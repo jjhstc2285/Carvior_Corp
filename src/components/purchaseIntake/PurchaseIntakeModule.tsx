@@ -66,15 +66,17 @@ export default function PurchaseIntakeModule({ role }: Props) {
           <p className="mt-1 text-sm text-slate-500">
             차를 사올 때 확인한 내용을 등록합니다. 받은 양식을 그대로 붙여넣으면 칸이 채워지고,
             등록하면 <b>차량 관리</b>에 그 차가 올라갑니다.
+            <br />
+            카비오에서 성사된 계약은 <b>10분마다 자동으로 들어옵니다</b> — 지금 바로 받으려면 오른쪽 버튼을 누르세요.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
             onClick={() => setCarviorOpen(true)}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            title="카비오에서 성사된 계약을 매입 내역으로 한 번에 가져옵니다"
+            title="자동으로도 들어오지만, 지금 바로 받고 싶을 때 누릅니다"
           >
-            <CloudDownload size={15} /> 카비오 일괄 등록
+            <CloudDownload size={15} /> 카비오 지금 가져오기
           </button>
           <button
             onClick={handleExport}
