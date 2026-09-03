@@ -45,6 +45,7 @@ export class CreatePurchaseIntakeDto {
   @IsOptional() @IsString() @MaxLength(60) inspector?: string;
 
   @IsString() @MaxLength(150) vehicleName!: string;
+  @IsOptional() @IsString() @MaxLength(120) detailModel?: string;
   @IsString() @MaxLength(30) vehicleNumber!: string;
   @IsOptional() @IsString() @MaxLength(10) modelYear?: string;
   @IsOptional() @IsString() @MaxLength(20) fuel?: string;
@@ -66,6 +67,7 @@ export class UpdatePurchaseIntakeDto {
   @IsOptional() @IsString() @MaxLength(60) inspector?: string;
 
   @IsOptional() @IsString() @MaxLength(150) vehicleName?: string;
+  @IsOptional() @IsString() @MaxLength(120) detailModel?: string;
   @IsOptional() @IsString() @MaxLength(30) vehicleNumber?: string;
   @IsOptional() @IsString() @MaxLength(10) modelYear?: string;
   @IsOptional() @IsString() @MaxLength(20) fuel?: string;
@@ -160,6 +162,8 @@ export class PurchaseIntakeService {
             source: (contract.dealerName ?? '').slice(0, 120),
             inspector: '',
             vehicleName: (contract.carModel ?? '').slice(0, 150),
+            // 카비어는 등급을 안 내려준다 — 시세를 조회하면서 사람이 채운다.
+            detailModel: '',
             vehicleNumber: plate,
             modelYear: '',
             fuel: '',
@@ -206,6 +210,7 @@ export class PurchaseIntakeService {
               { customerPhone: { contains: params.q } },
               { vehicleNumber: { contains: params.q } },
               { vehicleName: { contains: params.q } },
+              { detailModel: { contains: params.q } },
               { source: { contains: params.q } },
             ],
           }
@@ -231,6 +236,7 @@ export class PurchaseIntakeService {
         source: dto.source?.trim() ?? '',
         inspector: dto.inspector?.trim() ?? '',
         vehicleName: dto.vehicleName.trim(),
+        detailModel: dto.detailModel?.trim() ?? '',
         vehicleNumber,
         modelYear: dto.modelYear?.trim() ?? '',
         fuel: dto.fuel?.trim() ?? '',
@@ -261,6 +267,7 @@ export class PurchaseIntakeService {
         source: dto.source?.trim(),
         inspector: dto.inspector?.trim(),
         vehicleName: dto.vehicleName?.trim(),
+        detailModel: dto.detailModel?.trim(),
         ...(vehicleNumber !== undefined ? { vehicleNumber } : {}),
         modelYear: dto.modelYear?.trim(),
         fuel: dto.fuel?.trim(),

@@ -693,6 +693,9 @@ model PurchaseIntake {
   inspector     String @default("") @db.VarChar(60) // 실차 확인자 — "검차업체(예나)"
 
   vehicleName   String @db.VarChar(150) // 차명 — 수입차는 트림까지 붙어 길다
+  // 세부모델(등급) — "2.4 GDI 프레스티지". 카비어에서 받아온 계약에는 등급이 없어서
+  // 비워둔 채로 들어오고, 시세를 조회하면서 채운다.
+  detailModel   String @default("") @db.VarChar(120)
   vehicleNumber String @db.VarChar(30)
   modelYear     String @default("") @db.VarChar(10) // 연식
   fuel          String @default("") @db.VarChar(20) // 연료

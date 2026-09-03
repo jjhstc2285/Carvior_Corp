@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Query,
   Injectable,
   Logger,
   Module,
@@ -19,6 +20,36 @@ import { ConfigService } from '@nestjs/config';
  */
 
 const TOKEN_PATH = '/api/v1/partner-api/oauth/token';
+
+/**
+ * 시세 조회용 공개 API. 카비어의 내 차 시세 조회 화면(/price)이 쓰는 것과 같다.
+ * 파트너 열쇠가 필요 없어서 토큰 없이 부른다 — 열쇠가 없어도 시세는 볼 수 있다.
+ *
+ * 브라우저에서 직접 부르지 않고 서버가 대신 부르는 이유는 CORS다.
+ * 저쪽은 자기 도메인에서 부르는 걸 전제로 열어둔 API라, 우리 화면에서 바로 치면 막힌다.
+ */
+const CAR_SPEC_PATH = '/api/v1/external/car-spec';
+
+/** 차명 검색 결과 한 줄 — 제조사·모델·등급과 그 등급으로 올라온 매물 수 */
+export interface CarSpec {
+  manufacturer: string;
+  model: string;
+  badge: string;
+  count: number;
+}
+
+/** 그 등급으로 올라온 매물 한 대 */
+export interface CarListing {
+  id: string;
+  model: string;
+  badge: string;
+  year: string;
+  mileage: number;
+  fuel: string;
+  /** 호가(만원) */
+  priceManwon: number;
+  thumbnailUrl: string | null;
+}
 
 export interface CarviorContract {
   id: number;
@@ -87,6 +118,40 @@ export class CarviorService {
     return body.data ?? [];
   }
 
+  /** 차명으로 등급을 찾는다 — "K7" 처럼 적으면 그 차의 등급들이 나온다. */
+  async searchSpecs(q: string): Promise<CarSpec[]> {
+    return this.publicGet<CarSpec>(`${CAR_SPEC_PATH}/search`, { q });
+  }
+
+  /** 고른 등급으로 올라와 있는 매물 — 시세 곡선을 그리는 재료다. */
+  async findListings(manufacturer: string, model: string, badge: string): Promise<CarListing[]> {
+    return this.publicGet<CarListing>(`${CAR_SPEC_PATH}/listings`, { manufacturer, model, badge });
+  }
+
+  /**
+   * 열쇠 없이 부르는 공개 API.
+   *
+   * 시세를 못 불러와도 매입 등록 자체는 되어야 하므로, 실패하면 빈 목록을 준다 —
+   * 화면에서는 "비교할 매물을 찾지 못했어요"로 보인다.
+   */
+  private async publicGet<T>(path: string, params: Record<string, string>): Promise<T[]> {
+    const query = new URLSearchParams(params).toString();
+    try {
+      const res = await fetch(`${this.baseUrl}${path}?${query}`, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        this.logger.warn(`카비어 시세 조회 실패 ${res.status}: ${path}`);
+        return [];
+      }
+      const body: unknown = await res.json();
+      return Array.isArray(body) ? (body as T[]) : [];
+    } catch (e) {
+      this.logger.warn(`카비어 시세 조회 실패: ${(e as Error).message}`);
+      return [];
+    }
+  }
+
   private async get(path: string): Promise<Response> {
     let res = await fetch(`${this.baseUrl}${path}`, {
       headers: { Authorization: `Bearer ${await this.accessToken()}` },
@@ -150,6 +215,25 @@ export class CarviorController {
   @Get('contracts')
   contracts() {
     return this.carvior.findContracts();
+  }
+
+  /** 시세 조회 — 차명으로 등급 찾기 */
+  @Get('car-spec/search')
+  searchSpecs(@Query('q') q?: string) {
+    const term = (q ?? '').trim();
+    // 빈 검색어로 저쪽을 두드리지 않는다 — 글자를 지웠을 때도 요청이 나간다.
+    return term ? this.carvior.searchSpecs(term) : [];
+  }
+
+  /** 시세 조회 — 고른 등급의 매물 */
+  @Get('car-spec/listings')
+  listings(
+    @Query('manufacturer') manufacturer?: string,
+    @Query('model') model?: string,
+    @Query('badge') badge?: string,
+  ) {
+    if (!manufacturer || !model || !badge) return [];
+    return this.carvior.findListings(manufacturer, model, badge);
   }
 }
 

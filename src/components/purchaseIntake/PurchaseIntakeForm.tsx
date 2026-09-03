@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
-import { ClipboardPaste, X } from 'lucide-react';
+import { ClipboardPaste, LineChart, X } from 'lucide-react';
 import { isValidPlate, normalizePlate, PLATE_MESSAGE } from '../../lib/vehicle';
 import type { PurchaseIntake } from '../../types';
 import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
 import { parseIntakeText } from './parseIntake';
+import PriceCheckModal from './PriceCheckModal';
 import type { PurchaseIntakeInput } from './usePurchaseIntake';
 
 interface Props {
@@ -26,6 +27,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   const [source, setSource] = useState(editing?.source ?? '');
   const [inspector, setInspector] = useState(editing?.inspector ?? '');
   const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? '');
+  const [detailModel, setDetailModel] = useState(editing?.detailModel ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
   const [modelYear, setModelYear] = useState(editing?.modelYear ?? '');
   const [fuel, setFuel] = useState(editing?.fuel ?? '');
@@ -37,6 +39,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [priceOpen, setPriceOpen] = useState(false);
 
   const total = moneyToNumber(purchaseAmount) + moneyToNumber(brokerFee);
 
@@ -104,6 +107,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       source: source.trim(),
       inspector: inspector.trim(),
       vehicleName: vehicleName.trim(),
+      detailModel: detailModel.trim(),
       vehicleNumber: plate,
       modelYear: modelYear.trim(),
       fuel: fuel.trim(),
@@ -197,6 +201,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
         <p className="mt-5 mb-2 text-xs font-bold text-slate-600">차량</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {field('차명 *', text(vehicleName, setVehicleName, '아우디 A5(2세대) 40TDI quattro'), 'col-span-2 sm:col-span-4')}
+          {/* 카비어에서 받아온 건 등급이 없어 비어 있다. 시세 조회에서 등급을 고르면 여기가 채워진다. */}
+          {field('세부모델', text(detailModel, setDetailModel, '2.4 GDI 프레스티지'), 'col-span-2 sm:col-span-4')}
           {field('차량번호 *', text(vehicleNumber, setVehicleNumber, '154오8037'))}
           {field('연식', text(modelYear, setModelYear, '2020'))}
           {field(
@@ -220,7 +226,18 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           ))}
         </datalist>
 
-        <p className="mt-5 mb-2 text-xs font-bold text-slate-600">매입금액</p>
+        <div className="mt-5 mb-2 flex items-center justify-between">
+          <p className="text-xs font-bold text-slate-600">매입금액</p>
+          {/* 매입가를 정할 때 다른 창을 열어 찾아보던 걸 여기서 끝낸다 */}
+          <button
+            type="button"
+            onClick={() => setPriceOpen(true)}
+            className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/60 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+            title="카비어에 올라온 같은 등급 매물로 시세를 봅니다"
+          >
+            <LineChart size={13} /> 시세 조회
+          </button>
+        </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {field('실매입금액(원)', money(purchaseAmount, setPurchaseAmount, '27,500,000'))}
           {field('구전(원)', money(brokerFee, setBrokerFee, '500,000'))}
@@ -236,6 +253,19 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
         <p className="mt-3 text-[11px] text-slate-400">
           등록하면 이 차량번호가 <b>차량 관리</b> 탭에 자동으로 올라갑니다. 이미 있는 번호면 차량명만 맞춥니다.
         </p>
+
+        {priceOpen && (
+          <PriceCheckModal
+            defaultQuery={vehicleName}
+            mileage={moneyToNumber(mileage) || null}
+            modelYear={modelYear}
+            fuel={fuel}
+            // 카비어에서 받아온 건 등급이 비어 있다 — 시세를 보면서 고른 등급을 그대로 채운다.
+            onPickSpec={badge => setDetailModel(badge)}
+            onPick={won => setPurchaseAmount(withCommas(won))}
+            onClose={() => setPriceOpen(false)}
+          />
+        )}
 
         {error && <p className="mt-3 text-xs font-medium text-red-500">{error}</p>}
 

@@ -41,6 +41,7 @@ export default function PurchaseIntakeModule({ role }: Props) {
       매입처: r.source,
       '실차 확인자': r.inspector,
       차명: r.vehicleName,
+      세부모델: r.detailModel,
       차량번호: r.vehicleNumber,
       연식: r.modelYear,
       연료: r.fuel,
@@ -125,7 +126,7 @@ export default function PurchaseIntakeModule({ role }: Props) {
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="고객이름·차량번호·차명·매입처 검색"
+          placeholder="고객이름·차량번호·차명·세부모델·매입처 검색"
           className="w-64 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
         />
         <span className="ml-auto text-xs text-slate-400">{api.loading ? '불러오는 중…' : `총 ${api.items.length}건`}</span>
@@ -149,6 +150,7 @@ export default function PurchaseIntakeModule({ role }: Props) {
                     {r.vehicleNumber}
                   </span>
                   <span className="text-sm font-bold text-slate-800">{r.vehicleName}</span>
+                  {r.detailModel && <span className="text-xs text-slate-500">{r.detailModel}</span>}
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                     <Car size={11} /> 차량관리 등록
                   </span>

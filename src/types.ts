@@ -562,6 +562,8 @@ export interface PurchaseIntake {
   inspector: string; // 실차 확인자
 
   vehicleName: string; // 차명
+  /** 세부모델(등급) — "2.4 GDI 프레스티지". 카비어에서 받아온 건 비어 있다 */
+  detailModel: string;
   vehicleNumber: string;
   modelYear: string; // 연식
   fuel: string; // 연료
