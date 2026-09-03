@@ -1,9 +1,12 @@
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ConsultationStatus } from '@prisma/client';
+import { ConsultationKind, ConsultationStatus } from '@prisma/client';
 import { DATE_PATTERN, TIME_PATTERN } from '../../common/dto';
 
 export class CreateConsultationDto {
+  /** 알선 / 수출 — 안 주면 알선이다(예전 요청과 호환) */
+  @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
+
   /** 유입 경로 — 엔카·KB차차차 등. 목록에 없는 곳도 있어서 자유 입력으로 둔다. */
   @IsOptional() @IsString() @MaxLength(30) platform?: string;
 
@@ -56,6 +59,7 @@ export class CreateConsultationDto {
 }
 
 export class UpdateConsultationDto {
+  @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
   @IsOptional() @IsString() @MaxLength(30) platform?: string;
   @IsOptional() @IsString() @MaxLength(30) vehicleNumber?: string;
   @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;

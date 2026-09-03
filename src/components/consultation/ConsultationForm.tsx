@@ -2,9 +2,18 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
-import { CONSULTATION_PLATFORMS, CONSULTATION_STATUS_LABEL, type ConsultationRecord, type ConsultationStatus } from '../../types';
+import {
+  CONSULTATION_KIND_LABEL,
+  CONSULTATION_PLATFORMS_BY_KIND,
+  CONSULTATION_STATUS_LABEL,
+  type ConsultationKind,
+  type ConsultationRecord,
+  type ConsultationStatus,
+} from '../../types';
 
 interface Props {
+  /** 알선인지 수출인지 — 열린 탭이 정한다 */
+  kind: ConsultationKind;
   editing: ConsultationRecord | null;
   defaultEmployeeId: string;
   /** 차량관리에서 고른 차로 열 때 — 차량번호·차명을 미리 채운다 */
@@ -12,7 +21,7 @@ interface Props {
   onClose: () => void;
 }
 
-export default function ConsultationForm({ editing, defaultEmployeeId, preset, onClose }: Props) {
+export default function ConsultationForm({ kind, editing, defaultEmployeeId, preset, onClose }: Props) {
   const { state, upsertConsultation } = useStore();
   const [platform, setPlatform] = useState(editing?.platform ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? preset?.vehicleNumber ?? '');
@@ -36,6 +45,7 @@ export default function ConsultationForm({ editing, defaultEmployeeId, preset, o
     }
     upsertConsultation({
       id: editing?.id,
+      kind: editing?.kind ?? kind,
       platform: platform.trim(),
       vehicleNumber: vehicleNumber.trim(),
       vehicleName: vehicleName.trim(),
@@ -60,7 +70,9 @@ export default function ConsultationForm({ editing, defaultEmployeeId, preset, o
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">{editing ? '상담 내역 수정' : '상담 등록'}</h3>
+          <h3 className="text-base font-bold text-slate-800">
+            {CONSULTATION_KIND_LABEL[editing?.kind ?? kind]} 상담 {editing ? '수정' : '등록'}
+          </h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
@@ -70,7 +82,7 @@ export default function ConsultationForm({ editing, defaultEmployeeId, preset, o
         <div className="mt-4">
           <label className="mb-1 block text-xs font-semibold text-slate-500">플랫폼</label>
           <div className="mb-1.5 flex flex-wrap gap-1">
-            {CONSULTATION_PLATFORMS.map(p => (
+            {CONSULTATION_PLATFORMS_BY_KIND[editing?.kind ?? kind].map(p => (
               <button
                 key={p}
                 type="button"

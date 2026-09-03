@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ConsultationStatus, Prisma } from '@prisma/client';
+import { ConsultationKind, ConsultationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, formatDateOnlyOrNull, toDateOnly, toDateOnlyOrNull } from '../common/date.util';
 import type { CreateConsultationDto, UpdateConsultationDto } from './dto/consultation.dto';
@@ -22,8 +22,9 @@ export class ConsultationsService {
     };
   }
 
-  async findAll(params: { q?: string; status?: ConsultationStatus; employeeId?: string }) {
+  async findAll(params: { q?: string; status?: ConsultationStatus; employeeId?: string; kind?: ConsultationKind }) {
     const where: Prisma.ConsultationWhereInput = {
+      ...(params.kind ? { kind: params.kind } : {}),
       ...(params.status ? { status: params.status } : {}),
       ...(params.employeeId ? { employeeId: params.employeeId } : {}),
       ...(params.q
@@ -66,6 +67,7 @@ export class ConsultationsService {
   async create(dto: CreateConsultationDto) {
     const row = await this.prisma.consultation.create({
       data: {
+        kind: dto.kind ?? ConsultationKind.BROKERAGE,
         platform: dto.platform?.trim() ?? '',
         vehicleNumber: dto.vehicleNumber,
         vehicleName: dto.vehicleName?.trim() ?? '',
@@ -91,6 +93,7 @@ export class ConsultationsService {
     const row = await this.prisma.consultation.update({
       where: { id },
       data: {
+        ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
         ...(dto.platform !== undefined ? { platform: dto.platform.trim() } : {}),
         ...(dto.vehicleNumber !== undefined ? { vehicleNumber: dto.vehicleNumber } : {}),
         ...(dto.vehicleName !== undefined ? { vehicleName: dto.vehicleName.trim() } : {}),

@@ -20,6 +20,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, monthRange, toDateOnly, todayKst } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { isValidPlate, normalizePlate, plateTailOf } from '../vehicles/vehicle.rules';
+import { CarviorModule, CarviorService, type CarviorContract } from '../carvior/carvior.module';
+
+/** 카비오는 만원, 매입 관리는 원으로 적는다. */
+const WON_PER_MANWON = 10000;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
@@ -79,7 +83,112 @@ export class PurchaseIntakeQueryDto {
 export class PurchaseIntakeService {
   private readonly logger = new Logger(PurchaseIntakeService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly carvior: CarviorService,
+  ) {}
+
+  /**
+   * 카비오에서 성사된 계약을 매입 내역으로 한 번에 옮긴다.
+   *
+   * 차량번호로 이미 매입 관리에 있는 건은 건너뛴다 — 같은 차를 두 번 사오는 일도
+   * 있지만(팔았다 되사오는 경우), 일괄 등록을 두 번 눌러 생기는 중복이 훨씬 흔하다.
+   * 되사온 건은 매입 등록 화면에서 손으로 넣는 편이 안전하다.
+   *
+   * 취소된 계약은 넣지 않는다. 성사되지 않은 건은 매입한 차가 아니다.
+   *
+   * 카비오에 없는 값(고객번호·연식·연료·구전)은 비워둔다 — 사람이 나중에 채운다.
+   */
+  async importFromCarvior(user: AuthUser, dryRun: boolean) {
+    const contracts = (await this.carvior.findContracts()).filter((c) => c.status !== 'CANCELLED');
+
+    const existing = new Set(
+      (await this.prisma.purchaseIntake.findMany({ select: { vehicleNumber: true } })).map(
+        (r) => r.vehicleNumber,
+      ),
+    );
+
+    const items: { contract: CarviorContract; plate: string }[] = [];
+    const skipped: { vehicleNumber: string; reason: string }[] = [];
+    // 카비오 안에서도 같은 차가 여러 계약으로 잡혀 있을 수 있다.
+    const seen = new Set<string>();
+
+    for (const c of contracts) {
+      const plate = normalizePlate(c.carNumber ?? '');
+      if (!isValidPlate(plate)) {
+        skipped.push({ vehicleNumber: c.carNumber, reason: '차량번호 형식이 아닙니다' });
+      } else if (existing.has(plate)) {
+        skipped.push({ vehicleNumber: plate, reason: '이미 매입 관리에 있습니다' });
+      } else if (seen.has(plate)) {
+        skipped.push({ vehicleNumber: plate, reason: '카비오에 같은 차 계약이 두 건입니다' });
+      } else {
+        seen.add(plate);
+        items.push({ contract: c, plate });
+      }
+    }
+
+    // 미리보기 — 몇 건이 들어오고 무엇이 빠지는지 먼저 보여준다.
+    if (dryRun) {
+      return {
+        total: contracts.length,
+        items: items.map(({ contract, plate }) => ({
+          vehicleNumber: plate,
+          vehicleName: contract.carModel ?? '',
+          customerName: contract.carOwner ?? '',
+          source: contract.dealerName ?? '',
+          purchaseAmount: (contract.purchasePrice ?? 0) * WON_PER_MANWON,
+          date: formatDateOnly(new Date(contract.createdAt)),
+        })),
+        skipped,
+      };
+    }
+
+    let imported = 0;
+    for (const { contract, plate } of items) {
+      try {
+        await this.prisma.purchaseIntake.create({
+          data: {
+            date: toDateOnly(formatDateOnly(new Date(contract.createdAt))),
+            customerPhone: '',
+            customerName: (contract.carOwner ?? '').slice(0, 30),
+            source: (contract.dealerName ?? '').slice(0, 120),
+            inspector: '',
+            vehicleName: (contract.carModel ?? '').slice(0, 150),
+            vehicleNumber: plate,
+            modelYear: '',
+            fuel: '',
+            keyCount: contract.keyCount ?? 0,
+            mileage: contract.mileage ?? 0,
+            note: this.carviorNote(contract),
+            purchaseAmount: (contract.purchasePrice ?? 0) * WON_PER_MANWON,
+            brokerFee: (contract.brokerFee ?? 0) * WON_PER_MANWON,
+            employeeId: user.id,
+          },
+        });
+        await this.syncManagedVehicle(plate, contract.carModel ?? '');
+        imported += 1;
+      } catch (e) {
+        // 한 건이 막혀도 나머지는 들어가야 한다 — 94건을 한 건 때문에 다시 하게 두지 않는다.
+        this.logger.warn(`카비오 매입 등록 실패(${plate}): ${(e as Error).message}`);
+        skipped.push({ vehicleNumber: plate, reason: '등록하지 못했습니다' });
+      }
+    }
+
+    return { imported, skipped };
+  }
+
+  /** 카비오에만 있는 값을 특이사항 한 줄로 남긴다 — 매입 대장에 따로 칸이 없다. */
+  private carviorNote(c: CarviorContract): string {
+    return [
+      '카비오 수출계약',
+      c.contractWriter ? `작성자 ${c.contractWriter}` : '',
+      c.contractDeposit ? `계약금 ${c.contractDeposit.toLocaleString()}만원` : '',
+      c.contractBalance ? `잔금 ${c.contractBalance.toLocaleString()}만원` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
+      .slice(0, 255);
+  }
 
   async findAll(params: PurchaseIntakeQueryDto) {
     const where: Prisma.PurchaseIntakeWhereInput = {
@@ -252,9 +361,21 @@ export class PurchaseIntakeController {
   async remove(@Param('id') id: string) {
     await this.intake.remove(id);
   }
+
+  /** 카비오 계약 일괄 등록 — 무엇이 들어오고 무엇이 빠지는지 먼저 본다. */
+  @Get('carvior/preview')
+  preview(@CurrentUser() user: AuthUser) {
+    return this.intake.importFromCarvior(user, true);
+  }
+
+  @Post('carvior/import')
+  importCarvior(@CurrentUser() user: AuthUser) {
+    return this.intake.importFromCarvior(user, false);
+  }
 }
 
 @Module({
+  imports: [CarviorModule],
   controllers: [PurchaseIntakeController],
   providers: [PurchaseIntakeService],
 })

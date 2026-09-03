@@ -156,5 +156,7 @@ export class CarviorController {
 @Module({
   controllers: [CarviorController],
   providers: [CarviorService],
+  // 매입 관리가 계약을 일괄로 끌어다 쓴다.
+  exports: [CarviorService],
 })
 export class CarviorModule {}

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { Car, Download, Plus, Trash2 } from 'lucide-react';
+import { Car, CloudDownload, Download, Plus, Trash2 } from 'lucide-react';
 import type { PurchaseIntake, Role } from '../../types';
 import PurchaseIntakeForm from './PurchaseIntakeForm';
+import CarviorImportModal from './CarviorImportModal';
 import { usePurchaseIntake } from './usePurchaseIntake';
 import { alertError, confirmDanger } from '../../lib/alert';
 
@@ -19,6 +20,7 @@ export default function PurchaseIntakeModule({ role }: Props) {
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PurchaseIntake | null>(null);
+  const [carviorOpen, setCarviorOpen] = useState(false);
 
   const api = usePurchaseIntake(allMonths ? '' : month, query);
   const isAdmin = role === 'ADMIN';
@@ -67,6 +69,13 @@ export default function PurchaseIntakeModule({ role }: Props) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => setCarviorOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            title="카비오에서 성사된 계약을 매입 내역으로 한 번에 가져옵니다"
+          >
+            <CloudDownload size={15} /> 카비오 일괄 등록
+          </button>
           <button
             onClick={handleExport}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -186,6 +195,10 @@ export default function PurchaseIntakeModule({ role }: Props) {
           onSave={input => (editing ? api.edit(editing.id, input) : api.add(input))}
           onClose={() => setFormOpen(false)}
         />
+      )}
+
+      {carviorOpen && (
+        <CarviorImportModal onClose={() => setCarviorOpen(false)} onImported={() => void api.reload()} />
       )}
     </div>
   );

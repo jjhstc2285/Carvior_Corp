@@ -2,7 +2,14 @@ import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { CalendarDays, Copy, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
-import { CONSULTATION_STATUS_LABEL, type ConsultationRecord, type ConsultationStatus, type ManagedVehicle } from '../../types';
+import {
+  CONSULTATION_KIND_LABEL,
+  CONSULTATION_STATUS_LABEL,
+  type ConsultationKind,
+  type ConsultationRecord,
+  type ConsultationStatus,
+  type ManagedVehicle,
+} from '../../types';
 import ConsultationForm from './ConsultationForm';
 import CustomerHistoryModal from './CustomerHistoryModal';
 import SellableVehicles from './SellableVehicles';
@@ -55,6 +62,8 @@ async function copyRelease(c: ConsultationRecord, staffName: string) {
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
+  /** 알선 / 수출 — 같은 화면을 종류만 바꿔 쓴다 */
+  kind: ConsultationKind;
 }
 
 const STATUS_COLOR: Record<ConsultationStatus, string> = {
@@ -65,7 +74,7 @@ const STATUS_COLOR: Record<ConsultationStatus, string> = {
   CLOSED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
 };
 
-export default function ConsultationModule({ role }: Props) {
+export default function ConsultationModule({ role, kind }: Props) {
   const { state, deleteConsultation } = useStore();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<ConsultationStatus | 'all'>('all');
@@ -80,6 +89,7 @@ export default function ConsultationModule({ role }: Props) {
   // 직급과 상관없이 전체 상담을 본다 — 상담을 받은 사람과 뒤를 이어받는 사람이 다르다.
   // 내 것만 보고 싶으면 담당자에서 고른다.
   const filtered = state.consultations
+    .filter(c => c.kind === kind)
     .filter(c => ownerFilter === 'all' || c.employeeId === ownerFilter)
     .filter(c => statusFilter === 'all' || c.status === statusFilter)
     .filter(c => {
@@ -130,19 +140,19 @@ export default function ConsultationModule({ role }: Props) {
 
   // 이미 상담이 등록된 차는 목록에서 흐리게 보여준다(막지는 않는다 — 같은 차에 문의가 여러 번 온다).
   const consultedNumbers = useMemo(
-    () => new Set(state.consultations.map(c => c.vehicleNumber)),
-    [state.consultations],
+    () => new Set(state.consultations.filter(c => c.kind === kind).map(c => c.vehicleNumber)),
+    [state.consultations, kind],
   );
 
   const staffStats = useMemo(() => {
     if (role !== 'ADMIN') return [];
     return state.employees.map(emp => {
-      const own = state.consultations.filter(c => c.employeeId === emp.id);
+      const own = state.consultations.filter(c => c.kind === kind && c.employeeId === emp.id);
       const contracted = own.filter(c => c.status === 'CONTRACTED').length;
       const rate = own.length > 0 ? Math.round((contracted / own.length) * 100) : 0;
       return { emp, total: own.length, contracted, rate };
     }).filter(s => s.total > 0);
-  }, [state.consultations, state.employees, role]);
+  }, [state.consultations, state.employees, role, kind]);
 
   return (
     <>
@@ -154,10 +164,11 @@ export default function ConsultationModule({ role }: Props) {
           onClick={() => { setEditing(null); setPreset(undefined); setFormOpen(true); }}
           className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
         >
-          <Plus size={15} /> 상담 등록
+          <Plus size={15} /> {CONSULTATION_KIND_LABEL[kind]} 상담 등록
         </button>
       </div>
 
+      {kind === 'BROKERAGE' && (
       <SellableVehicles
         consultedNumbers={consultedNumbers}
         onStart={(v: ManagedVehicle) => {
@@ -166,6 +177,7 @@ export default function ConsultationModule({ role }: Props) {
           setFormOpen(true);
         }}
       />
+      )}
 
       {role === 'ADMIN' && staffStats.length > 0 && (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
@@ -313,7 +325,7 @@ export default function ConsultationModule({ role }: Props) {
       )}
 
       {formOpen && (
-        <ConsultationForm editing={editing} defaultEmployeeId={state.currentEmployeeId} preset={preset} onClose={() => setFormOpen(false)} />
+        <ConsultationForm kind={kind} editing={editing} defaultEmployeeId={state.currentEmployeeId} preset={preset} onClose={() => setFormOpen(false)} />
       )}
       {historyCustomer && (
         <CustomerHistoryModal customerName={historyCustomer} onClose={() => setHistoryCustomer(null)} />

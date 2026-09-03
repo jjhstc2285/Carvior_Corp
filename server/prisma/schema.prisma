@@ -215,6 +215,15 @@ model AttendanceDevice {
 
 // 상담 → 계약 → 판매완료 → (정산) 순으로 간다.
 // 보류·종결은 그 흐름에서 빠지는 갈래다.
+/**
+ * 상담 종류. 알선과 수출은 받는 창구도 손님도 다르지만, 적는 내용과 흐름
+ * (상담 → 계약 → 종결 → 판매완료)이 같아서 한 표에 두고 구분만 나눈다.
+ */
+enum ConsultationKind {
+  BROKERAGE // 알선
+  EXPORT // 수출
+}
+
 enum ConsultationStatus {
   IN_PROGRESS
   CONTRACTED
@@ -230,6 +239,7 @@ enum ConsultationStatus {
 // 이미 이름으로 적어둔 상담이 있어서 지우지 않고 남긴다(화면에서는 번호가 없을 때만 보인다).
 model Consultation {
   id            String             @id @default(cuid())
+  kind          ConsultationKind   @default(BROKERAGE) // 알선 / 수출
   platform      String             @default("") @db.VarChar(30) // 엔카·KB차차차 등 유입 경로
   vehicleNumber String
   vehicleName   String             @default("") @db.VarChar(60) // 차명
@@ -259,6 +269,7 @@ model Consultation {
   employee Employee           @relation(fields: [employeeId], references: [id])
   files    ConsultationFile[]
 
+  @@index([kind, date])
   @@index([employeeId])
   @@index([vehicleNumber])
   @@index([customerPhone])

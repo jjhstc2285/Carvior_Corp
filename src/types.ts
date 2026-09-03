@@ -293,8 +293,26 @@ export const CONSULTATION_STATUS_LABEL: Record<ConsultationStatus, string> = {
  */
 export const CONSULTATION_PLATFORMS = ['엔카', '차차차', '오토벨', '114', '자사몰', '인스타', '기타'] as const;
 
+/**
+ * 상담 종류. 알선과 수출은 받는 창구도 손님도 다르지만 적는 내용과 흐름
+ * (상담 → 계약 → 종결 → 판매완료)이 같아서, 한 곳에 쌓고 구분만 나눈다.
+ */
+export type ConsultationKind = 'BROKERAGE' | 'EXPORT';
+
+export const CONSULTATION_KIND_LABEL: Record<ConsultationKind, string> = {
+  BROKERAGE: '알선',
+  EXPORT: '수출',
+};
+
+/** 유입 경로 빠른 선택 — 수출은 들어오는 곳이 다르다. 어느 쪽이든 직접 입력도 된다. */
+export const CONSULTATION_PLATFORMS_BY_KIND: Record<ConsultationKind, readonly string[]> = {
+  BROKERAGE: CONSULTATION_PLATFORMS,
+  EXPORT: ['카비오', '딜러', '직거래', '기타'],
+};
+
 export interface ConsultationRecord {
   id: string;
+  kind: ConsultationKind;
   platform: string; // 유입 경로
   vehicleNumber: string;
   vehicleName: string; // 차명
