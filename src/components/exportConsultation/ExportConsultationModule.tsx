@@ -25,6 +25,8 @@ interface CarviorContract {
   purchasePrice: number | null; // 만원
   mileage: number | null; // km
   keyCount: number | null;
+  /** 구전(만원). 카비오가 아직 안 내려준다 — 생기면 그대로 흘러오도록 자리만 열어뒀다. */
+  brokerFee?: number | null;
   status: string;
   createdAt: string;
   reportUrl: string | null;
@@ -82,7 +84,9 @@ async function copyKakao(r: CarviorContract) {
  * 진단서(reportUrl)는 넘기지 않는다 — 매입 대장에 남길 값이 아니고, 링크는 이 화면에서 바로 열 수 있다.
  *
  * 금액 단위가 다르다: 카비오는 만원, 매입 관리는 원이다.
- * 연식·연료·고객번호는 저쪽에 없어 비워둔다 — 폼에서 사람이 마저 채운다.
+ *
+ * 구전·고객번호·연식·연료는 카비오가 안 내려줘서 비워둔다 — 폼에서 사람이 마저 채운다.
+ * (카비오가 주는 금액은 계약금·잔금·매입가 셋뿐이고, 매입가 = 계약금 + 잔금이다)
  */
 function toIntake(r: CarviorContract): Partial<PurchaseIntakeInput> {
   return {
@@ -95,6 +99,7 @@ function toIntake(r: CarviorContract): Partial<PurchaseIntakeInput> {
     keyCount: r.keyCount ?? 0,
     mileage: r.mileage ?? 0,
     purchaseAmount: (r.purchasePrice ?? 0) * WON_PER_MANWON,
+    brokerFee: (r.brokerFee ?? 0) * WON_PER_MANWON,
     note: [
       '카비오 수출계약',
       r.contractWriter ? `작성자 ${r.contractWriter}` : '',
@@ -417,6 +422,7 @@ export default function ExportConsultationModule() {
         <PurchaseIntakeForm
           editing={null}
           preset={intakePreset}
+          presetHint="카비오에서 가져왔습니다. 구전·고객번호·연식·연료는 저쪽에 없는 값이라 직접 채워 주세요."
           onSave={saveIntake}
           onClose={() => setIntakePreset(null)}
         />

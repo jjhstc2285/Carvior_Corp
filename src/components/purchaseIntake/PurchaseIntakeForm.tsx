@@ -14,13 +14,15 @@ interface Props {
    * 채워도 그대로 저장되진 않는다. 연식·연료처럼 저쪽에 없는 칸은 사람이 마저 채운다.
    */
   preset?: Partial<PurchaseIntakeInput>;
+  /** 미리 채워 들어왔을 때 위에 띄울 안내 — 어디서 왔고 뭐가 비어 있는지 알려준다. */
+  presetHint?: string;
   onSave: (input: PurchaseIntakeInput) => Promise<string | null>;
   onClose: () => void;
 }
 
 const FUEL_OPTIONS = ['가솔린', '디젤', 'LPG', '하이브리드', '전기', '가솔린+LPG'];
 
-export default function PurchaseIntakeForm({ editing, preset, onSave, onClose }: Props) {
+export default function PurchaseIntakeForm({ editing, preset, presetHint, onSave, onClose }: Props) {
   const [paste, setPaste] = useState('');
   // 미리 채워 들어왔으면 붙여넣기 칸은 접어둔다 — 채울 게 없다.
   const [pasteOpen, setPasteOpen] = useState(!editing && !preset);
@@ -160,6 +162,12 @@ export default function PurchaseIntakeForm({ editing, preset, onSave, onClose }:
             <X size={18} />
           </button>
         </div>
+
+        {presetHint && (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
+            {presetHint}
+          </p>
+        )}
 
         {/* 카톡으로 받은 양식을 그대로 붙여넣으면 아래 칸이 채워진다 */}
         <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">

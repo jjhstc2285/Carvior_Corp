@@ -39,6 +39,11 @@ export interface CarviorContract {
   mileage: number | null;
   /** 차키 갯수 */
   keyCount: number | null;
+  /**
+   * 구전. 2026-09 현재 카비오는 이 값을 안 내려준다 — 저쪽에 칸이 생기면
+   * 그대로 흘러오도록 자리만 열어뒀다(없으면 undefined 라 매입 등록에서 0으로 둔다).
+   */
+  brokerFee?: number | null;
   status: string;
   createdAt: string;
   reportUrl: string | null;
