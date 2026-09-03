@@ -31,6 +31,14 @@ export type VehicleFlags = Pick<
   | 'bodyType'
   | 'saleType'
   | 'isTaxi'
+  // 재고금융(제시)
+  | 'modelYear'
+  | 'mileage'
+  | 'offerDate'
+  | 'transferDate'
+  | 'stockCapital'
+  | 'stockAmount'
+  | 'repayDate'
 >;
 
 export interface VehiclesApi {

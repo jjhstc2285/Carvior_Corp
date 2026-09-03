@@ -244,8 +244,10 @@ export class PurchaseIntakeService {
         });
         await this.syncManagedVehicle(plate, contract.carModel ?? '', {
           priceManwon: contract.purchasePrice ?? 0,
-          // 카비어는 연료를 안 내려준다 — 차량 관리에서 채운다.
+          // 카비어는 연료·연식을 안 내려준다 — 차량 관리에서 채운다.
           fuel: '',
+          modelYear: '',
+          mileage: contract.mileage ?? 0,
         });
         imported += 1;
       } catch (e) {
@@ -326,6 +328,9 @@ export class PurchaseIntakeService {
     await this.syncManagedVehicle(vehicleNumber, dto.vehicleName, {
       priceManwon: Math.round((dto.purchaseAmount ?? 0) / WON_PER_MANWON),
       fuel: dto.fuel?.trim() ?? '',
+      modelYear: dto.modelYear?.trim() ?? '',
+      // 실차 확인한 값이 있으면 그게 맞다.
+      mileage: dto.checkedMileage || dto.mileage || 0,
     });
     await this.alertMileageGap(row);
     return this.toView(row);
@@ -364,10 +369,23 @@ export class PurchaseIntakeService {
     });
 
     // 차량번호나 차명을 고쳤으면 차량관리 쪽도 따라가게 한다.
-    if (vehicleNumber !== undefined || dto.vehicleName !== undefined || dto.purchaseAmount !== undefined || dto.fuel !== undefined) {
+    // 차량 관리가 이 값들을 보고 배치·제시 가능 여부를 가린다 — 하나라도 바뀌면 따라가야 한다.
+    const affectsVehicle = [
+      vehicleNumber,
+      dto.vehicleName,
+      dto.purchaseAmount,
+      dto.fuel,
+      dto.modelYear,
+      dto.mileage,
+      dto.checkedMileage,
+    ].some((v) => v !== undefined);
+
+    if (affectsVehicle) {
       await this.syncManagedVehicle(row.vehicleNumber, row.vehicleName, {
         priceManwon: Math.round(row.purchaseAmount / WON_PER_MANWON),
         fuel: row.fuel,
+        modelYear: row.modelYear,
+        mileage: row.checkedMileage || row.mileage,
       });
     }
 
@@ -400,7 +418,7 @@ export class PurchaseIntakeService {
   private async syncManagedVehicle(
     vehicleNumber: string,
     vehicleName: string,
-    policy?: { priceManwon: number; fuel: string },
+    policy?: { priceManwon: number; fuel: string; modelYear: string; mileage: number },
   ): Promise<void> {
     if (!isValidPlate(vehicleNumber)) {
       this.logger.warn(`차량관리 등록 건너뜀 — 차량번호 형식이 규칙과 다릅니다: ${vehicleNumber}`);
@@ -414,7 +432,15 @@ export class PurchaseIntakeService {
       const derived = {
         vehicleModel: model,
         bodyType: inferBodyType(model),
-        ...(policy ? { priceManwon: policy.priceManwon, fuel: policy.fuel } : {}),
+        ...(policy
+          ? {
+              priceManwon: policy.priceManwon,
+              fuel: policy.fuel,
+              // 제시 가능 여부(10년 이내·20만km 미만)를 가리는 값이라 같이 채운다.
+              modelYear: policy.modelYear,
+              mileage: policy.mileage,
+            }
+          : {}),
       };
 
       await this.prisma.managedVehicle.upsert({

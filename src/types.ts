@@ -435,6 +435,17 @@ export interface ManagedVehicle {
   saleType: VehicleSaleType;
   isTaxi: boolean; // 택시 — 배양동 외부로 간다
 
+  // ── 제시 가능 여부를 가리는 값 (매입 관리에서 채워진다) ──
+  modelYear: string; // 연식 — "2016"
+  mileage: number; // 주행거리(km)
+
+  // ── 재고금융(제시) ──
+  offerDate: string | null; // 제시일자 — 캐피탈에 제시한 날
+  transferDate: string | null; // 이전일자 — 명의 이전한 날
+  stockCapital: string; // 할부사
+  stockAmount: number; // 재고금액(원)
+  repayDate: string | null; // 상환일자 — 월별로 모아 본다
+
   createdAt: string;
   updatedAt: string;
 }

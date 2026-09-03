@@ -614,6 +614,20 @@ model ManagedVehicle {
   saleType    VehicleSaleType @default(GENERAL)
   isTaxi      Boolean         @default(false) // 택시 — 배양동 외부로 간다
 
+  // 제시 가능 여부를 가리는 값. 매입 관리에서 들어올 때 같이 채워진다.
+  modelYear String @default("") @db.VarChar(10) // 연식 — "2016"
+  mileage   Int    @default(0) // 주행거리(km)
+
+  // ── 재고금융(제시) ──
+  // 제시 가능 여부는 저장하지 않고 연식·주행거리로 그때그때 가린다 —
+  // 기준(10년 이내·20만km 미만)이 바뀌어도 지난 기록이 안 꼬이게.
+  offerDate    DateTime? @db.Date // 제시일자 — 캐피탈에 제시한 날
+  transferDate DateTime? @db.Date // 이전일자 — 명의 이전한 날
+
+  stockCapital String    @default("") @db.VarChar(20) // 할부사
+  stockAmount  Int       @default(0) // 재고금액(원)
+  repayDate    DateTime? @db.Date // 상환일자 — 월별로 모아 본다
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -621,6 +635,8 @@ model ManagedVehicle {
 
   @@index([plateTail])
   @@index([vehicleModel])
+  @@index([offerDate])
+  @@index([repayDate])
 }
 
 enum VehicleExpenseKind {
