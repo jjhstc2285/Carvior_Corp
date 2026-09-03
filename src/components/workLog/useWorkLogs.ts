@@ -35,7 +35,7 @@ function message(e: unknown, fallback: string): string {
  * @param to    조회 종료일 YYYY-MM-DD
  * @param employeeId  관리자가 다른 직원 일지를 볼 때 지정(직원은 서버가 본인으로 고정)
  */
-export function useWorkLogs(from: string, to: string, employeeId: string): WorkLogsApi {
+export function useWorkLogs(from: string, to: string, employeeId: string, team = false): WorkLogsApi {
   const [logs, setLogs] = useState<WorkLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +46,12 @@ export function useWorkLogs(from: string, to: string, employeeId: string): WorkL
     setLoading(true);
     setError(null);
     try {
-      const query = new URLSearchParams({ from, to, ...(employeeId ? { employeeId } : {}) });
+      const query = new URLSearchParams({
+        from,
+        to,
+        ...(employeeId ? { employeeId } : {}),
+        ...(team ? { team: 'true' } : {}),
+      });
       const rows = await api<(WorkLog & { employee?: unknown })[]>(`/work-logs?${query}`);
       // 주를 빠르게 넘기면 이전 요청이 늦게 도착할 수 있다 — 최신 요청만 반영한다.
       if (myReq !== reqId.current) return;
@@ -57,7 +62,7 @@ export function useWorkLogs(from: string, to: string, employeeId: string): WorkL
     } finally {
       if (myReq === reqId.current) setLoading(false);
     }
-  }, [from, to, employeeId]);
+  }, [from, to, employeeId, team]);
 
   useEffect(() => {
     void load();

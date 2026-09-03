@@ -21,40 +21,58 @@ export class WorkLogsService {
     return { ...row, date: formatDateOnly(row.date) };
   }
 
-  /** 이 사람이 볼 수 있는 일지의 주인 조건 */
+  /**
+   * 이 사람이 볼 수 있는 일지의 주인 조건.
+   *
+   * 기본은 본인 것이다. 팀원 것은 골라서 본다 — 늘 섞어 보여주면 자기 일지를 보려고
+   * 남의 줄을 헤쳐야 한다.
+   *
+   * 직원이 남을 고르면 같은 팀인지 본다. 팀 밖 사람을 고르면 본인 것으로 돌린다 —
+   * 화면에서는 팀원만 고를 수 있지만, 주소를 알면 아무 id나 보낼 수 있다.
+   */
   private async visibleEmployees(
     user: AuthUser,
-    pickedEmployeeId?: string,
+    params: { employeeId?: string; team?: boolean },
   ): Promise<Prisma.WorkLogWhereInput> {
     if (user.role === Role.ADMIN) {
-      return pickedEmployeeId ? { employeeId: pickedEmployeeId } : {};
+      return params.employeeId ? { employeeId: params.employeeId } : {};
     }
 
+    if (!params.employeeId && !params.team) return { employeeId: user.id };
+    if (params.employeeId === user.id) return { employeeId: user.id };
+
+    const teamIds = await this.teamMemberIds(user.id);
+    if (params.team) return { employeeId: { in: teamIds } };
+
+    return { employeeId: teamIds.includes(params.employeeId!) ? params.employeeId! : user.id };
+  }
+
+  /** 같은 팀 사람들(본인 포함). 팀이 없으면 본인뿐이다. */
+  private async teamMemberIds(employeeId: string): Promise<string[]> {
     const me = await this.prisma.employee.findUnique({
-      where: { id: user.id },
+      where: { id: employeeId },
       select: { department: true },
     });
-    if (!me?.department) return { employeeId: user.id };
+    if (!me?.department) return [employeeId];
 
     const team = await this.prisma.employee.findMany({
       where: { department: me.department, active: true },
       select: { id: true },
     });
-    // 팀원 목록에 본인이 빠지는 일이 없게 넣어둔다(비활성 처리 중일 수도 있다).
-    return { employeeId: { in: [...new Set([user.id, ...team.map((t) => t.id)])] } };
+    // 본인이 빠지는 일이 없게 넣어둔다(비활성 처리 중일 수도 있다).
+    return [...new Set([employeeId, ...team.map((t) => t.id)])];
   }
 
   /**
    * 주간 화면이 한 번에 그려지도록 [from, to] 범위를 통째로 내려준다.
    *
-   * 직원은 같은 팀 일지를 본다. 같은 일을 나눠 맡는 사람들이라 서로 뭘 하고 있는지
-   * 알아야 하고, 자기 것만 보이면 팀 안에서도 매번 물어봐야 했다.
+   * 기본은 본인 일지다. 직원은 같은 팀 사람을 골라서, 또는 팀 전체로 볼 수 있다.
    * 팀이 정해지지 않은 사람은 본인 것만 본다 — 팀이 빈 사람끼리 묶이면 남남이 섞인다.
    *
    * 관리자는 전체를 보고 employeeId 로 한 사람만 골라 볼 수 있다.
    */
-  async findAll(user: AuthUser, params: { from?: string; to?: string; employeeId?: string }) {
-    const scope = await this.visibleEmployees(user, params.employeeId);
+  async findAll(user: AuthUser, params: { from?: string; to?: string; employeeId?: string; team?: boolean }) {
+    const scope = await this.visibleEmployees(user, params);
 
     const where: Prisma.WorkLogWhereInput = {
       ...scope,

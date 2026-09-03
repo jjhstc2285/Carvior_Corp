@@ -39,11 +39,21 @@ export default function WorkLogModule({ role }: Props) {
   const to = (weekStart.add(6, 'day').isAfter(gridEnd) ? weekStart.add(6, 'day') : gridEnd).format('YYYY-MM-DD');
 
   const isAdmin = role === 'ADMIN';
-  const isAllView = isAdmin && view === 'all';
-  // 직원 계정은 서버가 본인 것으로 고정하므로 employeeId를 보내지 않는다.
-  const scope = !isAdmin ? '' : isAllView ? '' : view === 'self' ? state.currentEmployeeId : view;
+  // 여러 사람 것이 한 칸에 섞여 나오는 보기 — 관리자의 '전 직원', 직원의 '팀 전체'
+  const isAllView = view === 'all';
+  const isSelfView = view === 'self';
 
-  const { logs, loading, error, add, toggle, edit, remove } = useWorkLogs(from, to, scope);
+  const scope = isAllView || isSelfView ? (isSelfView ? state.currentEmployeeId : '') : view;
+  // 직원의 '팀 전체'는 team 플래그로 부른다 — 그냥 비워 보내면 서버가 본인 것만 준다.
+  const { logs, loading, error, add, toggle, edit, remove } = useWorkLogs(
+    from,
+    to,
+    isAllView ? '' : scope,
+    !isAdmin && isAllView,
+  );
+
+  // 남의 일지는 보기만 한다. 서버도 막지만 화면에 버튼이 있으면 눌러보고 거절당한다.
+  const readOnly = !isSelfView && (!isAdmin || isAllView);
 
   // 날짜별로 한 번만 묶어두고 주간 칸·캘린더가 같이 꺼내 쓴다.
   const byDate = useMemo(() => {
@@ -63,6 +73,12 @@ export default function WorkLogModule({ role }: Props) {
   const employeeName = (id: string) => state.employees.find(e => e.id === id)?.name ?? '알 수 없음';
   const ownerLabel = isAllView ? employeeName : undefined;
 
+  // 직원은 같은 팀 사람만 고를 수 있다.
+  const myTeam = state.employees.find(e => e.id === state.currentEmployeeId)?.department;
+  const pickable = state.employees.filter(
+    e => e.active && e.id !== state.currentEmployeeId && (isAdmin || (myTeam != null && e.department === myTeam)),
+  );
+
   // 캘린더 칸에 뿌릴 칩 — 완료된 건 초록, 남은 건 인디고.
   const eventsForDate = (dateStr: string): CalEvent[] =>
     (byDate.get(dateStr) ?? []).map(log => ({
@@ -73,17 +89,13 @@ export default function WorkLogModule({ role }: Props) {
       dotClass: log.done ? 'bg-emerald-400' : 'bg-indigo-400',
     }));
 
-  // 직원은 같은 팀 일지를 함께 본다 — 화면 이름이 '내 작업일지'면 남의 것이 왜 보이나 싶다.
-  const myTeam = state.employees.find(e => e.id === state.currentEmployeeId)?.department;
-
-  const viewerName =
-    !isAdmin || view === 'self'
-      ? myTeam
-        ? `${myTeam} 작업일지`
-        : '내 작업일지'
-      : isAllView
+  const viewerName = isSelfView
+    ? '내 작업일지'
+    : isAllView
+      ? isAdmin
         ? '전 직원 작업일지'
-        : `${employeeName(view)} 작업일지`;
+        : `${myTeam ?? '팀'} 전체 작업일지`
+      : `${employeeName(view)} 작업일지`;
 
   if (!state.currentEmployeeId) {
     return <p className="px-6 py-10 text-sm text-slate-400">불러오는 중…</p>;
@@ -98,26 +110,25 @@ export default function WorkLogModule({ role }: Props) {
             요일별로 할 일을 적어두고 처리한 건 체크해 두세요.
             {!isAdmin &&
               (myTeam
-                ? ` 같은 ${myTeam} 사람들의 일지가 함께 보입니다.`
-                : ' 팀이 정해지면 같은 팀 일지가 함께 보입니다.')}
+                ? ` 오른쪽에서 ${myTeam} 팀원을 골라 그 사람 일지를 볼 수 있습니다(보기만 됩니다).`
+                : ' 팀이 정해지면 팀원 일지도 볼 수 있습니다.')}
           </p>
         </div>
 
-        {isAdmin && (
+        {/* 직원도 같은 팀 사람을 골라 볼 수 있다. 팀이 없으면 고를 게 없어 상자를 안 띄운다. */}
+        {(isAdmin || pickable.length > 0) && (
           <select
             value={view}
             onChange={e => setView(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
           >
             <option value="self">내 작업일지</option>
-            <option value="all">전 직원 보기</option>
-            {state.employees
-              .filter(e => e.active && e.id !== state.currentEmployeeId)
-              .map(e => (
-                <option key={e.id} value={e.id}>
-                  {e.name} {e.position}
-                </option>
-              ))}
+            <option value="all">{isAdmin ? '전 직원 보기' : `${myTeam} 전체 보기`}</option>
+            {pickable.map(e => (
+              <option key={e.id} value={e.id}>
+                {e.name} {e.position}
+              </option>
+            ))}
           </select>
         )}
       </div>
@@ -166,7 +177,8 @@ export default function WorkLogModule({ role }: Props) {
               key={key}
               day={day}
               logs={byDate.get(key) ?? []}
-              canAdd={!isAllView}
+              canAdd={!readOnly}
+              readOnly={readOnly}
               ownerName={ownerLabel}
               onAdd={content => add(key, content)}
               onToggle={toggle}

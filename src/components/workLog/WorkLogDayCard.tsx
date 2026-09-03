@@ -12,13 +12,18 @@ interface Props {
   canAdd: boolean;
   /** 전체 직원 보기일 때만 각 줄에 작성자 이름을 붙인다. */
   ownerName?: (employeeId: string) => string;
+  /**
+   * 남의 일지를 볼 때. 체크·수정·삭제를 못 하게 한다.
+   * 서버도 막지만, 버튼이 보이면 눌러보고 거절당한다.
+   */
+  readOnly?: boolean;
   onAdd: (content: string) => void;
   onToggle: (log: WorkLog) => void;
   onEdit: (id: string, content: string) => void;
   onRemove: (id: string) => void;
 }
 
-export default function WorkLogDayCard({ day, logs, canAdd, ownerName, onAdd, onToggle, onEdit, onRemove }: Props) {
+export default function WorkLogDayCard({ day, logs, canAdd, ownerName, readOnly = false, onAdd, onToggle, onEdit, onRemove }: Props) {
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
@@ -97,7 +102,8 @@ export default function WorkLogDayCard({ day, logs, canAdd, ownerName, onAdd, on
           <li key={log.id} className="group flex items-start gap-1.5 rounded-lg px-1.5 py-1 hover:bg-slate-50">
             <button
               onClick={() => onToggle(log)}
-              className={`mt-px shrink-0 ${log.done ? 'text-indigo-500' : 'text-slate-300 hover:text-slate-400'}`}
+              disabled={readOnly}
+              className={`mt-px shrink-0 disabled:cursor-default ${log.done ? 'text-indigo-500' : 'text-slate-300 hover:text-slate-400'}`}
               aria-label={log.done ? '완료 취소' : '완료 표시'}
             >
               {log.done ? <CheckSquare size={15} /> : <Square size={15} />}
@@ -115,7 +121,8 @@ export default function WorkLogDayCard({ day, logs, canAdd, ownerName, onAdd, on
             ) : (
               <button
                 onClick={() => startEdit(log)}
-                className={`min-w-0 flex-1 wrap-break-word text-left text-[13px] leading-snug ${
+                disabled={readOnly}
+                className={`min-w-0 flex-1 wrap-break-word text-left text-[13px] leading-snug disabled:cursor-default ${
                   log.done ? 'text-slate-400 line-through' : 'text-slate-700'
                 }`}
               >
@@ -126,13 +133,15 @@ export default function WorkLogDayCard({ day, logs, canAdd, ownerName, onAdd, on
               </button>
             )}
 
-            <button
-              onClick={() => onRemove(log.id)}
-              className="shrink-0 text-slate-300 opacity-60 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
-              aria-label="삭제"
-            >
-              <Trash2 size={13} />
-            </button>
+            {!readOnly && (
+              <button
+                onClick={() => onRemove(log.id)}
+                className="shrink-0 text-slate-300 opacity-60 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+                aria-label="삭제"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
           </li>
         ))}
 
