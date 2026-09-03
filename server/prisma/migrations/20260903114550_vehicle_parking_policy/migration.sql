@@ -1,0 +1,7 @@
+-- 주차 배치 기준 — 값·차종·연료·판매유형으로 어느 주차장에 세울지 갈린다.
+ALTER TABLE `ManagedVehicle`
+  ADD COLUMN `priceManwon` INT NOT NULL DEFAULT 0,
+  ADD COLUMN `fuel` VARCHAR(20) NOT NULL DEFAULT '',
+  ADD COLUMN `bodyType` ENUM('COMPACT', 'SEDAN', 'SUV', 'TRUCK', 'VAN', 'OTHER') NOT NULL DEFAULT 'OTHER',
+  ADD COLUMN `saleType` ENUM('GENERAL', 'EXPORT') NOT NULL DEFAULT 'GENERAL',
+  ADD COLUMN `isTaxi` BOOLEAN NOT NULL DEFAULT false;

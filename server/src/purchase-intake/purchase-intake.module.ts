@@ -26,6 +26,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, monthRange, toDateOnly, todayKst } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { isValidPlate, normalizePlate, plateTailOf } from '../vehicles/vehicle.rules';
+import { inferBodyType } from '../vehicles/body-type';
 import { CarviorModule, CarviorService, type CarviorContract } from '../carvior/carvior.module';
 
 /** 카비어는 만원, 매입 관리는 원으로 적는다. */
@@ -175,7 +176,11 @@ export class PurchaseIntakeService {
             employeeId,
           },
         });
-        await this.syncManagedVehicle(plate, contract.carModel ?? '');
+        await this.syncManagedVehicle(plate, contract.carModel ?? '', {
+          priceManwon: contract.purchasePrice ?? 0,
+          // 카비어는 연료를 안 내려준다 — 차량 관리에서 채운다.
+          fuel: '',
+        });
         imported += 1;
       } catch (e) {
         // 한 건이 막혀도 나머지는 들어가야 한다 — 94건을 한 건 때문에 다시 하게 두지 않는다.
@@ -250,7 +255,10 @@ export class PurchaseIntakeService {
       include: { employee: { select: { id: true, name: true, position: true } } },
     });
 
-    await this.syncManagedVehicle(vehicleNumber, dto.vehicleName);
+    await this.syncManagedVehicle(vehicleNumber, dto.vehicleName, {
+      priceManwon: Math.round((dto.purchaseAmount ?? 0) / WON_PER_MANWON),
+      fuel: dto.fuel?.trim() ?? '',
+    });
     return this.toView(row);
   }
 
@@ -281,8 +289,11 @@ export class PurchaseIntakeService {
     });
 
     // 차량번호나 차명을 고쳤으면 차량관리 쪽도 따라가게 한다.
-    if (vehicleNumber !== undefined || dto.vehicleName !== undefined) {
-      await this.syncManagedVehicle(row.vehicleNumber, row.vehicleName);
+    if (vehicleNumber !== undefined || dto.vehicleName !== undefined || dto.purchaseAmount !== undefined || dto.fuel !== undefined) {
+      await this.syncManagedVehicle(row.vehicleNumber, row.vehicleName, {
+        priceManwon: Math.round(row.purchaseAmount / WON_PER_MANWON),
+        fuel: row.fuel,
+      });
     }
     return this.toView(row);
   }
@@ -306,21 +317,30 @@ export class PurchaseIntakeService {
    * 실패해도 매입 기록은 그대로 둔다 — 차량번호 형식이 특이해서 등록이 안 되더라도
    * 매입 내역 자체를 못 남기는 게 더 큰 문제다. 대신 로그로 남겨 나중에 손으로 넣게 한다.
    */
-  private async syncManagedVehicle(vehicleNumber: string, vehicleName: string): Promise<void> {
+  private async syncManagedVehicle(
+    vehicleNumber: string,
+    vehicleName: string,
+    policy?: { priceManwon: number; fuel: string },
+  ): Promise<void> {
     if (!isValidPlate(vehicleNumber)) {
       this.logger.warn(`차량관리 등록 건너뜀 — 차량번호 형식이 규칙과 다릅니다: ${vehicleNumber}`);
       return;
     }
 
     try {
+      // 어디에 세울지는 값·차종·연료로 갈린다. 매입할 때 이미 아는 값이라 그때 같이 넣어둔다 —
+      // 나중에 사람이 백 대를 하나씩 채우게 하지 않는다. 차종은 차명으로 짐작하고 틀리면 고친다.
+      const model = vehicleName.trim();
+      const derived = {
+        vehicleModel: model,
+        bodyType: inferBodyType(model),
+        ...(policy ? { priceManwon: policy.priceManwon, fuel: policy.fuel } : {}),
+      };
+
       await this.prisma.managedVehicle.upsert({
         where: { vehicleNumber },
-        create: {
-          vehicleNumber,
-          plateTail: plateTailOf(vehicleNumber),
-          vehicleModel: vehicleName.trim(),
-        },
-        update: { vehicleModel: vehicleName.trim() },
+        create: { vehicleNumber, plateTail: plateTailOf(vehicleNumber), ...derived },
+        update: derived,
       });
     } catch (e) {
       this.logger.warn(`차량관리 등록 실패(${vehicleNumber}): ${(e as Error).message}`);

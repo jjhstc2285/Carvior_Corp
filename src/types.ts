@@ -392,6 +392,26 @@ export interface WorkLog {
 // ─────────────────────────────────────────────────────────────
 
 // 매입되어 단지로 들어온 차량. 어느 리스트에 뜰지는 체크박스 조합으로 계산한다(lib/vehicle.ts).
+/** 차종 — 주차 배치가 차종부터 갈린다(SUV·화물은 평동, 소형차는 팬슬) */
+export type VehicleBodyType = 'COMPACT' | 'SEDAN' | 'SUV' | 'TRUCK' | 'VAN' | 'OTHER';
+
+export const VEHICLE_BODY_TYPE_LABEL: Record<VehicleBodyType, string> = {
+  COMPACT: '소형차',
+  SEDAN: '세단',
+  SUV: 'SUV',
+  TRUCK: '화물',
+  VAN: '승합',
+  OTHER: '미분류',
+};
+
+/** 판매 유형 — 수출은 고색동 A·B, 일반광고는 고색동 C */
+export type VehicleSaleType = 'GENERAL' | 'EXPORT';
+
+export const VEHICLE_SALE_TYPE_LABEL: Record<VehicleSaleType, string> = {
+  GENERAL: '일반광고',
+  EXPORT: '수출',
+};
+
 export interface ManagedVehicle {
   id: string;
   vehicleNumber: string; // "12가3456" / "123가4567"
@@ -400,6 +420,14 @@ export interface ManagedVehicle {
   prepared: boolean; // 상품화
   advertised: boolean; // 광고 완료 — 상품화 없이는 켤 수 없다
   moveBlocked: boolean; // 외부 이동 금지 — 켜지면 무조건 이동금지
+
+  // ── 주차 배치 기준 ──
+  priceManwon: number; // 시세 또는 매입가(만원)
+  fuel: string;
+  bodyType: VehicleBodyType;
+  saleType: VehicleSaleType;
+  isTaxi: boolean; // 택시 — 배양동 외부로 간다
+
   createdAt: string;
   updatedAt: string;
 }

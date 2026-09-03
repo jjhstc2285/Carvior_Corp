@@ -19,7 +19,19 @@ export interface NewExpense {
   memo?: string;
 }
 
-export type VehicleFlags = Pick<ManagedVehicle, 'prepared' | 'advertised' | 'moveBlocked'>;
+export type VehicleFlags = Pick<
+  ManagedVehicle,
+  // 체크박스 셋
+  | 'prepared'
+  | 'advertised'
+  | 'moveBlocked'
+  // 주차 배치 기준 — 어느 주차장에 세울지가 이 값들로 갈린다
+  | 'priceManwon'
+  | 'fuel'
+  | 'bodyType'
+  | 'saleType'
+  | 'isTaxi'
+>;
 
 export interface VehiclesApi {
   vehicles: ManagedVehicle[];

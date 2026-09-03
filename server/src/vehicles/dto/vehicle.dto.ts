@@ -1,4 +1,4 @@
-import { VehicleExpenseKind, VehicleUsageNote } from '@prisma/client';
+import { VehicleBodyType, VehicleExpenseKind, VehicleSaleType, VehicleUsageNote } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -26,6 +26,15 @@ export class UpdateVehicleDto {
   @IsOptional() @IsBoolean() prepared?: boolean; // 상품화
   @IsOptional() @IsBoolean() advertised?: boolean; // 광고 완료
   @IsOptional() @IsBoolean() moveBlocked?: boolean; // 외부 이동 금지
+
+  // ── 주차 배치 기준 ──
+  // 매입 관리에서 들어올 때 채워지지만, 차명으로 짐작한 차종이 틀리거나
+  // 카비어처럼 연료가 안 오는 경우가 있어 여기서 고칠 수 있어야 한다.
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) priceManwon?: number;
+  @IsOptional() @IsString() @MaxLength(20) fuel?: string;
+  @IsOptional() @IsEnum(VehicleBodyType) bodyType?: VehicleBodyType;
+  @IsOptional() @IsEnum(VehicleSaleType) saleType?: VehicleSaleType;
+  @IsOptional() @IsBoolean() isTaxi?: boolean;
 }
 
 export class VehicleListQueryDto {

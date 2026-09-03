@@ -74,6 +74,11 @@ export class VehiclesService {
         ...(dto.prepared !== undefined ? { prepared } : {}),
         ...(dto.prepared !== undefined || dto.advertised !== undefined ? { advertised } : {}),
         ...(dto.moveBlocked !== undefined ? { moveBlocked: dto.moveBlocked } : {}),
+        ...(dto.priceManwon !== undefined ? { priceManwon: dto.priceManwon } : {}),
+        ...(dto.fuel !== undefined ? { fuel: dto.fuel.trim() } : {}),
+        ...(dto.bodyType !== undefined ? { bodyType: dto.bodyType } : {}),
+        ...(dto.saleType !== undefined ? { saleType: dto.saleType } : {}),
+        ...(dto.isTaxi !== undefined ? { isTaxi: dto.isTaxi } : {}),
       },
     });
   }

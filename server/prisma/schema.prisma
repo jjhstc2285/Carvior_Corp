@@ -562,6 +562,27 @@ model ChatMessage {
 // 매입되어 단지로 들어온 차량.
 // 체크박스 세 개의 조합만으로 어느 리스트에 뜰지가 정해지므로 분류값은 따로 저장하지 않는다
 // (규칙이 바뀌어도 과거 데이터가 안 꼬이게 — 정산 파생값과 같은 방침).
+/**
+ * 차종. 주차장 배치 기준이 차종부터 시작해서(SUV·화물은 평동, 소형차는 팬슬)
+ * 차명 문자열만으로는 매번 다시 판단해야 해 따로 둔다.
+ */
+enum VehicleBodyType {
+  COMPACT // 소형차
+  SEDAN // 세단
+  SUV
+  TRUCK // 화물
+  VAN // 승합
+  OTHER
+}
+
+/**
+ * 판매 유형 — 수출은 고색동 A·B, 일반광고는 고색동 C로 나뉜다.
+ */
+enum VehicleSaleType {
+  GENERAL // 일반광고
+  EXPORT // 수출
+}
+
 model ManagedVehicle {
   id            String  @id @default(cuid())
   vehicleNumber String  @unique // "12가3456" 또는 "123가4567"
@@ -570,6 +591,15 @@ model ManagedVehicle {
   prepared      Boolean @default(false) // 상품화
   advertised    Boolean @default(false) // 광고 완료 — 상품화 없이는 켤 수 없다
   moveBlocked   Boolean @default(false) // 외부 이동 금지 — 켜지면 무조건 이동금지 리스트
+
+  // ── 주차 배치 기준 ──
+  // 어디에 세울지는 값·차종·연료·판매유형으로 갈린다. 매입 관리에서 들어온 값으로
+  // 채워두고(가격·연료), 차명으로 알 수 있는 건 추론해 넣는다. 틀리면 손으로 고친다.
+  priceManwon Int             @default(0) // 시세 또는 매입가(만원)
+  fuel        String          @default("") @db.VarChar(20)
+  bodyType    VehicleBodyType @default(OTHER)
+  saleType    VehicleSaleType @default(GENERAL)
+  isTaxi      Boolean         @default(false) // 택시 — 배양동 외부로 간다
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

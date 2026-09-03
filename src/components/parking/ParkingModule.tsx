@@ -6,6 +6,7 @@ import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '.
 import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
 import SheetImportModal from './SheetImportModal';
+import MoveSuggestions from './MoveSuggestions';
 import { alertError, confirmDanger } from '../../lib/alert';
 
 const STATUS_COLOR: Record<ParkingStatus, string> = {
@@ -106,6 +107,8 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
           </>
         )}
       </div>
+
+      <MoveSuggestions />
 
       {view === 'grid' ? (
         <ParkingGrid onCellClick={handleCellClick} onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)} />
