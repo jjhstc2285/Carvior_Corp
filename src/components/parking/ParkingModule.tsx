@@ -8,6 +8,7 @@ import ParkingGrid from './ParkingGrid';
 import SheetImportModal from './SheetImportModal';
 import MoveSuggestions from './MoveSuggestions';
 import { alertError, confirmDanger } from '../../lib/alert';
+import { PARKING_LOTS } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
 // 주차 자리는 등록·이동·비우기 모두 현장에서 하는 일이라 권한을 나누지 않는다.
@@ -23,14 +24,22 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
   const [presetPosition, setPresetPosition] = useState<{ lot: string; zone: string; slot: string } | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
-  const lots = useMemo(() => Array.from(new Set(state.parkingVehicles.map(v => v.lot))).sort(), [state.parkingVehicles]);
+  // 배치도와 같은 순서로 늘어놓는다 — 화면마다 순서가 다르면 같은 주차장을 매번 다시 찾게 된다.
+  const lotOrder = useMemo(() => new Map(PARKING_LOTS.map((l, i) => [l.lot, i])), []);
+  const rankOf = (lot: string) => lotOrder.get(lot) ?? Number.MAX_SAFE_INTEGER;
+
+  const lots = useMemo(
+    () => Array.from(new Set(state.parkingVehicles.map(v => v.lot))).sort((a, b) => rankOf(a) - rankOf(b) || a.localeCompare(b)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.parkingVehicles, lotOrder],
+  );
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
 
   const filtered = state.parkingVehicles
     .filter(v => lotFilter === 'all' || v.lot === lotFilter)
     .filter(v => statusFilter === 'all' || v.status === statusFilter)
     .filter(v => !query.trim() || v.vehicleNumber.includes(query.trim()) || v.vehicleModel.includes(query.trim()))
-    .sort((a, b) => a.lot.localeCompare(b.lot) || a.zone.localeCompare(b.zone));
+    .sort((a, b) => rankOf(a.lot) - rankOf(b.lot) || a.lot.localeCompare(b.lot) || a.zone.localeCompare(b.zone));
 
   const handleCellClick = (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => {
     // 차를 대고 자리를 적는 건 현장에서 하는 일이라 직원도 빈 칸을 누를 수 있다.
