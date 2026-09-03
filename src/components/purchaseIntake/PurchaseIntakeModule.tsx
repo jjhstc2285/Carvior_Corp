@@ -2,7 +2,7 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { Car, CloudDownload, Download, Plus, Trash2 } from 'lucide-react';
-import type { PurchaseIntake, Role } from '../../types';
+import { BROKER_FEE_TYPE_LABEL, type PurchaseIntake, type Role } from '../../types';
 import PurchaseIntakeForm from './PurchaseIntakeForm';
 import CarviorImportModal from './CarviorImportModal';
 import { usePurchaseIntake } from './usePurchaseIntake';
@@ -47,9 +47,12 @@ export default function PurchaseIntakeModule({ role }: Props) {
       연료: r.fuel,
       차키갯수: r.keyCount,
       주행거리: r.mileage,
+      '실차 확인 주행거리': r.checkedMileage || '',
+      '주행거리 차이': r.checkedMileage ? Math.abs(r.checkedMileage - r.mileage) : '',
       특이사항: r.note,
       '실매입금액(원)': r.purchaseAmount,
       '구전(원)': r.brokerFee,
+      '구전 지급방식': BROKER_FEE_TYPE_LABEL[r.brokerFeeType],
       '총 매입금액(원)': r.totalAmount,
       등록자: r.employee?.name ?? '',
     }));
@@ -183,10 +186,27 @@ export default function PurchaseIntakeModule({ role }: Props) {
               <div><dt className="text-slate-400">고객</dt><dd className="text-slate-700">{r.customerName} · {r.customerPhone}</dd></div>
               <div><dt className="text-slate-400">실차 확인자</dt><dd className="text-slate-700">{r.inspector || '-'}</dd></div>
               <div><dt className="text-slate-400">연식 · 연료</dt><dd className="text-slate-700">{[r.modelYear && `${r.modelYear}년식`, r.fuel].filter(Boolean).join(' · ') || '-'}</dd></div>
-              <div><dt className="text-slate-400">주행거리</dt><dd className="text-slate-700">{NUM(r.mileage) ? `${NUM(r.mileage)}km` : '-'}</dd></div>
+              <div>
+                <dt className="text-slate-400">주행거리</dt>
+                <dd className="text-slate-700">
+                  {NUM(r.mileage) ? `${NUM(r.mileage)}km` : '-'}
+                  {/* 실차 확인 값이 크게 벌어졌으면 목록에서도 바로 보여야 한다 */}
+                  {r.checkedMileage > 0 && (
+                    <span className={Math.abs(r.checkedMileage - r.mileage) >= 1000 ? 'ml-1 font-bold text-amber-700' : 'ml-1 text-slate-400'}>
+                      (확인 {NUM(r.checkedMileage)}km)
+                    </span>
+                  )}
+                </dd>
+              </div>
               <div><dt className="text-slate-400">차키갯수</dt><dd className="text-slate-700">{r.keyCount ? `${r.keyCount}개` : '-'}</dd></div>
               <div><dt className="text-slate-400">실매입금액</dt><dd className="text-slate-700">{NUM(r.purchaseAmount) || 0}원</dd></div>
-              <div><dt className="text-slate-400">구전</dt><dd className="text-slate-700">{NUM(r.brokerFee) || 0}원</dd></div>
+              <div>
+                <dt className="text-slate-400">구전</dt>
+                <dd className="text-slate-700">
+                  {NUM(r.brokerFee) || 0}원
+                  <span className="ml-1 text-slate-400">{BROKER_FEE_TYPE_LABEL[r.brokerFeeType]}</span>
+                </dd>
+              </div>
               <div className="col-span-2 sm:col-span-4"><dt className="text-slate-400">특이사항</dt><dd className="text-slate-700">{r.note || '-'}</dd></div>
             </dl>
           </div>

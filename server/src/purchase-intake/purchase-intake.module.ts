@@ -16,11 +16,13 @@ import {
   Query,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Role } from '@prisma/client';
+import { BrokerFeeType, NotificationType, Role } from '@prisma/client';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
+import { PushService } from '../push/push.service';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { PushModule } from '../push/push.module';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, monthRange, toDateOnly, todayKst } from '../common/date.util';
@@ -31,6 +33,14 @@ import { CarviorModule, CarviorService, type CarviorContract } from '../carvior/
 
 /** 카비어는 만원, 매입 관리는 원으로 적는다. */
 const WON_PER_MANWON = 10000;
+
+/**
+ * 실차 확인 주행거리가 이만큼 벌어지면 관리자에게 알린다.
+ *
+ * 계기판을 잘못 읽거나 한 자리 빠뜨리는 일이 있어서 몇백 km 차이로는 알리지 않는다.
+ * 천 단위로 벌어지면 적어 온 값과 실제가 다른 것이고, 그러면 매입가를 다시 봐야 한다.
+ */
+const MILEAGE_GAP_ALERT_KM = 1000;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
@@ -52,10 +62,12 @@ export class CreatePurchaseIntakeDto {
   @IsOptional() @IsString() @MaxLength(20) fuel?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) keyCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) mileage?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) checkedMileage?: number;
   @IsOptional() @IsString() @MaxLength(255) note?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) purchaseAmount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) brokerFee?: number;
+  @IsOptional() @IsEnum(BrokerFeeType) brokerFeeType?: BrokerFeeType;
 }
 
 /** 수정용 — 등록용을 그대로 쓰면 한 칸만 고치는 요청이 필수값 누락으로 거절된다. */
@@ -74,10 +86,12 @@ export class UpdatePurchaseIntakeDto {
   @IsOptional() @IsString() @MaxLength(20) fuel?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) keyCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) mileage?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) checkedMileage?: number;
   @IsOptional() @IsString() @MaxLength(255) note?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) purchaseAmount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) brokerFee?: number;
+  @IsOptional() @IsEnum(BrokerFeeType) brokerFeeType?: BrokerFeeType;
 }
 
 export class PurchaseIntakeQueryDto {
@@ -95,7 +109,59 @@ export class PurchaseIntakeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly carvior: CarviorService,
+    private readonly realtime: RealtimeGateway,
+    private readonly push: PushService,
   ) {}
+
+  /**
+   * 실차 확인 주행거리가 처음 적은 것과 많이 벌어지면 관리자에게 알린다.
+   *
+   * 알림이 실패해도 저장은 되돌리지 않는다 — 확인 결과를 못 남기는 게 더 큰 문제다.
+   */
+  private async alertMileageGap(row: {
+    vehicleNumber: string;
+    vehicleName: string;
+    mileage: number;
+    checkedMileage: number;
+    date: Date;
+  }): Promise<void> {
+    const gap = Math.abs(row.checkedMileage - row.mileage);
+    if (row.checkedMileage <= 0 || gap < MILEAGE_GAP_ALERT_KM) return;
+
+    try {
+      const admins = await this.prisma.employee.findMany({
+        where: { role: Role.ADMIN, active: true },
+        select: { id: true },
+      });
+      if (admins.length === 0) return;
+
+      const direction = row.checkedMileage > row.mileage ? '많습니다' : '적습니다';
+      const message =
+        `${row.vehicleNumber} ${row.vehicleName} — 실차 확인 주행거리가 ` +
+        `${row.checkedMileage.toLocaleString()}km 로, 매입 시 ${row.mileage.toLocaleString()}km 보다 ` +
+        `${gap.toLocaleString()}km ${direction}.`;
+
+      // 관리자마다 한 건씩 — 각자 읽음 처리를 따로 한다(근태 알림과 같은 방식).
+      await this.prisma.notification.createMany({
+        data: admins.map((a) => ({
+          type: NotificationType.MILEAGE_GAP,
+          message,
+          employeeId: a.id,
+          date: row.date,
+        })),
+      });
+
+      const adminIds = admins.map((a) => a.id);
+      this.realtime.toEmployees(adminIds, REALTIME_EVENT.notification, {
+        type: NotificationType.MILEAGE_GAP,
+        message,
+        date: formatDateOnly(row.date),
+      });
+      void this.push.sendToEmployees(adminIds, { title: '주행거리 차이', body: message });
+    } catch (e) {
+      this.logger.warn(`주행거리 알림 실패(${row.vehicleNumber}): ${(e as Error).message}`);
+    }
+  }
 
   /**
    * 카비어에서 성사된 계약을 매입 내역으로 한 번에 옮긴다.
@@ -247,9 +313,11 @@ export class PurchaseIntakeService {
         fuel: dto.fuel?.trim() ?? '',
         keyCount: dto.keyCount ?? 0,
         mileage: dto.mileage ?? 0,
+        checkedMileage: dto.checkedMileage ?? 0,
         note: dto.note?.trim() ?? '',
         purchaseAmount: dto.purchaseAmount ?? 0,
         brokerFee: dto.brokerFee ?? 0,
+        brokerFeeType: dto.brokerFeeType ?? BrokerFeeType.CASH,
         employeeId: user.id,
       },
       include: { employee: { select: { id: true, name: true, position: true } } },
@@ -259,11 +327,16 @@ export class PurchaseIntakeService {
       priceManwon: Math.round((dto.purchaseAmount ?? 0) / WON_PER_MANWON),
       fuel: dto.fuel?.trim() ?? '',
     });
+    await this.alertMileageGap(row);
     return this.toView(row);
   }
 
   async update(id: string, dto: UpdatePurchaseIntakeDto) {
     await this.assertExists(id);
+    const before = await this.prisma.purchaseIntake.findUnique({
+      where: { id },
+      select: { checkedMileage: true },
+    });
     const vehicleNumber = dto.vehicleNumber !== undefined ? normalizePlate(dto.vehicleNumber) : undefined;
 
     const row = await this.prisma.purchaseIntake.update({
@@ -281,9 +354,11 @@ export class PurchaseIntakeService {
         fuel: dto.fuel?.trim(),
         keyCount: dto.keyCount,
         mileage: dto.mileage,
+        checkedMileage: dto.checkedMileage,
         note: dto.note?.trim(),
         purchaseAmount: dto.purchaseAmount,
         brokerFee: dto.brokerFee,
+        brokerFeeType: dto.brokerFeeType,
       },
       include: { employee: { select: { id: true, name: true, position: true } } },
     });
@@ -294,6 +369,11 @@ export class PurchaseIntakeService {
         priceManwon: Math.round(row.purchaseAmount / WON_PER_MANWON),
         fuel: row.fuel,
       });
+    }
+
+    // 확인 주행거리를 이번에 적었을 때만 알린다 — 다른 칸을 고칠 때마다 또 울리면 안 된다.
+    if (dto.checkedMileage !== undefined && dto.checkedMileage !== before?.checkedMileage) {
+      await this.alertMileageGap(row);
     }
     return this.toView(row);
   }
@@ -505,7 +585,7 @@ export class PurchaseIntakeController {
 }
 
 @Module({
-  imports: [CarviorModule, RealtimeModule],
+  imports: [CarviorModule, RealtimeModule, PushModule],
   controllers: [PurchaseIntakeController],
   providers: [PurchaseIntakeService, CarviorAutoImportService],
 })

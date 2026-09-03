@@ -31,8 +31,13 @@ interface Props {
    * 상담 중에는 손님에게 값을 말해줄 뿐 어디에 적지 않는다.
    */
   onPick?: (won: number) => void;
-  /** 고른 등급을 세부모델로 넣는다 — 카비어에서 받아온 건 등급이 비어 있다 */
-  onPickSpec?: (badge: string) => void;
+  /**
+   * 고른 등급을 부른 화면에 돌려준다.
+   *
+   * 등급만이 아니라 제조사·모델까지 준다 — 우리가 적어둔 차명은 표기가 제각각이라
+   * ("르노(삼성) SM6") 다음에 또 못 찾는다. 카비어 표기로 맞춰두면 그 뒤로는 그대로 찾힌다.
+   */
+  onPickSpec?: (spec: { manufacturer: string; model: string; badge: string }) => void;
   onClose: () => void;
 }
 
@@ -118,7 +123,7 @@ export default function PriceCheckModal({
     const myReq = ++reqId.current;
     setPicked(spec);
     // 등급을 고른 순간 세부모델이 정해진다 — 시세를 안 넣고 닫아도 이건 남는다.
-    onPickSpec?.(spec.badge);
+    onPickSpec?.({ manufacturer: spec.manufacturer, model: spec.model, badge: spec.badge });
     setLoading(true);
     setListings([]);
     try {

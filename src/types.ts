@@ -80,7 +80,7 @@ export interface CorrectionRequest {
   reviewNote: string | null;
 }
 
-export type NotificationType = 'MISSING' | 'CORRECTION_REQUEST' | 'ATTENDANCE_REQUEST';
+export type NotificationType = 'MISSING' | 'CORRECTION_REQUEST' | 'ATTENDANCE_REQUEST' | 'MILEAGE_GAP';
 
 export interface AppNotification {
   id: string;
@@ -587,6 +587,25 @@ export interface PurchaseListSummary {
 
 // 매입리스트(재고금융)와는 다른 단계다 — 여기는 '사올 때 확인한 것'이다.
 // 금액 단위는 매입리스트와 같은 '원'이다.
+/**
+ * 구전 지급 방식. 세금 처리가 달라 금액만으로는 실지급액을 알 수 없다.
+ * 현금이 제일 많아 기본값으로 둔다.
+ */
+export type BrokerFeeType = 'CASH' | 'WITHHOLD_3_3' | 'WITHHOLD_13_3';
+
+export const BROKER_FEE_TYPE_LABEL: Record<BrokerFeeType, string> = {
+  CASH: '현금',
+  WITHHOLD_3_3: '3.3% 원천징수',
+  WITHHOLD_13_3: '13.3% 원천징수',
+};
+
+/** 원천징수 비율 — 현금은 떼는 게 없다 */
+export const BROKER_FEE_TYPE_RATE: Record<BrokerFeeType, number> = {
+  CASH: 0,
+  WITHHOLD_3_3: 0.033,
+  WITHHOLD_13_3: 0.133,
+};
+
 export interface PurchaseIntake {
   id: string;
   date: string; // YYYY-MM-DD
@@ -603,11 +622,14 @@ export interface PurchaseIntake {
   modelYear: string; // 연식
   fuel: string; // 연료
   keyCount: number; // 차키갯수
-  mileage: number; // 주행거리(km)
+  mileage: number; // 주행거리(km) — 매입할 때 받아 적은 값
+  /** 실차 확인자가 차를 보고 다시 적은 주행거리. 0이면 아직 확인 안 함 */
+  checkedMileage: number;
   note: string; // 특이사항
 
   purchaseAmount: number; // 실매입금액(원)
   brokerFee: number; // 구전(원)
+  brokerFeeType: BrokerFeeType; // 구전 지급 방식
   /** 서버 파생값 — 실매입금액 + 구전. 저장하지 않는다. */
   totalAmount: number;
 

@@ -1,8 +1,16 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
-import { ClipboardPaste, LineChart, X } from 'lucide-react';
+import { AlertTriangle, ClipboardPaste, LineChart, X } from 'lucide-react';
 import { isValidPlate, normalizePlate, PLATE_MESSAGE } from '../../lib/vehicle';
-import type { PurchaseIntake } from '../../types';
+import {
+  BROKER_FEE_TYPE_LABEL,
+  BROKER_FEE_TYPE_RATE,
+  type BrokerFeeType,
+  type PurchaseIntake,
+} from '../../types';
+
+/** 이만큼 벌어지면 저장할 때 관리자에게 알림이 간다 — 서버 기준과 같아야 한다. */
+const MILEAGE_GAP_ALERT_KM = 1000;
 import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
 import { parseIntakeText } from './parseIntake';
 import PriceCheckModal from '../price/PriceCheckModal';
@@ -36,12 +44,23 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   const [note, setNote] = useState(editing?.note ?? '');
   const [purchaseAmount, setPurchaseAmount] = useState(withCommas(editing?.purchaseAmount ?? 0));
   const [brokerFee, setBrokerFee] = useState(withCommas(editing?.brokerFee ?? 0));
+  const [brokerFeeType, setBrokerFeeType] = useState<BrokerFeeType>(editing?.brokerFeeType ?? 'CASH');
+  const [checkedMileage, setCheckedMileage] = useState(withCommas(editing?.checkedMileage ?? 0));
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [priceOpen, setPriceOpen] = useState(false);
 
   const total = moneyToNumber(purchaseAmount) + moneyToNumber(brokerFee);
+
+  // 실차 확인 전(0)에는 차이를 따지지 않는다 — 0km 인 차는 없다.
+  const mileageGap = moneyToNumber(checkedMileage) > 0
+    ? Math.abs(moneyToNumber(checkedMileage) - moneyToNumber(mileage))
+    : 0;
+
+  // 원천징수는 구전에서 떼고 나머지를 준다. 저장은 안 하고 보여주기만 한다 —
+  // 세율이 바뀌어도 지난 기록이 안 꼬이게(정산 파생값과 같은 방침).
+  const withheld = Math.round(moneyToNumber(brokerFee) * BROKER_FEE_TYPE_RATE[brokerFeeType]);
 
   /** 붙여넣은 카톡 양식에서 알아본 칸만 채운다 — 못 알아본 칸은 건드리지 않는다. */
   const applyPaste = () => {
@@ -113,9 +132,11 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       fuel: fuel.trim(),
       keyCount: moneyToNumber(keyCount),
       mileage: moneyToNumber(mileage),
+      checkedMileage: moneyToNumber(checkedMileage),
       note: note.trim(),
       purchaseAmount: moneyToNumber(purchaseAmount),
       brokerFee: moneyToNumber(brokerFee),
+      brokerFeeType,
     });
     setSaving(false);
 
@@ -217,6 +238,22 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           )}
           {field('차키갯수', text(keyCount, v => setKeyCount(v.replace(/[^\d]/g, '')), '2'))}
           {field('주행거리(km)', money(mileage, setMileage, '37,900'))}
+          {/*
+            실차 확인자가 차를 직접 보고 다시 적는다. 처음 적은 것과 1,000km 넘게
+            벌어지면 저장할 때 관리자에게 알림이 간다 — 적어 온 값과 실제가 다르면
+            매입가를 다시 봐야 한다.
+          */}
+          {field(
+            '실차 확인 주행거리(km)',
+            <>
+              {money(checkedMileage, setCheckedMileage, '아직 확인 전')}
+              {mileageGap >= MILEAGE_GAP_ALERT_KM && (
+                <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                  <AlertTriangle size={11} /> 매입 시보다 {mileageGap.toLocaleString()}km 차이 — 저장하면 관리자에게 알림이 갑니다
+                </p>
+              )}
+            </>,
+          )}
           {field('특이사항', text(note, setNote, '금일 전액 이체 및 차량인도'), 'col-span-2 sm:col-span-3')}
         </div>
 
@@ -241,6 +278,27 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {field('실매입금액(원)', money(purchaseAmount, setPurchaseAmount, '27,500,000'))}
           {field('구전(원)', money(brokerFee, setBrokerFee, '500,000'))}
+          {field(
+            '구전 지급 방식',
+            <>
+              <select
+                value={brokerFeeType}
+                onChange={e => setBrokerFeeType(e.target.value as BrokerFeeType)}
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+              >
+                {(Object.entries(BROKER_FEE_TYPE_LABEL) as [BrokerFeeType, string][]).map(([k, label]) => (
+                  <option key={k} value={k}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              {withheld > 0 && (
+                <p className="mt-1 text-[11px] text-slate-400">
+                  원천징수 {withheld.toLocaleString()}원 · 실지급 {(moneyToNumber(brokerFee) - withheld).toLocaleString()}원
+                </p>
+              )}
+            </>,
+          )}
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">총 매입금액</label>
             <p className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-right text-sm font-bold text-slate-800">
@@ -260,8 +318,15 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
             mileage={moneyToNumber(mileage) || null}
             modelYear={modelYear}
             fuel={fuel}
-            // 카비어에서 받아온 건 등급이 비어 있다 — 시세를 보면서 고른 등급을 그대로 채운다.
-            onPickSpec={badge => setDetailModel(badge)}
+            /*
+             * 등급을 고르면 차명과 세부모델이 카비어 표기로 맞춰진다.
+             * 우리가 적어둔 차명은 표기가 제각각이라("르노(삼성) SM6") 다음에 또 못 찾는다.
+             * 적어둔 내용이 사라지는 게 아니라 트림 부분이 세부모델로 옮겨가는 것이다.
+             */
+            onPickSpec={spec => {
+              setVehicleName(`${spec.manufacturer} ${spec.model}`);
+              setDetailModel(spec.badge);
+            }}
             onPick={won => setPurchaseAmount(withCommas(won))}
             onClose={() => setPriceOpen(false)}
           />
