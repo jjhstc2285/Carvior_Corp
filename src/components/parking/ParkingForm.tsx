@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Trash2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { ApiError } from '../../lib/api';
-import type { ParkingStatus, ParkingVehicle } from '../../types';
+import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import { PARKING_LOTS, PARKING_SLOTS } from '../../lib/parkingLayout';
 import { confirmDanger } from '../../lib/alert';
 
@@ -124,10 +124,12 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
             <label className="mb-1 block text-xs font-semibold text-slate-500">상태</label>
             <select value={status} onChange={e => setStatus(e.target.value as ParkingStatus)}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-              <option value="DISPLAY">전시중</option>
-              <option value="RESERVED">예약중</option>
-              <option value="SOLD">판매완료</option>
-              <option value="MOVING">이동중</option>
+              {/* 이름을 여기 따로 적어두면 라벨을 고쳐도 이 목록만 옛 이름으로 남는다 */}
+              {(Object.entries(PARKING_STATUS_LABEL) as [ParkingStatus, string][]).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
           </div>
           <div>
