@@ -35,6 +35,10 @@ export interface CarviorContract {
   contractDeposit: number | null;
   contractBalance: number | null;
   purchasePrice: number | null;
+  /** 주행거리(km) */
+  mileage: number | null;
+  /** 차키 갯수 */
+  keyCount: number | null;
   status: string;
   createdAt: string;
   reportUrl: string | null;

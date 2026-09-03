@@ -9,31 +9,37 @@ import type { PurchaseIntakeInput } from './usePurchaseIntake';
 
 interface Props {
   editing: PurchaseIntake | null;
+  /**
+   * 새로 등록할 때 미리 채워둘 값 — 수출 상담(카비오)에서 넘어올 때 쓴다.
+   * 채워도 그대로 저장되진 않는다. 연식·연료처럼 저쪽에 없는 칸은 사람이 마저 채운다.
+   */
+  preset?: Partial<PurchaseIntakeInput>;
   onSave: (input: PurchaseIntakeInput) => Promise<string | null>;
   onClose: () => void;
 }
 
 const FUEL_OPTIONS = ['가솔린', '디젤', 'LPG', '하이브리드', '전기', '가솔린+LPG'];
 
-export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) {
+export default function PurchaseIntakeForm({ editing, preset, onSave, onClose }: Props) {
   const [paste, setPaste] = useState('');
-  const [pasteOpen, setPasteOpen] = useState(!editing);
+  // 미리 채워 들어왔으면 붙여넣기 칸은 접어둔다 — 채울 게 없다.
+  const [pasteOpen, setPasteOpen] = useState(!editing && !preset);
   const [pasteResult, setPasteResult] = useState<string | null>(null);
 
-  const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
-  const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? '');
-  const [customerName, setCustomerName] = useState(editing?.customerName ?? '');
-  const [source, setSource] = useState(editing?.source ?? '');
-  const [inspector, setInspector] = useState(editing?.inspector ?? '');
-  const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? '');
-  const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
-  const [modelYear, setModelYear] = useState(editing?.modelYear ?? '');
-  const [fuel, setFuel] = useState(editing?.fuel ?? '');
-  const [keyCount, setKeyCount] = useState(editing ? String(editing.keyCount) : '');
-  const [mileage, setMileage] = useState(withCommas(editing?.mileage ?? 0));
+  const [date, setDate] = useState(editing?.date ?? preset?.date ?? dayjs().format('YYYY-MM-DD'));
+  const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? preset?.customerPhone ?? '');
+  const [customerName, setCustomerName] = useState(editing?.customerName ?? preset?.customerName ?? '');
+  const [source, setSource] = useState(editing?.source ?? preset?.source ?? '');
+  const [inspector, setInspector] = useState(editing?.inspector ?? preset?.inspector ?? '');
+  const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? preset?.vehicleName ?? '');
+  const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? preset?.vehicleNumber ?? '');
+  const [modelYear, setModelYear] = useState(editing?.modelYear ?? preset?.modelYear ?? '');
+  const [fuel, setFuel] = useState(editing?.fuel ?? preset?.fuel ?? '');
+  const [keyCount, setKeyCount] = useState(editing ? String(editing.keyCount) : preset?.keyCount ? String(preset.keyCount) : '');
+  const [mileage, setMileage] = useState(withCommas(editing?.mileage ?? preset?.mileage ?? 0));
   const [note, setNote] = useState(editing?.note ?? '');
-  const [purchaseAmount, setPurchaseAmount] = useState(withCommas(editing?.purchaseAmount ?? 0));
-  const [brokerFee, setBrokerFee] = useState(withCommas(editing?.brokerFee ?? 0));
+  const [purchaseAmount, setPurchaseAmount] = useState(withCommas(editing?.purchaseAmount ?? preset?.purchaseAmount ?? 0));
+  const [brokerFee, setBrokerFee] = useState(withCommas(editing?.brokerFee ?? preset?.brokerFee ?? 0));
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
