@@ -49,6 +49,26 @@ type YearTolerance = (typeof YEAR_TOLERANCES)[number];
 
 const TOLERANCE_LABEL = (t: YearTolerance) => (t == null ? '연식 전체' : t === 0 ? '같은 연식' : `±${t}년`);
 
+/**
+ * 대상 연식에 가장 가까운 세대를 고른다.
+ *
+ * 연식이 겹치는 매물이 제일 많은 세대를 쓴다. 세대 이름만으로는 언제부터 언제까지인지
+ * 알 수 없어서(‘더 뉴 카니발’) 매물의 연식으로 가늠하는 수밖에 없다.
+ */
+function pickGeneration(listings: Listing[], targetYear: number | null): string | null {
+  if (targetYear == null || listings.length === 0) return null;
+
+  const score = new Map<string, number>();
+  for (const l of listings) {
+    const y = toYear(l.year);
+    if (y == null || Math.abs(y - targetYear) > 2) continue;
+    score.set(l.model, (score.get(l.model) ?? 0) + 1);
+  }
+  if (score.size === 0) return null;
+
+  return [...score.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
 /** "2016", "16", "2016년" 처럼 제각각 적혀 온다 — 숫자만 뽑아 네 자리로 맞춘다. */
 function toYear(text: string): number | null {
   const digits = text.replace(/[^\d]/g, '');
@@ -84,6 +104,14 @@ export default function PriceCheckModal({
   // 연식·연료를 아는 차면 처음부터 좁혀서 본다 — 같은 등급이어도 연식이 벌어지면 값이 크게 다르다.
   const [tolerance, setTolerance] = useState<YearTolerance>(targetYear != null ? 2 : null);
   const [sameFuelOnly, setSameFuelOnly] = useState(Boolean(targetFuel));
+  /**
+   * 세대(더 뉴 카니발 / 카니발 4세대 …). null 이면 전체.
+   *
+   * 카비어 등급 검색에는 엔카의 세대 구분이 없어서, 한 등급에 여러 세대가 섞여 온다.
+   * 카니발 9인승 노블레스 하나에 690~2,650만원이 같이 들어 있는 식이라 그대로 곡선을
+   * 맞추면 시세가 흐려진다. 매물 쪽에는 세대가 들어 있으니 받은 뒤에 가른다.
+   */
+  const [generation, setGeneration] = useState<string | null>(null);
   const [query, setQuery] = useState(defaultQuery);
   const [specs, setSpecs] = useState<CarSpec[] | null>(null);
   /** 서버가 실제로 찾은 이름. 적어 넣은 것과 다르면 화면에 알린다 */
@@ -135,6 +163,13 @@ export default function PriceCheckModal({
       const rows = await api<Listing[]>(`/carvior/car-spec/listings?${params}`);
       if (myReq !== reqId.current) return;
       setListings(rows);
+
+      /*
+       * 대상 차의 연식을 알면 그 연식이 속한 세대를 골라둔다.
+       * 세대가 섞인 채로 보여주면 처음 보이는 값이 이미 틀린 값이라, 사람이 조건을
+       * 걸기 전에는 잘못된 시세를 믿게 된다. 연식을 모르면 전체로 둔다.
+       */
+      setGeneration(pickGeneration(rows, targetYear));
     } catch (e) {
       if (myReq !== reqId.current) return;
       setError(e instanceof ApiError ? e.message : '매물을 불러오지 못했습니다.');
@@ -150,8 +185,16 @@ export default function PriceCheckModal({
    * 조건을 푸는 대신 몇 건 남았는지 보여주고 사람이 넓히게 한다 — 무엇을 놓고 잰
    * 값인지 모르면 시세를 믿을 수 없다.
    */
+  /** 이 등급으로 온 매물에 실제로 섞여 있는 세대 — 많은 순으로 */
+  const generations = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const l of listings) counts.set(l.model, (counts.get(l.model) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [listings]);
+
   const compared = useMemo(() => {
     return listings.filter(l => {
+      if (generation && l.model !== generation) return false;
       if (sameFuelOnly && targetFuel && l.fuel && l.fuel !== targetFuel) return false;
       if (tolerance != null && targetYear != null) {
         const y = toYear(l.year);
@@ -159,7 +202,7 @@ export default function PriceCheckModal({
       }
       return true;
     });
-  }, [listings, sameFuelOnly, targetFuel, tolerance, targetYear]);
+  }, [listings, generation, sameFuelOnly, targetFuel, tolerance, targetYear]);
 
   const fit = useMemo(() => fitPrice(compared, mileage), [compared, mileage]);
 
@@ -204,6 +247,7 @@ export default function PriceCheckModal({
         </div>
         <p className="mt-1 text-xs text-slate-500">
           카비어에 올라온 같은 등급 매물로 값을 가늠합니다. <b>호가 기준</b>이라 실거래는 대체로 이보다 낮습니다.
+          등급 검색에는 세대 구분이 없어 한 등급에 여러 세대가 섞여 옵니다 — 아래에서 세대를 골라 보세요.
         </p>
 
         <form
@@ -291,6 +335,35 @@ export default function PriceCheckModal({
                 <ChevronLeft size={13} /> 다시 선택
               </button>
             </div>
+
+            {/*
+              세대는 등급보다 값 차이가 크다(같은 9인승 노블레스가 690~2,650만원).
+              그래서 연식·연료보다 위에, 이름을 그대로 눌러 고르게 둔다.
+            */}
+            {!loading && generations.length > 1 && (
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-400">세대</span>
+                <button
+                  onClick={() => setGeneration(null)}
+                  className={`rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                    generation === null ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                >
+                  전체
+                </button>
+                {generations.map(([name, count]) => (
+                  <button
+                    key={name}
+                    onClick={() => setGeneration(name)}
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                      generation === name ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  >
+                    {name} {count}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* 무엇을 놓고 잰 값인지 보이게 — 조건이 숨어 있으면 시세를 믿을 수 없다 */}
             {!loading && listings.length > 0 && (targetYear != null || targetFuel) && (
@@ -442,7 +515,8 @@ export default function PriceCheckModal({
                         <div className="h-9 w-12 shrink-0 rounded bg-slate-100" />
                       )}
                       <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
-                        {l.year}년식 · {l.mileage.toLocaleString()}km · {l.fuel}
+                        <b className="font-semibold text-slate-600">{l.model}</b> · {l.year}년식 ·{' '}
+                        {l.mileage.toLocaleString()}km · {l.fuel}
                       </span>
                       <span className="shrink-0 text-xs font-bold text-slate-800">
                         {l.priceManwon.toLocaleString()}만원
