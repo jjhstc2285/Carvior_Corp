@@ -12,18 +12,21 @@ interface CarSpec {
 }
 
 interface Props {
-  /** 매입 등록 폼에 적힌 차명 — 열자마자 그걸로 찾아둔다 */
+  /** 부르는 화면에 적힌 차명 — 열자마자 그걸로 찾아둔다 */
   defaultQuery: string;
-  /** 대상 차의 주행거리(km). 있으면 그 지점의 시세를 낸다 */
-  mileage: number | null;
+  /** 대상 차의 주행거리(km). 모르면 화면에서 직접 넣는다 */
+  mileage?: number | null;
   /** 대상 차의 연식 — 적혀 있으면 비슷한 연식만 놓고 비교한다 */
-  modelYear: string;
+  modelYear?: string;
   /** 대상 차의 연료 — 적혀 있으면 같은 연료만 놓고 비교한다 */
-  fuel: string;
-  /** 시세를 실매입금액으로 넣는다(원) */
-  onPick: (won: number) => void;
+  fuel?: string;
+  /**
+   * 시세를 어딘가에 넣는다(원). 안 주면 보기만 하는 창이 된다 —
+   * 상담 중에는 손님에게 값을 말해줄 뿐 어디에 적지 않는다.
+   */
+  onPick?: (won: number) => void;
   /** 고른 등급을 세부모델로 넣는다 — 카비어에서 받아온 건 등급이 비어 있다 */
-  onPickSpec: (badge: string) => void;
+  onPickSpec?: (badge: string) => void;
   onClose: () => void;
 }
 
@@ -51,9 +54,21 @@ function toYear(text: string): number | null {
  *
  * 호가 기준이다 — 실제로 팔린 값이 아니라 지금 올라와 있는 값이라, 실거래는 대체로 이보다 낮다.
  */
-export default function PriceCheckModal({ defaultQuery, mileage, modelYear, fuel, onPick, onPickSpec, onClose }: Props) {
+export default function PriceCheckModal({
+  defaultQuery,
+  mileage: presetMileage = null,
+  modelYear = '',
+  fuel = '',
+  onPick,
+  onPickSpec,
+  onClose,
+}: Props) {
   const targetYear = useMemo(() => toYear(modelYear), [modelYear]);
   const targetFuel = fuel.trim();
+
+  // 주행거리를 모르고 여는 경우가 있다(상담 중). 시세 범위는 주행거리가 있어야 나오니 여기서 받는다.
+  const [mileageText, setMileageText] = useState(presetMileage ? withCommas(presetMileage) : '');
+  const mileage = Number(mileageText.replace(/[^\d]/g, '')) || null;
 
   // 연식·연료를 아는 차면 처음부터 좁혀서 본다 — 같은 등급이어도 연식이 벌어지면 값이 크게 다르다.
   const [tolerance, setTolerance] = useState<YearTolerance>(targetYear != null ? 2 : null);
@@ -94,7 +109,7 @@ export default function PriceCheckModal({ defaultQuery, mileage, modelYear, fuel
     const myReq = ++reqId.current;
     setPicked(spec);
     // 등급을 고른 순간 세부모델이 정해진다 — 시세를 안 넣고 닫아도 이건 남는다.
-    onPickSpec(spec.badge);
+    onPickSpec?.(spec.badge);
     setLoading(true);
     setListings([]);
     try {
@@ -197,6 +212,18 @@ export default function PriceCheckModal({ defaultQuery, mileage, modelYear, fuel
             <Search size={15} /> 조회
           </button>
         </form>
+
+        <div className="mt-2 flex items-center gap-2">
+          <label className="text-xs font-semibold text-slate-500">주행거리</label>
+          <input
+            value={mileageText}
+            onChange={e => setMileageText(withCommas(e.target.value))}
+            inputMode="numeric"
+            placeholder="137,452"
+            className="w-32 rounded-lg border border-slate-200 px-2.5 py-1 text-right text-sm outline-none focus:border-indigo-400"
+          />
+          <span className="text-xs text-slate-400">km — 넣으면 그 지점의 시세 범위가 나옵니다</span>
+        </div>
 
         {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{error}</p>}
 
@@ -354,6 +381,7 @@ export default function PriceCheckModal({ defaultQuery, mileage, modelYear, fuel
                       {fit.low.toLocaleString()} ~ {fit.high.toLocaleString()}
                       <span className="ml-1 text-sm font-bold text-slate-400">만원</span>
                     </p>
+                    {onPick && (
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {[fit.low, Math.round((fit.low + fit.high) / 2 / 10) * 10, fit.high].map((v, i) => (
                         <button
@@ -368,6 +396,7 @@ export default function PriceCheckModal({ defaultQuery, mileage, modelYear, fuel
                         </button>
                       ))}
                     </div>
+                    )}
                   </div>
                 ) : (
                   <p className="mt-2 rounded-xl bg-amber-50/60 px-3 py-2 text-xs text-amber-800">

@@ -5,7 +5,7 @@ import { isValidPlate, normalizePlate, PLATE_MESSAGE } from '../../lib/vehicle';
 import type { PurchaseIntake } from '../../types';
 import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
 import { parseIntakeText } from './parseIntake';
-import PriceCheckModal from './PriceCheckModal';
+import PriceCheckModal from '../price/PriceCheckModal';
 import type { PurchaseIntakeInput } from './usePurchaseIntake';
 
 interface Props {

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { CalendarDays, Copy, List, Plus, Trash2 } from 'lucide-react';
+import { CalendarDays, Copy, LineChart, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import {
   CONSULTATION_KIND_LABEL,
@@ -11,6 +11,7 @@ import {
   type ManagedVehicle,
 } from '../../types';
 import ConsultationForm from './ConsultationForm';
+import PriceCheckModal from '../price/PriceCheckModal';
 import CustomerHistoryModal from './CustomerHistoryModal';
 import SellableVehicles from './SellableVehicles';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
@@ -80,6 +81,7 @@ export default function ConsultationModule({ role, kind }: Props) {
   const [statusFilter, setStatusFilter] = useState<ConsultationStatus | 'all'>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
+  const [priceOpen, setPriceOpen] = useState<string | null>(null);
   const [preset, setPreset] = useState<{ vehicleNumber: string; vehicleName: string } | undefined>();
   const [editing, setEditing] = useState<ConsultationRecord | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<string | null>(null);
@@ -160,12 +162,21 @@ export default function ConsultationModule({ role, kind }: Props) {
         <p className="text-sm text-slate-500">
           받은 카톡 양식 그대로 등록합니다. <b>전체 상담이 다 보입니다</b> — 손님번호를 누르면 그 손님의 지난 상담이 모여 나옵니다.
         </p>
+        <div className="flex items-center gap-2">
+        <button
+          onClick={() => setPriceOpen('')}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          title="상담 등록 없이 값만 봅니다"
+        >
+          <LineChart size={15} /> 시세 조회
+        </button>
         <button
           onClick={() => { setEditing(null); setPreset(undefined); setFormOpen(true); }}
           className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
         >
           <Plus size={15} /> {CONSULTATION_KIND_LABEL[kind]} 상담 등록
         </button>
+        </div>
       </div>
 
       {kind === 'BROKERAGE' && (
@@ -301,6 +312,13 @@ export default function ConsultationModule({ role, kind }: Props) {
                       <button onClick={() => void copyKakao(c)} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100" title="상담 카톡 양식으로 복사">
                         <Copy size={13} />
                       </button>
+                      <button
+                        onClick={() => setPriceOpen(c.vehicleName || c.vehicleNumber)}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+                        title="이 차 시세 보기"
+                      >
+                        <LineChart size={13} />
+                      </button>
                       {c.status === 'SOLD' && (
                         <button
                           onClick={() => void copyRelease(c, employeeOf(c.employeeId)?.name ?? '')}
@@ -327,6 +345,7 @@ export default function ConsultationModule({ role, kind }: Props) {
       {formOpen && (
         <ConsultationForm kind={kind} editing={editing} defaultEmployeeId={state.currentEmployeeId} preset={preset} onClose={() => setFormOpen(false)} />
       )}
+      {priceOpen !== null && <PriceCheckModal defaultQuery={priceOpen} onClose={() => setPriceOpen(null)} />}
       {historyCustomer && (
         <CustomerHistoryModal customerName={historyCustomer} onClose={() => setHistoryCustomer(null)} />
       )}

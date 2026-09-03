@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
-import { X } from 'lucide-react';
+import { LineChart, X } from 'lucide-react';
 import { useStore } from '../../store';
+import PriceCheckModal from '../price/PriceCheckModal';
 import {
   CONSULTATION_KIND_LABEL,
   CONSULTATION_PLATFORMS_BY_KIND,
@@ -37,6 +38,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const [visitTime, setVisitTime] = useState(editing?.visitTime ?? '');
   const [nextContactDate, setNextContactDate] = useState(editing?.nextContactDate ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [priceOpen, setPriceOpen] = useState(false);
 
   const handleSubmit = () => {
     if (!vehicleNumber.trim() || !customerPhone.trim() || !content.trim()) {
@@ -106,7 +108,18 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">차명</label>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-500">차명</label>
+              {/* 손님과 통화하면서 값을 물어보는 일이 많다 — 창을 따로 열지 않게 여기서 본다 */}
+              <button
+                type="button"
+                onClick={() => setPriceOpen(true)}
+                className="flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
+                title="카비어에 올라온 같은 등급 매물로 시세를 봅니다"
+              >
+                <LineChart size={11} /> 시세
+              </button>
+            </div>
             <input value={vehicleName} onChange={e => setVehicleName(e.target.value)} placeholder="QM5"
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
@@ -181,6 +194,9 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
         </div>
 
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+
+        {/* 상담 중엔 값을 어디에 적지 않고 보기만 한다 — 그래서 넣기 버튼 없이 띄운다 */}
+        {priceOpen && <PriceCheckModal defaultQuery={vehicleName} onClose={() => setPriceOpen(false)} />}
 
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">취소</button>
