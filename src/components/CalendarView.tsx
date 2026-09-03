@@ -16,6 +16,7 @@ const DOTS: Record<AttendanceStatus, string> = {
   missing: 'bg-slate-300',
   dayOff: 'bg-red-300',
   annualLeave: 'bg-violet-400',
+  halfDay: 'bg-violet-300',
   fieldWork: 'bg-sky-400',
 };
 
@@ -52,6 +53,7 @@ export default function CalendarView({ month, records, requests }: Props) {
           let status: AttendanceStatus | null = null;
           if (!workday) status = 'dayOff';
           else if (approvedKind === 'ANNUAL_LEAVE') status = 'annualLeave';
+          else if (approvedKind === 'HALF_DAY') status = 'halfDay';
           else if (approvedKind === 'FIELD_WORK') status = 'fieldWork';
           else if (!future) status = computeStatus(record, dateStr, approvedKind);
 

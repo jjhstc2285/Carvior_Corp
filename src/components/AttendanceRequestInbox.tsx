@@ -2,11 +2,15 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { Check, X } from 'lucide-react';
 import { useStore } from '../store';
-import { ATTENDANCE_REQUEST_KIND_LABEL } from '../types';
+import { ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
 
-const KIND_COLOR: Record<string, string> = {
-  annualLeave: 'bg-violet-50 text-violet-600',
-  fieldWork: 'bg-sky-50 text-sky-600',
+/** 신청 종류별 뱃지 색. 키는 AttendanceRequestKind 그대로다. */
+const KIND_COLOR: Record<AttendanceRequestKind, string> = {
+  ANNUAL_LEAVE: 'bg-violet-50 text-violet-600',
+  HALF_DAY: 'bg-violet-50 text-violet-500',
+  FIELD_WORK: 'bg-sky-50 text-sky-600',
+  AWAY: 'bg-amber-50 text-amber-700',
+  LATE_EXCUSE: 'bg-orange-50 text-orange-700',
 };
 
 export default function AttendanceRequestInbox() {

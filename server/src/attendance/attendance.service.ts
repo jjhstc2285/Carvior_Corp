@@ -9,9 +9,20 @@ import { PushService } from '../push/push.service';
 
 const KIND_LABEL: Record<AttendanceRequestKind, string> = {
   ANNUAL_LEAVE: '연차',
+  HALF_DAY: '반차',
   FIELD_WORK: '외근/출장',
+  AWAY: '자리비움',
   LATE_EXCUSE: '지각·조퇴 소명',
 };
+
+/**
+ * 자리비움은 하루에 여러 번 있을 수 있다 — 은행 다녀오고, 오후에 병원 가고.
+ * 그래서 '하루에 한 건' 규칙에서 뺀다. 연차 낸 날 자리를 비운다는 말도 성립하지 않으니
+ * 다른 신청을 막을 때도 자리비움은 세지 않는다.
+ */
+const ONE_PER_DAY_KINDS = Object.values(AttendanceRequestKind).filter(
+  (k) => k !== AttendanceRequestKind.AWAY,
+);
 
 /** 단말 키는 원본을 저장하지 않는다 — 조회는 해시로 한다(비밀번호와 달리 조회 키라 SHA-256). */
 function hashDeviceToken(token: string): string {
@@ -310,11 +321,18 @@ export class AttendanceService {
   async createAttendanceRequest(employeeId: string, dto: CreateAttendanceRequestDto) {
     const date = toDateOnly(dto.date);
 
-    const duplicate = await this.prisma.attendanceRequest.findFirst({
-      where: { employeeId, date, status: { in: [RequestStatus.PENDING, RequestStatus.APPROVED] } },
-    });
-    if (duplicate) {
-      throw new BadRequestException('해당 날짜에 이미 신청한 내역이 있습니다.');
+    if (dto.kind !== AttendanceRequestKind.AWAY) {
+      const duplicate = await this.prisma.attendanceRequest.findFirst({
+        where: {
+          employeeId,
+          date,
+          kind: { in: ONE_PER_DAY_KINDS },
+          status: { in: [RequestStatus.PENDING, RequestStatus.APPROVED] },
+        },
+      });
+      if (duplicate) {
+        throw new BadRequestException('해당 날짜에 이미 신청한 내역이 있습니다.');
+      }
     }
 
     const req = await this.prisma.attendanceRequest.create({
@@ -367,16 +385,30 @@ export class AttendanceService {
     return { ...updated, date: formatDateOnly(updated.date) };
   }
 
-  /** 남은 연차 — 근로기준법 15일 고정으로 단순화(입사연차 가산 미반영) */
+  /**
+   * 남은 연차 — 근로기준법 15일 고정으로 단순화(입사연차 가산 미반영).
+   * 반차는 반 일로 센다.
+   */
   async annualLeaveUsage(employeeId: string, year: string) {
-    const used = await this.prisma.attendanceRequest.count({
+    const range = {
+      gte: new Date(`${year}-01-01T00:00:00Z`),
+      lt: new Date(`${Number(year) + 1}-01-01T00:00:00Z`),
+    };
+    const counted = await this.prisma.attendanceRequest.groupBy({
+      by: ['kind'],
       where: {
         employeeId,
-        kind: AttendanceRequestKind.ANNUAL_LEAVE,
+        kind: { in: [AttendanceRequestKind.ANNUAL_LEAVE, AttendanceRequestKind.HALF_DAY] },
         status: RequestStatus.APPROVED,
-        date: { gte: new Date(`${year}-01-01T00:00:00Z`), lt: new Date(`${Number(year) + 1}-01-01T00:00:00Z`) },
+        date: range,
       },
+      _count: { _all: true },
     });
+
+    const countOf = (kind: AttendanceRequestKind) =>
+      counted.find((c) => c.kind === kind)?._count._all ?? 0;
+
+    const used = countOf(AttendanceRequestKind.ANNUAL_LEAVE) + countOf(AttendanceRequestKind.HALF_DAY) * 0.5;
     return { quota: 15, used, remaining: 15 - used };
   }
 

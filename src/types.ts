@@ -13,7 +13,7 @@ export interface Employee {
   active: boolean;
 }
 
-export type AttendanceStatus = 'normal' | 'late' | 'earlyLeave' | 'lateAndEarly' | 'missing' | 'dayOff' | 'annualLeave' | 'fieldWork';
+export type AttendanceStatus = 'normal' | 'late' | 'earlyLeave' | 'lateAndEarly' | 'missing' | 'dayOff' | 'annualLeave' | 'halfDay' | 'fieldWork';
 
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -24,18 +24,22 @@ export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
 };
 
 // 근태 신청 종류 — 연차(휴가)는 쉬는 날, 외근/출장은 정상 근무지만 출퇴근을 못 찍는 경우
-export type AttendanceRequestKind = 'ANNUAL_LEAVE' | 'FIELD_WORK' | 'LATE_EXCUSE';
+export type AttendanceRequestKind = 'ANNUAL_LEAVE' | 'HALF_DAY' | 'FIELD_WORK' | 'AWAY' | 'LATE_EXCUSE';
 
 export const ATTENDANCE_REQUEST_KIND_LABEL: Record<AttendanceRequestKind, string> = {
   ANNUAL_LEAVE: '연차',
+  HALF_DAY: '반차',
   FIELD_WORK: '외근/출장',
+  AWAY: '자리비움',
   LATE_EXCUSE: '지각·조퇴 소명',
 };
 
 /** 신청 화면에서 종류별로 무엇을 적는 자리인지 알려준다. */
 export const ATTENDANCE_REQUEST_KIND_HINT: Record<AttendanceRequestKind, string> = {
   ANNUAL_LEAVE: '쉬는 날입니다. 출퇴근을 안 찍어도 결근으로 잡히지 않습니다.',
+  HALF_DAY: '반나절만 쉽니다. 연차를 0.5일 씁니다. 승인되면 그날은 지각·조퇴로 잡히지 않습니다.',
   FIELD_WORK: '정상 근무지만 출퇴근을 못 찍는 날입니다.',
+  AWAY: '근무 중 잠깐 자리를 비웁니다. 하루에 여러 번 낼 수 있고 근태 판정은 바뀌지 않습니다 — 언제부터 언제까지인지 사유에 적어 주세요.',
   LATE_EXCUSE: '이미 지각·조퇴로 찍힌 날의 사유를 적습니다. 승인되면 그날이 정상 출근으로 바뀝니다.',
 };
 

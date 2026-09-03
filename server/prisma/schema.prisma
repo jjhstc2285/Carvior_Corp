@@ -133,7 +133,9 @@ model CorrectionRequest {
 
 enum AttendanceRequestKind {
   ANNUAL_LEAVE // 연차
+  HALF_DAY // 반차 — 반나절만 쉰다. 연차를 0.5일 쓴 것으로 센다
   FIELD_WORK // 외근/출장
+  AWAY // 자리비움 — 근무 중 잠깐 자리를 뜬다. 하루에 여러 번 있을 수 있다
   LATE_EXCUSE // 지각·조퇴 소명 — 승인되면 그날을 정상 출근으로 본다
 }
 

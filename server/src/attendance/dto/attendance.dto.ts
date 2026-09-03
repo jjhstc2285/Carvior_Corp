@@ -24,7 +24,9 @@ export class CreateAttendanceRequestDto {
   @Matches(DATE_PATTERN, { message: 'date는 YYYY-MM-DD 형식이어야 합니다.' })
   date!: string;
 
-  @IsEnum(AttendanceRequestKind, { message: 'kind는 ANNUAL_LEAVE 또는 FIELD_WORK 여야 합니다.' })
+  @IsEnum(AttendanceRequestKind, {
+    message: 'kind는 ANNUAL_LEAVE, HALF_DAY, FIELD_WORK, AWAY, LATE_EXCUSE 중 하나여야 합니다.',
+  })
   kind!: AttendanceRequestKind;
 
   @IsString()

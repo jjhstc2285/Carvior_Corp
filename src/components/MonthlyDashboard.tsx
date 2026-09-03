@@ -16,6 +16,7 @@ const STATUS_OPTIONS: { value: AttendanceStatus | 'all'; label: string }[] = [
   { value: 'lateAndEarly', label: '지각+조퇴' },
   { value: 'missing', label: '누락' },
   { value: 'annualLeave', label: '연차' },
+  { value: 'halfDay', label: '반차' },
   { value: 'fieldWork', label: '외근/출장' },
 ];
 
@@ -64,7 +65,7 @@ export default function MonthlyDashboard() {
   }, [scopedEmployees, days, state.records, state.attendanceRequests]);
 
   const counts = useMemo(() => {
-    const c: Record<AttendanceStatus, number> = { normal: 0, late: 0, earlyLeave: 0, lateAndEarly: 0, missing: 0, dayOff: 0, annualLeave: 0, fieldWork: 0 };
+    const c: Record<AttendanceStatus, number> = { normal: 0, late: 0, earlyLeave: 0, lateAndEarly: 0, missing: 0, dayOff: 0, annualLeave: 0, halfDay: 0, fieldWork: 0 };
     allRows.forEach(r => { c[r.status]++; });
     return c;
   }, [allRows]);

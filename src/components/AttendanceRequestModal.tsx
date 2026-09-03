@@ -33,10 +33,12 @@ export default function AttendanceRequestModal({ onClose }: Props) {
           </button>
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          연차·외근은 미리 신청하고, 지각·조퇴는 지난 날짜를 골라 소명하세요.
+          연차·반차·외근은 미리 신청하고, 지각·조퇴는 지난 날짜를 골라 소명하세요.
+          자리비움은 그날 바로 올리면 됩니다.
         </p>
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        {/* 종류가 다섯이라 세 칸으로는 마지막 줄이 한 칸만 남는다 */}
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {(Object.entries(ATTENDANCE_REQUEST_KIND_LABEL) as [AttendanceRequestKind, string][]).map(([k, label]) => (
             <button
               key={k}

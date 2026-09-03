@@ -3,7 +3,16 @@ import dayjs from 'dayjs';
 import { CalendarDays, List, Plus } from 'lucide-react';
 import { useStore } from '../store';
 import { approvedRequestKind, computeStatus, formatMinutes, isWorkday, workedMinutes } from '../lib/attendance';
-import { ANNUAL_LEAVE_QUOTA, ATTENDANCE_REQUEST_KIND_LABEL } from '../types';
+import { ANNUAL_LEAVE_QUOTA, ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
+
+/** 신청 종류별 뱃지 색 — 승인함(AttendanceRequestInbox)과 같은 색을 쓴다. */
+const KIND_COLOR: Record<AttendanceRequestKind, string> = {
+  ANNUAL_LEAVE: 'bg-violet-50 text-violet-600',
+  HALF_DAY: 'bg-violet-50 text-violet-500',
+  FIELD_WORK: 'bg-sky-50 text-sky-600',
+  AWAY: 'bg-amber-50 text-amber-700',
+  LATE_EXCUSE: 'bg-orange-50 text-orange-700',
+};
 import StatusBadge from './StatusBadge';
 import CorrectionRequestModal from './CorrectionRequestModal';
 import AttendanceRequestModal from './AttendanceRequestModal';
@@ -70,9 +79,10 @@ export default function EmployeeView() {
     .filter(r => r.employeeId === employee.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-  const usedAnnualLeave = state.attendanceRequests.filter(
-    r => r.employeeId === employee.id && r.kind === 'ANNUAL_LEAVE' && r.status === 'APPROVED' && dayjs(r.date).isSame(dayjs(), 'year'),
-  ).length;
+  // 반차는 반 일로 센다 — 서버의 연차 계산과 같은 규칙이다.
+  const usedAnnualLeave = state.attendanceRequests
+    .filter(r => r.employeeId === employee.id && r.status === 'APPROVED' && dayjs(r.date).isSame(dayjs(), 'year'))
+    .reduce((sum, r) => sum + (r.kind === 'ANNUAL_LEAVE' ? 1 : r.kind === 'HALF_DAY' ? 0.5 : 0), 0);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
@@ -187,7 +197,7 @@ export default function EmployeeView() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-slate-700">{dayjs(r.date).format('M월 D일 (ddd)')}</span>
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${r.kind === 'ANNUAL_LEAVE' ? 'bg-violet-50 text-violet-600' : 'bg-sky-50 text-sky-600'}`}>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${KIND_COLOR[r.kind]}`}>
                       {ATTENDANCE_REQUEST_KIND_LABEL[r.kind]}
                     </span>
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${REQUEST_STATUS_COLOR[r.status]}`}>

@@ -27,6 +27,12 @@ export function computeStatus(record: AttendanceRecord | undefined, date: string
 
   const status = rawStatus(record, date);
 
+  // 반차는 반나절만 나오는 날이라 출근이 늦거나 퇴근이 이른 게 정상이다.
+  // 다만 아예 안 찍은 날은 덮지 않는다 — 반차라도 나온 반나절은 찍어야 한다.
+  if (approvedKind === 'HALF_DAY') {
+    return status === 'missing' ? 'missing' : 'halfDay';
+  }
+
   // 지각·조퇴 소명이 승인되면 그날을 정상 출근으로 본다.
   // 다만 '누락'까지 덮지는 않는다 — 출퇴근을 아예 안 찍은 날은 소명할 대상이 없고,
   // 그건 시각을 채워 넣는 정정 요청으로 처리해야 한다. (찍힌 시각 자체는 그대로 남는다)
@@ -85,6 +91,7 @@ export const STATUS_LABEL: Record<AttendanceStatus, string> = {
   missing: '누락',
   dayOff: '휴무',
   annualLeave: '연차',
+  halfDay: '반차',
   fieldWork: '외근/출장',
 };
 
@@ -96,6 +103,7 @@ export const STATUS_COLOR: Record<AttendanceStatus, string> = {
   missing: 'bg-gray-100 text-gray-600 ring-gray-500/20',
   dayOff: 'bg-red-50 text-red-500 ring-red-500/20',
   annualLeave: 'bg-violet-50 text-violet-600 ring-violet-500/20',
+  halfDay: 'bg-violet-50 text-violet-500 ring-violet-400/20',
   fieldWork: 'bg-sky-50 text-sky-600 ring-sky-500/20',
 };
 
