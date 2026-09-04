@@ -449,6 +449,10 @@ export interface ManagedVehicle {
   mileage: number; // 주행거리(km)
 
   // ── 재고금융(제시) ──
+  /** 등록증상 최초등록일 — 10년차 경계를 월까지 봐야 갈릴 때만 채운다 */
+  firstRegisteredOn: string | null;
+  /** 재고금융이 안 되는 차. 현금으로 산다 */
+  cashVehicle: boolean;
   offerDate: string | null; // 제시일자 — 캐피탈에 제시한 날
   transferDate: string | null; // 이전일자 — 명의 이전한 날
   stockCapital: string; // 할부사

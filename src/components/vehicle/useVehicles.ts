@@ -34,6 +34,8 @@ export type VehicleFlags = Pick<
   // 재고금융(제시)
   | 'modelYear'
   | 'mileage'
+  | 'firstRegisteredOn'
+  | 'cashVehicle'
   | 'offerDate'
   | 'transferDate'
   | 'stockCapital'

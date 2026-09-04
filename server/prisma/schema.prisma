@@ -621,6 +621,13 @@ model ManagedVehicle {
   // ── 재고금융(제시) ──
   // 제시 가능 여부는 저장하지 않고 연식·주행거리로 그때그때 가린다 —
   // 기준(10년 이내·20만km 미만)이 바뀌어도 지난 기록이 안 꼬이게.
+  // 등록증에 적힌 최초등록일. 연식만으로는 10년차 경계를 가릴 수 없어서 그때만 채운다 —
+  // 2016년식이라도 1월 등록이면 이미 10년을 넘고 12월 등록이면 아직 9년이다.
+  firstRegisteredOn DateTime? @db.Date
+
+  // 재고금융이 안 되는 차. 현금으로 사는 차라 제시 대상에서 뺀다.
+  cashVehicle Boolean @default(false)
+
   offerDate    DateTime? @db.Date // 제시일자 — 캐피탈에 제시한 날
   transferDate DateTime? @db.Date // 이전일자 — 명의 이전한 날
 
