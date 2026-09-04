@@ -14,7 +14,19 @@ import {
   Query,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { DealerFeeMethod, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
@@ -75,6 +87,14 @@ export class CreateDealerFeeDto {
 /** 수정용 — 등록용을 그대로 쓰면 한 칸만 고치는 요청이 필수값 누락으로 거절된다. */
 export class UpdateDealerFeeDto extends CreateDealerFeeDto {
   @IsOptional() @IsString() @MaxLength(60) declare dealerName: string;
+}
+
+/** 엑셀에서 붙여넣은 여러 줄을 한 번에 넣는다 */
+export class BulkDealerFeeDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateDealerFeeDto)
+  items!: CreateDealerFeeDto[];
 }
 
 export class DealerFeeQueryDto {
@@ -138,6 +158,34 @@ export class DealerFeesService {
       },
     });
     return this.toView(row);
+  }
+
+  /**
+   * 엑셀에서 붙여넣은 줄을 한 번에 넣는다.
+   *
+   * 이미 있는 업체명은 건너뛴다 — 두 번 붙여넣어도 같은 곳이 겹쳐 생기지 않는다.
+   * 고치는 건 표에서 한다.
+   */
+  async createMany(items: CreateDealerFeeDto[]) {
+    const existing = new Set(
+      (await this.prisma.dealerFeeAccount.findMany({ select: { dealerName: true } })).map((r) => r.dealerName),
+    );
+
+    const added: string[] = [];
+    const skipped: string[] = [];
+
+    for (const item of items) {
+      const name = item.dealerName.trim();
+      if (!name) continue;
+      if (existing.has(name)) {
+        skipped.push(name);
+        continue;
+      }
+      existing.add(name);
+      await this.create(item);
+      added.push(name);
+    }
+    return { added: added.length, skipped };
   }
 
   async update(id: string, user: AuthUser, dto: UpdateDealerFeeDto) {
@@ -267,6 +315,13 @@ export class DealerFeesController {
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateDealerFeeDto) {
     assertOfficeManager(user);
     return this.dealerFees.create(dto);
+  }
+
+  /** 엑셀에서 붙여넣은 줄을 한 번에 — 이미 있는 업체명은 건너뛴다 */
+  @Post('bulk')
+  createMany(@CurrentUser() user: AuthUser, @Body() dto: BulkDealerFeeDto) {
+    assertOfficeManager(user);
+    return this.dealerFees.createMany(dto.items);
   }
 
   @Patch(':id')

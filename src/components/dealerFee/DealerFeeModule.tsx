@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { Download, Plus, Trash2 } from 'lucide-react';
+import { ClipboardPaste, Download, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { DEALER_FEE_METHOD_LABEL, type DealerFeeAccount, type DealerFeeMethod } from '../../types';
+import DealerFeePasteModal from './DealerFeePasteModal';
 
 /**
  * 신차영업소 상조회비 납부현황.
@@ -23,6 +24,7 @@ export default function DealerFeeModule() {
   const [query, setQuery] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
   const reqId = useRef(0);
 
   const load = useCallback(async () => {
@@ -149,6 +151,13 @@ export default function DealerFeeModule() {
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
           >
             <Download size={15} /> 엑셀
+          </button>
+          <button
+            onClick={() => setPasteOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            title="엑셀에서 복사해 한 번에 등록합니다"
+          >
+            <ClipboardPaste size={15} /> 엑셀에서 붙여넣기
           </button>
           <button
             onClick={() => void addRow()}
@@ -319,6 +328,8 @@ export default function DealerFeeModule() {
           </table>
         </div>
       </div>
+
+      {pasteOpen && <DealerFeePasteModal onClose={() => setPasteOpen(false)} onImported={() => void load()} />}
     </div>
   );
 }
