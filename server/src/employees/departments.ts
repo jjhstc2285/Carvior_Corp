@@ -6,7 +6,7 @@
  *
  * 서버 src/employees/departments.ts 와 프론트 src/types.ts 가 같아야 한다.
  */
-export const DEPARTMENTS = ['광고팀', '매입팀', '차량관리팀', '알선팀'] as const;
+export const DEPARTMENTS = ['광고팀', '계약팀', '매입팀', '차량관리팀', '알선팀'] as const;
 
 export type Department = (typeof DEPARTMENTS)[number];
 
