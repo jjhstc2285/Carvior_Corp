@@ -94,7 +94,39 @@ export type NotificationType =
   | 'CORRECTION_REQUEST'
   | 'ATTENDANCE_REQUEST'
   | 'MILEAGE_GAP'
-  | 'DEALER_FEE';
+  | 'DEALER_FEE'
+  | 'APPROVAL';
+
+/** 결재 문서 종류. 지금은 시말서 하나지만 휴가원·지출결의서처럼 늘어난다. */
+export type ApprovalKind = 'INCIDENT_REPORT';
+
+export const APPROVAL_KIND_LABEL: Record<ApprovalKind, string> = {
+  INCIDENT_REPORT: '시말서',
+};
+
+/** 회사 시말서 양식에 박혀 있는 서약 문구 — 사람마다 다르게 적으면 다른 문서가 된다. */
+export const INCIDENT_REPORT_PLEDGE =
+  '본인은 직원으로서 맡은바 책임과 의무를 다하며 성실히 근무하여야 함에도 불구하고 아래와 같이 ' +
+  '회사의 관련규정을 위반하였기에 이에 시말서를 제출하고 차후 본 건을 계기로 과오의 재발이 없을 것임을 서약합니다.';
+
+export interface ApprovalDocument {
+  id: string;
+  kind: ApprovalKind;
+  employeeId: string;
+  /** 작성 시점의 값 — 나중에 부서가 바뀌어도 옛 문서는 그때 소속으로 남는다 */
+  department: string;
+  position: string;
+  name: string;
+  content: string;
+  writtenOn: string; // YYYY-MM-DD
+  status: RequestStatus;
+  reviewerId: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  employee?: { id: string; name: string; position: string; department: string | null };
+  reviewer?: { id: string; name: string; position: string } | null;
+  createdAt: string;
+}
 
 /** 상조회비를 어떻게 받는가 */
 export type DealerFeeMethod = 'AUTO' | 'DIRECT' | 'CANCELED';

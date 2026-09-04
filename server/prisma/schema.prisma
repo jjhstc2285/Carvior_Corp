@@ -67,6 +67,8 @@ model Employee {
   pushSubscriptions    PushSubscription[]
   purchaseIntakes      PurchaseIntake[]
   cleaningLogs         CleaningLog[]
+  approvalDocuments    ApprovalDocument[]    @relation("ApprovalWriter")
+  approvalReviews      ApprovalDocument[]    @relation("ApprovalReviewer")
 
   @@unique([provider, providerId])
   @@index([name])
@@ -215,12 +217,54 @@ model DealerFeeAccount {
   @@index([active])
 }
 
+/**
+ * 결재 문서 종류.
+ * 지금은 시말서 하나지만 휴가원·지출결의서처럼 늘어난다. 양식마다 표를 따로 만들지 않고
+ * 종류로 가른다 — 결재 흐름(작성 → 대기 → 승인/반려)은 어느 양식이나 같다.
+ */
+enum ApprovalKind {
+  INCIDENT_REPORT // 시말서
+}
+
+/**
+ * 결재 문서.
+ * 부서·직위·성명은 작성 시점의 값을 문서에 박아 남긴다. 직원 정보를 참조만 하면
+ * 나중에 부서가 바뀌었을 때 옛 문서의 소속까지 따라 바뀐다 — 그건 다른 문서가 된다.
+ */
+model ApprovalDocument {
+  id         String       @id @default(cuid())
+  kind       ApprovalKind @default(INCIDENT_REPORT)
+  employeeId String // 작성자
+
+  department String   @default("") @db.VarChar(30) // 작성 시점의 부서
+  position   String   @default("") @db.VarChar(30) // 작성 시점의 직위
+  name       String   @db.VarChar(30) // 작성 시점의 성명
+  content    String   @db.Text // 내용
+  writtenOn  DateTime @db.Date // 작성일자
+
+  status     RequestStatus @default(PENDING)
+  reviewerId String? // 결재한 사람
+  reviewedAt DateTime?
+  reviewNote String?       @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee  @relation("ApprovalWriter", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer Employee? @relation("ApprovalReviewer", fields: [reviewerId], references: [id])
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([writtenOn])
+}
+
 enum NotificationType {
   MISSING
   CORRECTION_REQUEST
   ATTENDANCE_REQUEST
   MILEAGE_GAP // 실차 확인 주행거리가 처음 적은 것과 많이 벌어졌다
   DEALER_FEE // 신차영업소 상조회비 조건이 바뀌었다
+  APPROVAL // 결재 문서가 올라오거나 처리됐다
 }
 
 /**

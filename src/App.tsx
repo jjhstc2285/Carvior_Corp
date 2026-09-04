@@ -20,6 +20,7 @@ import PurchaseListModule from './components/purchaseList/PurchaseListModule';
 import PurchaseIntakeModule from './components/purchaseIntake/PurchaseIntakeModule';
 import StockFinanceModule from './components/vehicle/StockFinanceModule';
 import DealerFeeModule from './components/dealerFee/DealerFeeModule';
+import ApprovalModule from './components/approval/ApprovalModule';
 import { useChatUnread } from './components/chat/useChat';
 import { useIdleAway } from './hooks/useIdleAway';
 import { useStore } from './store';
@@ -29,6 +30,7 @@ import LoginPage from './components/auth/LoginPage';
 const MODULE_TITLE: Record<ModuleKey, string> = {
   attendance: '출퇴근 관리',
   workLog: '작업일지',
+  approval: '결재 관리',
   consultation: '상담 관리',
   settlement: '정산 관리',
   parking: '주차장 관리',
@@ -45,6 +47,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
 function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'attendance') return role === 'EMPLOYEE' ? <EmployeeView /> : <AdminView />;
   if (module === 'workLog') return <WorkLogModule role={role} />;
+  if (module === 'approval') return <ApprovalModule role={role} />;
   if (module === 'vehicle') return <VehicleModule />;
   if (module === 'chat') return <ChatModule role={role} />;
   if (module === 'cleaning') return <CleaningModule role={role} />;

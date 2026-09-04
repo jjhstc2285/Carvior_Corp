@@ -1,6 +1,7 @@
 export type ModuleKey =
   | 'attendance'
   | 'workLog'
+  | 'approval'
   | 'consultation'
   | 'settlement'
   | 'parking'
