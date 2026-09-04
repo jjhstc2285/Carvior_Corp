@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { Download } from 'lucide-react';
 import ConsultationModule from './ConsultationModule';
 import type { ConsultationKind } from '../../types';
+import ConsultationSheetImportModal from './SheetImportModal';
+import { useStore } from '../../store';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -20,11 +23,22 @@ const TABS: { key: ConsultationKind; label: string }[] = [
 
 export default function ConsultationHub({ role }: Props) {
   const [tab, setTab] = useState<ConsultationKind>('BROKERAGE');
+  const [importOpen, setImportOpen] = useState(false);
+  const { refresh } = useStore();
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900">상담 관리</h1>
+        {/* 시트에 쌓인 지난 상담을 옮겨온다. 한 번에 천 건이 넘어 관리자만 부른다. */}
+        {role === 'ADMIN' && (
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Download size={15} /> 구글 시트에서 가져오기
+          </button>
+        )}
       </div>
 
       <div className="mb-5 flex w-fit rounded-lg bg-slate-100 p-0.5 text-sm">
@@ -43,6 +57,10 @@ export default function ConsultationHub({ role }: Props) {
 
       {/* key 를 줘서 탭을 옮기면 검색·필터가 초기화된다 — 알선에서 걸어둔 조건이 수출에 남으면 헷갈린다 */}
       <ConsultationModule key={tab} role={role} kind={tab} />
+
+      {importOpen && (
+        <ConsultationSheetImportModal onClose={() => setImportOpen(false)} onImported={() => void refresh()} />
+      )}
     </div>
   );
 }

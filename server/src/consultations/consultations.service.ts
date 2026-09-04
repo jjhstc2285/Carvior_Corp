@@ -2,6 +2,8 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConsultationKind, ConsultationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizePlate } from '../vehicles/vehicle.rules';
+import { parseConsultationSheet } from './sheet-import';
+import type { AuthUser } from '../auth/current-user.decorator';
 import { formatDateOnly, formatDateOnlyOrNull, toDateOnly, toDateOnlyOrNull } from '../common/date.util';
 import type { CreateConsultationDto, UpdateConsultationDto } from './dto/consultation.dto';
 
@@ -148,6 +150,83 @@ export class ConsultationsService {
     // 이미 판매완료였다가 다른 칸만 고친 경우에도 한 번 더 비운다 — 자리를 다시 적었을 수 있다.
     if (row.status === ConsultationStatus.SOLD) await this.clearParkingSpot(row.vehicleNumber);
     return this.toView(row);
+  }
+
+  /**
+   * 구글 시트 '알선 상담 정리' 를 옮겨온다.
+   *
+   * 상담자 이름이 '도연', '수민' 처럼 일부만 적혀 있어서 직원 이름에 그 말이 들어가면
+   * 같은 사람으로 본다. 못 찾으면 옮기는 사람 앞으로 둔다 — 담당자가 비면 목록에서
+   * 걸러지지도 않고 나중에 누구 건지 알 수도 없다.
+   *
+   * 이미 넣은 번호는 건너뛴다. 시트에 계속 쌓이는 동안 여러 번 돌려도 겹치지 않는다.
+   */
+  async importFromSheet(user: AuthUser, csv: string, dryRun: boolean) {
+    const { items, skipped } = parseConsultationSheet(csv);
+
+    const existing = new Set(
+      (
+        await this.prisma.consultation.findMany({
+          where: { sourceId: { not: null } },
+          select: { sourceId: true },
+        })
+      ).map((r) => r.sourceId as string),
+    );
+
+    const employees = await this.prisma.employee.findMany({ select: { id: true, name: true } });
+    const matchEmployee = (counselor: string): string | null => {
+      const name = counselor.trim();
+      if (!name) return null;
+      // 긴 이름부터 본다 — '최수민'이 '수민'보다 먼저 맞아야 한다.
+      const found = [...employees]
+        .sort((a, b) => b.name.length - a.name.length)
+        .find((e) => e.name === name || e.name.includes(name) || name.includes(e.name));
+      return found?.id ?? null;
+    };
+
+    const fresh = items.filter((i) => !existing.has(i.sourceId));
+    const already = items.length - fresh.length;
+
+    if (dryRun) {
+      const byKind = { EXPORT: 0, BROKERAGE: 0 };
+      const unmatched = new Set<string>();
+      for (const i of fresh) {
+        byKind[i.kind] += 1;
+        if (i.counselor && !matchEmployee(i.counselor)) unmatched.add(i.counselor);
+      }
+      return {
+        total: items.length,
+        already,
+        toImport: fresh.length,
+        exportCount: byKind.EXPORT,
+        brokerageCount: byKind.BROKERAGE,
+        unmatchedCounselors: [...unmatched],
+        skipped,
+        sample: fresh.slice(0, 20),
+      };
+    }
+
+    // 1500건이 넘어 한 건씩 넣으면 오래 걸린다. 한 번에 밀어 넣는다.
+    const created = await this.prisma.consultation.createMany({
+      data: fresh.map((i) => ({
+        sourceId: i.sourceId,
+        kind: i.kind,
+        platform: i.platform,
+        vehicleNumber: i.vehicleNumber,
+        vehicleName: i.vehicleName,
+        customerPhone: i.customerPhone,
+        customerName: '',
+        employeeId: matchEmployee(i.counselor) ?? user.id,
+        // 지난 상담이라 상태를 짐작하지 않는다. 종결로 두면 안 끝난 건이 묻힌다.
+        status: ConsultationStatus.CLOSED,
+        date: toDateOnly(i.date),
+        time: '00:00',
+        content: i.content,
+      })),
+      skipDuplicates: true,
+    });
+
+    return { imported: created.count, already, skipped };
   }
 
   async remove(id: string) {

@@ -1,8 +1,36 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConsultationKind, ConsultationStatus, Role } from '@prisma/client';
 import { ConsultationsService } from './consultations.service';
 import { CreateConsultationDto, UpdateConsultationDto } from './dto/consultation.dto';
 import { Roles } from '../auth/roles.decorator';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+
+/**
+ * 상담 시트를 CSV로 받는 주소. 시트가 바뀌면 .env 로 갈아끼운다.
+ * 주차 시트와 같은 문서의 다른 탭이다.
+ */
+const SHEET_CSV_URL =
+  process.env.CONSULTATION_SHEET_CSV_URL ??
+  'https://docs.google.com/spreadsheets/d/1SmBh_Grnd5yBiwY4jOxkRjz0P1GK2GilNgiSc8j3EIk/export?format=csv&gid=1211307773';
+
+async function fetchSheetCsv(): Promise<string> {
+  const res = await fetch(SHEET_CSV_URL, { signal: AbortSignal.timeout(60_000) });
+  if (!res.ok) {
+    throw new ServiceUnavailableException('구글 시트를 읽지 못했습니다. 공개 설정을 확인해 주세요.');
+  }
+  return res.text();
+}
 
 @Controller('consultations')
 export class ConsultationsController {
@@ -25,6 +53,24 @@ export class ConsultationsController {
     @Query('kind') kind?: ConsultationKind,
   ) {
     return this.consultations.findAll({ q, status, employeeId, kind });
+  }
+
+  /**
+   * 구글 시트 '알선 상담 정리' 가져오기.
+   *
+   * 1500건이 한 번에 들어오는 일이라 관리자만 부른다. 넣기 전에 무엇이 들어오는지
+   * 먼저 보여준다(preview) — 확인 없이 밀어넣으면 무엇이 잘못 들어갔는지 알 수 없다.
+   */
+  @Roles(Role.ADMIN)
+  @Get('sheet/preview')
+  async previewSheet(@CurrentUser() user: AuthUser) {
+    return this.consultations.importFromSheet(user, await fetchSheetCsv(), true);
+  }
+
+  @Roles(Role.ADMIN)
+  @Post('sheet/import')
+  async importSheet(@CurrentUser() user: AuthUser) {
+    return this.consultations.importFromSheet(user, await fetchSheetCsv(), false);
   }
 
   @Roles(Role.ADMIN)

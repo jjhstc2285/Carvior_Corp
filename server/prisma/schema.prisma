@@ -368,6 +368,9 @@ enum ConsultationStatus {
 // 이미 이름으로 적어둔 상담이 있어서 지우지 않고 남긴다(화면에서는 번호가 없을 때만 보인다).
 model Consultation {
   id            String             @id @default(cuid())
+  // 구글 시트에서 옮겨온 건의 원래 번호. 두 번 넣어도 겹치지 않게 이걸로 가른다.
+  // 앱에서 새로 적은 건은 비어 있다.
+  sourceId      String?            @db.VarChar(30)
   kind          ConsultationKind   @default(BROKERAGE) // 알선 / 수출
   platform      String             @default("") @db.VarChar(30) // 엔카·KB차차차 등 유입 경로
   vehicleNumber String
@@ -399,6 +402,7 @@ model Consultation {
   files    ConsultationFile[]
 
   @@index([kind, date])
+  @@index([sourceId])
   @@index([employeeId])
   @@index([vehicleNumber])
   @@index([customerPhone])
