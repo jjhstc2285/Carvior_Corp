@@ -38,6 +38,41 @@ export function toYear(text: string): number | null {
   return null;
 }
 
+/**
+ * 연식만으로 10년차 경계에 걸리는가.
+ *
+ * 이 해에 태어난 차만 등록증을 봐야 갈린다. 그 밖의 차는 등록 월이 언제든 결론이 같아서
+ * 실차 확인자에게 굳이 묻지 않는다 — 물을 게 늘면 아무것도 안 적게 된다.
+ */
+export function needsRegistrationCheck(modelYear: string, today = dayjs()): boolean {
+  const year = toYear(modelYear);
+  return year != null && today.year() - year === MAX_AGE_YEARS;
+}
+
+export interface StockDeadline {
+  /** 재고금융이 가능한 마지막 날 — 최초등록일 + 10년 */
+  date: string;
+  /** 이미 지났는가 */
+  passed: boolean;
+  /** 남은(또는 지난) 날수 */
+  days: number;
+}
+
+/**
+ * 등록증상 최초등록일로 재고 가능 기한을 낸다.
+ *
+ * 실차 확인자가 "16.3월" 이라고 적는 순간 2026년 3월이 기한이라는 게 보여야 한다.
+ * 오늘이 9월이면 이미 반년이 지난 것이고, 그건 적고 나서 알 게 아니라 적으면서 알 일이다.
+ */
+export function stockDeadline(firstRegisteredOn: string, today = dayjs()): StockDeadline | null {
+  const from = dayjs(firstRegisteredOn);
+  if (!from.isValid()) return null;
+
+  const date = from.add(MAX_AGE_YEARS, 'year');
+  const days = date.diff(today.startOf('day'), 'day');
+  return { date: date.format('YYYY-MM-DD'), passed: days <= 0, days: Math.abs(days) };
+}
+
 const OVER_MILEAGE = (km: number) =>
   `${km.toLocaleString()}km — ${(MAX_MILEAGE_KM / 10000).toLocaleString()}만km 이상`;
 

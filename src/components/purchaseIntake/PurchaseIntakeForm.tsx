@@ -12,6 +12,7 @@ import {
 /** 이만큼 벌어지면 저장할 때 관리자에게 알림이 간다 — 서버 기준과 같아야 한다. */
 const MILEAGE_GAP_ALERT_KM = 1000;
 import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
+import { needsRegistrationCheck, stockDeadline } from '../../lib/stockFinance';
 import { parseIntakeText } from './parseIntake';
 import PriceCheckModal from '../price/PriceCheckModal';
 import type { PurchaseIntakeInput } from './usePurchaseIntake';
@@ -62,6 +63,10 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   // 원천징수는 구전에서 떼고 나머지를 준다. 저장은 안 하고 보여주기만 한다 —
   // 세율이 바뀌어도 지난 기록이 안 꼬이게(정산 파생값과 같은 방침).
   const withheld = Math.round(moneyToNumber(brokerFee) * BROKER_FEE_TYPE_RATE[brokerFeeType]);
+
+  // 10년차 차만 등록증을 묻는다. 이미 적어둔 게 있으면 연식과 무관하게 계속 보여준다.
+  const registrationCheck = needsRegistrationCheck(modelYear) || Boolean(firstRegisteredOn);
+  const deadline = firstRegisteredOn ? stockDeadline(firstRegisteredOn) : null;
 
   /** 붙여넣은 카톡 양식에서 알아본 칸만 채운다 — 못 알아본 칸은 건드리지 않는다. */
   const applyPaste = () => {
@@ -228,19 +233,6 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           {field('세부모델', text(detailModel, setDetailModel, '2.4 GDI 프레스티지'), 'col-span-2 sm:col-span-4')}
           {field('차량번호 *', text(vehicleNumber, setVehicleNumber, '154오8037'))}
           {field('연식', text(modelYear, setModelYear, '2020'))}
-          {/*
-            등록증이 손에 있을 때 받아 적는다. 재고금융 10년차 경계는 연식만으로는
-            갈리지 않는다 — 2016년식도 1월 등록이면 이미 10년을 넘고 12월이면 아직 9년이다.
-          */}
-          {field(
-            '최초등록일',
-            <input
-              type="date"
-              value={firstRegisteredOn}
-              onChange={e => setFirstRegisteredOn(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
-            />,
-          )}
           {field(
             '연료',
             <input
@@ -269,6 +261,42 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
               )}
             </>,
           )}
+          {/*
+            10년차 차만 묻는다. 그 밖의 차는 등록 월이 언제든 결론이 같아서 물을 이유가 없다 —
+            물을 게 늘면 아무것도 안 적게 된다.
+            적는 순간 기한이 보여야 한다. "16.3월"을 넣으면 2026년 3월이 기한이고 오늘이
+            9월이면 이미 반년이 지난 것인데, 그건 적고 나서 알 게 아니라 적으면서 알 일이다.
+          */}
+          {registrationCheck &&
+            field(
+              '등록증 최초등록일',
+              <>
+                <input
+                  type="date"
+                  value={firstRegisteredOn}
+                  onChange={e => setFirstRegisteredOn(e.target.value)}
+                  className={`w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400 ${
+                    firstRegisteredOn ? 'border-slate-200' : 'border-amber-400 bg-amber-50'
+                  }`}
+                />
+                {!firstRegisteredOn && (
+                  <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                    <AlertTriangle size={11} /> {modelYear}년식 — 재고금융 10년차입니다. 등록증을 보고 넣어 주세요
+                  </p>
+                )}
+                {deadline &&
+                  (deadline.passed ? (
+                    <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-red-600">
+                      <AlertTriangle size={11} /> 재고 불가 — {deadline.date} 에 10년이 지났습니다 ({deadline.days}일 경과)
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+                      재고 가능 — {deadline.date} 까지 (D-{deadline.days})
+                    </p>
+                  ))}
+              </>,
+              'col-span-2 sm:col-span-2',
+            )}
           {field('특이사항', text(note, setNote, '금일 전액 이체 및 차량인도'), 'col-span-2 sm:col-span-3')}
         </div>
 

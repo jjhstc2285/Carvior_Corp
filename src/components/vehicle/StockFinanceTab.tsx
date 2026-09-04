@@ -2,7 +2,13 @@ import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { Download } from 'lucide-react';
-import { CAPITAL_COMPANIES, MAX_AGE_YEARS, MAX_MILEAGE_KM, offerEligibility } from '../../lib/stockFinance';
+import {
+  CAPITAL_COMPANIES,
+  MAX_AGE_YEARS,
+  MAX_MILEAGE_KM,
+  offerEligibility,
+  stockDeadline,
+} from '../../lib/stockFinance';
 import { digitsOnly, withCommas } from '../../lib/money';
 import type { ManagedVehicle } from '../../types';
 import type { VehiclesApi } from './useVehicles';
@@ -256,7 +262,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                 <th className="px-3 py-3 font-medium">할부사</th>
                 <th className="px-3 py-3 text-right font-medium">재고금액</th>
                 <th className="px-3 py-3 text-center font-medium">현금</th>
-                <th className="px-3 py-3 font-medium">최초등록일</th>
+                <th className="px-3 py-3 font-medium">최초등록일 · 기한</th>
                 <th className="px-3 py-3 font-medium">연식</th>
                 <th className="px-3 py-3 text-right font-medium">주행거리</th>
               </tr>
@@ -342,7 +348,19 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                   */}
                   <td className="px-3 py-2.5">
                     {v.firstRegisteredOn ? (
-                      <span className="text-[13px] text-slate-600">{v.firstRegisteredOn}</span>
+                      <span className="text-[13px] text-slate-600">
+                        {v.firstRegisteredOn}
+                        {/* 언제까지 되는지가 날짜보다 중요하다 */}
+                        {(() => {
+                          const d = stockDeadline(v.firstRegisteredOn);
+                          if (!d) return null;
+                          return (
+                            <span className={`ml-1 text-[11px] font-semibold ${d.passed ? 'text-red-600' : 'text-emerald-700'}`}>
+                              {d.passed ? `${d.date} 만료` : `${d.date}까지`}
+                            </span>
+                          );
+                        })()}
+                      </span>
                     ) : eligibility.ok === 'check' ? (
                       <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800">
                         매입 관리에서 입력
