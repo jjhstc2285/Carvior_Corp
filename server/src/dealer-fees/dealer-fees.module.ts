@@ -29,7 +29,7 @@ import {
 } from 'class-validator';
 import { DealerFeeMethod, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
+import { formatDateOnlyOrNull, monthRange, todayKst, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager } from '../auth/office-manager';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
@@ -49,6 +49,7 @@ const WATCHED: { key: keyof UpdateDealerFeeDto; label: string }[] = [
   { key: 'transferDay', label: '자동이체날짜' },
   { key: 'monthlyFee', label: '매달 회비' },
   { key: 'feeNote', label: '회비 조건' },
+  { key: 'perUnitFee', label: '대당 회비' },
   { key: 'method', label: '자동이체여부' },
   { key: 'autoTransferUntil', label: '자동이체기한' },
   { key: 'accountNumber', label: '자동이체계좌' },
@@ -76,6 +77,8 @@ export class CreateDealerFeeDto {
   @IsOptional() @IsString() @MaxLength(30) transferDay?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) monthlyFee?: number;
   @IsOptional() @IsString() @MaxLength(60) feeNote?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) perUnitFee?: number;
+  @IsOptional() @IsString() @MaxLength(255) matchKeywords?: string;
   @IsOptional() @IsEnum(DealerFeeMethod) method?: DealerFeeMethod;
 
   @IsOptional() @IsString() @MaxLength(30) autoTransferUntil?: string;
@@ -137,6 +140,40 @@ export class DealerFeesService {
     return rows.map((r) => this.toView(r));
   }
 
+  /**
+   * 대당으로 받는 영업소의 월별 매입 대수.
+   *
+   * 차마다 따로 표시를 붙이지 않는다 — 매입 관리에 이미 '매입처'가 적혀 있고
+   * 카비어에서 들어온 계약도 딜러명이 그대로 들어온다. 그걸 세면 된다.
+   *
+   * 업체명과 매입처 표기가 달라서(BYD 송도 / bps전영진과장) 매칭 키워드를 따로 받는다.
+   * 비어 있으면 업체명으로 찾는다.
+   *
+   * 매입처를 한 번만 읽고 메모리에서 센다 — 영업소마다 따로 물으면 일흔 번을 두드린다.
+   */
+  async monthlyCounts(month: string) {
+    const dealers = await this.prisma.dealerFeeAccount.findMany({
+      where: { perUnitFee: { gt: 0 } },
+      select: { id: true, dealerName: true, matchKeywords: true, perUnitFee: true },
+    });
+    if (dealers.length === 0) return [];
+
+    const intakes = await this.prisma.purchaseIntake.findMany({
+      where: { date: monthRange(month) },
+      select: { source: true },
+    });
+
+    return dealers.map((d) => {
+      const keywords = (d.matchKeywords || d.dealerName)
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean);
+
+      const count = intakes.filter((i) => keywords.some((k) => i.source.includes(k))).length;
+      return { id: d.id, count, amount: count * d.perUnitFee };
+    });
+  }
+
   async create(dto: CreateDealerFeeDto) {
     const row = await this.prisma.dealerFeeAccount.create({
       data: {
@@ -150,6 +187,8 @@ export class DealerFeesService {
         transferDay: dto.transferDay?.trim() ?? '',
         monthlyFee: dto.monthlyFee ?? 0,
         feeNote: dto.feeNote?.trim() ?? '',
+        perUnitFee: dto.perUnitFee ?? 0,
+        matchKeywords: dto.matchKeywords?.trim() ?? '',
         method: dto.method ?? DealerFeeMethod.AUTO,
         autoTransferUntil: dto.autoTransferUntil?.trim() ?? '',
         note: dto.note?.trim() ?? '',
@@ -205,6 +244,8 @@ export class DealerFeesService {
         ...(dto.transferDay !== undefined ? { transferDay: dto.transferDay.trim() } : {}),
         ...(dto.monthlyFee !== undefined ? { monthlyFee: dto.monthlyFee } : {}),
         ...(dto.feeNote !== undefined ? { feeNote: dto.feeNote.trim() } : {}),
+        ...(dto.perUnitFee !== undefined ? { perUnitFee: dto.perUnitFee } : {}),
+        ...(dto.matchKeywords !== undefined ? { matchKeywords: dto.matchKeywords.trim() } : {}),
         ...(dto.method !== undefined ? { method: dto.method } : {}),
         ...(dto.autoTransferUntil !== undefined ? { autoTransferUntil: dto.autoTransferUntil.trim() } : {}),
         ...(dto.note !== undefined ? { note: dto.note.trim() } : {}),
@@ -309,6 +350,13 @@ export class DealerFeesController {
   findAll(@CurrentUser() user: AuthUser, @Query() query: DealerFeeQueryDto) {
     assertOfficeManager(user);
     return this.dealerFees.findAll(query);
+  }
+
+  /** 대당 영업소의 그 달 매입 대수 — /dealer-fees/monthly-counts?month=2026-09 */
+  @Get('monthly-counts')
+  monthlyCounts(@CurrentUser() user: AuthUser, @Query('month') month?: string) {
+    assertOfficeManager(user);
+    return this.dealerFees.monthlyCounts(month || todayKst().slice(0, 7));
   }
 
   @Post()

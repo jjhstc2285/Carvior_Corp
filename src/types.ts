@@ -123,6 +123,10 @@ export interface DealerFeeAccount {
   transferDay: string; // 자동이체날짜 — 적힌 그대로
   monthlyFee: number; // 매달 회비(원). 대당처럼 정액이 아니면 0
   feeNote: string; // "대당 5만" 처럼 정액이 아닐 때
+  /** 대당 얼마(원). 0이면 대당이 아니다 */
+  perUnitFee: number;
+  /** 매입처에 이 말이 들어가면 이 영업소로 센다. 쉼표로 여럿, 비면 업체명 */
+  matchKeywords: string;
   method: DealerFeeMethod;
   autoTransferUntil: string; // 자동이체기한
   note: string; // 비고

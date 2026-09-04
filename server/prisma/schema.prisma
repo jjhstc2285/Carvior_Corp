@@ -186,10 +186,18 @@ model DealerFeeAccount {
   accountHolder String @default("") @db.VarChar(30) // 예금주
   accountNumber String @default("") @db.VarChar(40) // 자동이체계좌
 
-  transferDay String          @default("") @db.VarChar(30) // 자동이체날짜 — 적힌 그대로
-  monthlyFee  Int             @default(0) // 매달 회비(원). 대당처럼 정액이 아니면 0
-  feeNote     String          @default("") @db.VarChar(60) // "대당 5만" 처럼 정액이 아닐 때
-  method      DealerFeeMethod @default(AUTO) // 자동이체여부
+  transferDay String @default("") @db.VarChar(30) // 자동이체날짜 — 적힌 그대로
+  monthlyFee  Int    @default(0) // 매달 회비(원). 대당처럼 정액이 아니면 0
+  feeNote     String @default("") @db.VarChar(60) // "대당 5만" 처럼 정액이 아닐 때
+
+  // 대당으로 받는 곳 — 그 달 매입 대수로 회비가 정해진다.
+  perUnitFee Int @default(0) // 대당 얼마(원). 0이면 대당이 아니다
+
+  // 매입 관리의 '매입처'에 이 말이 들어가면 이 영업소가 매입한 것으로 센다.
+  // 업체명과 매입처 표기가 달라서(BYD 송도 / bps전영진과장) 따로 받는다.
+  // 쉼표로 여러 개를 넣을 수 있다. 비어 있으면 업체명으로 찾는다.
+  matchKeywords String          @default("") @db.VarChar(255)
+  method        DealerFeeMethod @default(AUTO) // 자동이체여부
 
   autoTransferUntil String @default("") @db.VarChar(30) // 자동이체기한 — "2026년12월"
   note              String @default("") @db.VarChar(255) // 비고
