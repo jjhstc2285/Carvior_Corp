@@ -224,6 +224,8 @@ model DealerFeeAccount {
  */
 enum ApprovalKind {
   INCIDENT_REPORT // 시말서
+  LEAVE // 휴가원
+  EXPENSE // 지출결의서
 }
 
 /**
@@ -239,8 +241,21 @@ model ApprovalDocument {
   department String   @default("") @db.VarChar(30) // 작성 시점의 부서
   position   String   @default("") @db.VarChar(30) // 작성 시점의 직위
   name       String   @db.VarChar(30) // 작성 시점의 성명
-  content    String   @db.Text // 내용
+  content    String   @db.Text // 내용 — 시말서는 경위, 휴가원은 사유, 지출결의서는 적요
   writtenOn  DateTime @db.Date // 작성일자
+
+  // ── 휴가원 ──
+  // 양식마다 칸이 달라 비어 있을 수 있다. JSON 한 칸에 몰아넣지 않는 이유는
+  // 나중에 "이번 달 휴가 며칠", "이번 달 지출 얼마"를 물어보려면 칸이어야 해서다.
+  leaveKind String    @default("") @db.VarChar(20) // 연차 / 반차 / 병가 / 경조 / 기타
+  startOn   DateTime? @db.Date
+  endOn     DateTime? @db.Date
+  days      Float? // 0.5 단위
+
+  // ── 지출결의서 ──
+  spentOn DateTime? @db.Date // 지출일
+  amount  Int       @default(0) // 금액(원)
+  payee   String    @default("") @db.VarChar(60) // 지출처
 
   status     RequestStatus @default(PENDING)
   reviewerId String? // 결재한 사람

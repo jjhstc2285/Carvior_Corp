@@ -29,7 +29,7 @@ import LoginPage from './components/auth/LoginPage';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
   attendance: '출퇴근 관리',
-  workLog: '작업일지',
+  workLog: '업무 일지(작업 일지)',
   approval: '결재 관리',
   consultation: '상담 관리',
   settlement: '정산 관리',

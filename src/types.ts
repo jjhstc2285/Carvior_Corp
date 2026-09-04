@@ -98,11 +98,16 @@ export type NotificationType =
   | 'APPROVAL';
 
 /** 결재 문서 종류. 지금은 시말서 하나지만 휴가원·지출결의서처럼 늘어난다. */
-export type ApprovalKind = 'INCIDENT_REPORT';
+export type ApprovalKind = 'INCIDENT_REPORT' | 'LEAVE' | 'EXPENSE';
 
 export const APPROVAL_KIND_LABEL: Record<ApprovalKind, string> = {
   INCIDENT_REPORT: '시말서',
+  LEAVE: '휴가원',
+  EXPENSE: '지출결의서',
 };
+
+/** 휴가 종류 — 목록에서 고른다. 손으로 적으면 '연차'와 '연 차'가 따로 논다. */
+export const LEAVE_KINDS = ['연차', '반차', '병가', '경조', '공가', '기타'] as const;
 
 /** 회사 시말서 양식에 박혀 있는 서약 문구 — 사람마다 다르게 적으면 다른 문서가 된다. */
 export const INCIDENT_REPORT_PLEDGE =
@@ -117,8 +122,18 @@ export interface ApprovalDocument {
   department: string;
   position: string;
   name: string;
-  content: string;
+  content: string; // 시말서는 경위, 휴가원은 사유, 지출결의서는 적요
   writtenOn: string; // YYYY-MM-DD
+
+  // 양식마다 칸이 달라 비어 있을 수 있다
+  leaveKind: string;
+  startOn: string | null;
+  endOn: string | null;
+  days: number | null;
+  spentOn: string | null;
+  amount: number;
+  payee: string;
+
   status: RequestStatus;
   reviewerId: string | null;
   reviewedAt: string | null;

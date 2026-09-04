@@ -105,7 +105,7 @@ export default function WorkLogModule({ role }: Props) {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">작업일지</h1>
+          <h1 className="text-xl font-bold text-slate-900">업무 일지<span className="ml-1.5 text-sm font-medium text-slate-400">(작업 일지)</span></h1>
           <p className="mt-1 text-sm text-slate-500">
             요일별로 할 일을 적어두고 처리한 건 체크해 두세요.
             {!isAdmin &&

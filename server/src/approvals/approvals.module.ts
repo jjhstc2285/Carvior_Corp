@@ -15,10 +15,11 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApprovalKind, NotificationType, Prisma, RequestStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { formatDateOnly, todayKst, toDateOnly } from '../common/date.util';
+import { formatDateOnly, formatDateOnlyOrNull, todayKst, toDateOnly, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
@@ -30,7 +31,11 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const KIND_LABEL: Record<ApprovalKind, string> = {
   INCIDENT_REPORT: '시말서',
+  LEAVE: '휴가원',
+  EXPENSE: '지출결의서',
 };
+
+const OPTIONAL_DATE = /^(\d{4}-\d{2}-\d{2})?$/;
 
 // ── DTO ──────────────────────────────
 
@@ -44,6 +49,17 @@ export class CreateApprovalDto {
   @IsString() @IsNotEmpty({ message: '내용을 입력해 주세요.' }) content!: string;
 
   @IsOptional() @Matches(DATE_PATTERN, { message: '작성일자는 YYYY-MM-DD 형식이어야 합니다.' }) writtenOn?: string;
+
+  // ── 휴가원 ──
+  @IsOptional() @IsString() @MaxLength(20) leaveKind?: string;
+  @IsOptional() @Matches(OPTIONAL_DATE) startOn?: string | null;
+  @IsOptional() @Matches(OPTIONAL_DATE) endOn?: string | null;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) days?: number;
+
+  // ── 지출결의서 ──
+  @IsOptional() @Matches(OPTIONAL_DATE) spentOn?: string | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) amount?: number;
+  @IsOptional() @IsString() @MaxLength(60) payee?: string;
 }
 
 /** 결재 전에만 고칠 수 있다 — 승인된 문서를 고치면 결재한 내용과 달라진다. */
@@ -53,6 +69,15 @@ export class UpdateApprovalDto {
   @IsOptional() @IsString() @MaxLength(30) name?: string;
   @IsOptional() @IsString() content?: string;
   @IsOptional() @Matches(DATE_PATTERN) writtenOn?: string;
+
+  @IsOptional() @IsString() @MaxLength(20) leaveKind?: string;
+  @IsOptional() @Matches(OPTIONAL_DATE) startOn?: string | null;
+  @IsOptional() @Matches(OPTIONAL_DATE) endOn?: string | null;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) days?: number;
+
+  @IsOptional() @Matches(OPTIONAL_DATE) spentOn?: string | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) amount?: number;
+  @IsOptional() @IsString() @MaxLength(60) payee?: string;
 }
 
 export class ReviewApprovalDto {
@@ -106,12 +131,19 @@ export class ApprovalsService {
         name: dto.name.trim(),
         content: dto.content.trim(),
         writtenOn: toDateOnly(dto.writtenOn || todayKst()),
+        leaveKind: dto.leaveKind?.trim() ?? '',
+        startOn: toDateOnlyOrNull(dto.startOn),
+        endOn: toDateOnlyOrNull(dto.endOn),
+        days: dto.days ?? null,
+        spentOn: toDateOnlyOrNull(dto.spentOn),
+        amount: dto.amount ?? 0,
+        payee: dto.payee?.trim() ?? '',
       },
       include: INCLUDE,
     });
 
     await this.notifyAdmins(
-      `${row.name}님이 ${KIND_LABEL[row.kind]}를 올렸습니다.`,
+      `${row.name}님이 ${KIND_LABEL[row.kind]}를 올렸습니다.${summarize(row)}`,
       formatDateOnly(row.writtenOn),
     );
     return this.toView(row);
@@ -134,6 +166,13 @@ export class ApprovalsService {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.content !== undefined ? { content: dto.content.trim() } : {}),
         ...(dto.writtenOn !== undefined ? { writtenOn: toDateOnly(dto.writtenOn) } : {}),
+        ...(dto.leaveKind !== undefined ? { leaveKind: dto.leaveKind.trim() } : {}),
+        ...(dto.startOn !== undefined ? { startOn: toDateOnlyOrNull(dto.startOn) } : {}),
+        ...(dto.endOn !== undefined ? { endOn: toDateOnlyOrNull(dto.endOn) } : {}),
+        ...(dto.days !== undefined ? { days: dto.days } : {}),
+        ...(dto.spentOn !== undefined ? { spentOn: toDateOnlyOrNull(dto.spentOn) } : {}),
+        ...(dto.amount !== undefined ? { amount: dto.amount } : {}),
+        ...(dto.payee !== undefined ? { payee: dto.payee.trim() } : {}),
       },
       include: INCLUDE,
     });
@@ -230,9 +269,47 @@ export class ApprovalsService {
     void this.push.sendToEmployees(employeeIds, { title: '결재', body: message });
   }
 
-  private toView<T extends { writtenOn: Date }>(row: T) {
-    return { ...row, writtenOn: formatDateOnly(row.writtenOn) };
+  private toView<
+    T extends { writtenOn: Date; startOn: Date | null; endOn: Date | null; spentOn: Date | null },
+  >(row: T) {
+    return {
+      ...row,
+      writtenOn: formatDateOnly(row.writtenOn),
+      startOn: formatDateOnlyOrNull(row.startOn),
+      endOn: formatDateOnlyOrNull(row.endOn),
+      spentOn: formatDateOnlyOrNull(row.spentOn),
+    };
   }
+}
+
+/**
+ * 알림 한 줄에 붙일 요약.
+ *
+ * '휴가원을 올렸습니다'만 오면 언제 며칠인지 보려고 결국 들어와야 한다.
+ * 결재 여부를 가르는 값만 붙인다.
+ */
+function summarize(row: {
+  kind: ApprovalKind;
+  leaveKind: string;
+  startOn: Date | null;
+  endOn: Date | null;
+  days: number | null;
+  spentOn: Date | null;
+  amount: number;
+  payee: string;
+}): string {
+  if (row.kind === ApprovalKind.LEAVE) {
+    const range = [row.startOn, row.endOn]
+      .filter((d): d is Date => d != null)
+      .map(formatDateOnly)
+      .join(' ~ ');
+    return ` (${[row.leaveKind, range, row.days ? `${row.days}일` : ''].filter(Boolean).join(' · ')})`;
+  }
+  if (row.kind === ApprovalKind.EXPENSE) {
+    const spent = row.spentOn ? formatDateOnly(row.spentOn) : '';
+    return ` (${[row.payee, spent, `${row.amount.toLocaleString()}원`].filter(Boolean).join(' · ')})`;
+  }
+  return '';
 }
 
 // ── Controller ──────────────────────────────

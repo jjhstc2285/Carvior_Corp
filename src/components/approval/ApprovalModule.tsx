@@ -9,9 +9,24 @@ import {
   INCIDENT_REPORT_PLEDGE,
   REQUEST_STATUS_LABEL,
   type ApprovalDocument,
+  type ApprovalKind,
   type Role,
 } from '../../types';
-import IncidentReportForm from './IncidentReportForm';
+
+import ApprovalForm from './ApprovalForm';
+
+/** 목록 한 줄에 붙는 요약 — 열어보지 않고도 무슨 건인지 알게 한다 */
+function summary(d: ApprovalDocument): string {
+  if (d.kind === 'LEAVE') {
+    const range = [d.startOn, d.endOn].filter(Boolean).join(' ~ ');
+    return [d.leaveKind, range, d.days ? `${d.days}일` : ''].filter(Boolean).join(' · ');
+  }
+  if (d.kind === 'EXPENSE') {
+    return [d.payee, d.spentOn, `${d.amount.toLocaleString()}원`].filter(Boolean).join(' · ');
+  }
+  return d.content;
+}
+
 
 const STATUS_STYLE: Record<ApprovalDocument['status'], string> = {
   PENDING: 'bg-amber-50 text-amber-700 ring-amber-600/20',
@@ -33,6 +48,7 @@ export default function ApprovalModule({ role }: { role: Role }) {
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ApprovalDocument | null>(null);
+  const [formKind, setFormKind] = useState<ApprovalKind>('INCIDENT_REPORT');
   const [opened, setOpened] = useState<ApprovalDocument | null>(null);
   const [rejectNote, setRejectNote] = useState('');
 
@@ -94,18 +110,29 @@ export default function ApprovalModule({ role }: { role: Role }) {
           <p className="mt-1 text-sm text-slate-500">
             {isAdmin
               ? '올라온 문서를 결재합니다. 반려할 때는 사유를 적어 주세요.'
-              : '시말서를 작성해 올리면 관리자가 결재합니다. 본인이 쓴 문서만 보입니다.'}
+              : '시말서 · 휴가원 · 지출결의서를 올리면 관리자가 결재합니다. 본인이 쓴 문서만 보입니다.'}
           </p>
         </div>
-        <button
-          onClick={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          <Plus size={15} /> 시말서 작성
-        </button>
+        {/* 양식마다 묻는 게 달라 고르고 들어간다 */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {(Object.entries(APPROVAL_KIND_LABEL) as [ApprovalKind, string][]).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => {
+                setEditing(null);
+                setFormKind(k);
+                setFormOpen(true);
+              }}
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold ${
+                k === 'INCIDENT_REPORT'
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Plus size={15} /> {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isAdmin && pending.length > 0 && (
@@ -142,13 +169,14 @@ export default function ApprovalModule({ role }: { role: Role }) {
             <span className={`ml-auto rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_STYLE[d.status]}`}>
               {REQUEST_STATUS_LABEL[d.status]}
             </span>
-            <span className="w-full truncate text-xs text-slate-400">{d.content}</span>
+            <span className="w-full truncate text-xs text-slate-400">{summary(d)}</span>
           </button>
         ))}
       </div>
 
       {formOpen && me && (
-        <IncidentReportForm
+        <ApprovalForm
+          kind={editing?.kind ?? formKind}
           editing={editing}
           me={{ name: me.name, position: me.position, department: me.department }}
           onSaved={() => void load()}
@@ -181,11 +209,53 @@ export default function ApprovalModule({ role }: { role: Role }) {
               </tbody>
             </table>
 
-            <p className="mt-6 text-[13px] leading-relaxed text-slate-700">{INCIDENT_REPORT_PLEDGE}</p>
+            {opened.kind === 'INCIDENT_REPORT' && (
+              <p className="mt-6 text-[13px] leading-relaxed text-slate-700">{INCIDENT_REPORT_PLEDGE}</p>
+            )}
+
+            {opened.kind === 'LEAVE' && (
+              <table className="mt-4 w-full border-collapse text-sm">
+                <tbody>
+                  {[
+                    ['휴가 종류', opened.leaveKind || '-'],
+                    ['기간', [opened.startOn, opened.endOn].filter(Boolean).join(' ~ ') || '-'],
+                    ['일수', opened.days != null ? `${opened.days}일` : '-'],
+                  ].map(([label, value]) => (
+                    <tr key={label}>
+                      <th className="w-24 border border-slate-300 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
+                        {label}
+                      </th>
+                      <td className="border border-slate-300 px-3 py-2 text-slate-800">{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {opened.kind === 'EXPENSE' && (
+              <table className="mt-4 w-full border-collapse text-sm">
+                <tbody>
+                  {[
+                    ['지출일', opened.spentOn ?? '-'],
+                    ['지출처', opened.payee || '-'],
+                    ['금액', `${opened.amount.toLocaleString()}원`],
+                  ].map(([label, value]) => (
+                    <tr key={label}>
+                      <th className="w-24 border border-slate-300 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
+                        {label}
+                      </th>
+                      <td className="border border-slate-300 px-3 py-2 text-slate-800">{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
             <div className="mt-5">
-              <p className="mb-1 text-xs font-semibold text-slate-500">내용</p>
-              <p className="min-h-40 rounded-lg border border-slate-300 px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-slate-800">
+              <p className="mb-1 text-xs font-semibold text-slate-500">
+                {opened.kind === 'INCIDENT_REPORT' ? '내용' : opened.kind === 'LEAVE' ? '사유' : '적요'}
+              </p>
+              <p className={`rounded-lg border border-slate-300 px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-slate-800 ${opened.kind === 'INCIDENT_REPORT' ? 'min-h-40' : 'min-h-20'}`}>
                 {opened.content}
               </p>
             </div>
