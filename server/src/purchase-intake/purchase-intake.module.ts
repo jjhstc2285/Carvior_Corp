@@ -25,7 +25,7 @@ import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { formatDateOnly, monthRange, toDateOnly, todayKst } from '../common/date.util';
+import { formatDateOnly, formatDateOnlyOrNull, monthRange, toDateOnly, toDateOnlyOrNull, todayKst } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { isValidPlate, normalizePlate, plateTailOf } from '../vehicles/vehicle.rules';
 import { inferBodyType } from '../vehicles/body-type';
@@ -59,6 +59,7 @@ export class CreatePurchaseIntakeDto {
   @IsOptional() @IsString() @MaxLength(120) detailModel?: string;
   @IsString() @MaxLength(30) vehicleNumber!: string;
   @IsOptional() @IsString() @MaxLength(10) modelYear?: string;
+  @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/, { message: '최초등록일은 YYYY-MM-DD 형식이어야 합니다.' }) firstRegisteredOn?: string | null;
   @IsOptional() @IsString() @MaxLength(20) fuel?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) keyCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) mileage?: number;
@@ -83,6 +84,7 @@ export class UpdatePurchaseIntakeDto {
   @IsOptional() @IsString() @MaxLength(120) detailModel?: string;
   @IsOptional() @IsString() @MaxLength(30) vehicleNumber?: string;
   @IsOptional() @IsString() @MaxLength(10) modelYear?: string;
+  @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/, { message: '최초등록일은 YYYY-MM-DD 형식이어야 합니다.' }) firstRegisteredOn?: string | null;
   @IsOptional() @IsString() @MaxLength(20) fuel?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) keyCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) mileage?: number;
@@ -251,6 +253,7 @@ export class PurchaseIntakeService {
           fuel: '',
           modelYear: '',
           mileage: contract.mileage ?? 0,
+          firstRegisteredOn: null,
         });
         imported += 1;
       } catch (e) {
@@ -315,6 +318,7 @@ export class PurchaseIntakeService {
         detailModel: dto.detailModel?.trim() ?? '',
         vehicleNumber,
         modelYear: dto.modelYear?.trim() ?? '',
+        firstRegisteredOn: toDateOnlyOrNull(dto.firstRegisteredOn),
         fuel: dto.fuel?.trim() ?? '',
         keyCount: dto.keyCount ?? 0,
         mileage: dto.mileage ?? 0,
@@ -334,6 +338,7 @@ export class PurchaseIntakeService {
       modelYear: dto.modelYear?.trim() ?? '',
       // 실차 확인한 값이 있으면 그게 맞다.
       mileage: dto.checkedMileage || dto.mileage || 0,
+      firstRegisteredOn: toDateOnlyOrNull(dto.firstRegisteredOn),
     });
     await this.alertMileageGap(row);
     return this.toView(row);
@@ -359,6 +364,9 @@ export class PurchaseIntakeService {
         detailModel: dto.detailModel?.trim(),
         ...(vehicleNumber !== undefined ? { vehicleNumber } : {}),
         modelYear: dto.modelYear?.trim(),
+        ...(dto.firstRegisteredOn !== undefined
+          ? { firstRegisteredOn: toDateOnlyOrNull(dto.firstRegisteredOn) }
+          : {}),
         fuel: dto.fuel?.trim(),
         keyCount: dto.keyCount,
         mileage: dto.mileage,
@@ -381,6 +389,7 @@ export class PurchaseIntakeService {
       dto.modelYear,
       dto.mileage,
       dto.checkedMileage,
+      dto.firstRegisteredOn,
     ].some((v) => v !== undefined);
 
     if (affectsVehicle) {
@@ -389,6 +398,7 @@ export class PurchaseIntakeService {
         fuel: row.fuel,
         modelYear: row.modelYear,
         mileage: row.checkedMileage || row.mileage,
+        firstRegisteredOn: row.firstRegisteredOn,
       });
     }
 
@@ -421,7 +431,13 @@ export class PurchaseIntakeService {
   private async syncManagedVehicle(
     vehicleNumber: string,
     vehicleName: string,
-    policy?: { priceManwon: number; fuel: string; modelYear: string; mileage: number },
+    policy?: {
+      priceManwon: number;
+      fuel: string;
+      modelYear: string;
+      mileage: number;
+      firstRegisteredOn: Date | null;
+    },
   ): Promise<void> {
     if (!isValidPlate(vehicleNumber)) {
       this.logger.warn(`차량관리 등록 건너뜀 — 차량번호 형식이 규칙과 다릅니다: ${vehicleNumber}`);
@@ -442,6 +458,7 @@ export class PurchaseIntakeService {
               // 제시 가능 여부(10년 이내·20만km 미만)를 가리는 값이라 같이 채운다.
               modelYear: policy.modelYear,
               mileage: policy.mileage,
+              firstRegisteredOn: policy.firstRegisteredOn,
             }
           : {}),
       };
@@ -462,10 +479,13 @@ export class PurchaseIntakeService {
   }
 
   /** 총 매입금액은 저장하지 않고 여기서 더한다(계산식이 바뀌어도 과거 데이터가 안 꼬이게). */
-  private toView<T extends { date: Date; purchaseAmount: number; brokerFee: number }>(row: T) {
+  private toView<
+    T extends { date: Date; firstRegisteredOn: Date | null; purchaseAmount: number; brokerFee: number },
+  >(row: T) {
     return {
       ...row,
       date: formatDateOnly(row.date),
+      firstRegisteredOn: formatDateOnlyOrNull(row.firstRegisteredOn),
       totalAmount: row.purchaseAmount + row.brokerFee,
     };
   }

@@ -44,6 +44,7 @@ export default function PurchaseIntakeModule({ role }: Props) {
       세부모델: r.detailModel,
       차량번호: r.vehicleNumber,
       연식: r.modelYear,
+      최초등록일: r.firstRegisteredOn ?? '',
       연료: r.fuel,
       차키갯수: r.keyCount,
       주행거리: r.mileage,
@@ -186,6 +187,7 @@ export default function PurchaseIntakeModule({ role }: Props) {
               <div><dt className="text-slate-400">고객</dt><dd className="text-slate-700">{r.customerName} · {r.customerPhone}</dd></div>
               <div><dt className="text-slate-400">실차 확인자</dt><dd className="text-slate-700">{r.inspector || '-'}</dd></div>
               <div><dt className="text-slate-400">연식 · 연료</dt><dd className="text-slate-700">{[r.modelYear && `${r.modelYear}년식`, r.fuel].filter(Boolean).join(' · ') || '-'}</dd></div>
+              <div><dt className="text-slate-400">최초등록일</dt><dd className="text-slate-700">{r.firstRegisteredOn ?? '-'}</dd></div>
               <div>
                 <dt className="text-slate-400">주행거리</dt>
                 <dd className="text-slate-700">

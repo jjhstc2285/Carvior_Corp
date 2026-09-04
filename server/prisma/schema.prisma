@@ -758,15 +758,18 @@ model PurchaseIntake {
   source        String @default("") @db.VarChar(120) // 매입처 — "아우디 평촌 류호성상조회장"
   inspector     String @default("") @db.VarChar(60) // 실차 확인자 — "검차업체(예나)"
 
-  vehicleName   String @db.VarChar(150) // 차명 — 수입차는 트림까지 붙어 길다
+  vehicleName       String    @db.VarChar(150) // 차명 — 수입차는 트림까지 붙어 길다
   // 세부모델(등급) — "2.4 GDI 프레스티지". 카비어에서 받아온 계약에는 등급이 없어서
   // 비워둔 채로 들어오고, 시세를 조회하면서 채운다.
-  detailModel   String @default("") @db.VarChar(120)
-  vehicleNumber String @db.VarChar(30)
-  modelYear     String @default("") @db.VarChar(10) // 연식
-  fuel          String @default("") @db.VarChar(20) // 연료
-  keyCount      Int    @default(0) // 차키갯수
-  mileage       Int    @default(0) // 주행거리(km) — 매입할 때 받아 적은 값
+  detailModel       String    @default("") @db.VarChar(120)
+  vehicleNumber     String    @db.VarChar(30)
+  modelYear         String    @default("") @db.VarChar(10) // 연식
+  // 등록증에 적힌 최초등록일. 연식만으로는 재고금융 10년차 경계를 가릴 수 없어서
+  // 등록증이 손에 있는 매입 때 같이 받아 적는다.
+  firstRegisteredOn DateTime? @db.Date
+  fuel              String    @default("") @db.VarChar(20) // 연료
+  keyCount          Int       @default(0) // 차키갯수
+  mileage           Int       @default(0) // 주행거리(km) — 매입할 때 받아 적은 값
 
   // 실차 확인자가 차를 직접 보고 다시 적는 주행거리. 처음 적은 것과 많이 벌어지면
   // 관리자에게 알린다(적어 온 값과 실제가 다르면 매입가를 다시 봐야 한다).

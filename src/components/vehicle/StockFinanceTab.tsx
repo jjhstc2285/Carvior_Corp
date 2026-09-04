@@ -84,6 +84,22 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const stockTotal = rows.reduce((sum, r) => sum + r.vehicle.stockAmount, 0);
   const current = views.find(v => v.key === view) ?? views[0];
 
+  /*
+   * 지금 쓰고 있는 재고금융 총액 — 보고 있는 목록이 아니라 재고가 잡힌 차 전부를 센다.
+   * 목록을 걸러 보는 중에도 총액은 그대로여야 한다. 얼마나 당겨 썼는지가 알고 싶은 거지
+   * 지금 화면에 몇 대가 보이는지가 아니다.
+   */
+  const inUse = useMemo(() => {
+    const stocked = vehicles.filter(v => !v.cashVehicle && v.stockAmount > 0);
+    return { count: stocked.length, total: stocked.reduce((sum, v) => sum + v.stockAmount, 0) };
+  }, [vehicles]);
+
+  /** 이번 달에 갚아야 하는 금액 — 상환일자가 그 달에 걸린 차들 */
+  const dueThisMonth = useMemo(() => {
+    const due = vehicles.filter(v => v.repayDate?.startsWith(month) && v.stockAmount > 0);
+    return { count: due.length, total: due.reduce((sum, v) => sum + v.stockAmount, 0) };
+  }, [vehicles, month]);
+
   const patch = (v: ManagedVehicle, body: Partial<ManagedVehicle>) => void toggleFlag(v, body);
 
   const handleExport = () => {
@@ -127,6 +143,35 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
 
   return (
     <>
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">
+          <p className="text-xs font-medium text-indigo-700/80">재고금융 사용 총액</p>
+          <p className="mt-1 text-2xl font-bold text-indigo-700">
+            {inUse.total.toLocaleString()}
+            <span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          <p className="text-[11px] text-slate-400">재고 잡힌 차 {inUse.count}대</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-xs font-medium text-slate-400">{dayjs(month).format('M월')} 상환 예정</p>
+          <p className="mt-1 text-2xl font-bold text-slate-800">
+            {dueThisMonth.total.toLocaleString()}
+            <span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          <p className="text-[11px] text-slate-400">{dueThisMonth.count}대</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-xs font-medium text-slate-400">{current.label}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-800">
+            {rows.length}
+            <span className="ml-1 text-sm font-medium text-slate-400">대</span>
+          </p>
+          {stockTotal > 0 && (
+            <p className="text-[11px] text-slate-400">재고금액 {stockTotal.toLocaleString()}원</p>
+          )}
+        </div>
+      </div>
+
       <div className="mb-3 flex w-fit rounded-lg bg-slate-100 p-0.5 text-sm">
         {views.map(v => (
           <button
@@ -195,9 +240,6 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         >
           <Download size={14} /> 엑셀
         </button>
-        <span className="ml-auto text-xs text-slate-400">
-          {rows.length}대{stockTotal > 0 && ` · 재고금액 ${stockTotal.toLocaleString()}원`}
-        </span>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -294,12 +336,19 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                     />
                   </td>
 
-                  {/* 딱 10년차일 때만 필요하다. 그때는 칸을 노랗게 칠해 눈에 띄게 한다. */}
+                  {/*
+                    최초등록일은 등록증이 손에 있는 매입 때 적는다 — 여기서는 보기만 한다.
+                    딱 10년차인데 비어 있으면 노랗게 칠해 매입 관리에서 채우라고 알린다.
+                  */}
                   <td className="px-3 py-2.5">
-                    {dateInput(
-                      v.firstRegisteredOn,
-                      next => patch(v, { firstRegisteredOn: next }),
-                      eligibility.ok === 'check',
+                    {v.firstRegisteredOn ? (
+                      <span className="text-[13px] text-slate-600">{v.firstRegisteredOn}</span>
+                    ) : eligibility.ok === 'check' ? (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800">
+                        매입 관리에서 입력
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
                     )}
                   </td>
 

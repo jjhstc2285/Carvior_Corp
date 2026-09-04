@@ -644,6 +644,8 @@ export interface PurchaseIntake {
   detailModel: string;
   vehicleNumber: string;
   modelYear: string; // 연식
+  /** 등록증상 최초등록일 — 재고금융 10년차 경계를 월까지 가릴 때 쓴다 */
+  firstRegisteredOn: string | null;
   fuel: string; // 연료
   keyCount: number; // 차키갯수
   mileage: number; // 주행거리(km) — 매입할 때 받아 적은 값

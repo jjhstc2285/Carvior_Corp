@@ -38,6 +38,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   const [detailModel, setDetailModel] = useState(editing?.detailModel ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
   const [modelYear, setModelYear] = useState(editing?.modelYear ?? '');
+  const [firstRegisteredOn, setFirstRegisteredOn] = useState(editing?.firstRegisteredOn ?? '');
   const [fuel, setFuel] = useState(editing?.fuel ?? '');
   const [keyCount, setKeyCount] = useState(editing ? String(editing.keyCount) : '');
   const [mileage, setMileage] = useState(withCommas(editing?.mileage ?? 0));
@@ -129,6 +130,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       detailModel: detailModel.trim(),
       vehicleNumber: plate,
       modelYear: modelYear.trim(),
+      firstRegisteredOn: firstRegisteredOn || null,
       fuel: fuel.trim(),
       keyCount: moneyToNumber(keyCount),
       mileage: moneyToNumber(mileage),
@@ -226,6 +228,19 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           {field('세부모델', text(detailModel, setDetailModel, '2.4 GDI 프레스티지'), 'col-span-2 sm:col-span-4')}
           {field('차량번호 *', text(vehicleNumber, setVehicleNumber, '154오8037'))}
           {field('연식', text(modelYear, setModelYear, '2020'))}
+          {/*
+            등록증이 손에 있을 때 받아 적는다. 재고금융 10년차 경계는 연식만으로는
+            갈리지 않는다 — 2016년식도 1월 등록이면 이미 10년을 넘고 12월이면 아직 9년이다.
+          */}
+          {field(
+            '최초등록일',
+            <input
+              type="date"
+              value={firstRegisteredOn}
+              onChange={e => setFirstRegisteredOn(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+            />,
+          )}
           {field(
             '연료',
             <input
