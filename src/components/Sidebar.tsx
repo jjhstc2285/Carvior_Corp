@@ -1,4 +1,4 @@
-import { CalendarClock, Car, ClipboardList, Landmark, Handshake, Sparkles, Images, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Users2, X } from 'lucide-react';
+import { Building2, CalendarClock, Car, ClipboardList, Landmark, Handshake, Sparkles, Images, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Users2, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 
 interface Props {
@@ -23,6 +23,7 @@ const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[]
   { key: 'purchaseIntake', label: '매입 관리', icon: Handshake },
   { key: 'purchaseList', label: '매입리스트', icon: ClipboardList },
   { key: 'stockFinance', label: '재고금융 (제시)', icon: Landmark },
+  { key: 'dealerFee', label: '신차영업소 상조회비', icon: Building2 },
   { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
   { key: 'chat', label: '메시지', icon: MessageSquare },
 ];
@@ -35,8 +36,9 @@ export default function Sidebar({
   chatUnread = 0,
   canSeePurchaseList,
 }: Props) {
-  // 매입리스트(재고금융 대장)는 사무장과 관리자만 본다.
-  const navItems = NAV_ITEMS.filter(item => item.key !== 'purchaseList' || canSeePurchaseList);
+  // 매입리스트와 상조회비 대장은 사무장과 관리자만 본다.
+  const officeOnly: ModuleKey[] = ['purchaseList', 'dealerFee'];
+  const navItems = NAV_ITEMS.filter(item => !officeOnly.includes(item.key) || canSeePurchaseList);
   const content = (
     <>
       <div className="flex items-center justify-between px-4 py-4">

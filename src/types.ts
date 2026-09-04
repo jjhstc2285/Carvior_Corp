@@ -89,7 +89,48 @@ export interface CorrectionRequest {
   reviewNote: string | null;
 }
 
-export type NotificationType = 'MISSING' | 'CORRECTION_REQUEST' | 'ATTENDANCE_REQUEST' | 'MILEAGE_GAP';
+export type NotificationType =
+  | 'MISSING'
+  | 'CORRECTION_REQUEST'
+  | 'ATTENDANCE_REQUEST'
+  | 'MILEAGE_GAP'
+  | 'DEALER_FEE';
+
+/** 상조회비를 어떻게 받는가 */
+export type DealerFeeMethod = 'AUTO' | 'DIRECT' | 'CANCELED';
+
+export const DEALER_FEE_METHOD_LABEL: Record<DealerFeeMethod, string> = {
+  AUTO: '자동이체',
+  DIRECT: '직접이체',
+  CANCELED: '자동이체 해지',
+};
+
+/**
+ * 신차영업소 상조회비 납부현황 한 줄.
+ *
+ * 이체날짜·기한은 꼴이 제각각이라(매달5일 / 10-01 / 매달1일고정 / 직접이체)
+ * 날짜형이 아니라 적힌 그대로 둔다.
+ */
+export interface DealerFeeAccount {
+  id: string;
+  dealerName: string; // 업체명
+  managerName: string; // 담당자
+  managerPhone: string; // 담당연락처
+  startedOn: string | null; // 거래시작일
+  bank: string;
+  accountHolder: string; // 예금주
+  accountNumber: string; // 자동이체계좌
+  transferDay: string; // 자동이체날짜 — 적힌 그대로
+  monthlyFee: number; // 매달 회비(원). 대당처럼 정액이 아니면 0
+  feeNote: string; // "대당 5만" 처럼 정액이 아닐 때
+  method: DealerFeeMethod;
+  autoTransferUntil: string; // 자동이체기한
+  note: string; // 비고
+  memo: string;
+  active: boolean; // 거래중
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface AppNotification {
   id: string;

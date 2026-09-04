@@ -159,11 +159,57 @@ model AttendanceRequest {
   @@index([date])
 }
 
+/**
+ * 상조회비를 어떻게 받는가
+ */
+enum DealerFeeMethod {
+  AUTO // 자동이체
+  DIRECT // 직접이체
+  CANCELED // 자동이체 해지
+}
+
+/**
+ * 신차영업소 상조회비 납부현황.
+ * 엑셀로 돌리던 대장을 그대로 옮겼다. 이체날짜·회비·기한이 수시로 바뀌고 대당으로
+ * 잡힌 곳도 있어서, 바뀌면 사무장과 대표에게 알린다.
+ * 날짜 꼴이 제각각이라(매달5일 / 10-01 / 매달1일고정 / 직접이체) 날짜형으로 두지 않고
+ * 적힌 그대로 문자열로 받는다. 억지로 맞추면 원장과 달라진다.
+ */
+model DealerFeeAccount {
+  id           String    @id @default(cuid())
+  dealerName   String    @db.VarChar(60) // 업체명
+  managerName  String    @default("") @db.VarChar(30) // 담당자
+  managerPhone String    @default("") @db.VarChar(20) // 담당연락처
+  startedOn    DateTime? @db.Date // 거래시작일
+
+  bank          String @default("") @db.VarChar(30) // 은행
+  accountHolder String @default("") @db.VarChar(30) // 예금주
+  accountNumber String @default("") @db.VarChar(40) // 자동이체계좌
+
+  transferDay String          @default("") @db.VarChar(30) // 자동이체날짜 — 적힌 그대로
+  monthlyFee  Int             @default(0) // 매달 회비(원). 대당처럼 정액이 아니면 0
+  feeNote     String          @default("") @db.VarChar(60) // "대당 5만" 처럼 정액이 아닐 때
+  method      DealerFeeMethod @default(AUTO) // 자동이체여부
+
+  autoTransferUntil String @default("") @db.VarChar(30) // 자동이체기한 — "2026년12월"
+  note              String @default("") @db.VarChar(255) // 비고
+  memo              String @default("") @db.VarChar(255) // 오른쪽 여백에 적던 말
+
+  active Boolean @default(true) // 거래 종료하면 내린다
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dealerName])
+  @@index([active])
+}
+
 enum NotificationType {
   MISSING
   CORRECTION_REQUEST
   ATTENDANCE_REQUEST
   MILEAGE_GAP // 실차 확인 주행거리가 처음 적은 것과 많이 벌어졌다
+  DEALER_FEE // 신차영업소 상조회비 조건이 바뀌었다
 }
 
 /**

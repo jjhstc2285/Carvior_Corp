@@ -19,6 +19,7 @@ import CleaningModule from './components/cleaning/CleaningModule';
 import PurchaseListModule from './components/purchaseList/PurchaseListModule';
 import PurchaseIntakeModule from './components/purchaseIntake/PurchaseIntakeModule';
 import StockFinanceModule from './components/vehicle/StockFinanceModule';
+import DealerFeeModule from './components/dealerFee/DealerFeeModule';
 import { useChatUnread } from './components/chat/useChat';
 import { useIdleAway } from './hooks/useIdleAway';
 import { useStore } from './store';
@@ -36,6 +37,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   purchaseIntake: '매입 관리',
   purchaseList: '매입리스트',
   stockFinance: '재고금융 (제시)',
+  dealerFee: '신차영업소 상조회비',
   cleaning: '청소 관리 대장',
   chat: '메시지',
 };
@@ -49,6 +51,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'purchaseIntake') return <PurchaseIntakeModule role={role} />;
   if (module === 'purchaseList') return <PurchaseListModule role={role} />;
   if (module === 'stockFinance') return <StockFinanceModule />;
+  if (module === 'dealerFee') return <DealerFeeModule />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
   if (module === 'vehiclePost') return <VehiclePostModule role={role} />;
@@ -64,7 +67,8 @@ function AuthedApp({ role }: { role: Role }) {
   const { state, submitAttendanceRequest } = useStore();
 
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
-  const shownModule: ModuleKey = module === 'purchaseList' && !seePurchaseList ? 'attendance' : module;
+  const officeOnly: ModuleKey[] = ['purchaseList', 'dealerFee'];
+  const shownModule: ModuleKey = officeOnly.includes(module) && !seePurchaseList ? 'attendance' : module;
 
   // 어느 화면에 있든 재야 해서 앱 껍데기에 단다.
   useIdleAway({
