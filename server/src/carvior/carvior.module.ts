@@ -127,10 +127,10 @@ export interface CarviorContract {
   /** 차키 갯수 */
   keyCount: number | null;
   /**
-   * 구전. 2026-09 현재 카비어는 이 값을 안 내려준다 — 저쪽에 칸이 생기면
-   * 그대로 흘러오도록 자리만 열어뒀다(없으면 undefined 라 매입 등록에서 0으로 둔다).
+   * 구전(만원). 전 딜러에게 주는 수수료라 저쪽 이름은 oldDealerFee 다.
+   * 안 적힌 계약도 있어서(95건 중 79건) 없을 수 있다.
    */
-  brokerFee?: number | null;
+  oldDealerFee?: number | null;
   status: string;
   createdAt: string;
   reportUrl: string | null;

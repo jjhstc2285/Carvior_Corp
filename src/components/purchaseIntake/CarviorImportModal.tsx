@@ -10,6 +10,8 @@ interface PreviewItem {
   source: string;
   /** 원 */
   purchaseAmount: number;
+  /** 구전(원) — 카비어가 안 적어둔 계약은 0 */
+  brokerFee: number;
   date: string;
 }
 
@@ -67,7 +69,7 @@ export default function CarviorImportModal({ onClose, onImported }: Props) {
     if (!preview || preview.items.length === 0) return;
     const ok = await confirmDanger(
       `카비어 계약 ${preview.items.length}건을 매입 관리에 등록할까요?`,
-      '차량 관리에도 그 차들이 함께 올라갑니다. 구전·고객번호·연식·연료는 카비어에 없는 값이라 비어 있습니다.',
+      '차량 관리에도 그 차들이 함께 올라갑니다. 고객번호·연식·연료는 카비어에 없는 값이라 비어 있습니다.',
       '일괄 등록',
     );
     if (!ok) return;
@@ -79,7 +81,7 @@ export default function CarviorImportModal({ onClose, onImported }: Props) {
       });
       await alertSuccess(
         `${res.imported}건을 매입 관리에 등록했습니다`,
-        '구전·고객번호·연식·연료는 비어 있습니다 — 목록에서 채워 주세요.',
+        '고객번호·연식·연료는 비어 있습니다 — 목록에서 채워 주세요.',
       );
       onImported();
       onClose();
@@ -144,12 +146,13 @@ export default function CarviorImportModal({ onClose, onImported }: Props) {
                     <th className="px-3 py-2 font-medium">고객이름</th>
                     <th className="px-3 py-2 font-medium">매입처</th>
                     <th className="px-3 py-2 text-right font-medium">실매입금액</th>
+                    <th className="px-3 py-2 text-right font-medium">구전</th>
                   </tr>
                 </thead>
                 <tbody>
                   {preview.items.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-3 py-8 text-center text-slate-400">
+                      <td colSpan={7} className="px-3 py-8 text-center text-slate-400">
                         새로 등록할 계약이 없습니다.
                       </td>
                     </tr>
@@ -163,6 +166,9 @@ export default function CarviorImportModal({ onClose, onImported }: Props) {
                       <td className="px-3 py-1.5 text-slate-500">{i.source}</td>
                       <td className="px-3 py-1.5 text-right font-semibold text-slate-700">
                         {i.purchaseAmount.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-1.5 text-right text-slate-500">
+                        {i.brokerFee ? i.brokerFee.toLocaleString() : <span className="text-slate-300">—</span>}
                       </td>
                     </tr>
                   ))}
@@ -188,7 +194,9 @@ export default function CarviorImportModal({ onClose, onImported }: Props) {
             <p className="mt-3 text-[11px] text-slate-400">
               금액은 카비어의 <b>만원</b>을 <b>원</b>으로 바꿔 넣습니다. 작성자·계약금·잔금은 특이사항에 한 줄로 남깁니다.
               <br />
-              <b>구전·고객번호·연식·연료는 카비어가 안 내려주는 값</b>이라 비어 있습니다 — 등록 후 목록에서 채우시면 됩니다.
+              구전은 카비어에 적혀 있으면 같이 들어옵니다. <b>지급 방식(현금·3.3%·13.3%)은 저쪽에 없어 현금으로 두니</b> 다르면 고쳐 주세요.
+              <br />
+              <b>고객번호·연식·연료는 카비어가 안 내려주는 값</b>이라 비어 있습니다 — 등록 후 목록에서 채우시면 됩니다.
             </p>
 
             <div className="mt-4 flex justify-end gap-2">

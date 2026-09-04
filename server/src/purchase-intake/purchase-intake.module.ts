@@ -172,7 +172,9 @@ export class PurchaseIntakeService {
    *
    * 취소된 계약은 넣지 않는다. 성사되지 않은 건은 매입한 차가 아니다.
    *
-   * 카비어에 없는 값(고객번호·연식·연료·구전)은 비워둔다 — 사람이 나중에 채운다.
+   * 카비어에 없는 값(고객번호·연식·연료)은 비워둔다 — 사람이 나중에 채운다.
+   * 구전은 저쪽이 내려주지만(oldDealerFee) 안 적힌 계약도 있어서 그때는 0으로 들어간다.
+   * 지급 방식(현금/3.3%/13.3%)은 저쪽에 없으니 기본값 현금으로 두고 필요하면 고친다.
    */
   async importFromCarvior(employeeId: string, dryRun: boolean) {
     const contracts = (await this.carvior.findContracts()).filter((c) => c.status !== 'CANCELLED');
@@ -212,6 +214,7 @@ export class PurchaseIntakeService {
           customerName: contract.carOwner ?? '',
           source: contract.dealerName ?? '',
           purchaseAmount: (contract.purchasePrice ?? 0) * WON_PER_MANWON,
+          brokerFee: (contract.oldDealerFee ?? 0) * WON_PER_MANWON,
           date: formatDateOnly(new Date(contract.createdAt)),
         })),
         skipped,
@@ -238,7 +241,7 @@ export class PurchaseIntakeService {
             mileage: contract.mileage ?? 0,
             note: this.carviorNote(contract),
             purchaseAmount: (contract.purchasePrice ?? 0) * WON_PER_MANWON,
-            brokerFee: (contract.brokerFee ?? 0) * WON_PER_MANWON,
+            brokerFee: (contract.oldDealerFee ?? 0) * WON_PER_MANWON,
             employeeId,
           },
         });
