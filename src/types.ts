@@ -121,6 +121,8 @@ export interface DealerFeeAccount {
   accountHolder: string; // 예금주
   accountNumber: string; // 자동이체계좌
   transferDay: string; // 자동이체날짜 — 적힌 그대로
+  /** 위 문장에서 뽑아낸 이체일(1~31). 0이면 정해진 날이 없다 */
+  transferDayOfMonth: number;
   monthlyFee: number; // 매달 회비(원). 대당처럼 정액이 아니면 0
   feeNote: string; // "대당 5만" 처럼 정액이 아닐 때
   /** 대당 얼마(원). 0이면 대당이 아니다 */

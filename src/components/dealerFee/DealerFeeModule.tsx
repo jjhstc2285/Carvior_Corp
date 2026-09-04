@@ -28,6 +28,8 @@ export default function DealerFeeModule() {
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   /** 대당 영업소의 그 달 매입 대수 — 매입 관리의 매입처를 세어 온다 */
   const [counts, setCounts] = useState<Record<string, { count: number; amount: number }>>({});
+  /** 이 장부를 볼 수 있는 사람 — "누가 보는지"를 화면에서 확인한다 */
+  const [viewers, setViewers] = useState<{ id: string; name: string; position: string }[]>([]);
   const reqId = useRef(0);
 
   const load = useCallback(async () => {
@@ -50,6 +52,12 @@ export default function DealerFeeModule() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    api<{ id: string; name: string; position: string }[]>('/dealer-fees/viewers')
+      .then(setViewers)
+      .catch(() => setViewers([]));
+  }, []);
 
   useEffect(() => {
     // 대수 세기는 곁다리라 못 받아와도 목록은 그대로 써야 한다.
@@ -121,6 +129,7 @@ export default function DealerFeeModule() {
       예금주: r.accountHolder,
       자동이체계좌: r.accountNumber,
       자동이체날짜: r.transferDay,
+      이체일: r.transferDayOfMonth || '',
       '매달 회비': r.monthlyFee || r.feeNote,
       '대당 회비': r.perUnitFee || '',
       [`${dayjs(month).format('M월')} 대수`]: r.perUnitFee ? (counts[r.id]?.count ?? 0) : '',
@@ -157,9 +166,15 @@ export default function DealerFeeModule() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">신차영업소 상조회비</h1>
           <p className="mt-1 text-sm text-slate-500">
-            칸을 눌러 바로 고칩니다. <b>이체날짜 · 회비 · 기한 · 계좌 · 이체여부</b>가 바뀌면 사무장과 대표에게
-            알림이 갑니다.
+            칸을 눌러 바로 고칩니다. <b>이체일 아침에 그날 이체할 곳과 합계</b>가 알림으로 갑니다.
+            이체날짜 · 회비 · 기한 · 계좌 · 이체여부를 고쳐도 알림이 갑니다.
           </p>
+          {viewers.length > 0 && (
+            <p className="mt-1 text-xs text-slate-400">
+              보는 사람 {viewers.length}명 —{' '}
+              {viewers.map(v => `${v.name}(${v.position})`).join(', ')}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
@@ -255,6 +270,7 @@ export default function DealerFeeModule() {
                 <th className="px-3 py-3 font-medium">예금주</th>
                 <th className="px-3 py-3 font-medium">자동이체계좌</th>
                 <th className="px-3 py-3 font-medium">자동이체날짜</th>
+                <th className="px-3 py-3 text-center font-medium">이체일</th>
                 <th className="px-3 py-3 text-right font-medium">매달 회비</th>
                 <th className="px-3 py-3 font-medium">매입처 매칭</th>
                 <th className="px-3 py-3 font-medium">자동이체여부</th>
@@ -268,7 +284,7 @@ export default function DealerFeeModule() {
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={16} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={17} className="px-5 py-10 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '등록된 영업소가 없습니다.'}
                   </td>
                 </tr>
@@ -296,6 +312,25 @@ export default function DealerFeeModule() {
                   <td className="px-3 py-2.5">{text(r, 'accountNumber', 'w-40')}</td>
                   {/* 꼴이 제각각이라(매달5일 / 10-01 / 매달1일고정) 적힌 그대로 받는다 */}
                   <td className="px-3 py-2.5">{text(r, 'transferDay', 'w-28', '매달5일')}</td>
+                  {/*
+                    적힌 문장에서 뽑아낸 날. 이 숫자로 그날 아침 알림이 돈다.
+                    못 뽑았으면 노랗게 칠해 채우라고 알린다 — 틀린 날에 알리느니 안 알리는 게 낫다.
+                  */}
+                  <td className="px-3 py-2.5 text-center">
+                    <input
+                      defaultValue={r.transferDayOfMonth || ''}
+                      onBlur={e => {
+                        const next = Math.min(31, Number(digitsOnly(e.target.value)) || 0);
+                        if (next !== r.transferDayOfMonth) void patch(r, { transferDayOfMonth: next });
+                      }}
+                      inputMode="numeric"
+                      placeholder="—"
+                      title="이 날 아침에 알림이 갑니다"
+                      className={`w-14 rounded-lg border px-2 py-1.5 text-center text-[13px] outline-none focus:border-indigo-400 ${
+                        r.transferDayOfMonth ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
+                      }`}
+                    />
+                  </td>
 
                   <td className="px-3 py-2.5 text-right">
                     <input

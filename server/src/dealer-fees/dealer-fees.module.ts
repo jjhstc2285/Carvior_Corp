@@ -10,9 +10,12 @@ import {
   NotFoundException,
   Param,
   Patch,
+  OnModuleDestroy,
+  OnModuleInit,
   Post,
   Query,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -31,7 +34,7 @@ import { DealerFeeMethod, NotificationType, Prisma, Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnlyOrNull, monthRange, todayKst, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
-import { assertOfficeManager } from '../auth/office-manager';
+import { assertOfficeManager, LEDGER_VIEWER_WHERE } from '../auth/office-manager';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { PushService } from '../push/push.service';
@@ -47,6 +50,7 @@ const DATE_PATTERN = /^(\d{4}-\d{2}-\d{2})?$/;
  */
 const WATCHED: { key: keyof UpdateDealerFeeDto; label: string }[] = [
   { key: 'transferDay', label: '자동이체날짜' },
+  { key: 'transferDayOfMonth', label: '이체일' },
   { key: 'monthlyFee', label: '매달 회비' },
   { key: 'feeNote', label: '회비 조건' },
   { key: 'perUnitFee', label: '대당 회비' },
@@ -55,6 +59,22 @@ const WATCHED: { key: keyof UpdateDealerFeeDto; label: string }[] = [
   { key: 'accountNumber', label: '자동이체계좌' },
   { key: 'bank', label: '은행' },
 ];
+
+/**
+ * 적힌 문장에서 이체일을 뽑는다.
+ *
+ * 꼴이 제각각이다 — "매달5일", "13일", "10-01", "매달1일고정", "직접이체".
+ * "10-01" 처럼 두 토막이면 뒤가 날이다(앞은 월이라 매달 이체와 상관없다).
+ * 못 뽑으면 0으로 두고 화면에서 사람이 채운다. 틀린 날에 알림을 보내느니 안 보내는 게 낫다.
+ */
+export function parseTransferDay(text: string): number {
+  const raw = text.trim();
+  if (!raw) return 0;
+
+  const pair = raw.match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
+  const day = pair ? Number(pair[2]) : Number(raw.match(/\d+/)?.[0] ?? 0);
+  return day >= 1 && day <= 31 ? day : 0;
+}
 
 const METHOD_LABEL: Record<DealerFeeMethod, string> = {
   AUTO: '자동이체',
@@ -75,6 +95,7 @@ export class CreateDealerFeeDto {
   @IsOptional() @IsString() @MaxLength(40) accountNumber?: string;
 
   @IsOptional() @IsString() @MaxLength(30) transferDay?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) transferDayOfMonth?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) monthlyFee?: number;
   @IsOptional() @IsString() @MaxLength(60) feeNote?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) perUnitFee?: number;
@@ -185,6 +206,7 @@ export class DealerFeesService {
         accountHolder: dto.accountHolder?.trim() ?? '',
         accountNumber: dto.accountNumber?.trim() ?? '',
         transferDay: dto.transferDay?.trim() ?? '',
+        transferDayOfMonth: dto.transferDayOfMonth ?? parseTransferDay(dto.transferDay ?? ''),
         monthlyFee: dto.monthlyFee ?? 0,
         feeNote: dto.feeNote?.trim() ?? '',
         perUnitFee: dto.perUnitFee ?? 0,
@@ -241,7 +263,16 @@ export class DealerFeesService {
         ...(dto.bank !== undefined ? { bank: dto.bank.trim() } : {}),
         ...(dto.accountHolder !== undefined ? { accountHolder: dto.accountHolder.trim() } : {}),
         ...(dto.accountNumber !== undefined ? { accountNumber: dto.accountNumber.trim() } : {}),
-        ...(dto.transferDay !== undefined ? { transferDay: dto.transferDay.trim() } : {}),
+        ...(dto.transferDay !== undefined
+          ? {
+              transferDay: dto.transferDay.trim(),
+              // 원문을 고치면 이체일도 다시 뽑는다. 따로 넣어준 게 있으면 그게 우선이다.
+              ...(dto.transferDayOfMonth === undefined
+                ? { transferDayOfMonth: parseTransferDay(dto.transferDay) }
+                : {}),
+            }
+          : {}),
+        ...(dto.transferDayOfMonth !== undefined ? { transferDayOfMonth: dto.transferDayOfMonth } : {}),
         ...(dto.monthlyFee !== undefined ? { monthlyFee: dto.monthlyFee } : {}),
         ...(dto.feeNote !== undefined ? { feeNote: dto.feeNote.trim() } : {}),
         ...(dto.perUnitFee !== undefined ? { perUnitFee: dto.perUnitFee } : {}),
@@ -313,25 +344,166 @@ export class DealerFeesService {
   }
 
   /**
-   * 알림을 받을 사람 — 사무장과 대표.
+   * 알림을 받을 사람 — 이 장부를 볼 수 있는 사람과 같다.
    *
-   * 이름으로 박아두지 않는다. 사람이 바뀌면 코드를 고쳐야 하고, 그 사실을 아무도
-   * 기억하지 못한다. 직급으로 찾으면 자리를 물려받은 사람이 그대로 받는다.
+   * 못 보는 사람에게 알림만 가면 열어볼 수가 없다. 조건을 한 곳(auth/office-manager)에
+   * 두고 둘 다 거기서 가져온다.
    */
   private async watchers(): Promise<string[]> {
     const rows = await this.prisma.employee.findMany({
-      where: {
-        active: true,
-        OR: [{ position: { contains: '사무장' } }, { position: { contains: '대표' } }],
-      },
+      where: LEDGER_VIEWER_WHERE,
       select: { id: true },
     });
     return rows.map((r) => r.id);
   }
 
+  /** 지금 이 장부를 볼 수 있는 사람 — 화면에서 "누가 보는지"를 확인한다 */
+  async viewers() {
+    return this.prisma.employee.findMany({
+      where: LEDGER_VIEWER_WHERE,
+      select: { id: true, name: true, position: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   private toView<T extends { startedOn: Date | null }>(row: T) {
     return { ...row, startedOn: formatDateOnlyOrNull(row.startedOn) };
   }
+}
+
+// ── 이체일 알림 ──────────────────────────────
+
+/**
+ * 오늘 이체할 곳을 모아 아침에 한 번 알린다.
+ *
+ * 영업소마다 따로 울리면 하루에 열 번이 온다. 한 장으로 묶어 "오늘 얼마를 어디에"만
+ * 알려주면 그걸 보고 이체하면 된다.
+ *
+ * 자동이체인 곳도 넣는다 — 빠져나갔는지 확인하는 것도 일이다. 해지한 곳만 뺀다.
+ *
+ * 대당으로 받는 곳은 지난달 매입 대수로 낸다. 이번 달 이체는 지난달 실적으로 하기
+ * 때문이다. 대수가 0이면 낼 게 없으므로 목록에서 뺀다.
+ */
+@Injectable()
+export class DealerFeeReminderService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DealerFeeReminderService.name);
+  private timer: NodeJS.Timeout | null = null;
+  /** 하루에 한 번만 보낸다 — 30분마다 깨어나므로 보낸 날을 적어둔다 */
+  private sentOn = '';
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dealerFees: DealerFeesService,
+    private readonly realtime: RealtimeGateway,
+    private readonly push: PushService,
+    private readonly config: ConfigService,
+  ) {}
+
+  onModuleInit(): void {
+    const hour = Number(this.config.get<string>('DEALER_FEE_REMINDER_HOUR', '9'));
+    if (!Number.isFinite(hour) || hour < 0) {
+      this.logger.log('DEALER_FEE_REMINDER_HOUR 가 꺼져 있어 이체일 알림을 보내지 않습니다.');
+      return;
+    }
+
+    // 30분마다 깨어나 '보낼 시간인가'만 본다. 정각에 딱 맞추려 들면 서버가 잠깐 내려가도
+    // 그날 알림을 통째로 놓친다.
+    this.timer = setInterval(() => void this.tick(hour), 30 * 60 * 1000);
+    this.timer.unref?.();
+    this.logger.log(`상조회비 이체일 알림 매일 ${hour}시`);
+  }
+
+  onModuleDestroy(): void {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  private async tick(hour: number): Promise<void> {
+    const today = todayKst();
+    if (this.sentOn === today) return;
+
+    // 서버 시각이 UTC라 한국 시각으로 바꿔 본다.
+    const kstHour = Number(
+      new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: '2-digit', hour12: false }).format(new Date()),
+    );
+    if (kstHour < hour) return;
+
+    this.sentOn = today;
+    try {
+      await this.notifyDue(today);
+    } catch (e) {
+      this.logger.warn(`이체일 알림 실패: ${(e as Error).message}`);
+      this.sentOn = '';
+    }
+  }
+
+  /** 그날 이체할 곳을 모아 한 장으로 보낸다 */
+  async notifyDue(today: string): Promise<{ count: number; total: number }> {
+    const day = Number(today.slice(8, 10));
+
+    const dealers = await this.prisma.dealerFeeAccount.findMany({
+      where: {
+        active: true,
+        transferDayOfMonth: day,
+        method: { not: DealerFeeMethod.CANCELED },
+      },
+      orderBy: { dealerName: 'asc' },
+    });
+    if (dealers.length === 0) return { count: 0, total: 0 };
+
+    // 대당은 지난달 실적으로 낸다.
+    const counts = new Map(
+      (await this.dealerFees.monthlyCounts(prevMonth(today.slice(0, 7)))).map((c) => [c.id, c]),
+    );
+
+    const lines: string[] = [];
+    let total = 0;
+
+    for (const d of dealers) {
+      const perUnit = counts.get(d.id);
+      const amount = d.perUnitFee > 0 ? (perUnit?.amount ?? 0) : d.monthlyFee;
+      // 대당인데 지난달 매입이 없으면 낼 게 없다.
+      if (amount <= 0) continue;
+
+      total += amount;
+      const how = d.method === DealerFeeMethod.DIRECT ? ' [직접]' : '';
+      const unit = d.perUnitFee > 0 ? ` (지난달 ${perUnit?.count ?? 0}대)` : '';
+      lines.push(`${d.dealerName} ${amount.toLocaleString()}원${unit}${how}`);
+    }
+    if (lines.length === 0) return { count: 0, total: 0 };
+
+    const watchers = await this.prisma.employee.findMany({ where: LEDGER_VIEWER_WHERE, select: { id: true } });
+    if (watchers.length === 0) return { count: lines.length, total };
+    const ids = watchers.map((w) => w.id);
+
+    const message = `오늘(${day}일) 상조회비 ${lines.length}곳 · 합계 ${total.toLocaleString()}원 — ${lines.join(', ')}`;
+
+    await this.prisma.notification.createMany({
+      data: ids.map((employeeId) => ({
+        type: NotificationType.DEALER_FEE,
+        message,
+        employeeId,
+        date: new Date(`${today}T00:00:00.000Z`),
+      })),
+    });
+    this.realtime.toEmployees(ids, REALTIME_EVENT.notification, {
+      type: NotificationType.DEALER_FEE,
+      message,
+      date: today,
+    });
+    void this.push.sendToEmployees(ids, {
+      title: `오늘 상조회비 ${total.toLocaleString()}원`,
+      body: `${lines.length}곳 — ${lines.slice(0, 3).join(', ')}${lines.length > 3 ? ' 외' : ''}`,
+    });
+
+    this.logger.log(`이체일 알림: ${lines.length}곳 ${total.toLocaleString()}원`);
+    return { count: lines.length, total };
+  }
+}
+
+/** "2026-09" 의 지난달 */
+function prevMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
 }
 
 // ── Controller ──────────────────────────────
@@ -344,12 +516,22 @@ export class DealerFeesService {
  */
 @Controller('dealer-fees')
 export class DealerFeesController {
-  constructor(private readonly dealerFees: DealerFeesService) {}
+  constructor(
+    private readonly dealerFees: DealerFeesService,
+    private readonly reminder: DealerFeeReminderService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: DealerFeeQueryDto) {
     assertOfficeManager(user);
     return this.dealerFees.findAll(query);
+  }
+
+  /** 지금 이 장부를 볼 수 있는 사람 — 화면에서 확인용 */
+  @Get('viewers')
+  viewers(@CurrentUser() user: AuthUser) {
+    assertOfficeManager(user);
+    return this.dealerFees.viewers();
   }
 
   /** 대당 영업소의 그 달 매입 대수 — /dealer-fees/monthly-counts?month=2026-09 */
@@ -366,6 +548,13 @@ export class DealerFeesController {
   }
 
   /** 엑셀에서 붙여넣은 줄을 한 번에 — 이미 있는 업체명은 건너뛴다 */
+  /** 오늘 이체할 곳을 지금 바로 알린다 — 시간을 기다리지 않고 확인할 때 */
+  @Post('remind-now')
+  remindNow(@CurrentUser() user: AuthUser) {
+    assertOfficeManager(user);
+    return this.reminder.notifyDue(todayKst());
+  }
+
   @Post('bulk')
   createMany(@CurrentUser() user: AuthUser, @Body() dto: BulkDealerFeeDto) {
     assertOfficeManager(user);
@@ -389,6 +578,6 @@ export class DealerFeesController {
 @Module({
   imports: [RealtimeModule, PushModule],
   controllers: [DealerFeesController],
-  providers: [DealerFeesService],
+  providers: [DealerFeesService, DealerFeeReminderService],
 })
 export class DealerFeesModule {}
