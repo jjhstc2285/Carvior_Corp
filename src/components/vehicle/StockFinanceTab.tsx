@@ -119,7 +119,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       onBlur={e => {
         if (e.target.value !== (value ?? '')) onSave(e.target.value || null);
       }}
-      className={`rounded-lg border px-1.5 py-1 text-xs outline-none focus:border-indigo-400 ${
+      className={`rounded-lg border px-2 py-1.5 text-[13px] outline-none focus:border-indigo-400 ${
         highlight ? 'border-amber-400 bg-amber-50' : 'border-slate-200'
       }`}
     />
@@ -205,18 +205,18 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
           <table className="w-full whitespace-nowrap text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
-                <th className="px-4 py-2.5 font-medium">차량번호</th>
-                <th className="px-4 py-2.5 font-medium">차량명</th>
-                <th className="px-3 py-2.5 font-medium">제시 가능</th>
-                <th className="px-3 py-2.5 font-medium">제시일자</th>
-                <th className="px-3 py-2.5 font-medium">이전일자</th>
-                <th className="px-3 py-2.5 font-medium">상환일자</th>
-                <th className="px-3 py-2.5 font-medium">할부사</th>
-                <th className="px-3 py-2.5 text-right font-medium">재고금액</th>
-                <th className="px-3 py-2.5 text-center font-medium">현금</th>
-                <th className="px-3 py-2.5 font-medium">최초등록일</th>
-                <th className="px-3 py-2.5 font-medium">연식</th>
-                <th className="px-3 py-2.5 text-right font-medium">주행거리</th>
+                <th className="px-4 py-3 font-medium">차량번호</th>
+                <th className="px-4 py-3 font-medium">차량명</th>
+                <th className="px-3 py-3 font-medium">제시 가능</th>
+                <th className="px-3 py-3 font-medium">제시일자</th>
+                <th className="px-3 py-3 font-medium">이전일자</th>
+                <th className="px-3 py-3 font-medium">상환일자</th>
+                <th className="px-3 py-3 font-medium">할부사</th>
+                <th className="px-3 py-3 text-right font-medium">재고금액</th>
+                <th className="px-3 py-3 text-center font-medium">현금</th>
+                <th className="px-3 py-3 font-medium">최초등록일</th>
+                <th className="px-3 py-3 font-medium">연식</th>
+                <th className="px-3 py-3 text-right font-medium">주행거리</th>
               </tr>
             </thead>
             <tbody>
@@ -229,36 +229,36 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
               )}
               {rows.map(({ vehicle: v, eligibility }) => (
                 <tr key={v.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                  <td className="px-4 py-2 font-mono font-semibold text-slate-800">{v.vehicleNumber}</td>
-                  <td className="max-w-44 truncate px-4 py-2 text-slate-600" title={v.vehicleModel}>
+                  <td className="px-4 py-2.5 font-mono font-semibold text-slate-800">{v.vehicleNumber}</td>
+                  <td className="max-w-64 truncate px-4 py-2.5 text-slate-600" title={v.vehicleModel}>
                     {v.vehicleModel}
                   </td>
 
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2.5">
                     {eligibility.ok === true ? (
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
                         가능 · {eligibility.age}년차
                       </span>
                     ) : eligibility.ok === false ? (
-                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
                         불가 · {eligibility.reason}
                       </span>
                     ) : eligibility.ok === 'check' ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
                         등록증 확인 · {eligibility.reason}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
                         {eligibility.reason}
                       </span>
                     )}
                   </td>
 
-                  <td className="px-3 py-2">{dateInput(v.offerDate, next => patch(v, { offerDate: next }))}</td>
-                  <td className="px-3 py-2">{dateInput(v.transferDate, next => patch(v, { transferDate: next }))}</td>
-                  <td className="px-3 py-2">{dateInput(v.repayDate, next => patch(v, { repayDate: next }))}</td>
+                  <td className="px-3 py-2.5">{dateInput(v.offerDate, next => patch(v, { offerDate: next }))}</td>
+                  <td className="px-3 py-2.5">{dateInput(v.transferDate, next => patch(v, { transferDate: next }))}</td>
+                  <td className="px-3 py-2.5">{dateInput(v.repayDate, next => patch(v, { repayDate: next }))}</td>
 
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2.5">
                     <input
                       defaultValue={v.stockCapital}
                       onBlur={e => {
@@ -267,10 +267,10 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                       }}
                       list="capital-companies"
                       placeholder="할부사"
-                      className="w-20 rounded-lg border border-slate-200 px-1.5 py-1 text-xs outline-none focus:border-indigo-400"
+                      className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-[13px] outline-none focus:border-indigo-400"
                     />
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2.5 text-right">
                     <input
                       defaultValue={v.stockAmount ? withCommas(v.stockAmount) : ''}
                       onBlur={e => {
@@ -279,23 +279,23 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                       }}
                       inputMode="numeric"
                       placeholder="원"
-                      className="w-28 rounded-lg border border-slate-200 px-1.5 py-1 text-right text-xs outline-none focus:border-indigo-400"
+                      className="w-28 rounded-lg border border-slate-200 px-1.5 py-1 text-right text-[13px] outline-none focus:border-indigo-400"
                     />
                   </td>
 
                   {/* 재고가 안 되는 차는 여기 체크해 두면 제시 대상에서 빠지고 현금차량으로 모인다 */}
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-3 py-2.5 text-center">
                     <input
                       type="checkbox"
                       checked={v.cashVehicle}
                       onChange={e => patch(v, { cashVehicle: e.target.checked })}
-                      className="size-4 accent-indigo-600"
+                      className="size-4.5 accent-indigo-600"
                       aria-label="현금차량"
                     />
                   </td>
 
                   {/* 딱 10년차일 때만 필요하다. 그때는 칸을 노랗게 칠해 눈에 띄게 한다. */}
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2.5">
                     {dateInput(
                       v.firstRegisteredOn,
                       next => patch(v, { firstRegisteredOn: next }),
@@ -303,7 +303,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                     )}
                   </td>
 
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2.5">
                     <input
                       defaultValue={v.modelYear}
                       onBlur={e => {
@@ -311,12 +311,12 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                         if (next !== v.modelYear) patch(v, { modelYear: next });
                       }}
                       placeholder="2016"
-                      className={`w-16 rounded-lg border px-1.5 py-1 text-xs outline-none focus:border-indigo-400 ${
+                      className={`w-20 rounded-lg border px-2 py-1.5 text-[13px] outline-none focus:border-indigo-400 ${
                         v.modelYear ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
                       }`}
                     />
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2.5 text-right">
                     <input
                       defaultValue={v.mileage ? withCommas(v.mileage) : ''}
                       onBlur={e => {
@@ -325,7 +325,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                       }}
                       inputMode="numeric"
                       placeholder="km"
-                      className={`w-24 rounded-lg border px-1.5 py-1 text-right text-xs outline-none focus:border-indigo-400 ${
+                      className={`w-24 rounded-lg border px-1.5 py-1 text-right text-[13px] outline-none focus:border-indigo-400 ${
                         v.mileage ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
                       }`}
                     />
