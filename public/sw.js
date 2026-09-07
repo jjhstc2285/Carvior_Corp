@@ -23,8 +23,9 @@ self.addEventListener('push', event => {
   const title = payload.title || '애니원모터스';
   const options = {
     body: payload.body || '',
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
+    // 안드로이드 알림은 SVG 를 못 읽는 경우가 있어 PNG 로 둔다.
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     // 같은 tag끼리는 덮어쓴다(같은 대화 알림이 줄줄이 쌓이지 않게).
     tag: payload.tag || 'anyone-motors',
     renotify: Boolean(payload.tag),

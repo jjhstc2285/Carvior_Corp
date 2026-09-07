@@ -2,10 +2,37 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="robots" content="noindex, nofollow" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>애니원모터스 통합 관리</title>
+
+    <!--
+      사내 시스템이라 검색에 안 잡히게 둔다. 다만 카톡·문자로 주소를 주고받아서
+      미리보기(og:*)는 나와야 한다 — 링크만 덩그러니 뜨면 무슨 주소인지 모른다.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="애니원모터스 통합 관리 — 출퇴근·상담·정산·주차·매입" />
+
+    <!-- 탭 아이콘. SVG를 먼저 두고 PNG를 뒤에 둬서 SVG를 못 읽는 브라우저가 PNG로 내려간다 -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+
+    <!-- 홈 화면에 추가했을 때 쓰는 아이콘·이름 (브라우저 앱처럼 쓰는 분들이 많다) -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="애니원모터스" />
+
+    <!-- 카톡·메신저로 주소를 보냈을 때 뜨는 미리보기 -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="애니원모터스" />
+    <meta property="og:title" content="애니원모터스 통합 관리" />
+    <meta property="og:description" content="출퇴근·상담·정산·주차·매입을 한 곳에서 봅니다." />
+    <meta property="og:image" content="/og-image.jpg" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta name="twitter:card" content="summary" />
   </head>
   <body>
     <div id="root"></div>

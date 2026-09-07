@@ -108,8 +108,28 @@ export const STATUS_COLOR: Record<AttendanceStatus, string> = {
 };
 
 // 그날 승인된 신청(연차·외근·소명)이 있으면 그 종류를 반환 — computeStatus의 approvedKind 인자로 넘겨 씀
+/**
+ * 근태 판정을 바꾸는 순서.
+ *
+ * 하루에 승인된 신청이 여럿일 수 있다 — 자리비움은 하루에 몇 번이고 올라오고 승인 없이
+ * 바로 확정된다. 예전에는 그날 것 중 먼저 잡히는 하나만 봐서, 자리비움이 걸리면 지각
+ * 소명이 통째로 무시됐다(지각을 소명해도 계속 지각으로 남았다).
+ *
+ * 자리비움은 아예 안 본다 — 근태 판정을 바꾸는 신청이 아니다.
+ */
+const STATUS_CHANGING_KINDS: AttendanceRequestKind[] = [
+  'ANNUAL_LEAVE',
+  'HALF_DAY',
+  'FIELD_WORK',
+  'LATE_EXCUSE',
+];
+
 export function approvedRequestKind(requests: AttendanceRequest[], employeeId: string, date: string): AttendanceRequestKind | null {
-  return requests.find(r => r.employeeId === employeeId && r.date === date && r.status === 'APPROVED')?.kind ?? null;
+  const approved = requests.filter(
+    r => r.employeeId === employeeId && r.date === date && r.status === 'APPROVED',
+  );
+  // 위 목록 순서가 곧 우선순위다 — 연차가 있으면 소명보다 연차가 먼저다.
+  return STATUS_CHANGING_KINDS.find(kind => approved.some(r => r.kind === kind)) ?? null;
 }
 
 // 평일만 근무일로 취급(주말은 대시보드/통계에서 제외)
