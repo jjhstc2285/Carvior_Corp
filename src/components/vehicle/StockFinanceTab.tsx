@@ -10,6 +10,7 @@ import {
   stockDeadline,
 } from '../../lib/stockFinance';
 import { digitsOnly, withCommas } from '../../lib/money';
+import { useStore } from '../../store';
 import type { ManagedVehicle } from '../../types';
 import type { VehiclesApi } from './useVehicles';
 
@@ -20,10 +21,10 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
   {
     key: 'candidate',
     label: '제시 대상',
-    desc: `${MAX_AGE_YEARS}년 이내 · ${(MAX_MILEAGE_KM / 10000).toLocaleString()}만km 미만인데 아직 제시일자를 안 적은 차입니다.`,
+    desc: `${MAX_AGE_YEARS}년 이내 · ${(MAX_MILEAGE_KM / 10000).toLocaleString()}만km 미만인데 제시일자·이전일자를 아직 다 못 적은 차입니다.`,
     officeOnly: true,
   },
-  { key: 'offered', label: '제시함', desc: '제시일자를 적은 차입니다. 이전일자와 재고 내용을 마저 채웁니다.', officeOnly: true },
+  { key: 'offered', label: '제시함', desc: '제시일자와 이전일자를 다 적은 차입니다. 재고 내용을 마저 채웁니다.', officeOnly: true },
   { key: 'stocked', label: '재고 잡힘', desc: '할부사와 재고금액이 들어간 차입니다.', officeOnly: true },
   { key: 'repay', label: '상환 예정', desc: '상환일자를 월별로 모아 봅니다. 그 달에 갚아야 하는 차량입니다.', officeOnly: false },
   { key: 'cash', label: '현금차량', desc: '재고금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: true },
@@ -44,6 +45,21 @@ type DateField = 'offerDate' | 'transferDate' | 'repayDate';
  */
 export default function StockFinanceTab({ api, isOfficeManager }: { api: VehiclesApi; isOfficeManager: boolean }) {
   const { vehicles, toggleFlag } = api;
+  const { state } = useStore();
+
+  /**
+   * 차량번호로 매입가를 찾는다(만원).
+   *
+   * 매입 정산에 적힌 값이 먼저다 — 실제로 얼마에 샀는지가 거기 있다.
+   * 정산이 아직 없으면 매입 관리에서 넘어올 때 채워진 값을 쓴다.
+   */
+  const purchasePriceOf = useMemo(() => {
+    const byPlate = new Map<string, number>();
+    for (const s of state.purchaseSettlements) {
+      if (s.purchasePrice > 0) byPlate.set(s.vehicleNumber, s.purchasePrice / 10000);
+    }
+    return (v: ManagedVehicle) => byPlate.get(v.vehicleNumber) ?? (v.priceManwon || null);
+  }, [state.purchaseSettlements]);
   const views = useMemo(() => VIEWS.filter(v => isOfficeManager || !v.officeOnly), [isOfficeManager]);
 
   const [view, setView] = useState<View>(() => (isOfficeManager ? 'candidate' : 'repay'));
@@ -63,8 +79,14 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       .filter(({ vehicle: v, eligibility }) => {
         if (view === 'cash') return v.cashVehicle;
         if (v.cashVehicle) return false;
-        if (view === 'candidate') return eligibility.ok !== false && !v.offerDate;
-        if (view === 'offered') return Boolean(v.offerDate);
+        // 제시일자만 적어도 넘어가면 이전일자를 적을 자리가 사라진다.
+        // 둘 다 적어야 제시함으로 넘긴다.
+        // 이미 제시일자를 적은 차는 제시 가능 여부와 상관없이 남긴다 —
+        // 진행 중인 건이 어느 목록에도 없으면 이전일자를 적을 자리가 사라진다.
+        if (view === 'candidate') {
+          return (eligibility.ok !== false || Boolean(v.offerDate)) && !(v.offerDate && v.transferDate);
+        }
+        if (view === 'offered') return Boolean(v.offerDate && v.transferDate);
         if (view === 'stocked') return v.stockAmount > 0 || Boolean(v.stockCapital);
         return v.repayDate?.startsWith(month) ?? false;
       })
@@ -112,6 +134,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
     const data = rows.map(({ vehicle: v, eligibility }) => ({
       차량번호: v.vehicleNumber,
       차량명: v.vehicleModel,
+      '매입가(만원)': purchasePriceOf(v) ?? '',
       '제시 가능':
         eligibility.ok === true
           ? '가능'
@@ -255,6 +278,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
                 <th className="px-4 py-3 font-medium">차량번호</th>
                 <th className="px-4 py-3 font-medium">차량명</th>
+                <th className="px-3 py-3 text-right font-medium">매입가</th>
                 <th className="px-3 py-3 font-medium">제시 가능</th>
                 <th className="px-3 py-3 font-medium">제시일자</th>
                 <th className="px-3 py-3 font-medium">이전일자</th>
@@ -270,7 +294,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
                     해당하는 차량이 없습니다.
                   </td>
                 </tr>
@@ -280,6 +304,16 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                   <td className="px-4 py-2.5 font-mono font-semibold text-slate-800">{v.vehicleNumber}</td>
                   <td className="max-w-64 truncate px-4 py-2.5 text-slate-600" title={v.vehicleModel}>
                     {v.vehicleModel}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-600">
+                    {purchasePriceOf(v) != null ? (
+                      <>
+                        {withCommas(String(purchasePriceOf(v)))}
+                        <span className="ml-0.5 text-[11px] text-slate-400">만</span>
+                      </>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
 
                   <td className="px-3 py-2.5">
