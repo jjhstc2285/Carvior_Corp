@@ -56,7 +56,7 @@ export class VehiclesService {
       repayDate: formatDateOnlyOrNull(row.repayDate),
       soldDate: formatDateOnlyOrNull(row.soldDate),
       /**
-       * 출고예정 — 상담이 판매완료로 찍혔는데 아직 매도일자를 안 적은 차.
+       * 출고 예정 — 상담이 판매완료로 찍혔는데 아직 매도일자를 안 적은 차.
        *
        * 저장하지 않고 조회할 때 상담과 맞춰 낸다. 상담 상태는 언제든 바뀌는데
        * 차 쪽에 복사해두면 두 곳이 어긋난다.
@@ -67,7 +67,7 @@ export class VehiclesService {
     };
   }
 
-  /** 상담이 판매완료로 찍힌 차량번호 — 출고예정을 가리는 데 쓴다. */
+  /** 상담이 판매완료로 찍힌 차량번호 — 출고 예정을 가리는 데 쓴다. */
   private async soldPlates(): Promise<Set<string>> {
     const rows = await this.prisma.consultation.findMany({
       where: { status: ConsultationStatus.SOLD },
@@ -101,7 +101,7 @@ export class VehiclesService {
    * 판매완료로 찍혔는데 차량 관리에 아예 없는 차.
    *
    * 알선처럼 우리가 안 사온 차는 차량 관리에 등록되지 않는다. 그래도 판 건 판 거라
-   * 매도차량으로 남아야 한다 — 언제 무엇을 넘겼는지가 없으면 나중에 맞춰볼 게 없다.
+   * 매도 차량으로 남아야 한다 — 언제 무엇을 넘겼는지가 없으면 나중에 맞춰볼 게 없다.
    *
    * 여기서는 알려주기만 한다. 매도일자를 적는 순간 registerSold 가 차를 만든다 —
    * 조회하면서 데이터를 만들어두면 안 쓸 차까지 목록에 쌓인다.

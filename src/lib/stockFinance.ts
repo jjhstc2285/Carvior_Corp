@@ -118,7 +118,7 @@ export const REPAY_BADGE_CLASS: Record<RepayUrgency['level'], string> = {
 /**
  * 파는 흐름의 어디쯤인가.
  *
- *   출고예정 — 상담이 판매완료로 찍혔는데 아직 차가 안 나갔다.
+ *   출고 예정 — 상담이 판매완료로 찍혔는데 아직 차가 안 나갔다.
  *              광고를 내리고 자리를 빼고 서류를 챙겨야 하는 구간이다.
  *   매도완료 — 매도일자를 적었다. 끝난 차다.
  *
@@ -133,11 +133,11 @@ export function saleStage(v: Pick<ManagedVehicle, 'soldDate' | 'releasePending'>
 }
 
 export const SALE_STAGE_LABEL: Record<SaleStage, string> = {
-  RELEASE_PENDING: '출고예정',
+  RELEASE_PENDING: '출고 예정',
   SOLD: '매도완료',
 };
 
-/** 출고예정은 할 일이 남은 쪽이라 눈에 띄게, 매도완료는 끝난 차라 차분하게. */
+/** 출고 예정은 할 일이 남은 쪽이라 눈에 띄게, 매도완료는 끝난 차라 차분하게. */
 export const SALE_STAGE_CLASS: Record<SaleStage, string> = {
   RELEASE_PENDING: 'border-violet-300 bg-violet-100 text-violet-800',
   SOLD: 'border-slate-200 bg-slate-100 text-slate-500',

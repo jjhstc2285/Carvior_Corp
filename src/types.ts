@@ -700,9 +700,9 @@ export interface ManagedVehicle {
   cashVehicle: boolean;
   offerDate: string | null; // 제시일자 — 캐피탈에 제시한 날
   transferDate: string | null; // 이전일자 — 명의 이전한 날
-  /** 매도일자 — 손님에게 실제로 넘긴 날. 적으면 매도차량으로 넘어간다 */
+  /** 매도일자 — 손님에게 실제로 넘긴 날. 적으면 매도 차량으로 넘어간다 */
   soldDate: string | null;
-  /** 출고예정 — 상담이 판매완료인데 아직 매도일자를 안 적었다. 서버가 상담과 맞춰 내려준다 */
+  /** 출고 예정 — 상담이 판매완료인데 아직 매도일자를 안 적었다. 서버가 상담과 맞춰 내려준다 */
   releasePending?: boolean;
   stockCapital: string; // 할부사
   stockAmount: number; // 재고금액(원)

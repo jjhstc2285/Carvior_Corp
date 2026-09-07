@@ -47,7 +47,7 @@ export class ConsultationsService {
       const ids = watchers.map((w) => w.id);
 
       const car = `${row.vehicleNumber}${row.vehicleName ? ` ${row.vehicleName}` : ''}`;
-      const message = `출고예정 — ${car} 판매완료입니다. 광고를 내리고 출고 준비를 해주세요.`;
+      const message = `출고 예정 — ${car} 판매완료입니다. 광고를 내리고 출고 준비를 해주세요.`;
       const today = todayKst();
 
       await this.prisma.notification.createMany({
@@ -63,9 +63,9 @@ export class ConsultationsService {
         message,
         date: today,
       });
-      void this.push.sendToEmployees(ids, { title: `출고예정 — ${car}`, body: '광고를 내리고 출고 준비를 해주세요.' });
+      void this.push.sendToEmployees(ids, { title: `출고 예정 — ${car}`, body: '광고를 내리고 출고 준비를 해주세요.' });
     } catch (e) {
-      this.logger.warn(`출고예정 알림을 보내지 못했습니다(${row.vehicleNumber}): ${(e as Error).message}`);
+      this.logger.warn(`출고 예정 알림을 보내지 못했습니다(${row.vehicleNumber}): ${(e as Error).message}`);
     }
   }
 

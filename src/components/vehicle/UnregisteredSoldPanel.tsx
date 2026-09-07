@@ -8,7 +8,7 @@ import { alertError } from '../../lib/alert';
  * 차량 관리에 없는 판매완료 차.
  *
  * 알선처럼 우리가 안 사온 차는 차량 관리에 등록되지 않는다. 그래도 판 건 판 거라
- * 매도차량으로 남아야 한다 — 언제 무엇을 넘겼는지가 없으면 나중에 맞춰볼 게 없다.
+ * 매도 차량으로 남아야 한다 — 언제 무엇을 넘겼는지가 없으면 나중에 맞춰볼 게 없다.
  *
  * 매도일자를 적으면 그때 차를 만든다. 조회만으로 미리 만들어두면 안 쓸 차까지 쌓인다.
  * 만들어진 차는 매입 관리에서 나머지를 채우면 그대로 이어진다.
@@ -62,7 +62,7 @@ export default function UnregisteredSoldPanel({ onRegistered }: { onRegistered: 
         <PackageCheck size={14} className="text-violet-700" />
         <p className="text-xs font-bold text-violet-900">차량 관리에 없는 판매완료 차 {rows.length}대</p>
         <span className="text-[11px] text-violet-800/70">
-          알선처럼 우리가 안 사온 차입니다. 매도일자를 적으면 매도차량으로 넘어갑니다
+          알선처럼 우리가 안 사온 차입니다. 매도일자를 적으면 매도 차량으로 넘어갑니다
         </span>
       </div>
 

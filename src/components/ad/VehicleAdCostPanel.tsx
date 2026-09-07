@@ -113,7 +113,7 @@ export default function VehicleAdCostPanel() {
             )}
             {pending.length > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full border border-violet-300 bg-violet-100 px-2 py-0.5 text-[11px] font-bold text-violet-800">
-                <PackageCheck size={11} /> 출고예정 {pending.length}대 — 광고를 내려주세요
+                <PackageCheck size={11} /> 출고 예정 {pending.length}대 — 광고를 내려주세요
               </span>
             )}
           </div>

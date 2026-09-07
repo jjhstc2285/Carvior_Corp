@@ -186,7 +186,7 @@ function VehicleRow({ vehicle, onToggle, onRemove }: RowProps) {
       <td className="px-4 py-3 font-mono font-semibold text-slate-800">{vehicle.vehicleNumber}</td>
       <td className="px-4 py-3 text-slate-600">
         {vehicle.vehicleModel}
-        {/* 출고예정이면 상품화·자리 정리를 챙겨야 한다 */}
+        {/* 출고 예정이면 상품화·자리 정리를 챙겨야 한다 */}
         {stage && (
           <span className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${SALE_STAGE_CLASS[stage]}`}>
             {SALE_STAGE_LABEL[stage]}

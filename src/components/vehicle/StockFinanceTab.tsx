@@ -33,11 +33,11 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
   { key: 'repay', label: '상환 예정', desc: '상환일자를 월별로 모아 봅니다. 그 달에 갚아야 하는 차량입니다.', officeOnly: false },
   {
     key: 'release',
-    label: '출고예정',
-    desc: '상담에서 판매완료로 찍힌 차입니다. 넘기고 나서 매도일자를 적으면 매도차량으로 넘어갑니다.',
+    label: '출고 예정',
+    desc: '상담에서 판매완료로 찍힌 차입니다. 넘기고 나서 매도일자를 적으면 매도 차량으로 넘어갑니다.',
     officeOnly: false,
   },
-  { key: 'sold', label: '매도차량', desc: '매도일자를 적은 차입니다. 끝난 차입니다.', officeOnly: false },
+  { key: 'sold', label: '매도 차량', desc: '매도일자를 적은 차입니다. 끝난 차입니다.', officeOnly: false },
   { key: 'cash', label: '현금차량', desc: '재고금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: true },
 ];
 
@@ -89,7 +89,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       .map(v => ({ vehicle: v, eligibility: offerEligibility(v) }))
       .filter(({ vehicle: v }) => !q || v.vehicleNumber.includes(q) || v.vehicleModel.includes(q))
       .filter(({ vehicle: v, eligibility }) => {
-        // 매도·출고예정은 재고금융과 상관없이 가른다 — 현금차량도 팔린다.
+        // 매도·출고 예정은 재고금융과 상관없이 가른다 — 현금차량도 팔린다.
         if (view === 'sold') return Boolean(v.soldDate);
         if (view === 'release') return saleStage(v) === 'RELEASE_PENDING';
         if (view === 'cash') return v.cashVehicle;
@@ -373,7 +373,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                   <td className="px-3 py-2.5">{dateInput(v.transferDate, next => patch(v, { transferDate: next }))}</td>
                   <td className="px-3 py-2.5">{dateInput(v.repayDate, next => patch(v, { repayDate: next }))}</td>
                   <td className="whitespace-nowrap px-3 py-2.5">
-                    {/* 매도일자를 적으면 매도차량으로 넘어간다. 오늘 넘긴 차는 버튼 한 번으로 끝낸다. */}
+                    {/* 매도일자를 적으면 매도 차량으로 넘어간다. 오늘 넘긴 차는 버튼 한 번으로 끝낸다. */}
                     {v.soldDate ? (
                       dateInput(v.soldDate, next => patch(v, { soldDate: next }))
                     ) : (
