@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Search } from 'lucide-react';
+import { AlarmClock, Search } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
+import { REPAY_BADGE_CLASS, repayLabel, repayUrgency } from '../../lib/stockFinance';
 import type { ManagedVehicle } from '../../types';
 
 /**
@@ -45,11 +46,25 @@ export default function VehicleAdCostPanel() {
     return vehicles
       .filter(v => v.offerDate || v.stockAmount > 0)
       .filter(v => !q || v.vehicleNumber.includes(q) || v.vehicleModel.includes(q))
-      .sort((a, b) => (b.offerDate ?? '').localeCompare(a.offerDate ?? ''));
+      .sort((a, b) => {
+        // 상환이 급한 차부터 올린다 — 상환일까지 못 팔면 그 돈을 그냥 갚아야 한다.
+        const rank = (v: ManagedVehicle) => {
+          const u = repayUrgency(v.repayDate);
+          return u ? { passed: 0, urgent: 1, soon: 2 }[u.level] : 3;
+        };
+        const gap = rank(a) - rank(b);
+        if (gap !== 0) return gap;
+        return (b.offerDate ?? '').localeCompare(a.offerDate ?? '');
+      });
   }, [vehicles, query]);
 
   const total = rows.reduce((sum, v) => sum + v.adCost, 0);
   const entered = rows.filter(v => v.adCost > 0).length;
+  // 지났거나 일주일 안쪽인 차. 한 달 안쪽(soon)은 급한 축에 안 넣는다.
+  const urgent = rows.filter(v => {
+    const u = repayUrgency(v.repayDate);
+    return u != null && u.level !== 'soon';
+  });
 
   const save = async (v: ManagedVehicle) => {
     const text = draft[v.id];
@@ -81,6 +96,11 @@ export default function VehicleAdCostPanel() {
           <p className="mt-0.5 text-xs text-slate-500">
             제시함 · 재고 잡힌 차 {rows.length}대 — 이 차에 광고비를 얼마 썼는지 적습니다.
           </p>
+          {urgent.length > 0 && (
+            <p className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-700">
+              <AlarmClock size={11} /> 상환 임박 {urgent.length}대 — 먼저 팔아야 합니다
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500">
@@ -107,24 +127,47 @@ export default function VehicleAdCostPanel() {
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm">
+          <table className="w-full min-w-[680px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
                 <th className="px-4 py-2 font-medium">차량번호</th>
                 <th className="px-4 py-2 font-medium">차량명</th>
                 <th className="px-4 py-2 font-medium">제시일자</th>
+                <th className="px-4 py-2 font-medium">상환일자</th>
                 <th className="px-4 py-2 text-right font-medium">광고금액(원)</th>
               </tr>
             </thead>
             <tbody>
               {rows.map(v => {
                 const text = draft[v.id] ?? (v.adCost > 0 ? withCommas(String(v.adCost)) : '');
+                const urgency = repayUrgency(v.repayDate);
                 return (
-                  <tr key={v.id} className="border-b border-slate-50 last:border-0">
+                  <tr
+                    key={v.id}
+                    className={`border-b border-slate-50 last:border-0 ${
+                      urgency && urgency.level !== 'soon' ? 'bg-red-50/60' : ''
+                    }`}
+                  >
                     <td className="px-4 py-2 font-medium text-slate-800">{v.vehicleNumber}</td>
                     <td className="px-4 py-2 text-slate-600">{v.vehicleModel}</td>
                     <td className="px-4 py-2 text-slate-500">
                       {v.offerDate ? dayjs(v.offerDate).format('M월 D일') : '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">
+                      {v.repayDate ? (
+                        <>
+                          {dayjs(v.repayDate).format('M월 D일')}
+                          {urgency && (
+                            <span
+                              className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${REPAY_BADGE_CLASS[urgency.level]}`}
+                            >
+                              {repayLabel(urgency)}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className="px-4 py-2 text-right">
                       <input

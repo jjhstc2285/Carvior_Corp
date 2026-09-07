@@ -73,6 +73,48 @@ export function stockDeadline(firstRegisteredOn: string, today = dayjs()): Stock
   return { date: date.format('YYYY-MM-DD'), passed: days <= 0, days: Math.abs(days) };
 }
 
+
+/**
+ * 상환일이 얼마나 급한가.
+ *
+ * 재고금융은 상환일까지 팔지 못하면 그 돈을 그냥 갚아야 한다. 그런데 정작 차를 파는
+ * 사람(상담·광고)은 재고금융 화면을 안 본다. 그래서 판정만 여기 두고 파는 화면들에
+ * 같은 라벨을 붙인다 — 어디서 보든 같은 기준이어야 한다.
+ *
+ * 상환일이 없거나 아직 한 달 넘게 남았으면 null 이다. 급하지 않은 걸 굳이 칠하면
+ * 정작 급한 게 안 보인다.
+ */
+export type RepayUrgency = { level: 'passed' | 'urgent' | 'soon'; days: number; date: string };
+
+/** 며칠 안쪽이면 급한 것으로 볼지 */
+export const REPAY_URGENT_DAYS = 7;
+export const REPAY_SOON_DAYS = 30;
+
+export function repayUrgency(repayDate: string | null | undefined, today = dayjs()): RepayUrgency | null {
+  if (!repayDate) return null;
+  const date = dayjs(repayDate);
+  if (!date.isValid()) return null;
+
+  const days = date.diff(today.startOf('day'), 'day');
+  if (days < 0) return { level: 'passed', days: -days, date: repayDate };
+  if (days <= REPAY_URGENT_DAYS) return { level: 'urgent', days, date: repayDate };
+  if (days <= REPAY_SOON_DAYS) return { level: 'soon', days, date: repayDate };
+  return null;
+}
+
+/** 라벨에 적을 말 — "상환 3일 남음" / "상환 2일 지남" */
+export function repayLabel(u: RepayUrgency): string {
+  if (u.level === 'passed') return `상환 ${u.days}일 지남`;
+  return u.days === 0 ? '오늘 상환' : `상환 ${u.days}일 남음`;
+}
+
+/** 색. 지난 것과 임박한 것은 빨강, 한 달 안쪽은 주황. */
+export const REPAY_BADGE_CLASS: Record<RepayUrgency['level'], string> = {
+  passed: 'border-red-300 bg-red-100 text-red-800',
+  urgent: 'border-red-300 bg-red-50 text-red-700',
+  soon: 'border-amber-300 bg-amber-50 text-amber-700',
+};
+
 const OVER_MILEAGE = (km: number) =>
   `${km.toLocaleString()}km — ${(MAX_MILEAGE_KM / 10000).toLocaleString()}만km 이상`;
 

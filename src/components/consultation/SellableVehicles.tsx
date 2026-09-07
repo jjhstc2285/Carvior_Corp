@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Car, MessageSquarePlus } from 'lucide-react';
+import { AlarmClock, Car, MessageSquarePlus } from 'lucide-react';
 import { api } from '../../lib/api';
 import { vehicleListOf } from '../../lib/vehicle';
+import { REPAY_BADGE_CLASS, repayLabel, repayUrgency } from '../../lib/stockFinance';
 import type { ManagedVehicle } from '../../types';
 
 interface Props {
@@ -28,8 +29,19 @@ export default function SellableVehicles({ consultedNumbers, onStart }: Props) {
     try {
       const rows = await api<ManagedVehicle[]>('/vehicles');
       if (myReq !== reqId.current) return;
-      // 상품화 + 이동금지 아님 = 외부 이동 가능
-      setVehicles(rows.filter(v => vehicleListOf(v) === 'MOVABLE'));
+      // 상품화 + 이동금지 아님 = 외부 이동 가능.
+      // 상환이 급한 차를 앞으로 올린다 — 먼저 팔아야 하는 차가 맨 앞에 있어야 한다.
+      const movable = rows.filter(v => vehicleListOf(v) === 'MOVABLE');
+      setVehicles(
+        movable.sort((a, b) => {
+          const rank = (v: ManagedVehicle) => {
+            const u = repayUrgency(v.repayDate);
+            return u ? { passed: 0, urgent: 1, soon: 2 }[u.level] : 3;
+          };
+          const gap = rank(a) - rank(b);
+          return gap !== 0 ? gap : (a.repayDate ?? '').localeCompare(b.repayDate ?? '');
+        }),
+      );
     } catch {
       // 목록을 못 받아도 상담 등록 자체는 되므로 조용히 넘긴다.
     }
@@ -41,6 +53,12 @@ export default function SellableVehicles({ consultedNumbers, onStart }: Props) {
 
   if (vehicles.length === 0) return null;
 
+  // 지났거나 일주일 안쪽인 차. 한 달 안쪽(soon)은 급한 축에 안 넣는다.
+  const urgentCount = vehicles.filter(v => {
+    const u = repayUrgency(v.repayDate);
+    return u != null && u.level !== 'soon';
+  }).length;
+
   return (
     <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
       <div className="mb-2.5 flex items-center gap-1.5">
@@ -49,24 +67,37 @@ export default function SellableVehicles({ consultedNumbers, onStart }: Props) {
         <span className="text-[11px] text-emerald-700/70">
           상품화 {vehicles.length}대 — 누르면 그 차로 상담이 열립니다
         </span>
+        {urgentCount > 0 && (
+          <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-700">
+            <AlarmClock size={11} /> 상환 임박 {urgentCount}대 — 먼저 팔아야 합니다
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-1.5">
         {vehicles.map(v => {
           const consulted = consultedNumbers.has(v.vehicleNumber);
+          const urgency = repayUrgency(v.repayDate);
           return (
             <button
               key={v.id}
               onClick={() => onStart(v)}
               title={consulted ? '이미 상담이 등록된 차량입니다' : '이 차로 상담 등록'}
               className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
-                consulted
-                  ? 'border-slate-200 bg-white/60 text-slate-400 hover:bg-white'
-                  : 'border-emerald-300 bg-white text-slate-700 hover:bg-emerald-100'
+                urgency && urgency.level !== 'soon'
+                  ? 'border-red-300 bg-red-50 text-slate-800 hover:bg-red-100'
+                  : consulted
+                    ? 'border-slate-200 bg-white/60 text-slate-400 hover:bg-white'
+                    : 'border-emerald-300 bg-white text-slate-700 hover:bg-emerald-100'
               }`}
             >
               <span className="font-mono font-semibold">{v.vehicleNumber}</span>
               <span className="text-slate-500">{v.vehicleModel}</span>
+              {urgency && (
+                <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${REPAY_BADGE_CLASS[urgency.level]}`}>
+                  {repayLabel(urgency)}
+                </span>
+              )}
               <MessageSquarePlus size={12} className={consulted ? 'text-slate-300' : 'text-emerald-600'} />
             </button>
           );
