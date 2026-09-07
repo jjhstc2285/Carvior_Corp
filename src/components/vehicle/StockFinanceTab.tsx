@@ -20,7 +20,10 @@ import UnregisteredSoldPanel from './UnregisteredSoldPanel';
 
 type View = 'candidate' | 'offered' | 'stocked' | 'repay' | 'cash' | 'release' | 'sold';
 
-/** 상환 예정만 전 직원이 본다 — 그 달에 갚을 차를 직원들이 확인한다. */
+/**
+ * 제시·재고 쪽만 사무장이 챙긴다. 나머지(상환 예정·출고 예정·매도 차량·현금차량)는
+ * 파는 사람들이 봐야 하는 것이라 전 직원에게 열어둔다.
+ */
 const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] = [
   {
     key: 'candidate',
@@ -38,7 +41,7 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
     officeOnly: false,
   },
   { key: 'sold', label: '매도 차량', desc: '매도일자를 적은 차입니다. 끝난 차입니다.', officeOnly: false },
-  { key: 'cash', label: '현금차량', desc: '재고금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: true },
+  { key: 'cash', label: '현금차량', desc: '재고금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: false },
 ];
 
 /** 날짜 칸을 기간으로 거른다. 어느 날짜를 볼지는 보기마다 다르다. */

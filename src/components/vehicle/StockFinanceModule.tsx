@@ -15,7 +15,7 @@ import StockFinanceTab from './StockFinanceTab';
 export default function StockFinanceModule() {
   const api = useVehicles();
   const { user } = useAuth();
-  // 제시·재고는 사무장이 챙기는 일이다. 직원에게는 상환 예정만 보인다.
+  // 제시·재고는 사무장이 챙기는 일이다. 파는 데 필요한 나머지는 전 직원이 본다.
   const officeManager = isOfficeManager(user);
 
   return (
@@ -25,7 +25,7 @@ export default function StockFinanceModule() {
         <p className="mt-1 text-sm text-slate-500">
           {officeManager
             ? '제시 가능한 차인지 먼저 가리고(10년 이내 · 20만km 미만), 제시일자와 이전일자를 적습니다. 재고가 잡히면 할부사 · 재고금액 · 상환일자를 넣습니다.'
-            : '그 달에 상환해야 하는 차량을 월별로 모아 봅니다.'}
+            : '그 달에 상환해야 하는 차, 출고 예정인 차, 넘긴 차를 봅니다.'}
         </p>
       </div>
 
