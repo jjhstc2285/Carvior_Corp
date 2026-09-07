@@ -42,27 +42,40 @@ export function brokerageProfit(r: Pick<BrokerageFields, 'cashCommission' | 'ins
 }
 
 /**
- * 정산받을금액 = 수익금 구간별 비율.
+ * 정산받을금액 = 수익금 구간별.
  *
- *   100만원 미만  →  없음
+ *   100만원 미만  →  5만원 정액
  *   100만원 이상  →  20%
  *   200만원 이상  →  30%
  *
  * 구간을 표로 둔 이유: 비율이나 구간이 바뀌는 일이 잦은데, if 를 고치는 것보다
- * 숫자 두 개를 고치는 쪽이 틀릴 여지가 적다. 큰 금액부터 본다.
+ * 숫자를 고치는 쪽이 틀릴 여지가 적다. 큰 금액부터 본다.
+ *
+ * 아래 구간만 정액이라 비율(rate)과 정액(flat)을 둘 다 받는다.
  */
 export const BROKERAGE_TIERS = [
   { from: 2_000_000, rate: 0.3 },
   { from: 1_000_000, rate: 0.2 },
+  { from: 0, flat: 50_000 },
 ] as const;
 
-export function brokerageSettlementRate(profit: number): number {
-  return BROKERAGE_TIERS.find((t) => profit >= t.from)?.rate ?? 0;
+type BrokerageTier = { from: number; rate?: number; flat?: number };
+
+function tierOf(profit: number): BrokerageTier | undefined {
+  return (BROKERAGE_TIERS as readonly BrokerageTier[]).find((t) => profit >= t.from);
 }
 
-/** 원 단위로 끊는다 — 1원 단위가 남으면 이체할 때 사람이 다시 반올림한다. */
+/** 비율 구간이면 비율, 정액 구간이면 0 — 화면에 '수익금의 20%' 를 적을 때 쓴다. */
+export function brokerageSettlementRate(profit: number): number {
+  return tierOf(profit)?.rate ?? 0;
+}
+
+/** 천원 단위로 끊는다 — 1원 단위가 남으면 이체할 때 사람이 다시 반올림한다. */
 export function brokerageSettlementAmount(profit: number): number {
-  return Math.round((profit * brokerageSettlementRate(profit)) / 1000) * 1000;
+  const tier = tierOf(profit);
+  if (!tier) return 0;
+  if (tier.flat != null) return tier.flat;
+  return Math.round((profit * (tier.rate ?? 0)) / 1000) * 1000;
 }
 
 // ── 매입 정산 ──

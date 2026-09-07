@@ -111,7 +111,7 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
             formula={
               rate > 0
                 ? `수익금의 ${Math.round(rate * 100)}% (100만원 이상 20% · 200만원 이상 30%)`
-                : '수익금 100만원 미만 — 정산 없음'
+                : '수익금 100만원 미만 — 정액 5만원'
             }
             value={suggested}
           />
@@ -128,7 +128,7 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
         </div>
         <p className="mt-1.5 text-[11px] text-slate-400">
           정산받을금액을 비워두면 <b>{suggested.toLocaleString()}만원</b>
-          {rate > 0 ? ` (수익금의 ${Math.round(rate * 100)}%)` : ' (수익금 100만원 미만 — 정산 없음)'}이 들어갑니다.
+          {rate > 0 ? ` (수익금의 ${Math.round(rate * 100)}%)` : ' (수익금 100만원 미만 — 정액)'}이 들어갑니다.
           예외가 있으면 직접 적으세요.
         </p>
 
