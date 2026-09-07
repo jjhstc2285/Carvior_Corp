@@ -13,7 +13,8 @@ import { VEHICLE_POST_SITES, type AdContract, type Role } from '../../types';
  * 3달에 30대만 올리면 60대분이 그냥 날아가는데, 지금까지는 몇 대 썼는지 볼 데가 없었다.
  *
  * 대수는 두 갈래로 센다.
- *  - 매물 사진 등록에 올라온 것 중 사이트·기간이 맞는 차를 자동으로 붙인다
+ *  - 계약 기간에 매입한 차를 자동으로 붙인다(사온 차를 광고에 올리므로).
+ *    카비어에서 받아온 계약도 매입 관리로 들어오니 같이 잡힌다.
  *  - 거기 없는 건은 차량번호로 직접 넣는다
  */
 export default function AdModule({ role }: { role: Role }) {
@@ -48,7 +49,7 @@ export default function AdModule({ role }: { role: Role }) {
       const res = await api<{ added: number }>('/ads/sync', { method: 'POST' });
       await alertSuccess(
         res.added > 0 ? `${res.added}대를 새로 붙였습니다` : '새로 붙일 게 없습니다',
-        '매물 사진 등록에서 사이트·기간이 맞는 차를 가져옵니다.',
+        '계약 기간에 매입한 차를 가져옵니다. 카비어에서 받아온 건도 함께 잡힙니다.',
       );
       await load();
     } catch (e) {
@@ -116,9 +117,9 @@ export default function AdModule({ role }: { role: Role }) {
           <button
             onClick={() => void sync()}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            title="매물 사진 등록에서 사이트·기간이 맞는 차를 가져옵니다"
+            title="계약 기간에 매입한 차를 가져옵니다"
           >
-            <RefreshCw size={15} /> 매물에서 가져오기
+            <RefreshCw size={15} /> 매입에서 가져오기
           </button>
           {isAdmin && (
             <button
@@ -247,7 +248,7 @@ export default function AdModule({ role }: { role: Role }) {
                       <span className="font-mono font-semibold text-slate-700">{p.vehicleNumber}</span>
                       <span className="text-slate-400">{p.postedOn}</span>
                       {p.auto && (
-                        <span className="rounded bg-slate-100 px-1.5 text-[10px] font-medium text-slate-500">매물에서</span>
+                        <span className="rounded bg-slate-100 px-1.5 text-[10px] font-medium text-slate-500">매입에서</span>
                       )}
                       <button
                         onClick={() => void removePosting(p.id)}

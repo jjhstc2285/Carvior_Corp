@@ -173,43 +173,40 @@ export class AdsService {
   }
 
   /**
-   * 매물 사진 등록에 올라온 차를 계약에 붙인다.
+   * 매입한 차를 계약에 붙인다.
    *
-   * 광고팀이 사이트에 올릴 때 매물 사진도 같이 올리므로, 그 기록을 세면 손으로 다시
-   * 적지 않아도 된다. 사이트 이름과 계약 플랫폼이 같고 계약 기간 안에 올라온 것만 본다.
+   * 사온 차를 광고에 올려야 손님이 보고 연락한다 — 그래서 세는 건 매입 건수다.
+   * 카비어에서 받아온 계약도 매입 관리로 들어오므로 여기서 같이 잡힌다.
    *
-   * 이미 들어 있는 차는 건너뛴다. 손으로 넣은 건도 그대로 둔다 — 사람이 넣은 걸
-   * 자동 집계가 덮으면 왜 사라졌는지 알 수 없다.
+   * 계약 기간 안에 매입한 것만 본다. 같은 차가 여러 번 있으면 한 대로 세고 처음 날을 쓴다
+   * (팔았다 되사오는 경우가 있다).
+   * 손으로 넣은 건은 그대로 둔다 — 사람이 넣은 걸 자동 집계가 덮으면 왜 사라졌는지 알 수 없다.
    */
-  async syncFromPosts(contractId?: string) {
+  async syncFromPurchases(contractId?: string) {
     const contracts = await this.prisma.adContract.findMany({
       where: { active: true, ...(contractId ? { id: contractId } : {}) },
     });
 
     let added = 0;
     for (const c of contracts) {
-      const posts = await this.prisma.vehiclePost.findMany({
-        where: {
-          site: c.platform,
-          createdAt: { gte: c.startOn, lt: new Date(c.endOn.getTime() + 86_400_000) },
-        },
-        select: { vehicleNumber: true, createdAt: true },
+      const intakes = await this.prisma.purchaseIntake.findMany({
+        where: { date: { gte: c.startOn, lte: c.endOn } },
+        select: { vehicleNumber: true, date: true },
+        orderBy: { date: 'asc' },
       });
 
-      // 같은 차를 여러 번 올렸어도 한 대로 센다. 처음 올린 날을 쓴다.
       const first = new Map<string, Date>();
-      for (const p of posts) {
-        const plate = normalizePlate(p.vehicleNumber);
-        if (!plate) continue;
-        const seen = first.get(plate);
-        if (!seen || p.createdAt < seen) first.set(plate, p.createdAt);
+      for (const i of intakes) {
+        const plate = normalizePlate(i.vehicleNumber);
+        if (!plate || first.has(plate)) continue;
+        first.set(plate, i.date);
       }
 
       const res = await this.prisma.adPosting.createMany({
         data: [...first].map(([vehicleNumber, at]) => ({
           contractId: c.id,
           vehicleNumber,
-          postedOn: toDateOnly(formatDateOnly(at)),
+          postedOn: at,
           auto: true,
         })),
         skipDuplicates: true,
@@ -363,7 +360,7 @@ export class AdReminderService implements OnModuleInit, OnModuleDestroy {
     this.ranOn = today;
     try {
       // 세기 전에 먼저 붙인다 — 안 붙이고 세면 실제보다 적게 나온다.
-      await this.ads.syncFromPosts();
+      await this.ads.syncFromPurchases();
       await this.ads.notifyShortfall(today);
     } catch (e) {
       this.logger.warn(`광고 약정 확인 실패: ${(e as Error).message}`);
@@ -424,10 +421,10 @@ export class AdsController {
     await this.ads.removePosting(id);
   }
 
-  /** 매물 사진 등록에서 올라온 걸 지금 붙인다 — 아침을 기다리지 않고 확인할 때 */
+  /** 매입한 차를 지금 붙인다 — 아침을 기다리지 않고 확인할 때 */
   @Post('sync')
   sync() {
-    return this.ads.syncFromPosts();
+    return this.ads.syncFromPurchases();
   }
 }
 

@@ -109,7 +109,7 @@ export interface AdPosting {
   id: string;
   vehicleNumber: string;
   postedOn: string; // YYYY-MM-DD
-  /** 매물 사진 등록에서 자동으로 붙은 건지 */
+  /** 매입 관리에서 자동으로 붙은 건지 */
   auto: boolean;
   memo: string;
 }
