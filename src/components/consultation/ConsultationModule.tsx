@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { CalendarDays, Copy, LineChart, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
@@ -75,10 +75,22 @@ const STATUS_COLOR: Record<ConsultationStatus, string> = {
   CLOSED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
 };
 
+/**
+ * 상태 보기.
+ *
+ * 'open' 은 종결을 뺀 나머지다. 지난 상담을 백업으로 옮겨 담으면서 종결 건이 천 단위로
+ * 쌓였는데, 그걸 매번 다 그리느라 화면이 느려졌다. 종결은 찾을 일이 있을 때만 본다.
+ */
+type StatusView = 'open' | 'all' | ConsultationStatus;
+
+/** 한 번에 그리는 줄 수. 넘으면 '더 보기'로 늘린다 — 천 줄을 한꺼번에 그리면 멈춘다. */
+const PAGE_SIZE = 100;
+
 export default function ConsultationModule({ role, kind }: Props) {
   const { state, deleteConsultation } = useStore();
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ConsultationStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusView>('open');
+  const [visible, setVisible] = useState(PAGE_SIZE);
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
   const [priceOpen, setPriceOpen] = useState<string | null>(null);
@@ -90,55 +102,76 @@ export default function ConsultationModule({ role, kind }: Props) {
 
   // 직급과 상관없이 전체 상담을 본다 — 상담을 받은 사람과 뒤를 이어받는 사람이 다르다.
   // 내 것만 보고 싶으면 담당자에서 고른다.
-  const filtered = state.consultations
-    .filter(c => c.kind === kind)
-    .filter(c => ownerFilter === 'all' || c.employeeId === ownerFilter)
-    .filter(c => statusFilter === 'all' || c.status === statusFilter)
-    .filter(c => {
-      const q = query.trim();
-      if (!q) return true;
-      return [c.vehicleNumber, c.vehicleName, c.customerPhone, c.customerName, c.platform].some(v => v?.includes(q));
-    })
-    .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
+  const ofKind = useMemo(() => state.consultations.filter(c => c.kind === kind), [state.consultations, kind]);
+
+  /** 종결함에 몇 건이 들어 있는지 — 버튼에 붙여 보여준다. */
+  const closedCount = useMemo(() => ofKind.filter(c => c.status === 'CLOSED').length, [ofKind]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim();
+    return ofKind
+      .filter(c => ownerFilter === 'all' || c.employeeId === ownerFilter)
+      .filter(c =>
+        statusFilter === 'all' ? true : statusFilter === 'open' ? c.status !== 'CLOSED' : c.status === statusFilter,
+      )
+      .filter(c =>
+        !q || [c.vehicleNumber, c.vehicleName, c.customerPhone, c.customerName, c.platform].some(v => v?.includes(q)),
+      )
+      .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
+  }, [ofKind, ownerFilter, statusFilter, query]);
+
+  // 조건이 바뀌면 처음부터 다시 센다 — 안 그러면 걸러진 목록이 이미 펼쳐진 채로 나온다.
+  useEffect(() => setVisible(PAGE_SIZE), [ownerFilter, statusFilter, query, kind]);
+
+  const shown = filtered.slice(0, visible);
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
 
-  const eventsForDate = (dateStr: string): CalEvent[] => {
-    const events: CalEvent[] = [];
+  /**
+   * 날짜별로 미리 묶어둔다.
+   *
+   * 예전에는 칸 하나를 그릴 때마다 상담 전체를 훑었다. 한 달이 42칸이라 건수가 늘자
+   * 달력을 열 때마다 수만 번을 돌았다.
+   */
+  const eventIndex = useMemo(() => {
+    const index = new Map<string, CalEvent[]>();
+    const push = (date: string | null | undefined, event: CalEvent) => {
+      if (!date) return;
+      const list = index.get(date);
+      if (list) list.push(event);
+      else index.set(date, [event]);
+    };
+
     filtered.forEach(c => {
       // 달력 칸은 좁아서 한 줄만 보인다 — 차명이 있으면 그게 제일 알아보기 쉽고,
       // 없으면 차량번호, 그것도 비면 손님번호로 내려간다.
       const label = c.vehicleName || c.vehicleNumber || c.customerPhone || c.customerName;
-      if (c.date === dateStr) {
-        events.push({
-          id: `consult-${c.id}`,
-          label,
-          sublabel: CONSULTATION_STATUS_LABEL[c.status],
-          colorClass: STATUS_COLOR[c.status].replace(/ ring-\S+/, ''),
-          dotClass: c.status === 'CONTRACTED' ? 'bg-emerald-400' : c.status === 'ON_HOLD' ? 'bg-amber-400' : c.status === 'CLOSED' ? 'bg-gray-400' : 'bg-blue-400',
-        });
-      }
-      if (c.visitDate === dateStr) {
-        events.push({
-          id: `visit-${c.id}`,
-          label: `${label} 방문${c.visitTime ? ` ${c.visitTime}` : ''}`,
-          sublabel: '방문 예정',
-          colorClass: 'bg-indigo-50 text-indigo-700',
-          dotClass: 'bg-indigo-400',
-        });
-      }
-      if (c.nextContactDate === dateStr) {
-        events.push({
-          id: `followup-${c.id}`,
-          label: `${label} 후속연락`,
-          sublabel: '후속연락 예정',
-          colorClass: 'bg-amber-50 text-amber-700',
-          dotClass: 'bg-amber-400',
-        });
-      }
+      push(c.date, {
+        id: `consult-${c.id}`,
+        label,
+        sublabel: CONSULTATION_STATUS_LABEL[c.status],
+        colorClass: STATUS_COLOR[c.status].replace(/ ring-\S+/, ''),
+        dotClass: c.status === 'CONTRACTED' ? 'bg-emerald-400' : c.status === 'ON_HOLD' ? 'bg-amber-400' : c.status === 'CLOSED' ? 'bg-gray-400' : 'bg-blue-400',
+      });
+      push(c.visitDate, {
+        id: `visit-${c.id}`,
+        label: `${label} 방문${c.visitTime ? ` ${c.visitTime}` : ''}`,
+        sublabel: '방문 예정',
+        colorClass: 'bg-indigo-50 text-indigo-700',
+        dotClass: 'bg-indigo-400',
+      });
+      push(c.nextContactDate, {
+        id: `followup-${c.id}`,
+        label: `${label} 후속연락`,
+        sublabel: '후속연락 예정',
+        colorClass: 'bg-amber-50 text-amber-700',
+        dotClass: 'bg-amber-400',
+      });
     });
-    return events;
-  };
+    return index;
+  }, [filtered]);
+
+  const eventsForDate = (dateStr: string): CalEvent[] => eventIndex.get(dateStr) ?? [];
 
   // 이미 상담이 등록된 차는 목록에서 흐리게 보여준다(막지는 않는다 — 같은 차에 문의가 여러 번 온다).
   const consultedNumbers = useMemo(
@@ -222,14 +255,26 @@ export default function ConsultationModule({ role, kind }: Props) {
               <option key={e.id} value={e.id}>{e.name}</option>
             ))}
         </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as ConsultationStatus | 'all')}
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusView)}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-          <option value="all">전체 상태</option>
+          <option value="open">진행 중인 상담 (종결 제외)</option>
           <option value="IN_PROGRESS">진행중</option>
           <option value="CONTRACTED">계약</option>
+          <option value="SOLD">판매완료</option>
           <option value="ON_HOLD">보류</option>
-          <option value="CLOSED">종결</option>
+          <option value="all">종결까지 전체</option>
         </select>
+        {/* 종결은 기본으로 뺀다 — 지난 건이 천 단위라 다 그리면 화면이 느려진다 */}
+        <button
+          onClick={() => setStatusFilter(statusFilter === 'CLOSED' ? 'open' : 'CLOSED')}
+          className={`rounded-lg border px-2.5 py-1.5 text-sm font-medium ${
+            statusFilter === 'CLOSED'
+              ? 'border-slate-700 bg-slate-700 text-white'
+              : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          종결함 {closedCount.toLocaleString()}
+        </button>
         <div className="ml-auto flex rounded-lg bg-slate-100 p-0.5 text-sm">
           <button
             onClick={() => setView('list')}
@@ -272,7 +317,7 @@ export default function ConsultationModule({ role, kind }: Props) {
               {filtered.length === 0 && (
                 <tr><td colSpan={10} className="px-5 py-10 text-center text-sm text-slate-400">상담 내역이 없습니다.</td></tr>
               )}
-              {filtered.map(c => (
+              {shown.map(c => (
                 <tr key={c.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
                   <td className="px-5 py-2.5 whitespace-nowrap text-slate-600">{dayjs(c.date).format('M/D')} {c.time}</td>
                   <td className="px-4 py-2.5">
@@ -339,6 +384,16 @@ export default function ConsultationModule({ role, kind }: Props) {
             </tbody>
           </table>
         </div>
+        {filtered.length > shown.length && (
+          <div className="border-t border-slate-100 px-5 py-3 text-center">
+            <button
+              onClick={() => setVisible(v => v + PAGE_SIZE)}
+              className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              더 보기 — {shown.length.toLocaleString()} / {filtered.length.toLocaleString()}건
+            </button>
+          </div>
+        )}
       </div>
       )}
 
