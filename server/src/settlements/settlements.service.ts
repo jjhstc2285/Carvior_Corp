@@ -5,7 +5,7 @@ import { formatDateOnly, monthRange, toDateOnly } from '../common/date.util';
 import {
   EMPTY_VEHICLE_COST,
   brokerageProfit,
-  brokerageSaleProfit,
+  brokerageSettlementAmount,
   netProfit,
   prepBreakdown,
   purchaseGrandTotal,
@@ -155,7 +155,6 @@ export class SettlementsService {
       ...r,
       date: formatDateOnly(r.date),
       profit: brokerageProfit(r),
-      saleProfit: brokerageSaleProfit(r),
     }));
   }
 
@@ -177,14 +176,15 @@ export class SettlementsService {
         vehicleName: dto.vehicleName,
         ...nums,
         // 비워서 보내면 판매 수익을 그대로 정산받을금액으로 잡는다(프론트 폼과 동일한 규칙).
-        settlementAmount: dto.settlementAmount ?? brokerageSaleProfit(nums),
+        // 안 적어 보내면 구간 비율로 낸다. 적어 보내면 그 값이 우선이다 — 예외가 있다.
+        settlementAmount: dto.settlementAmount ?? brokerageSettlementAmount(brokerageProfit(nums)),
         employeeId: dto.employeeId,
         status: dto.status ?? SettlementStatus.IN_PROGRESS,
         memo: dto.memo ?? '',
       },
       include: EMPLOYEE_SELECT,
     });
-    return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row), saleProfit: brokerageSaleProfit(row) };
+    return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
   }
 
   async updateBrokerage(id: string, dto: UpdateBrokerageDto) {
@@ -194,7 +194,7 @@ export class SettlementsService {
       data: { ...this.stripDate(dto), ...(dto.date ? { date: toDateOnly(dto.date) } : {}) },
       include: EMPLOYEE_SELECT,
     });
-    return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row), saleProfit: brokerageSaleProfit(row) };
+    return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
   }
 
   async removeBrokerage(id: string) {

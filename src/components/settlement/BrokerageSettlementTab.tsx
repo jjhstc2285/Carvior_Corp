@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
-import { brokerageProfit, brokerageSaleProfit, SETTLEMENT_STATUS_LABEL, type BrokerageSettlement, type SettlementStatus } from '../../types';
+import { brokerageProfit, SETTLEMENT_STATUS_LABEL, type BrokerageSettlement, type SettlementStatus } from '../../types';
 import BrokerageSettlementForm from './BrokerageSettlementForm';
 import PendingSettlementVehicles from './PendingSettlementVehicles';
 import { confirmDanger } from '../../lib/alert';
@@ -38,7 +38,8 @@ export default function BrokerageSettlementTab({ role }: Props) {
 
   const totals = useMemo(() => ({
     count: filtered.length,
-    saleProfit: filtered.reduce((sum, s) => sum + brokerageSaleProfit(s), 0),
+
+    profit: filtered.reduce((sum, s) => sum + brokerageProfit(s), 0),
     settlement: filtered.reduce((sum, s) => sum + s.settlementAmount, 0),
     inProgress: filtered.filter(s => s.status === 'IN_PROGRESS').length,
   }), [filtered]);
@@ -56,8 +57,8 @@ export default function BrokerageSettlementTab({ role }: Props) {
       '현금 수수료': s.cashCommission,
       '할부 피': s.installmentFee,
       '보험 피': s.insuranceFee,
-      기타비용: s.etcCost,
-      '판매 수익': brokerageSaleProfit(s),
+      차대금업: s.etcCost,
+
       정산받을금액: s.settlementAmount,
       담당자: employeeOf(s.employeeId)?.name ?? '',
       상태: SETTLEMENT_STATUS_LABEL[s.status],
@@ -91,8 +92,8 @@ export default function BrokerageSettlementTab({ role }: Props) {
           <p className="mt-1 text-2xl font-bold text-slate-800">{totals.count}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">판매 수익 합계</p>
-          <p className={`mt-1 text-2xl font-bold ${totals.saleProfit >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>{NUM(totals.saleProfit)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+          <p className="text-xs font-medium text-slate-400">수익금 합계</p>
+          <p className={`mt-1 text-2xl font-bold ${totals.profit >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>{NUM(totals.profit)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">정산받을금액 합계</p>
@@ -147,8 +148,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">현금 수수료</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">할부 피</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">보험 피</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">기타비용</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">판매 수익</th>
+                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">차대금업</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">정산받을금액</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">담당자</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">상태</th>
@@ -161,7 +161,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
               )}
               {filtered.map(s => {
                 const profit = brokerageProfit(s);
-                const saleProfit = brokerageSaleProfit(s);
+
                 return (
                   <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{dayjs(s.date).format('M/D')}</td>
@@ -176,7 +176,6 @@ export default function BrokerageSettlementTab({ role }: Props) {
                     <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.installmentFee)}</td>
                     <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.insuranceFee)}</td>
                     <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.etcCost)}</td>
-                    <td className={`px-3 py-2.5 text-right font-semibold ${saleProfit >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>{NUM(saleProfit)}</td>
                     <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{NUM(s.settlementAmount)}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{employeeOf(s.employeeId)?.name}</td>
                     <td className="px-3 py-2.5">

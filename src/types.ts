@@ -223,7 +223,7 @@ export function netProfit(r: Pick<SettlementRecord, 'purchaseCost' | 'prepCost' 
 // ─────────────────────────────────────────────────────────────
 // 알선 정산 — 시트지 컬럼 그대로
 // 일자 / 차량번호 / 차량명 / 총 진행 판매금액 / 실차주입금 / 수익금 / 이전비 /
-// 이전비 잔액 / 현금 수수료 / 할부 피 / 보험 피 / 기타비용 / 판매 수익 / 정산받을금액
+// 이전비 잔액 / 현금 수수료 / 할부 피 / 보험 피 / 차대금업 / 정산받을금액
 // (수익금·판매 수익은 저장하지 않고 항상 계산해서 씀 — 서버도 같은 식을 쓴다)
 // ─────────────────────────────────────────────────────────────
 export interface BrokerageSettlement {
@@ -238,7 +238,7 @@ export interface BrokerageSettlement {
   cashCommission: number; // 현금 수수료
   installmentFee: number; // 할부 피
   insuranceFee: number; // 보험 피
-  etcCost: number; // 기타비용
+  etcCost: number; // 차대금업 (DB 칸 이름은 그대로 둔다 — 지난 자료가 들어 있다)
   settlementAmount: number; // 정산받을금액
   employeeId: string;
   status: SettlementStatus;
@@ -246,16 +246,39 @@ export interface BrokerageSettlement {
   createdAt: string;
 }
 
-// 수익금 = 총 진행 판매금액 − 실차주입금
-export function brokerageProfit(r: Pick<BrokerageSettlement, 'totalSaleAmount' | 'ownerDeposit'>): number {
-  return r.totalSaleAmount - r.ownerDeposit;
+/**
+ * 수익금 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업
+ *
+ * 예전에는 '총 진행 판매금액 − 실차주입금' 이었다. 차값이 오가는 건 회사 돈이 들고 나는
+ * 것이고, 알선으로 실제로 남는 건 수수료·피 쪽이라 그것만 센다.
+ * 총 판매금액과 실차주입금은 그대로 적어둔다 — 얼마짜리 거래였는지는 남아야 한다.
+ */
+export function brokerageProfit(r: Pick<BrokerageSettlement, 'cashCommission' | 'installmentFee' | 'insuranceFee' | 'etcCost'>): number {
+  return r.cashCommission + r.installmentFee + r.insuranceFee + r.etcCost;
 }
 
-// 판매 수익 = 수익금 + 이전비 잔액 + 현금 수수료 + 할부 피 + 보험 피 − 기타비용
-export function brokerageSaleProfit(
-  r: Pick<BrokerageSettlement, 'totalSaleAmount' | 'ownerDeposit' | 'transferFeeBalance' | 'cashCommission' | 'installmentFee' | 'insuranceFee' | 'etcCost'>,
-): number {
-  return brokerageProfit(r) + r.transferFeeBalance + r.cashCommission + r.installmentFee + r.insuranceFee - r.etcCost;
+/**
+ * 정산받을금액 = 수익금 구간별 비율.
+ *
+ *   100만원 미만  →  없음
+ *   100만원 이상  →  20%
+ *   200만원 이상  →  30%
+ *
+ * 구간을 표로 둔 이유: 비율이나 구간이 바뀌는 일이 잦은데, if 를 고치는 것보다
+ * 숫자 두 개를 고치는 쪽이 틀릴 여지가 적다. 큰 금액부터 본다.
+ */
+export const BROKERAGE_TIERS = [
+  { from: 2_000_000, rate: 0.3 },
+  { from: 1_000_000, rate: 0.2 },
+] as const;
+
+export function brokerageSettlementRate(profit: number): number {
+  return BROKERAGE_TIERS.find((t) => profit >= t.from)?.rate ?? 0;
+}
+
+/** 원 단위로 끊는다 — 1원 단위가 남으면 이체할 때 사람이 다시 반올림한다. */
+export function brokerageSettlementAmount(profit: number): number {
+  return Math.round((profit * brokerageSettlementRate(profit)) / 1000) * 1000;
 }
 
 // ─────────────────────────────────────────────────────────────

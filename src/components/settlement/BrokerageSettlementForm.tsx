@@ -2,7 +2,13 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
-import { brokerageProfit, brokerageSaleProfit, type BrokerageSettlement, type SettlementStatus } from '../../types';
+import {
+  brokerageProfit,
+  brokerageSettlementAmount,
+  brokerageSettlementRate,
+  type BrokerageSettlement,
+  type SettlementStatus,
+} from '../../types';
 import { CalcRow, DateField, EmployeeField, MoneyField, StatusField, TextField } from './fields';
 
 interface Props {
@@ -46,7 +52,9 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
     etcCost: Number(etcCost) || 0,
   };
   const profit = brokerageProfit(nums);
-  const saleProfit = brokerageSaleProfit(nums);
+  // 구간 비율로 낸 값. 사람이 손으로 적으면 그 값이 우선이다 — 예외가 있다.
+  const suggested = brokerageSettlementAmount(profit);
+  const rate = brokerageSettlementRate(profit);
 
   const handleSubmit = () => {
     if (!vehicleNumber.trim() || !vehicleName.trim() || !totalSaleAmount) {
@@ -59,8 +67,8 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
       vehicleNumber: vehicleNumber.trim(),
       vehicleName: vehicleName.trim(),
       ...nums,
-      // 비워두면 판매 수익을 그대로 정산받을금액으로 잡는다
-      settlementAmount: settlementAmount === '' ? saleProfit : Number(settlementAmount) || 0,
+      // 비워두면 구간 비율로 낸 값이 들어간다
+      settlementAmount: settlementAmount === '' ? suggested : Number(settlementAmount) || 0,
       employeeId,
       status,
       memo: memo.trim(),
@@ -93,20 +101,36 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
           <MoneyField label="현금 수수료" value={cashCommission} onChange={setCashCommission} />
           <MoneyField label="할부 피" value={installmentFee} onChange={setInstallmentFee} />
           <MoneyField label="보험 피" value={insuranceFee} onChange={setInsuranceFee} />
-          <MoneyField label="기타비용" value={etcCost} onChange={setEtcCost} />
+          <MoneyField label="차대금업" value={etcCost} onChange={setEtcCost} />
         </div>
 
         <div className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
-          <CalcRow label="수익금" formula="총 진행 판매금액 − 실차주입금" value={profit} />
-          <CalcRow label="판매 수익" formula="수익금 + 이전비 잔액 + 현금 수수료 + 할부 피 + 보험 피 − 기타비용" value={saleProfit} strong />
+          <CalcRow label="수익금" formula="현금 수수료 + 할부 피 + 보험 피 + 차대금업" value={profit} strong />
+          <CalcRow
+            label="정산 기준"
+            formula={
+              rate > 0
+                ? `수익금의 ${Math.round(rate * 100)}% (100만원 이상 20% · 200만원 이상 30%)`
+                : '수익금 100만원 미만 — 정산 없음'
+            }
+            value={suggested}
+          />
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MoneyField label="정산받을금액" value={settlementAmount} onChange={setSettlementAmount} />
+          <MoneyField
+            label="정산받을금액"
+            value={settlementAmount}
+            onChange={setSettlementAmount}
+          />
           <StatusField value={status} onChange={v => setStatus(v as SettlementStatus)} />
           <TextField label="메모" value={memo} onChange={setMemo} className="col-span-2" />
         </div>
-        <p className="mt-1.5 text-[11px] text-slate-400">정산받을금액을 비워두면 위의 판매 수익({saleProfit.toLocaleString()}만원)이 자동으로 들어갑니다.</p>
+        <p className="mt-1.5 text-[11px] text-slate-400">
+          정산받을금액을 비워두면 <b>{suggested.toLocaleString()}만원</b>
+          {rate > 0 ? ` (수익금의 ${Math.round(rate * 100)}%)` : ' (수익금 100만원 미만 — 정산 없음)'}이 들어갑니다.
+          예외가 있으면 직접 적으세요.
+        </p>
 
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
