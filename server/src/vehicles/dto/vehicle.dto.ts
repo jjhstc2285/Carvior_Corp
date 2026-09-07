@@ -51,6 +51,13 @@ export class UpdateVehicleDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) adCost?: number; // 광고금액(원)
 }
 
+/** 차량 관리에 없는 차를 매도로 남길 때 — 차를 만들면서 매도일자까지 같이 적는다. */
+export class RegisterSoldVehicleDto {
+  @IsString() @Matches(PLATE_PATTERN, { message: PLATE_FORMAT_MESSAGE }) vehicleNumber!: string;
+  @IsOptional() @IsString() @MaxLength(60) vehicleModel?: string;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) soldDate!: string;
+}
+
 export class VehicleListQueryDto {
   @IsOptional() @IsString() q?: string;
 }

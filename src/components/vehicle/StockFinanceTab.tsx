@@ -16,6 +16,7 @@ import { digitsOnly, withCommas } from '../../lib/money';
 import { useStore } from '../../store';
 import type { ManagedVehicle } from '../../types';
 import type { VehiclesApi } from './useVehicles';
+import UnregisteredSoldPanel from './UnregisteredSoldPanel';
 
 type View = 'candidate' | 'offered' | 'stocked' | 'repay' | 'cash' | 'release' | 'sold';
 
@@ -54,7 +55,7 @@ type DateField = 'offerDate' | 'transferDate' | 'repayDate' | 'soldDate';
  * 지난 기록이 옛 기준으로 굳지 않는다.
  */
 export default function StockFinanceTab({ api, isOfficeManager }: { api: VehiclesApi; isOfficeManager: boolean }) {
-  const { vehicles, toggleFlag } = api;
+  const { vehicles, toggleFlag, reload } = api;
   const { state } = useStore();
 
   /**
@@ -255,7 +256,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
 
         {dateField && (
           <span className="flex items-center gap-1 text-sm text-slate-500">
-            {view === 'offered' ? '제시일자' : '이전일자'}
+            {view === 'offered' ? '제시일자' : view === 'sold' ? '매도일자' : '이전일자'}
             <input
               type="date"
               value={from}
@@ -290,6 +291,9 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
           <Download size={14} /> 엑셀
         </button>
       </div>
+
+      {/* 알선처럼 우리가 안 사온 차는 차량 관리에 없다. 그래도 판 건 남아야 한다. */}
+      {(view === 'release' || view === 'sold') && <UnregisteredSoldPanel onRegistered={() => void reload()} />}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">

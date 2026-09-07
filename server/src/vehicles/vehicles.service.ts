@@ -25,6 +25,7 @@ import {
 import type {
   CreateVehicleDto,
   CreateVehicleExpenseDto,
+  RegisterSoldVehicleDto,
   UpdateVehicleDto,
   UpdateVehicleExpenseDto,
 } from "./dto/vehicle.dto";
@@ -94,6 +95,70 @@ export class VehiclesService {
       this.prisma.managedVehicle.findMany({ where, orderBy: { createdAt: "desc" } }),
       this.soldPlates(),
     ]).then(([rows, sold]) => rows.map((r) => this.toView(r, sold)));
+  }
+
+  /**
+   * 판매완료로 찍혔는데 차량 관리에 아예 없는 차.
+   *
+   * 알선처럼 우리가 안 사온 차는 차량 관리에 등록되지 않는다. 그래도 판 건 판 거라
+   * 매도차량으로 남아야 한다 — 언제 무엇을 넘겼는지가 없으면 나중에 맞춰볼 게 없다.
+   *
+   * 여기서는 알려주기만 한다. 매도일자를 적는 순간 registerSold 가 차를 만든다 —
+   * 조회하면서 데이터를 만들어두면 안 쓸 차까지 목록에 쌓인다.
+   */
+  async findUnregisteredSold() {
+    const [consultations, vehicles] = await Promise.all([
+      this.prisma.consultation.findMany({
+        where: { status: ConsultationStatus.SOLD },
+        select: { vehicleNumber: true, vehicleName: true, date: true },
+        orderBy: { date: 'desc' },
+      }),
+      this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true } }),
+    ]);
+
+    const known = new Set(vehicles.map((v) => normalizePlate(v.vehicleNumber)));
+    const seen = new Set<string>();
+
+    return consultations
+      .filter((c) => {
+        const plate = normalizePlate(c.vehicleNumber);
+        // 같은 차로 상담이 여러 번 오는 일이 흔하다. 목록에는 한 번만 올린다.
+        if (!plate || known.has(plate) || seen.has(plate)) return false;
+        seen.add(plate);
+        return true;
+      })
+      .map((c) => ({
+        vehicleNumber: c.vehicleNumber,
+        vehicleModel: c.vehicleName,
+        soldOn: formatDateOnly(c.date),
+      }));
+  }
+
+  /**
+   * 차량 관리에 없는 차를 매도로 남긴다.
+   *
+   * 차를 만들고 매도일자를 적는다. 이미 있으면 날짜만 고친다 — 두 번 눌러도 같은 결과다.
+   * 매입가·연식 같은 건 비워둔다. 나중에 매입 관리에서 채우면 그대로 이어진다.
+   */
+  async registerSold(dto: RegisterSoldVehicleDto) {
+    const vehicleNumber = this.assertPlate(dto.vehicleNumber);
+    const found = await this.prisma.managedVehicle.findFirst({
+      where: { vehicleNumber: { in: [vehicleNumber, dto.vehicleNumber] } },
+      select: { id: true },
+    });
+
+    const soldDate = toDateOnlyOrNull(dto.soldDate);
+    const row = found
+      ? await this.prisma.managedVehicle.update({ where: { id: found.id }, data: { soldDate } })
+      : await this.prisma.managedVehicle.create({
+          data: {
+            vehicleNumber,
+            plateTail: plateTailOf(vehicleNumber),
+            vehicleModel: dto.vehicleModel?.trim() || '',
+            soldDate,
+          },
+        });
+    return this.toView(row);
   }
 
   /** 뒤 4자리로 찾기 — 여러 대면 화면에서 선택박스를 띄운다. */

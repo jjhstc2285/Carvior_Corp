@@ -4,6 +4,7 @@ import {
   CreateVehicleDto,
   CreateVehicleExpenseDto,
   PlateTailQueryDto,
+  RegisterSoldVehicleDto,
   UpdateVehicleDto,
   UpdateVehicleExpenseDto,
   VehicleExpenseQueryDto,
@@ -40,6 +41,18 @@ export class VehiclesController {
   @HttpCode(204)
   async removeExpense(@Param('id') id: string) {
     await this.vehicles.removeExpense(id);
+  }
+
+  /** 판매완료인데 차량 관리에 없는 차 — 알선처럼 우리가 안 사온 차다. */
+  @Get('unregistered-sold')
+  findUnregisteredSold() {
+    return this.vehicles.findUnregisteredSold();
+  }
+
+  /** 그런 차를 매도로 남긴다 — 차를 만들면서 매도일자를 적는다. */
+  @Post('register-sold')
+  registerSold(@Body() dto: RegisterSoldVehicleDto) {
+    return this.vehicles.registerSold(dto);
   }
 
   /** 뒤 4자리로 찾기 — 여러 대가 나오면 화면에서 선택박스를 띄운다. */
