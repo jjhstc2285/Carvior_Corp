@@ -268,11 +268,14 @@ export function brokerageProfit(r: Pick<BrokerageSettlement, 'cashCommission' | 
  * 숫자를 고치는 쪽이 틀릴 여지가 적다. 큰 금액부터 본다.
  *
  * 아래 구간만 정액이라 비율(rate)과 정액(flat)을 둘 다 받는다.
+ *
+ * 단위는 만원이다 — 알선 정산은 저장도 화면도 전부 만원이라 100이 100만원이다.
+ * 원 단위로 적으면 만 배가 틀어진다.
  */
 export const BROKERAGE_TIERS = [
-  { from: 2_000_000, rate: 0.3 },
-  { from: 1_000_000, rate: 0.2 },
-  { from: 0, flat: 50_000 },
+  { from: 200, rate: 0.3 },
+  { from: 100, rate: 0.2 },
+  { from: 0, flat: 5 },
 ] as const;
 
 type BrokerageTier = { from: number; rate?: number; flat?: number };
@@ -286,12 +289,12 @@ export function brokerageSettlementRate(profit: number): number {
   return tierOf(profit)?.rate ?? 0;
 }
 
-/** 천원 단위로 끊는다 — 1원 단위가 남으면 이체할 때 사람이 다시 반올림한다. */
+/** 만원 단위로 끊는다 — 소수 만원이 남으면 이체할 때 사람이 다시 반올림한다. */
 export function brokerageSettlementAmount(profit: number): number {
   const tier = tierOf(profit);
   if (!tier) return 0;
   if (tier.flat != null) return tier.flat;
-  return Math.round((profit * (tier.rate ?? 0)) / 1000) * 1000;
+  return Math.round(profit * (tier.rate ?? 0));
 }
 
 // ─────────────────────────────────────────────────────────────
