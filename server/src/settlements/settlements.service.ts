@@ -10,6 +10,9 @@ import {
   prepBreakdown,
   purchaseGrandTotal,
   purchaseGrandTotalWon,
+  saleNet,
+  saleProfit,
+  type SaleFields,
   purchasePrepTotal,
   type PrepCostKind,
   type VehicleCostSummary,
@@ -38,9 +41,10 @@ const EMPLOYEE_SELECT = { employee: { select: { id: true, name: true, position: 
 const PREP_COST_INCLUDE = { prepCosts: { orderBy: { sortOrder: 'asc' } } } satisfies Prisma.PurchaseSettlementInclude;
 
 /** 조회 결과에서 파생값 계산에 필요한 최소 모양 */
-interface PurchaseRow {
+interface PurchaseRow extends SaleFields {
   date: Date;
   purchasePrice: number;
+  salePrice: number;
   prepCosts: { kind: PrepCostKind; amount: number }[];
 }
 
@@ -276,6 +280,9 @@ export class SettlementsService {
       // 차량관리에서 자동으로 붙는 값 — 저장하지 않고 조회할 때마다 계산한다.
       vehicleCost,
       grandTotalWon: purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost),
+      // 판 값. 아직 안 팔았으면 전부 0이라 판매수익도 0으로 나온다.
+      saleProfit: saleProfit(row),
+      saleNet: saleNet(row.salePrice, purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost), saleProfit(row)),
     };
   }
 
@@ -298,6 +305,12 @@ export class SettlementsService {
         transferFee: dto.transferFee ?? 0,
         purchasePrice,
         brokerFee: dto.brokerFee ?? 0,
+        ...(dto.brokerFeePayout ? { brokerFeePayout: dto.brokerFeePayout } : {}),
+        salePrice: dto.salePrice ?? 0,
+        cashCommission: dto.cashCommission ?? 0,
+        installmentFee: dto.installmentFee ?? 0,
+        insuranceFee: dto.insuranceFee ?? 0,
+        dealerLoanFee: dto.dealerLoanFee ?? 0,
         // 비워서 보내면 매입+상품화총비용을 그대로 정산금액으로 잡는다.
         settlementAmount: dto.settlementAmount ?? purchaseGrandTotal(purchasePrice, prepTotal),
         newCarName: dto.newCarName ?? '',

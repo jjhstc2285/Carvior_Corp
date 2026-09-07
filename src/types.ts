@@ -412,7 +412,16 @@ export interface PurchaseSettlement {
   transferFee: number; // 이전비 + 추가이전비
   purchasePrice: number; // 매입가
   brokerFee: number; // 구전 — 상품화가 아니라 별도 항목
+  /** 구전 지급방식 — 현금으로 준 것만 판매수익에서 뺀다 */
+  brokerFeePayout: BrokerFeePayout;
   prepCosts: PurchasePrepCost[]; // 상품화 비용 명세
+
+  // ── 판매 쪽 — 상담이 판매완료로 끝나면 채운다 ──
+  salePrice: number; // 차량판매가
+  cashCommission: number; // 현금 수수료
+  installmentFee: number; // 할부 피
+  insuranceFee: number; // 보험 피
+  dealerLoanFee: number; // 차대금업
   settlementAmount: number; // 정산금액
   newCarName: string; // 신차이름
   employeeId: string;
@@ -431,6 +440,10 @@ export interface PurchaseSettlement {
   vehicleCost?: VehicleCostSummary;
   /** 최종 합계(원) = (매입+상품화총비용) × 10,000 + 차량비용 */
   grandTotalWon?: number;
+  /** 판매수익 — 현금 수수료 + 할부 피 + 보험 피 + 차대금업 − 현금으로 준 구전 */
+  saleProfit?: number;
+  /** 차량판매가 − (매입+부대비용) + 판매수익 */
+  saleNet?: number;
 }
 
 /**
@@ -477,6 +490,47 @@ export function prepBreakdown(costs: { kind: PrepCostKind; amount: number }[]): 
 // 매입+상품화총비용 = 매입가 + 상품화총비용
 export function purchaseGrandTotal(purchasePrice: number, prepTotal: number): number {
   return purchasePrice + prepTotal;
+}
+
+// ── 판매 쪽 (매입 정산) ──
+//
+// 사 온 차를 팔면 그 차 한 대에서 얼마가 남았는지를 본다.
+// 산 값(매입 + 부대비용)은 위에서 세고, 여기서는 판 값을 센다.
+
+export const BROKER_FEE_PAYOUTS = ['CASH', 'TAX_3_3', 'TAX_13_3'] as const;
+
+export type BrokerFeePayout = (typeof BROKER_FEE_PAYOUTS)[number];
+
+export const BROKER_FEE_PAYOUT_LABEL: Record<BrokerFeePayout, string> = {
+  CASH: '현금',
+  TAX_3_3: '3.3%',
+  TAX_13_3: '13.3%',
+};
+
+export interface SaleFields {
+  cashCommission: number;
+  installmentFee: number;
+  insuranceFee: number;
+  /** 차대금업 */
+  dealerLoanFee: number;
+  brokerFee: number;
+  brokerFeePayout: BrokerFeePayout;
+}
+
+/**
+ * 판매수익 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업 − 현금으로 준 구전
+ *
+ * 구전은 현금으로 나간 것만 뺀다. 3.3%·13.3%로 준 건 세금계산 쪽에서 따로 잡혀서
+ * 여기서 또 빼면 두 번 빠진다.
+ */
+export function saleProfit(r: SaleFields): number {
+  const paidInCash = r.brokerFeePayout === 'CASH' ? r.brokerFee : 0;
+  return r.cashCommission + r.installmentFee + r.insuranceFee + r.dealerLoanFee - paidInCash;
+}
+
+/** 차 한 대에서 최종으로 남은 돈 = 차량판매가 − (매입 + 부대비용) + 판매수익 */
+export function saleNet(salePrice: number, grandTotalWon: number, profit: number): number {
+  return salePrice - grandTotalWon + profit;
 }
 
 // 상담 → 계약 → 판매완료 → (정산) 순으로 간다. 보류·종결은 그 흐름에서 빠지는 갈래다.

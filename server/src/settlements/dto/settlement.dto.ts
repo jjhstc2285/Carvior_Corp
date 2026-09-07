@@ -12,7 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { PrepCostKind, SettlementStatus } from '@prisma/client';
+import { BrokerFeePayout, PrepCostKind, SettlementStatus } from '@prisma/client';
 import { DATE_PATTERN } from '../../common/dto';
 
 /** 금액 필드 공통 — 정수, 음수 불가. 단위는 정산 종류마다 다르다(매입 정산만 '원', 나머지는 만원). */
@@ -103,6 +103,12 @@ export class CreatePurchaseDto {
   @IsOptional() @Money() transferFee?: number;
   @IsOptional() @Money() purchasePrice?: number;
   @IsOptional() @Money() brokerFee?: number;
+  @IsOptional() @IsEnum(BrokerFeePayout) brokerFeePayout?: BrokerFeePayout;
+  @IsOptional() @Money() salePrice?: number;
+  @IsOptional() @Money() cashCommission?: number;
+  @IsOptional() @Money() installmentFee?: number;
+  @IsOptional() @Money() insuranceFee?: number;
+  @IsOptional() @Money() dealerLoanFee?: number;
   @IsOptional() @Money() settlementAmount?: number;
   @IsOptional() @IsString() @MaxLength(60) newCarName?: string;
   @IsString() @IsNotEmpty() employeeId!: string;
@@ -120,6 +126,12 @@ export class UpdatePurchaseDto {
   @IsOptional() @Money() transferFee?: number;
   @IsOptional() @Money() purchasePrice?: number;
   @IsOptional() @Money() brokerFee?: number;
+  @IsOptional() @IsEnum(BrokerFeePayout) brokerFeePayout?: BrokerFeePayout;
+  @IsOptional() @Money() salePrice?: number;
+  @IsOptional() @Money() cashCommission?: number;
+  @IsOptional() @Money() installmentFee?: number;
+  @IsOptional() @Money() insuranceFee?: number;
+  @IsOptional() @Money() dealerLoanFee?: number;
   @IsOptional() @Money() settlementAmount?: number;
   @IsOptional() @IsString() @MaxLength(60) newCarName?: string;
   @IsOptional() @IsString() employeeId?: string;

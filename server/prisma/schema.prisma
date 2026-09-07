@@ -542,6 +542,17 @@ model BrokerageSettlement {
   @@index([vehicleNumber])
 }
 
+/**
+ * 구전을 어떻게 줬는가.
+ * 현금으로 준 것만 판매수익에서 뺀다 — 3.3%·13.3%는 세금계산 쪽에서 따로 처리하고
+ * 여기서는 안 센다.
+ */
+enum BrokerFeePayout {
+  CASH // 현금
+  TAX_3_3 // 3.3%
+  TAX_13_3 // 13.3%
+}
+
 // 매입 정산 — 시트지 컬럼 그대로.
 // 상품화총비용 / 매입+상품화총비용도 저장하지 않고 조회 시 계산한다.
 //
@@ -557,6 +568,18 @@ model PurchaseSettlement {
   transferFee   Int      @default(0) // 이전비 + 추가이전비
   purchasePrice Int      @default(0) // 매입가
   brokerFee     Int      @default(0) // 구전 — 상품화가 아니라 별도 항목이다
+
+  // 구전 지급방식. 현금으로 준 구전만 판매수익에서 뺀다.
+  brokerFeePayout BrokerFeePayout @default(CASH)
+
+  // ── 판매 쪽 ──
+  // 상담이 판매완료로 끝나면 여기까지 채운다. 산 값(위)과 판 값(아래)이 한 줄에 있어야
+  // 그 차 한 대에서 얼마가 남았는지가 보인다.
+  salePrice      Int @default(0) // 차량판매가(원)
+  cashCommission Int @default(0) // 현금 수수료(원)
+  installmentFee Int @default(0) // 할부 피(원)
+  insuranceFee   Int @default(0) // 보험 피(원)
+  dealerLoanFee  Int @default(0) // 차대금업(원)
 
   // ⚠️ 아래 6개는 PurchasePrepCost 명세로 옮겼다. 값을 옮겨둔 뒤 읽지도 쓰지도 않는다.
   //    옮긴 숫자가 맞는지 운영에서 확인한 다음 컬럼을 지운다(그때까지는 되돌릴 수 있게 남겨둔다).

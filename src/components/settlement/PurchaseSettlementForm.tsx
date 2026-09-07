@@ -2,7 +2,17 @@ import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
-import { purchaseGrandTotal, purchasePrepTotal, type PurchaseSettlement, type SettlementStatus } from '../../types';
+import {
+  BROKER_FEE_PAYOUTS,
+  BROKER_FEE_PAYOUT_LABEL,
+  purchaseGrandTotal,
+  purchasePrepTotal,
+  saleNet,
+  saleProfit,
+  type BrokerFeePayout,
+  type PurchaseSettlement,
+  type SettlementStatus,
+} from '../../types';
 import { api } from '../../lib/api';
 import { manwonToWon, wonToManwon } from '../../lib/money';
 import PrepCostEditor, { type PrepCostRow } from './PrepCostEditor';
@@ -22,6 +32,13 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const [transferFee, setTransferFee] = useState(editing ? wonToManwon(editing.transferFee) : '0');
   const [purchasePrice, setPurchasePrice] = useState(editing ? wonToManwon(editing.purchasePrice) : '');
   const [brokerFee, setBrokerFee] = useState(editing ? wonToManwon(editing.brokerFee) : '0');
+  const [brokerFeePayout, setBrokerFeePayout] = useState<BrokerFeePayout>(editing?.brokerFeePayout ?? 'CASH');
+  // 판 값 — 상담이 판매완료로 끝나면 채운다. 아직 안 팔았으면 비워둔다.
+  const [salePrice, setSalePrice] = useState(editing ? wonToManwon(editing.salePrice) : '');
+  const [cashCommission, setCashCommission] = useState(editing ? wonToManwon(editing.cashCommission) : '0');
+  const [installmentFee, setInstallmentFee] = useState(editing ? wonToManwon(editing.installmentFee) : '0');
+  const [insuranceFee, setInsuranceFee] = useState(editing ? wonToManwon(editing.insuranceFee) : '0');
+  const [dealerLoanFee, setDealerLoanFee] = useState(editing ? wonToManwon(editing.dealerLoanFee) : '0');
   const [prepRows, setPrepRows] = useState<PrepCostRow[]>(() =>
     (editing?.prepCosts ?? []).map(c => ({
       kind: c.kind,
@@ -56,9 +73,16 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     transferFee: manwonToWon(transferFee),
     purchasePrice: manwonToWon(purchasePrice),
     brokerFee: manwonToWon(brokerFee),
+    salePrice: manwonToWon(salePrice),
+    cashCommission: manwonToWon(cashCommission),
+    installmentFee: manwonToWon(installmentFee),
+    insuranceFee: manwonToWon(insuranceFee),
+    dealerLoanFee: manwonToWon(dealerLoanFee),
   };
   const prepTotal = purchasePrepTotal(prepCosts);
   const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal);
+  const profit = saleProfit({ ...nums, brokerFeePayout });
+  const net = saleNet(nums.salePrice, grandTotal, profit);
 
   const handleSubmit = () => {
     if (!vehicleName.trim() || !vehicleNumber.trim() || !purchasePrice) {
@@ -71,6 +95,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
       vehicleName: vehicleName.trim(),
       vehicleNumber: vehicleNumber.trim(),
       ...nums,
+      brokerFeePayout,
       prepCosts,
       // 비워두면 매입+상품화총비용을 그대로 정산금액으로 잡는다
       settlementAmount: settlementAmount === '' ? grandTotal : manwonToWon(settlementAmount),
@@ -102,15 +127,46 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           <MoneyField label="이전비 + 추가이전비" value={transferFee} onChange={setTransferFee} decimal className="col-span-2 sm:col-span-1" />
           <MoneyField label="매입가" value={purchasePrice} onChange={setPurchasePrice} decimal required />
           <MoneyField label="구전" value={brokerFee} onChange={setBrokerFee} decimal />
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">구전 지급방식</label>
+            <select
+              value={brokerFeePayout}
+              onChange={e => setBrokerFeePayout(e.target.value as BrokerFeePayout)}
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+            >
+              {BROKER_FEE_PAYOUTS.map(p => (
+                <option key={p} value={p}>{BROKER_FEE_PAYOUT_LABEL[p]}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="mt-4">
           <PrepCostEditor rows={prepRows} onChange={setPrepRows} vendors={vendors} />
         </div>
 
+        {/* 판 값. 산 값과 한 화면에 있어야 그 차에서 얼마가 남았는지가 보인다. */}
+        <div className="mt-4 rounded-xl border border-slate-200 p-3">
+          <p className="mb-2 text-xs font-semibold text-slate-600">판매 (판매완료된 뒤에 적습니다)</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <MoneyField label="차량판매가" value={salePrice} onChange={setSalePrice} decimal />
+            <MoneyField label="현금 수수료" value={cashCommission} onChange={setCashCommission} decimal />
+            <MoneyField label="할부 피" value={installmentFee} onChange={setInstallmentFee} decimal />
+            <MoneyField label="보험 피" value={insuranceFee} onChange={setInsuranceFee} decimal />
+            <MoneyField label="차대금업" value={dealerLoanFee} onChange={setDealerLoanFee} decimal />
+          </div>
+        </div>
+
         <div className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
           <CalcRow label="상품화총비용" formula="광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비 (이전비·구전 제외)" value={prepTotal} won />
           <CalcRow label="매입 + 상품화총비용" formula="매입가 + 상품화총비용" value={grandTotal} won strong />
+          <CalcRow
+            label="판매수익"
+            formula={`현금 수수료 + 할부 피 + 보험 피 + 차대금업${brokerFeePayout === 'CASH' ? ' − 구전(현금)' : ' (구전은 현금이 아니라 안 뺍니다)'}`}
+            value={profit}
+            won
+          />
+          <CalcRow label="남은 돈" formula="차량판매가 − (매입 + 상품화총비용) + 판매수익" value={net} won strong />
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
