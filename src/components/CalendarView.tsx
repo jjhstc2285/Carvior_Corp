@@ -14,6 +14,7 @@ const DOTS: Record<AttendanceStatus, string> = {
   earlyLeave: 'bg-orange-400',
   lateAndEarly: 'bg-red-400',
   missing: 'bg-slate-300',
+  pending: 'bg-slate-200',
   dayOff: 'bg-red-300',
   annualLeave: 'bg-violet-400',
   halfDay: 'bg-violet-300',

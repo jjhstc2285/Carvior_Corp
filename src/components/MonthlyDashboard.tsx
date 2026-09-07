@@ -58,14 +58,18 @@ export default function MonthlyDashboard() {
       for (const date of days) {
         const record = state.records.find(r => r.employeeId === emp.id && r.date === date);
         const kind = approvedRequestKind(state.attendanceRequests, emp.id, date);
-        out.push({ date, employeeId: emp.id, status: computeStatus(record, date, kind) });
+        const status = computeStatus(record, date, kind);
+        // 아직 안 찍은 날은 일어난 일이 없다 — 목록에도 통계에도 넣지 않는다.
+        // 오늘 출근 전인 사람이 '정상'으로 세어지던 걸 여기서 걸러낸다.
+        if (status === 'pending') continue;
+        out.push({ date, employeeId: emp.id, status });
       }
     }
     return out;
   }, [scopedEmployees, days, state.records, state.attendanceRequests]);
 
   const counts = useMemo(() => {
-    const c: Record<AttendanceStatus, number> = { normal: 0, late: 0, earlyLeave: 0, lateAndEarly: 0, missing: 0, dayOff: 0, annualLeave: 0, halfDay: 0, fieldWork: 0 };
+    const c: Record<AttendanceStatus, number> = { normal: 0, late: 0, earlyLeave: 0, lateAndEarly: 0, missing: 0, pending: 0, dayOff: 0, annualLeave: 0, halfDay: 0, fieldWork: 0 };
     allRows.forEach(r => { c[r.status]++; });
     return c;
   }, [allRows]);

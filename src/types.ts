@@ -22,7 +22,11 @@ export interface Employee {
   active: boolean;
 }
 
-export type AttendanceStatus = 'normal' | 'late' | 'earlyLeave' | 'lateAndEarly' | 'missing' | 'dayOff' | 'annualLeave' | 'halfDay' | 'fieldWork';
+/**
+ * 'pending' — 오늘이거나 앞으로의 날인데 아직 출퇴근을 안 찍은 상태.
+ * 예전에는 이걸 정상으로 뒀는데 출근을 안 했는데도 정상으로 세어져 통계가 부풀었다.
+ */
+export type AttendanceStatus = 'normal' | 'late' | 'earlyLeave' | 'lateAndEarly' | 'missing' | 'pending' | 'dayOff' | 'annualLeave' | 'halfDay' | 'fieldWork';
 
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 

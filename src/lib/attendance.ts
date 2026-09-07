@@ -51,8 +51,10 @@ function rawStatus(record: AttendanceRecord | undefined, date: string): Attendan
   const clockIn = record?.clockIn ?? null;
   const clockOut = record?.clockOut ?? null;
 
+  // 아직 안 찍은 날. 지난 날이면 누락이고, 오늘·앞으로는 '아직 안 찍음'이다.
+  // 예전에는 이걸 정상으로 뒀는데, 출근을 안 했는데도 정상으로 세어져 통계가 부풀었다.
   if (!clockIn && !clockOut) {
-    return isPast ? 'missing' : 'normal';
+    return isPast ? 'missing' : 'pending';
   }
   if (isPast && (!clockIn || !clockOut)) {
     return 'missing';
@@ -89,6 +91,7 @@ export const STATUS_LABEL: Record<AttendanceStatus, string> = {
   earlyLeave: '조퇴',
   lateAndEarly: '지각+조퇴',
   missing: '누락',
+  pending: '아직 안 찍음',
   dayOff: '휴무',
   annualLeave: '연차',
   halfDay: '반차',
@@ -101,6 +104,7 @@ export const STATUS_COLOR: Record<AttendanceStatus, string> = {
   earlyLeave: 'bg-orange-50 text-orange-700 ring-orange-600/20',
   lateAndEarly: 'bg-red-50 text-red-700 ring-red-600/20',
   missing: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+  pending: 'bg-slate-50 text-slate-400 ring-slate-300/20',
   dayOff: 'bg-red-50 text-red-500 ring-red-500/20',
   annualLeave: 'bg-violet-50 text-violet-600 ring-violet-500/20',
   halfDay: 'bg-violet-50 text-violet-500 ring-violet-400/20',
