@@ -85,7 +85,7 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
             <X size={18} />
           </button>
         </div>
-        <p className="mt-1 text-xs text-slate-400">금액 단위는 만원입니다.</p>
+        <p className="mt-1 text-xs text-slate-400">금액 단위는 <b>원</b>입니다. 할부 피처럼 12,345원으로 떨어지는 값도 그대로 넣으세요.</p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <DateField label="일자" value={date} onChange={setDate} />
@@ -127,7 +127,7 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
           <TextField label="메모" value={memo} onChange={setMemo} className="col-span-2" />
         </div>
         <p className="mt-1.5 text-[11px] text-slate-400">
-          정산받을금액을 비워두면 <b>{suggested.toLocaleString()}만원</b>
+          정산받을금액을 비워두면 <b>{suggested.toLocaleString()}원</b>
           {rate > 0 ? ` (수익금의 ${Math.round(rate * 100)}%)` : ' (수익금 100만원 미만 — 정액)'}이 들어갑니다.
           예외가 있으면 직접 적으세요.
         </p>

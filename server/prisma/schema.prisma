@@ -455,6 +455,11 @@ model Settlement {
 
 // 알선 정산 — 시트지 컬럼 그대로.
 // 수익금 / 판매 수익은 저장하지 않고 조회 시 계산한다(계산식이 바뀌어도 과거 데이터가 안 꼬이게).
+/**
+ * 알선 정산.
+ * 금액은 '원' 단위다 — 다른 정산과 달리 만원이 아니다.
+ * 할부 피처럼 12,345원으로 떨어지는 값이 있어 만원으로는 담기지 않는다.
+ */
 model BrokerageSettlement {
   id                 String           @id @default(cuid())
   date               DateTime         @db.Date

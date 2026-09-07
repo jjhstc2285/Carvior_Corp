@@ -93,11 +93,11 @@ export default function BrokerageSettlementTab({ role }: Props) {
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">수익금 합계</p>
-          <p className={`mt-1 text-2xl font-bold ${totals.profit >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>{NUM(totals.profit)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+          <p className={`mt-1 text-2xl font-bold ${totals.profit >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>{NUM(totals.profit)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">정산받을금액 합계</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">{NUM(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+          <p className="mt-1 text-2xl font-bold text-slate-800">{NUM(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">진행중</p>
