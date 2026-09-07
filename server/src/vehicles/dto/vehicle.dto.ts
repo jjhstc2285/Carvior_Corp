@@ -47,6 +47,7 @@ export class UpdateVehicleDto {
   @IsOptional() @IsBoolean() cashVehicle?: boolean;
   @IsOptional() @IsString() @MaxLength(20) stockCapital?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) stockAmount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) adCost?: number; // 광고금액(원)
 }
 
 export class VehicleListQueryDto {

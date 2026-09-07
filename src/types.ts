@@ -646,6 +646,8 @@ export interface ManagedVehicle {
   transferDate: string | null; // 이전일자 — 명의 이전한 날
   stockCapital: string; // 할부사
   stockAmount: number; // 재고금액(원)
+  /** 이 차 한 대에 쓴 광고비(원) — 광고 관리에서 적는다 */
+  adCost: number;
   repayDate: string | null; // 상환일자 — 월별로 모아 본다
 
   createdAt: string;

@@ -5,6 +5,7 @@ import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { VEHICLE_POST_SITES, type AdContract, type Role } from '../../types';
+import VehicleAdCostPanel from './VehicleAdCostPanel';
 
 /**
  * 광고 관리.
@@ -305,6 +306,8 @@ export default function AdModule({ role }: { role: Role }) {
           );
         })}
       </div>
+
+      <VehicleAdCostPanel />
 
       {formOpen && <AdContractForm onSaved={() => void load()} onClose={() => setFormOpen(false)} />}
 

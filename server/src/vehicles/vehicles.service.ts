@@ -153,6 +153,7 @@ export class VehiclesService {
           ...(dto.stockCapital !== undefined
             ? { stockCapital: dto.stockCapital.trim() }
             : {}),
+          ...(dto.adCost !== undefined ? { adCost: dto.adCost } : {}),
           ...(dto.stockAmount !== undefined
             ? { stockAmount: dto.stockAmount }
             : {}),
