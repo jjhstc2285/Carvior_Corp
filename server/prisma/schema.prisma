@@ -273,6 +273,59 @@ model ApprovalDocument {
   @@index([writtenOn])
 }
 
+/**
+ * 광고 계약.
+ * 광고 상품은 '월 몇 대'로 팔린다 — 22만원짜리가 월 30대, 3개월이면 90대다.
+ * 3달에 30대만 올리면 60대분은 그냥 날아간다. 얼마나 썼는지 보이게 하려고 만들었다.
+ * 금액은 원 단위다. 광고비는 22만원처럼 만원으로 떨어지지 않는 경우가 있다.
+ */
+model AdContract {
+  id          String @id @default(cuid())
+  platform    String @db.VarChar(30) // 엔카 / KB차차차 …
+  productName String @default("") @db.VarChar(60) // "22만원 상품"
+
+  monthlyFee   Int @default(0) // 월 광고비(원)
+  monthlyQuota Int @default(0) // 월 약정 대수
+  months       Int @default(1) // 계약 개월 수
+
+  startOn DateTime @db.Date
+  endOn   DateTime @db.Date // 시작일 + 개월 수. 계약마다 마감이 달라 따로 둔다
+  note    String   @default("") @db.VarChar(255)
+  active  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  postings AdPosting[]
+
+  @@index([active, endOn])
+  @@index([platform])
+}
+
+/**
+ * 그 계약으로 올린 차 한 대.
+ * 매물 사진 등록에 올라온 건 자동으로 세고(같은 플랫폼·기간), 거기 없는 건 손으로 넣는다.
+ * 같은 차를 두 번 세지 않게 계약 안에서 차량번호는 하나뿐이다.
+ */
+model AdPosting {
+  id            String   @id @default(cuid())
+  contractId    String
+  vehicleNumber String   @db.VarChar(30)
+  postedOn      DateTime @db.Date
+  /**
+   * 매물 사진 등록에서 자동으로 잡힌 건지
+   */
+  auto          Boolean  @default(false)
+  memo          String   @default("") @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+
+  contract AdContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, vehicleNumber])
+  @@index([contractId, postedOn])
+}
+
 enum NotificationType {
   MISSING
   CORRECTION_REQUEST
@@ -280,6 +333,7 @@ enum NotificationType {
   MILEAGE_GAP // 실차 확인 주행거리가 처음 적은 것과 많이 벌어졌다
   DEALER_FEE // 신차영업소 상조회비 조건이 바뀌었다
   APPROVAL // 결재 문서가 올라오거나 처리됐다
+  AD_QUOTA // 광고 약정 대수가 남았는데 기간이 얼마 안 남았다
 }
 
 /**

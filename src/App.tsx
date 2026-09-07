@@ -21,6 +21,7 @@ import PurchaseIntakeModule from './components/purchaseIntake/PurchaseIntakeModu
 import StockFinanceModule from './components/vehicle/StockFinanceModule';
 import DealerFeeModule from './components/dealerFee/DealerFeeModule';
 import ApprovalModule from './components/approval/ApprovalModule';
+import AdModule from './components/ad/AdModule';
 import { useChatUnread } from './components/chat/useChat';
 import { useIdleAway } from './hooks/useIdleAway';
 import { useStore } from './store';
@@ -36,6 +37,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   parking: '주차장 관리',
   vehicle: '차량 관리',
   vehiclePost: '매물 사진 등록',
+  ad: '광고 관리',
   purchaseIntake: '매입 관리',
   purchaseList: '매입리스트',
   stockFinance: '재고금융 (제시)',
@@ -58,6 +60,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
   if (module === 'vehiclePost') return <VehiclePostModule role={role} />;
+  if (module === 'ad') return <AdModule role={role} />;
   return <ParkingModule isAdmin={role === 'ADMIN'} />;
 }
 

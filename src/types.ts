@@ -95,7 +95,49 @@ export type NotificationType =
   | 'ATTENDANCE_REQUEST'
   | 'MILEAGE_GAP'
   | 'DEALER_FEE'
-  | 'APPROVAL';
+  | 'APPROVAL'
+  | 'AD_QUOTA';
+
+/**
+ * 광고 계약.
+ *
+ * 광고 상품은 '월 몇 대'로 팔린다 — 22만원짜리가 월 30대, 3개월이면 90대다.
+ * 약정 대수를 다 못 쓰면 그만큼 돈이 날아간다.
+ * 금액은 원 단위다(22만원처럼 만원으로 안 떨어지는 경우가 있다).
+ */
+export interface AdPosting {
+  id: string;
+  vehicleNumber: string;
+  postedOn: string; // YYYY-MM-DD
+  /** 매물 사진 등록에서 자동으로 붙은 건지 */
+  auto: boolean;
+  memo: string;
+}
+
+export interface AdContract {
+  id: string;
+  platform: string;
+  productName: string;
+  monthlyFee: number; // 원
+  monthlyQuota: number; // 월 약정 대수
+  months: number;
+  startOn: string;
+  endOn: string;
+  note: string;
+  active: boolean;
+  postings: AdPosting[];
+
+  // ── 서버가 계산해 내려주는 값 (저장하지 않는다) ──
+  totalQuota: number; // 월 대수 × 개월
+  used: number;
+  remaining: number;
+  daysLeft: number;
+  /** 남은 기간에 하루 몇 대를 올려야 다 쓰는지 */
+  perDayNeeded: number;
+  totalFee: number;
+  /** 기간이 끝났는데 못 쓴 대수만큼의 광고비 */
+  wastedFee: number;
+}
 
 /** 결재 문서 종류. 지금은 시말서 하나지만 휴가원·지출결의서처럼 늘어난다. */
 export type ApprovalKind = 'INCIDENT_REPORT' | 'LEAVE' | 'EXPENSE';
