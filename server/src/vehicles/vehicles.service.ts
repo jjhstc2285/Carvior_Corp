@@ -61,7 +61,8 @@ export class VehiclesService {
        * 차 쪽에 복사해두면 두 곳이 어긋난다.
        * 목록을 안 거쳐 들어온 경우(단건 조회)에는 알 수 없어 false 로 둔다.
        */
-      releasePending: row.soldDate == null && (soldPlates?.has(row.vehicleNumber ?? '') ?? false),
+      releasePending:
+        row.soldDate == null && (soldPlates?.has(normalizePlate(row.vehicleNumber ?? '')) ?? false),
     };
   }
 
@@ -72,7 +73,8 @@ export class VehiclesService {
       select: { vehicleNumber: true },
       distinct: ['vehicleNumber'],
     });
-    return new Set(rows.map((r) => r.vehicleNumber));
+    // 차량번호는 사람이 손으로 적는 값이라 띄어쓰기가 섞여 들어온다. 정리한 꼴로 맞춘다.
+    return new Set(rows.map((r) => normalizePlate(r.vehicleNumber)));
   }
 
   // ── 외부 이동 차량 리스트 ──────────────────────────────

@@ -88,7 +88,7 @@ export default function EventCalendar({ month, onMonthChange, eventsForDate, onS
             <ul className="divide-y divide-slate-100">
               {selectedEvents.map(e => (
                 <li key={e.id} className="flex items-center gap-2 py-2 text-sm">
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${e.colorClass}`}>{e.sublabel}</span>
+                  <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ${e.colorClass}`}>{e.sublabel}</span>
                   <span className="font-medium text-slate-700">{e.label}</span>
                 </li>
               ))}
