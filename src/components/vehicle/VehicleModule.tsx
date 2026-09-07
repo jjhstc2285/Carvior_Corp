@@ -21,7 +21,7 @@ export default function VehicleModule() {
       <div className="mb-5">
         <h1 className="text-xl font-bold text-slate-900">차량 관리</h1>
         <p className="mt-1 text-sm text-slate-500">
-          {tab === 'movement' && '상품화·광고 상태에 따라 외부로 뺄 수 있는 차량이 자동으로 분류됩니다.'}
+          {tab === 'movement' && '상품화한 차량이 외부 이동 가능으로 자동 분류됩니다.'}
           {tab === 'policy' &&
             '값·차종·연료·판매유형으로 어느 주차장에 세울지가 정해집니다. 매입할 때 들어온 값이 채워져 있고, 고치면 추천이 바로 바뀝니다.'}
           {tab === 'expense' &&

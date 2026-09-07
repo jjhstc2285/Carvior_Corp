@@ -27,7 +27,7 @@ export default function MovementTab({ api }: { api: VehiclesApi }) {
 
   // 리스트별 개수는 필터 칩에 그대로 쓴다.
   const counts = useMemo(() => {
-    const base: Record<VehicleListKey, number> = { WAITING_PREP: 0, AD_PENDING: 0, MOVABLE: 0, BLOCKED: 0 };
+    const base: Record<VehicleListKey, number> = { WAITING_PREP: 0, MOVABLE: 0, BLOCKED: 0 };
     for (const v of vehicles) base[vehicleListOf(v)] += 1;
     return base;
   }, [vehicles]);
@@ -118,10 +118,10 @@ export default function MovementTab({ api }: { api: VehiclesApi }) {
             {VEHICLE_LIST_LABEL[key]} {counts[key]}
           </button>
         ))}
-        {/* 상품화·광고완료를 다 체크한 차가 상담 화면으로 넘어간다는 걸 여기서 알려준다 */}
+        {/* 상품화한 차가 상담 화면으로 넘어간다는 걸 여기서 알려준다 */}
         {counts.MOVABLE > 0 && (
           <span className="text-[11px] text-emerald-700">
-            상품화·광고 완료 {counts.MOVABLE}대는 상담 관리에서 바로 상담을 걸 수 있어요
+            상품화 {counts.MOVABLE}대는 상담 관리에서 바로 상담을 걸 수 있어요
           </span>
         )}
         <input
@@ -147,7 +147,6 @@ export default function MovementTab({ api }: { api: VehiclesApi }) {
                 <th className="px-4 py-3 font-medium">차량번호</th>
                 <th className="px-4 py-3 font-medium">차량명</th>
                 <th className="px-3 py-3 text-center font-medium">상품화</th>
-                <th className="px-3 py-3 text-center font-medium">광고 완료</th>
                 <th className="px-3 py-3 text-center font-medium">외부 이동 금지</th>
                 <th className="px-4 py-3 font-medium">분류</th>
                 <th className="px-3 py-3" />
@@ -192,19 +191,6 @@ function VehicleRow({ vehicle, onToggle, onRemove }: RowProps) {
           onChange={e => onToggle(vehicle, { prepared: e.target.checked })}
           className="size-4 accent-indigo-600"
           aria-label="상품화"
-        />
-      </td>
-
-      <td className="px-3 py-3 text-center">
-        {/* 상품화 전에는 광고완료를 켤 수 없다 */}
-        <input
-          type="checkbox"
-          checked={vehicle.advertised}
-          disabled={!vehicle.prepared}
-          onChange={e => onToggle(vehicle, { advertised: e.target.checked })}
-          className="size-4 accent-indigo-600 disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label="광고 완료"
-          title={vehicle.prepared ? undefined : '상품화를 먼저 체크해 주세요.'}
         />
       </td>
 

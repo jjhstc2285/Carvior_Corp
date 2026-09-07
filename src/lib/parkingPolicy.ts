@@ -93,7 +93,8 @@ const RULES: { when: (v: ManagedVehicle) => boolean; then: LotSuggestion }[] = [
     },
   },
   {
-    when: v => v.advertised,
+    // 예전에는 광고완료 체크를 봤는데 그 칸을 없앴다. 상품화된 차가 곧 광고에 올라가는 차다.
+    when: v => v.prepared,
     then: { lots: [POLICY_LOT.고색동C], reason: '일반광고 차량 — 고색동 C', step: 2 },
   },
 ];

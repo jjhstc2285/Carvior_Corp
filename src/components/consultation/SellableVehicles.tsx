@@ -13,7 +13,7 @@ interface Props {
 /**
  * 상담 가능 차량.
  *
- * 차량관리에서 상품화·광고완료를 모두 체크하면(이동금지가 아니면) 손님에게 보여줄 수 있는
+ * 차량관리에서 상품화를 체크하면(이동금지가 아니면) 손님에게 보여줄 수 있는
  * 상태가 된다 — 그 차들을 여기로 끌어와, 문의가 들어오면 바로 상담을 등록하게 한다.
  * 차량번호를 다시 옮겨 치지 않는 게 요점이다.
  *
@@ -28,7 +28,7 @@ export default function SellableVehicles({ consultedNumbers, onStart }: Props) {
     try {
       const rows = await api<ManagedVehicle[]>('/vehicles');
       if (myReq !== reqId.current) return;
-      // 상품화 + 광고완료 + 이동금지 아님 = 외부 이동 가능
+      // 상품화 + 이동금지 아님 = 외부 이동 가능
       setVehicles(rows.filter(v => vehicleListOf(v) === 'MOVABLE'));
     } catch {
       // 목록을 못 받아도 상담 등록 자체는 되므로 조용히 넘긴다.
@@ -47,7 +47,7 @@ export default function SellableVehicles({ consultedNumbers, onStart }: Props) {
         <Car size={14} className="text-emerald-700" />
         <p className="text-xs font-bold text-emerald-800">상담 가능 차량</p>
         <span className="text-[11px] text-emerald-700/70">
-          상품화·광고 완료 {vehicles.length}대 — 누르면 그 차로 상담이 열립니다
+          상품화 {vehicles.length}대 — 누르면 그 차로 상담이 열립니다
         </span>
       </div>
 

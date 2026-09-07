@@ -106,8 +106,8 @@ export class VehiclesService {
       await this.assertNotDuplicated(vehicleNumber);
     }
 
-    // 상품화를 끄면 광고완료도 같이 꺼진다.
-    // 화면에서는 상품화가 꺼져 있으면 광고완료를 못 누르게 막지만, API로도 그 조합이 못 들어오게 한다.
+    // 광고완료는 화면에서 뺐다(상품화 하나로 합쳤다). 다만 칸은 남아 있어서, 예전 값이
+    // 상품화 없이 켜져 있는 채로 남지 않게 상품화를 끄면 같이 꺼둔다.
     const prepared = dto.prepared ?? current.prepared;
     const advertised = prepared
       ? (dto.advertised ?? current.advertised)

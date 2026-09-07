@@ -26,39 +26,36 @@ export function isValidPlate(value: string): boolean {
 // ── 리스트 분류 ────────────────────────────────────────
 // 체크박스 세 개 조합만으로 정해진다(저장하지 않고 매번 계산).
 
-export type VehicleListKey = 'WAITING_PREP' | 'AD_PENDING' | 'MOVABLE' | 'BLOCKED';
+export type VehicleListKey = 'WAITING_PREP' | 'MOVABLE' | 'BLOCKED';
 
 export const VEHICLE_LIST_LABEL: Record<VehicleListKey, string> = {
   WAITING_PREP: '상품화 대기',
-  AD_PENDING: '광고 예정',
   MOVABLE: '외부 이동 가능',
   BLOCKED: '이동금지',
 };
 
-export const VEHICLE_LIST_ORDER: VehicleListKey[] = ['WAITING_PREP', 'AD_PENDING', 'MOVABLE', 'BLOCKED'];
+export const VEHICLE_LIST_ORDER: VehicleListKey[] = ['WAITING_PREP', 'MOVABLE', 'BLOCKED'];
 
 export const VEHICLE_LIST_STYLE: Record<VehicleListKey, string> = {
   WAITING_PREP: 'bg-slate-100 text-slate-600',
-  AD_PENDING: 'bg-amber-50 text-amber-600',
   MOVABLE: 'bg-emerald-50 text-emerald-600',
   BLOCKED: 'bg-red-50 text-red-500',
 };
 
-type Flags = Pick<ManagedVehicle, 'prepared' | 'advertised' | 'moveBlocked'>;
+type Flags = Pick<ManagedVehicle, 'prepared' | 'moveBlocked'>;
 
 /**
  * 이동금지는 다른 체크와 무관하게 최우선이다.
- * 그 외에는 상품화 → 광고완료 순서로 단계가 올라간다.
  *
- *  - 아무것도 안 켬            → 상품화 대기
- *  - 상품화만                  → 광고 예정
- *  - 상품화 + 광고완료         → 외부 이동 가능 (광고 예정에서는 빠진다)
+ *  - 아무것도 안 켬  → 상품화 대기
+ *  - 상품화          → 외부 이동 가능
+ *
+ * 예전에는 상품화 다음에 광고완료를 한 번 더 켜야 '외부 이동 가능'이 됐는데, 광고 여부는
+ * 광고팀이 따로 보는 값이라 차량 관리에서 두 번 체크할 이유가 없었다. 상품화 하나로 합쳤다.
  */
 export function vehicleListOf(v: Flags): VehicleListKey {
   if (v.moveBlocked) return 'BLOCKED';
-  if (v.prepared && v.advertised) return 'MOVABLE';
-  if (v.prepared) return 'AD_PENDING';
-  return 'WAITING_PREP';
+  return v.prepared ? 'MOVABLE' : 'WAITING_PREP';
 }
 
 export function formatWon(amount: number): string {
