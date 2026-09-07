@@ -25,6 +25,7 @@ import { RealtimeModule } from '../realtime/realtime.module';
 import { PushService } from '../push/push.service';
 import { PushModule } from '../push/push.module';
 import { normalizePlate } from '../vehicles/vehicle.rules';
+import { CarviorModule, CarviorService } from '../carvior/carvior.module';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -68,6 +69,7 @@ export class AdsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly carvior: CarviorService,
     private readonly realtime: RealtimeGateway,
     private readonly push: PushService,
   ) {}
@@ -173,40 +175,52 @@ export class AdsService {
   }
 
   /**
-   * 매입한 차를 계약에 붙인다.
+   * 진단완료된 차를 계약에 붙인다.
    *
-   * 사온 차를 광고에 올려야 손님이 보고 연락한다 — 그래서 세는 건 매입 건수다.
-   * 카비어에서 받아온 계약도 매입 관리로 들어오므로 여기서 같이 잡힌다.
+   * 광고 상품은 진단 건수로 소진된다 — 진단서가 나온 건이 곧 한 건이다.
+   * 계약만 잡히고 진단이 안 나간 건은 약정을 쓴 게 아니라서 뺀다.
    *
-   * 계약 기간 안에 매입한 것만 본다. 같은 차가 여러 번 있으면 한 대로 세고 처음 날을 쓴다
-   * (팔았다 되사오는 경우가 있다).
+   * 계약 기간 안에 잡힌 것만 본다. 같은 차가 여러 번 있으면 한 건으로 세고 처음 날을 쓴다.
    * 손으로 넣은 건은 그대로 둔다 — 사람이 넣은 걸 자동 집계가 덮으면 왜 사라졌는지 알 수 없다.
+   *
+   * 카비어가 죽어 있어도 화면은 그대로 써야 하므로 실패하면 0건으로 돌린다.
    */
-  async syncFromPurchases(contractId?: string) {
+  async syncFromCarvior(contractId?: string) {
     const contracts = await this.prisma.adContract.findMany({
       where: { active: true, ...(contractId ? { id: contractId } : {}) },
     });
+    if (contracts.length === 0) return { added: 0 };
+
+    let diagnosed: { carNumber: string; createdAt: string }[];
+    try {
+      // 진단서가 나온 건만 약정을 쓴 것으로 본다.
+      diagnosed = (await this.carvior.findContracts()).filter((c) => c.reportUrl);
+    } catch (e) {
+      this.logger.warn(`카비어 조회 실패: ${(e as Error).message}`);
+      return { added: 0 };
+    }
 
     let added = 0;
     for (const c of contracts) {
-      const intakes = await this.prisma.purchaseIntake.findMany({
-        where: { date: { gte: c.startOn, lte: c.endOn } },
-        select: { vehicleNumber: true, date: true },
-        orderBy: { date: 'asc' },
-      });
+      const from = c.startOn.getTime();
+      const to = c.endOn.getTime() + 86_400_000;
 
       const first = new Map<string, Date>();
-      for (const i of intakes) {
-        const plate = normalizePlate(i.vehicleNumber);
-        if (!plate || first.has(plate)) continue;
-        first.set(plate, i.date);
+      for (const item of diagnosed) {
+        const at = new Date(item.createdAt);
+        if (at.getTime() < from || at.getTime() >= to) continue;
+
+        const plate = normalizePlate(item.carNumber ?? '');
+        if (!plate) continue;
+        const seen = first.get(plate);
+        if (!seen || at < seen) first.set(plate, at);
       }
 
       const res = await this.prisma.adPosting.createMany({
         data: [...first].map(([vehicleNumber, at]) => ({
           contractId: c.id,
           vehicleNumber,
-          postedOn: at,
+          postedOn: toDateOnly(formatDateOnly(at)),
           auto: true,
         })),
         skipDuplicates: true,
@@ -248,11 +262,37 @@ export class AdsService {
       ? Math.round((row.monthlyFee * row.months * remaining) / totalQuota)
       : 0;
 
+    /*
+     * 월별로 접는다 — "9월에 몇 건 하고 광고비 얼마 썼나"가 실제로 보는 단위다.
+     * 계약이 달 중간에 시작해도 시작일 기준으로 한 달씩 끊는다(9/15 시작이면 9/15~10/14).
+     */
+    const monthly = Array.from({ length: row.months }, (_, i) => {
+      const from = new Date(row.startOn);
+      from.setUTCMonth(from.getUTCMonth() + i);
+      const to = new Date(row.startOn);
+      to.setUTCMonth(to.getUTCMonth() + i + 1);
+
+      const fromStr = formatDateOnly(from);
+      const toStr = formatDateOnly(to);
+      const count = postings.filter((p) => p.postedOn >= fromStr && p.postedOn < toStr).length;
+
+      return {
+        label: `${from.getUTCFullYear()}년 ${from.getUTCMonth() + 1}월`,
+        from: fromStr,
+        quota: row.monthlyQuota,
+        count,
+        fee: row.monthlyFee,
+        /** 그 달에 못 쓴 건수만큼의 광고비 */
+        wasted: row.monthlyQuota > 0 ? Math.round((row.monthlyFee * Math.max(0, row.monthlyQuota - count)) / row.monthlyQuota) : 0,
+      };
+    });
+
     return {
       ...row,
       startOn: formatDateOnly(row.startOn),
       endOn: formatDateOnly(row.endOn),
       postings,
+      monthly,
       totalQuota,
       used,
       remaining,
@@ -360,7 +400,7 @@ export class AdReminderService implements OnModuleInit, OnModuleDestroy {
     this.ranOn = today;
     try {
       // 세기 전에 먼저 붙인다 — 안 붙이고 세면 실제보다 적게 나온다.
-      await this.ads.syncFromPurchases();
+      await this.ads.syncFromCarvior();
       await this.ads.notifyShortfall(today);
     } catch (e) {
       this.logger.warn(`광고 약정 확인 실패: ${(e as Error).message}`);
@@ -421,15 +461,15 @@ export class AdsController {
     await this.ads.removePosting(id);
   }
 
-  /** 매입한 차를 지금 붙인다 — 아침을 기다리지 않고 확인할 때 */
+  /** 진단완료된 차를 지금 붙인다 — 아침을 기다리지 않고 확인할 때 */
   @Post('sync')
   sync() {
-    return this.ads.syncFromPurchases();
+    return this.ads.syncFromCarvior();
   }
 }
 
 @Module({
-  imports: [RealtimeModule, PushModule],
+  imports: [RealtimeModule, PushModule, CarviorModule],
   controllers: [AdsController],
   providers: [AdsService, AdReminderService],
 })

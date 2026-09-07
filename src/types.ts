@@ -126,6 +126,16 @@ export interface AdContract {
   note: string;
   active: boolean;
   postings: AdPosting[];
+  /** 월별 집계 — "9월에 몇 건 하고 광고비 얼마 썼나" */
+  monthly: {
+    label: string; // "2026년 9월"
+    from: string;
+    quota: number;
+    count: number;
+    fee: number;
+    /** 그 달에 못 쓴 건수만큼의 광고비 */
+    wasted: number;
+  }[];
 
   // ── 서버가 계산해 내려주는 값 (저장하지 않는다) ──
   totalQuota: number; // 월 대수 × 개월

@@ -12,10 +12,11 @@ import { VEHICLE_POST_SITES, type AdContract, type Role } from '../../types';
  * 광고 상품은 '월 몇 대'로 팔린다 — 22만원짜리가 월 30대, 3개월이면 90대다.
  * 3달에 30대만 올리면 60대분이 그냥 날아가는데, 지금까지는 몇 대 썼는지 볼 데가 없었다.
  *
- * 대수는 두 갈래로 센다.
- *  - 계약 기간에 매입한 차를 자동으로 붙인다(사온 차를 광고에 올리므로).
- *    카비어에서 받아온 계약도 매입 관리로 들어오니 같이 잡힌다.
+ * 건수는 두 갈래로 센다.
+ *  - 카비어에서 진단완료된 차를 자동으로 붙인다 — 진단서가 나온 건이 곧 한 건이다.
  *  - 거기 없는 건은 차량번호로 직접 넣는다
+ *
+ * 월별로 접어 보여준다 — "9월에 몇 건 하고 광고비 얼마 썼나"가 실제로 보는 단위다.
  */
 export default function AdModule({ role }: { role: Role }) {
   const [rows, setRows] = useState<AdContract[]>([]);
@@ -49,7 +50,7 @@ export default function AdModule({ role }: { role: Role }) {
       const res = await api<{ added: number }>('/ads/sync', { method: 'POST' });
       await alertSuccess(
         res.added > 0 ? `${res.added}대를 새로 붙였습니다` : '새로 붙일 게 없습니다',
-        '계약 기간에 매입한 차를 가져옵니다. 카비어에서 받아온 건도 함께 잡힙니다.',
+        '계약 기간에 진단완료된 차를 카비어에서 가져옵니다.',
       );
       await load();
     } catch (e) {
@@ -117,9 +118,9 @@ export default function AdModule({ role }: { role: Role }) {
           <button
             onClick={() => void sync()}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            title="계약 기간에 매입한 차를 가져옵니다"
+            title="계약 기간에 진단완료된 차를 카비어에서 가져옵니다"
           >
-            <RefreshCw size={15} /> 매입에서 가져오기
+            <RefreshCw size={15} /> 진단완료 가져오기
           </button>
           {isAdmin && (
             <button
@@ -142,14 +143,14 @@ export default function AdModule({ role }: { role: Role }) {
           <p className="text-[11px] text-slate-400">계약 {rows.length}건</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">올린 대수</p>
+          <p className="text-xs font-medium text-slate-400">진단완료</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">
             {totalUsed}
             <span className="ml-1 text-sm font-medium text-slate-400">/ {totalQuota}대</span>
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">남은 대수</p>
+          <p className="text-xs font-medium text-slate-400">남은 건수</p>
           <p className="mt-1 text-2xl font-bold text-amber-600">
             {Math.max(0, totalQuota - totalUsed)}
             <span className="ml-1 text-sm font-medium text-slate-400">대</span>
@@ -199,14 +200,14 @@ export default function AdModule({ role }: { role: Role }) {
               <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="text-2xl font-bold text-slate-900">
                   {c.used}
-                  <span className="ml-1 text-sm font-medium text-slate-400">/ {c.totalQuota}대</span>
+                  <span className="ml-1 text-sm font-medium text-slate-400">/ {c.totalQuota}건</span>
                 </span>
                 <span className={`text-sm font-semibold ${behind ? 'text-red-600' : 'text-slate-500'}`}>
-                  {c.remaining > 0 ? `${c.remaining}대 남음` : '다 썼습니다'}
+                  {c.remaining > 0 ? `${c.remaining}건 남음` : '다 썼습니다'}
                 </span>
                 <span className="text-xs text-slate-400">
                   {c.daysLeft > 0 ? `${c.daysLeft}일 남음` : '기간 끝'}
-                  {c.remaining > 0 && c.daysLeft > 0 && ` · 하루 ${c.perDayNeeded}대씩 올려야 다 씁니다`}
+                  {c.remaining > 0 && c.daysLeft > 0 && ` · 하루 ${c.perDayNeeded}건씩 해야 다 씁니다`}
                 </span>
                 <button
                   onClick={() => setAddingTo(c)}
@@ -218,7 +219,7 @@ export default function AdModule({ role }: { role: Role }) {
                   onClick={() => setOpenId(open ? null : c.id)}
                   className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
                 >
-                  {open ? '접기' : `올린 차 ${c.used}대`}
+                  {open ? '접기' : `진단완료 ${c.used}건`}
                 </button>
               </div>
 
@@ -227,6 +228,45 @@ export default function AdModule({ role }: { role: Role }) {
                   className={`h-full rounded-full ${behind ? 'bg-red-500' : pct >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
                   style={{ width: `${pct}%` }}
                 />
+              </div>
+
+              {/* 월별 집계 — "9월에 몇 건 하고 광고비 얼마 썼나" */}
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-left text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">달</th>
+                      <th className="px-3 py-2 text-right font-medium">진단완료</th>
+                      <th className="px-3 py-2 text-right font-medium">약정</th>
+                      <th className="px-3 py-2 text-right font-medium">광고비</th>
+                      <th className="px-3 py-2 text-right font-medium">못 쓴 몫</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {c.monthly.map(m => (
+                      <tr key={m.from} className="border-t border-slate-50">
+                        <td className="px-3 py-1.5 text-slate-600">{m.label}</td>
+                        <td className={`px-3 py-1.5 text-right font-semibold ${m.count >= m.quota ? 'text-emerald-700' : 'text-slate-800'}`}>
+                          {m.count}건
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-slate-400">{m.quota}건</td>
+                        <td className="px-3 py-1.5 text-right text-slate-500">{m.fee.toLocaleString()}원</td>
+                        <td className={`px-3 py-1.5 text-right ${m.wasted > 0 ? 'font-semibold text-red-600' : 'text-slate-300'}`}>
+                          {m.wasted > 0 ? `${m.wasted.toLocaleString()}원` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-slate-200 bg-slate-50/60 font-semibold">
+                      <td className="px-3 py-1.5 text-slate-600">합계</td>
+                      <td className="px-3 py-1.5 text-right text-slate-800">{c.used}건</td>
+                      <td className="px-3 py-1.5 text-right text-slate-400">{c.totalQuota}건</td>
+                      <td className="px-3 py-1.5 text-right text-slate-600">{c.totalFee.toLocaleString()}원</td>
+                      <td className="px-3 py-1.5 text-right text-red-600">
+                        {c.monthly.reduce((sum, m) => sum + m.wasted, 0).toLocaleString()}원
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
               {/* 기간이 끝났는데 남았으면 그게 곧 날아간 돈이다 */}
@@ -248,7 +288,7 @@ export default function AdModule({ role }: { role: Role }) {
                       <span className="font-mono font-semibold text-slate-700">{p.vehicleNumber}</span>
                       <span className="text-slate-400">{p.postedOn}</span>
                       {p.auto && (
-                        <span className="rounded bg-slate-100 px-1.5 text-[10px] font-medium text-slate-500">매입에서</span>
+                        <span className="rounded bg-slate-100 px-1.5 text-[10px] font-medium text-slate-500">진단완료</span>
                       )}
                       <button
                         onClick={() => void removePosting(p.id)}
