@@ -1,4 +1,4 @@
-import { Building2, CalendarClock, Megaphone, Stamp, Car, ClipboardList, Landmark, Handshake, Sparkles, Images, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Users2, X } from 'lucide-react';
+import { Building2, CalendarClock, Megaphone, Stamp, Car, ClipboardList, Landmark, Handshake, Sparkles, Images, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 
 interface Props {
@@ -45,10 +45,9 @@ export default function Sidebar({
     <>
       <div className="flex items-center justify-between px-4 py-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
-            <Users2 size={17} className="text-white" />
-          </div>
-          <span className="text-[15px] font-bold text-slate-800">통합 관리</span>
+          {/* 회사 로고. public/ 에 두고 경로로 부른다 — 번들에 안 섞여서 브라우저가 따로 캐시한다 */}
+          <img src="/icon-192.png" alt="애니원모터스" className="h-8 w-8 rounded-lg object-cover" />
+          <span className="text-[15px] font-bold text-slate-800">애니원모터스</span>
         </div>
         <button onClick={onMobileClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 md:hidden">
           <X size={18} />

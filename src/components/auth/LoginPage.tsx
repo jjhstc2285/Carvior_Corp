@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Loader2, LogIn, Users2 } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
 import { useAuth } from '../../authStore';
 import { loginWithPassword } from '../../lib/auth';
 import { ApiError } from '../../lib/api';
@@ -34,9 +34,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600">
-            <Users2 size={24} className="text-white" />
-          </div>
+          <img src="/icon-192.png" alt="애니원모터스" className="mx-auto mb-3 h-14 w-14 rounded-2xl object-cover" />
           <h1 className="text-lg font-bold text-slate-900">애니원모터스 통합 관리</h1>
           <p className="mt-1 text-sm text-slate-500">사내 계정으로 로그인해 주세요.</p>
         </div>
