@@ -115,6 +115,34 @@ export const REPAY_BADGE_CLASS: Record<RepayUrgency['level'], string> = {
   soon: 'border-amber-300 bg-amber-50 text-amber-700',
 };
 
+/**
+ * 파는 흐름의 어디쯤인가.
+ *
+ *   출고예정 — 상담이 판매완료로 찍혔는데 아직 차가 안 나갔다.
+ *              광고를 내리고 자리를 빼고 서류를 챙겨야 하는 구간이다.
+ *   매도완료 — 매도일자를 적었다. 끝난 차다.
+ *
+ * 판매완료(상담)와 매도(차)를 나눈 이유: 계약이 끝난 것과 차가 실제로 나간 것이
+ * 며칠씩 벌어지는데, 그 사이에 할 일이 있는 사람들이 따로 있다.
+ */
+export type SaleStage = 'RELEASE_PENDING' | 'SOLD';
+
+export function saleStage(v: Pick<ManagedVehicle, 'soldDate' | 'releasePending'>): SaleStage | null {
+  if (v.soldDate) return 'SOLD';
+  return v.releasePending ? 'RELEASE_PENDING' : null;
+}
+
+export const SALE_STAGE_LABEL: Record<SaleStage, string> = {
+  RELEASE_PENDING: '출고예정',
+  SOLD: '매도완료',
+};
+
+/** 출고예정은 할 일이 남은 쪽이라 눈에 띄게, 매도완료는 끝난 차라 차분하게. */
+export const SALE_STAGE_CLASS: Record<SaleStage, string> = {
+  RELEASE_PENDING: 'border-violet-300 bg-violet-100 text-violet-800',
+  SOLD: 'border-slate-200 bg-slate-100 text-slate-500',
+};
+
 const OVER_MILEAGE = (km: number) =>
   `${km.toLocaleString()}km — ${(MAX_MILEAGE_KM / 10000).toLocaleString()}만km 이상`;
 

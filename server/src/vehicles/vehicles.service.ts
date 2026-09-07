@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, VehicleExpenseKind } from "@prisma/client";
+import { ConsultationStatus, Prisma, VehicleExpenseKind } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   formatDateOnly,
@@ -44,14 +44,35 @@ export class VehiclesService {
       offerDate: Date | null;
       transferDate: Date | null;
       repayDate: Date | null;
+      soldDate: Date | null;
+      vehicleNumber?: string;
     },
-  >(row: T) {
+  >(row: T, soldPlates?: Set<string>) {
     return {
       ...row,
       offerDate: formatDateOnlyOrNull(row.offerDate),
       transferDate: formatDateOnlyOrNull(row.transferDate),
       repayDate: formatDateOnlyOrNull(row.repayDate),
+      soldDate: formatDateOnlyOrNull(row.soldDate),
+      /**
+       * 출고예정 — 상담이 판매완료로 찍혔는데 아직 매도일자를 안 적은 차.
+       *
+       * 저장하지 않고 조회할 때 상담과 맞춰 낸다. 상담 상태는 언제든 바뀌는데
+       * 차 쪽에 복사해두면 두 곳이 어긋난다.
+       * 목록을 안 거쳐 들어온 경우(단건 조회)에는 알 수 없어 false 로 둔다.
+       */
+      releasePending: row.soldDate == null && (soldPlates?.has(row.vehicleNumber ?? '') ?? false),
     };
+  }
+
+  /** 상담이 판매완료로 찍힌 차량번호 — 출고예정을 가리는 데 쓴다. */
+  private async soldPlates(): Promise<Set<string>> {
+    const rows = await this.prisma.consultation.findMany({
+      where: { status: ConsultationStatus.SOLD },
+      select: { vehicleNumber: true },
+      distinct: ['vehicleNumber'],
+    });
+    return new Set(rows.map((r) => r.vehicleNumber));
   }
 
   // ── 외부 이동 차량 리스트 ──────────────────────────────
@@ -67,9 +88,10 @@ export class VehiclesService {
       : {};
 
     // 어느 리스트에 뜰지는 체크박스 조합으로 화면에서 정한다(vehicle.rules 참고).
-    return this.prisma.managedVehicle
-      .findMany({ where, orderBy: { createdAt: "desc" } })
-      .then((rows) => rows.map((r) => this.toView(r)));
+    return Promise.all([
+      this.prisma.managedVehicle.findMany({ where, orderBy: { createdAt: "desc" } }),
+      this.soldPlates(),
+    ]).then(([rows, sold]) => rows.map((r) => this.toView(r, sold)));
   }
 
   /** 뒤 4자리로 찾기 — 여러 대면 화면에서 선택박스를 띄운다. */
@@ -144,6 +166,7 @@ export class VehiclesService {
           ...(dto.offerDate !== undefined
             ? { offerDate: toDateOnlyOrNull(dto.offerDate) }
             : {}),
+          ...(dto.soldDate !== undefined ? { soldDate: toDateOnlyOrNull(dto.soldDate) } : {}),
           ...(dto.transferDate !== undefined
             ? { transferDate: toDateOnlyOrNull(dto.transferDate) }
             : {}),

@@ -42,6 +42,7 @@ export class UpdateVehicleDto {
   // 빈 문자열은 '지운다'는 뜻이다 — 날짜를 잘못 넣었을 때 되돌릴 길이 있어야 한다.
   @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) offerDate?: string | null;
   @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) transferDate?: string | null;
+  @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) soldDate?: string | null;
   @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) repayDate?: string | null;
   @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) firstRegisteredOn?: string | null;
   @IsOptional() @IsBoolean() cashVehicle?: boolean;

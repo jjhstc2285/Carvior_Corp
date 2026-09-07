@@ -1,17 +1,73 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConsultationKind, ConsultationStatus, Prisma } from '@prisma/client';
+import { ConsultationKind, ConsultationStatus, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
+import { PushService } from '../push/push.service';
+import { todayKst } from '../common/date.util';
 import { normalizePlate } from '../vehicles/vehicle.rules';
 import { parseConsultationSheet } from './sheet-import';
 import type { AuthUser } from '../auth/current-user.decorator';
 import { formatDateOnly, formatDateOnlyOrNull, toDateOnly, toDateOnlyOrNull } from '../common/date.util';
 import type { CreateConsultationDto, UpdateConsultationDto } from './dto/consultation.dto';
 
+/**
+ * 출고 준비를 해야 하는 팀.
+ *
+ * 판매완료는 상담 담당자가 찍는데, 정작 광고를 내리고 차를 빼고 서류를 챙기는 건
+ * 다른 팀이다. 상담 화면을 안 보는 사람들이라 알림으로 알린다.
+ */
+const RELEASE_TEAMS = ['광고팀', '차량관리팀'];
+
 @Injectable()
 export class ConsultationsService {
   private readonly logger = new Logger(ConsultationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeGateway,
+    private readonly push: PushService,
+  ) {}
+
+  /**
+   * 판매완료를 알린다.
+   *
+   * 처음 판매완료가 될 때만 보낸다 — 이미 판매완료인 건의 다른 칸만 고쳐도 매번
+   * 울리면 아무도 안 보게 된다.
+   *
+   * 알림을 못 보내도 상담 저장은 그대로 둔다. 알림 하나 때문에 판매완료 처리를
+   * 못 하면 안 된다.
+   */
+  private async notifyRelease(row: { vehicleNumber: string; vehicleName: string }): Promise<void> {
+    try {
+      const watchers = await this.prisma.employee.findMany({
+        where: { active: true, OR: [{ department: { in: RELEASE_TEAMS } }, { role: 'ADMIN' }] },
+        select: { id: true },
+      });
+      if (watchers.length === 0) return;
+      const ids = watchers.map((w) => w.id);
+
+      const car = `${row.vehicleNumber}${row.vehicleName ? ` ${row.vehicleName}` : ''}`;
+      const message = `출고예정 — ${car} 판매완료입니다. 광고를 내리고 출고 준비를 해주세요.`;
+      const today = todayKst();
+
+      await this.prisma.notification.createMany({
+        data: ids.map((employeeId) => ({
+          type: NotificationType.RELEASE_PENDING,
+          message,
+          employeeId,
+          date: new Date(`${today}T00:00:00.000Z`),
+        })),
+      });
+      this.realtime.toEmployees(ids, REALTIME_EVENT.notification, {
+        type: NotificationType.RELEASE_PENDING,
+        message,
+        date: today,
+      });
+      void this.push.sendToEmployees(ids, { title: `출고예정 — ${car}`, body: '광고를 내리고 출고 준비를 해주세요.' });
+    } catch (e) {
+      this.logger.warn(`출고예정 알림을 보내지 못했습니다(${row.vehicleNumber}): ${(e as Error).message}`);
+    }
+  }
 
   /**
    * 판매완료된 차의 주차 자리를 비운다.
@@ -117,12 +173,16 @@ export class ConsultationsService {
       include: this.include,
     });
 
-    if (row.status === ConsultationStatus.SOLD) await this.clearParkingSpot(row.vehicleNumber);
+    if (row.status === ConsultationStatus.SOLD) {
+      await this.clearParkingSpot(row.vehicleNumber);
+      await this.notifyRelease(row);
+    }
     return this.toView(row);
   }
 
   async update(id: string, dto: UpdateConsultationDto) {
-    await this.assertExists(id);
+    // 판매완료로 '바뀌는' 순간에만 알린다 — 고치기 전 상태를 알아야 한다.
+    const before = await this.assertExists(id);
     const row = await this.prisma.consultation.update({
       where: { id },
       data: {
@@ -148,7 +208,10 @@ export class ConsultationsService {
     });
 
     // 이미 판매완료였다가 다른 칸만 고친 경우에도 한 번 더 비운다 — 자리를 다시 적었을 수 있다.
-    if (row.status === ConsultationStatus.SOLD) await this.clearParkingSpot(row.vehicleNumber);
+    if (row.status === ConsultationStatus.SOLD) {
+      await this.clearParkingSpot(row.vehicleNumber);
+      if (before.status !== ConsultationStatus.SOLD) await this.notifyRelease(row);
+    }
     return this.toView(row);
   }
 
@@ -266,8 +329,13 @@ export class ConsultationsService {
     });
   }
 
+  /** 있는지 보고 고치기 전 상태를 돌려준다 — 판매완료로 '바뀌는' 순간을 가리는 데 쓴다. */
   private async assertExists(id: string) {
-    const exists = await this.prisma.consultation.findUnique({ where: { id }, select: { id: true } });
+    const exists = await this.prisma.consultation.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
     if (!exists) throw new NotFoundException('상담 내역을 찾을 수 없습니다.');
+    return exists;
   }
 }

@@ -334,6 +334,7 @@ enum NotificationType {
   DEALER_FEE // 신차영업소 상조회비 조건이 바뀌었다
   APPROVAL // 결재 문서가 올라오거나 처리됐다
   AD_QUOTA // 광고 약정 대수가 남았는데 기간이 얼마 안 남았다
+  RELEASE_PENDING // 상담이 판매완료로 찍혔다 — 광고 내리고 출고 준비를 해야 한다
 }
 
 /**
@@ -833,6 +834,12 @@ model ManagedVehicle {
   offerDate    DateTime? @db.Date // 제시일자 — 캐피탈에 제시한 날
   transferDate DateTime? @db.Date // 이전일자 — 명의 이전한 날
 
+  // 매도일자 — 손님에게 실제로 넘긴 날.
+  // 상담이 판매완료로 찍히면 출고예정이 되고, 넘기고 나서 이 날짜를 적으면 매도로 끝난다.
+  // 판매완료와 매도를 나눈 이유: 계약이 끝난 것과 차가 실제로 나간 것이 며칠씩 벌어지는데,
+  // 그 사이가 광고·주차·상품화가 준비해야 하는 구간이다.
+  soldDate DateTime? @db.Date
+
   stockCapital String @default("") @db.VarChar(20) // 할부사
   stockAmount  Int    @default(0) // 재고금액(원)
 
@@ -850,6 +857,7 @@ model ManagedVehicle {
   @@index([vehicleModel])
   @@index([offerDate])
   @@index([repayDate])
+  @@index([soldDate])
 }
 
 enum VehicleExpenseKind {

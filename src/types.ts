@@ -100,7 +100,8 @@ export type NotificationType =
   | 'MILEAGE_GAP'
   | 'DEALER_FEE'
   | 'APPROVAL'
-  | 'AD_QUOTA';
+  | 'AD_QUOTA'
+  | 'RELEASE_PENDING';
 
 /**
  * 광고 계약.
@@ -699,6 +700,10 @@ export interface ManagedVehicle {
   cashVehicle: boolean;
   offerDate: string | null; // 제시일자 — 캐피탈에 제시한 날
   transferDate: string | null; // 이전일자 — 명의 이전한 날
+  /** 매도일자 — 손님에게 실제로 넘긴 날. 적으면 매도차량으로 넘어간다 */
+  soldDate: string | null;
+  /** 출고예정 — 상담이 판매완료인데 아직 매도일자를 안 적었다. 서버가 상담과 맞춰 내려준다 */
+  releasePending?: boolean;
   stockCapital: string; // 할부사
   stockAmount: number; // 재고금액(원)
   /** 이 차 한 대에 쓴 광고비(원) — 광고 관리에서 적는다 */

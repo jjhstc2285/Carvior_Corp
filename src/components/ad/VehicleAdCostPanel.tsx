@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlarmClock, Search } from 'lucide-react';
+import { AlarmClock, PackageCheck, Search } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
-import { REPAY_BADGE_CLASS, repayLabel, repayUrgency } from '../../lib/stockFinance';
+import {
+  REPAY_BADGE_CLASS,
+  repayLabel,
+  repayUrgency,
+  SALE_STAGE_CLASS,
+  SALE_STAGE_LABEL,
+  saleStage,
+} from '../../lib/stockFinance';
 import type { ManagedVehicle } from '../../types';
 
 /**
@@ -65,6 +72,8 @@ export default function VehicleAdCostPanel() {
     const u = repayUrgency(v.repayDate);
     return u != null && u.level !== 'soon';
   });
+  // 판매완료로 찍혔는데 아직 안 나간 차 — 광고를 내려야 한다.
+  const pending = rows.filter(v => saleStage(v) === 'RELEASE_PENDING');
 
   const save = async (v: ManagedVehicle) => {
     const text = draft[v.id];
@@ -96,11 +105,18 @@ export default function VehicleAdCostPanel() {
           <p className="mt-0.5 text-xs text-slate-500">
             제시함 · 재고 잡힌 차 {rows.length}대 — 이 차에 광고비를 얼마 썼는지 적습니다.
           </p>
-          {urgent.length > 0 && (
-            <p className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-700">
-              <AlarmClock size={11} /> 상환 임박 {urgent.length}대 — 먼저 팔아야 합니다
-            </p>
-          )}
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {urgent.length > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-700">
+                <AlarmClock size={11} /> 상환 임박 {urgent.length}대 — 먼저 팔아야 합니다
+              </span>
+            )}
+            {pending.length > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-violet-300 bg-violet-100 px-2 py-0.5 text-[11px] font-bold text-violet-800">
+                <PackageCheck size={11} /> 출고예정 {pending.length}대 — 광고를 내려주세요
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500">
@@ -141,6 +157,7 @@ export default function VehicleAdCostPanel() {
               {rows.map(v => {
                 const text = draft[v.id] ?? (v.adCost > 0 ? withCommas(String(v.adCost)) : '');
                 const urgency = repayUrgency(v.repayDate);
+                const stage = saleStage(v);
                 return (
                   <tr
                     key={v.id}
@@ -149,7 +166,14 @@ export default function VehicleAdCostPanel() {
                     }`}
                   >
                     <td className="px-4 py-2 font-medium text-slate-800">{v.vehicleNumber}</td>
-                    <td className="px-4 py-2 text-slate-600">{v.vehicleModel}</td>
+                    <td className="px-4 py-2 text-slate-600">
+                      {v.vehicleModel}
+                      {stage && (
+                        <span className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${SALE_STAGE_CLASS[stage]}`}>
+                          {SALE_STAGE_LABEL[stage]}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-slate-500">
                       {v.offerDate ? dayjs(v.offerDate).format('M월 D일') : '—'}
                     </td>
