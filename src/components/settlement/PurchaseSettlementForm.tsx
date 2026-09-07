@@ -81,7 +81,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   };
   const prepTotal = purchasePrepTotal(prepCosts);
   const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal);
-  const profit = saleProfit({ ...nums, brokerFeePayout });
+  const profit = saleProfit(nums);
   const net = saleNet(nums.salePrice, grandTotal, profit);
 
   const handleSubmit = () => {
@@ -117,6 +117,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           </button>
         </div>
         <p className="mt-1 text-xs text-slate-400">금액 단위는 만원입니다. 천원 단위는 소수로 적습니다 — <b>3.5 = 35,000원</b></p>
+        <p className="mt-0.5 text-xs text-slate-400">구전은 방식마다 나가는 금액이 다릅니다 — 현금 90 / 3.3% 88 / 13.3% 75 처럼 <b>실제로 나간 금액</b>을 적습니다.</p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <DateField label="일자" value={date} onChange={setDate} />
@@ -162,7 +163,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           <CalcRow label="매입 + 상품화총비용" formula="매입가 + 상품화총비용" value={grandTotal} won strong />
           <CalcRow
             label="판매수익"
-            formula={`현금 수수료 + 할부 피 + 보험 피 + 차대금업${brokerFeePayout === 'CASH' ? ' − 구전(현금)' : ' (구전은 현금이 아니라 안 뺍니다)'}`}
+            formula={`현금 수수료 + 할부 피 + 보험 피 + 차대금업 − 구전(${BROKER_FEE_PAYOUT_LABEL[brokerFeePayout]} ${wonToManwon(nums.brokerFee)}만원)`}
             value={profit}
             won
           />

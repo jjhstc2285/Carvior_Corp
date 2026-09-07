@@ -569,7 +569,7 @@ model PurchaseSettlement {
   purchasePrice Int      @default(0) // 매입가
   brokerFee     Int      @default(0) // 구전 — 상품화가 아니라 별도 항목이다
 
-  // 구전 지급방식. 현금으로 준 구전만 판매수익에서 뺀다.
+  // 구전 지급방식. 금액은 방식에 맞춰 brokerFee 에 적는다.
   brokerFeePayout BrokerFeePayout @default(CASH)
 
   // ── 판매 쪽 ──

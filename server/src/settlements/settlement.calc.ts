@@ -160,19 +160,20 @@ export interface SaleFields {
   insuranceFee: number;
   /** 차대금업 */
   dealerLoanFee: number;
+  /** 구전 — 방식에 맞춰 실제로 나간 금액 */
   brokerFee: number;
-  brokerFeePayout: BrokerFeePayout;
 }
 
 /**
- * 판매수익 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업 − 현금으로 준 구전
+ * 판매수익 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업 − 구전
  *
- * 구전은 현금으로 나간 것만 뺀다. 3.3%·13.3%로 준 건 세금계산 쪽에서 따로 잡혀서
- * 여기서 또 빼면 두 번 빠진다.
+ * 구전은 방식과 상관없이 나간 만큼 뺀다. 다만 같은 건이라도 방식마다 실제로 나가는
+ * 금액이 다르다 — 현금 90만원짜리가 3.3% 공제면 88만원, 13.3% 공제면 75만원 식이다.
+ * 비율이 딱 떨어지지 않아 계산하지 않고 실제 나간 금액을 그대로 받는다.
+ * 지급방식은 어느 쪽으로 나갔는지 남겨두려고 함께 적는다.
  */
 export function saleProfit(r: SaleFields): number {
-  const paidInCash = r.brokerFeePayout === 'CASH' ? r.brokerFee : 0;
-  return r.cashCommission + r.installmentFee + r.insuranceFee + r.dealerLoanFee - paidInCash;
+  return r.cashCommission + r.installmentFee + r.insuranceFee + r.dealerLoanFee - r.brokerFee;
 }
 
 /** 차 한 대에서 최종으로 남은 돈 = 차량판매가 − (매입 + 부대비용) + 판매수익 */
