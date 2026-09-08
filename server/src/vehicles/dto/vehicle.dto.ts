@@ -51,6 +51,11 @@ export class UpdateVehicleDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) adCost?: number; // 광고금액(원)
 }
 
+/** 매입했는데 차량 관리에 안 올라간 차를 올릴 때 */
+export class RegisterIntakeVehicleDto {
+  @IsString() @Matches(PLATE_PATTERN, { message: PLATE_FORMAT_MESSAGE }) vehicleNumber!: string;
+}
+
 /** 차량 관리에 없는 차를 매도로 남길 때 — 차를 만들면서 매도일자까지 같이 적는다. */
 export class RegisterSoldVehicleDto {
   @IsString() @Matches(PLATE_PATTERN, { message: PLATE_FORMAT_MESSAGE }) vehicleNumber!: string;

@@ -2,19 +2,15 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { Car, CloudDownload, Download, Plus, Trash2 } from 'lucide-react';
-import { BROKER_FEE_TYPE_LABEL, type PurchaseIntake, type Role } from '../../types';
+import { BROKER_FEE_TYPE_LABEL, type PurchaseIntake } from '../../types';
 import PurchaseIntakeForm from './PurchaseIntakeForm';
 import CarviorImportModal from './CarviorImportModal';
 import { usePurchaseIntake } from './usePurchaseIntake';
 import { alertError, confirmDanger } from '../../lib/alert';
 
-interface Props {
-  role: Role;
-}
-
 const NUM = (n: number) => (n ? n.toLocaleString() : '');
 
-export default function PurchaseIntakeModule({ role }: Props) {
+export default function PurchaseIntakeModule() {
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   const [allMonths, setAllMonths] = useState(false);
   const [query, setQuery] = useState('');
@@ -23,7 +19,6 @@ export default function PurchaseIntakeModule({ role }: Props) {
   const [carviorOpen, setCarviorOpen] = useState(false);
 
   const api = usePurchaseIntake(allMonths ? '' : month, query);
-  const isAdmin = role === 'ADMIN';
 
   const total = api.items.reduce((sum, r) => sum + r.totalAmount, 0);
 
@@ -175,11 +170,10 @@ export default function PurchaseIntakeModule({ role }: Props) {
                 >
                   수정
                 </button>
-                {isAdmin && (
-                  <button onClick={() => void handleDelete(r)} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
-                    <Trash2 size={14} />
-                  </button>
-                )}
+                {/* 잘못 적은 건은 적은 사람이 바로 지운다. 지우기 전에 한 번 묻는다. */}
+                <button onClick={() => void handleDelete(r)} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
+                  <Trash2 size={14} />
+                </button>
               </div>
             </div>
 

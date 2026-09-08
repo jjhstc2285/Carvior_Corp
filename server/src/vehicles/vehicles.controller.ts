@@ -4,6 +4,7 @@ import {
   CreateVehicleDto,
   CreateVehicleExpenseDto,
   PlateTailQueryDto,
+  RegisterIntakeVehicleDto,
   RegisterSoldVehicleDto,
   UpdateVehicleDto,
   UpdateVehicleExpenseDto,
@@ -41,6 +42,18 @@ export class VehiclesController {
   @HttpCode(204)
   async removeExpense(@Param('id') id: string) {
     await this.vehicles.removeExpense(id);
+  }
+
+  /** 매입했는데 차량 관리에 안 올라간 차 — 그래서 제시 대상에 안 뜬다. */
+  @Get('unregistered-intake')
+  findUnregisteredIntakes() {
+    return this.vehicles.findUnregisteredIntakes();
+  }
+
+  /** 그 차를 매입 관리에 적힌 값 그대로 차량 관리에 올린다. */
+  @Post('register-intake')
+  registerFromIntake(@Body() dto: RegisterIntakeVehicleDto) {
+    return this.vehicles.registerFromIntake(dto.vehicleNumber);
   }
 
   /** 판매완료인데 차량 관리에 없는 차 — 알선처럼 우리가 안 사온 차다. */

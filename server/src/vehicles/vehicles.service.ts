@@ -46,6 +46,7 @@ export class VehiclesService {
       transferDate: Date | null;
       repayDate: Date | null;
       soldDate: Date | null;
+      firstRegisteredOn: Date | null;
       vehicleNumber?: string;
     },
   >(row: T, soldPlates?: Set<string>) {
@@ -55,6 +56,7 @@ export class VehiclesService {
       transferDate: formatDateOnlyOrNull(row.transferDate),
       repayDate: formatDateOnlyOrNull(row.repayDate),
       soldDate: formatDateOnlyOrNull(row.soldDate),
+      firstRegisteredOn: formatDateOnlyOrNull(row.firstRegisteredOn),
       /**
        * 출고 예정 — 상담이 판매완료로 찍혔는데 아직 매도일자를 안 적은 차.
        *
@@ -95,6 +97,89 @@ export class VehiclesService {
       this.prisma.managedVehicle.findMany({ where, orderBy: { createdAt: "desc" } }),
       this.soldPlates(),
     ]).then(([rows, sold]) => rows.map((r) => this.toView(r, sold)));
+  }
+
+  /**
+   * 매입했는데 차량 관리에 없는 차.
+   *
+   * 매입을 적으면 차량 관리에도 같이 올라간다. 그런데 차량번호 형식이 규칙과 다르거나
+   * 저장이 막히면 조용히 건너뛴다 — 매입 기록을 못 남기는 것보다는 낫다고 봤기 때문이다.
+   * 그 대신 빠진 차가 어디에도 안 보여서 제시 대상에 안 뜨는 일이 생긴다.
+   *
+   * 여기서 그걸 드러낸다. 왜 빠졌는지도 같이 준다 — 차량번호가 잘못됐으면 매입 관리에서
+   * 고쳐야지 여기서 등록만 눌러서는 안 된다.
+   */
+  async findUnregisteredIntakes() {
+    const [intakes, vehicles] = await Promise.all([
+      this.prisma.purchaseIntake.findMany({
+        select: {
+          vehicleNumber: true,
+          vehicleName: true,
+          modelYear: true,
+          mileage: true,
+          checkedMileage: true,
+          purchaseAmount: true,
+          firstRegisteredOn: true,
+          fuel: true,
+          date: true,
+        },
+        orderBy: { date: 'desc' },
+      }),
+      this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true } }),
+    ]);
+
+    const known = new Set(vehicles.map((v) => normalizePlate(v.vehicleNumber)));
+    const seen = new Set<string>();
+
+    return intakes
+      .filter((i) => {
+        const plate = normalizePlate(i.vehicleNumber);
+        // 같은 차를 두 번 매입하는 일이 있다(팔았다 되사오는 경우). 목록에는 한 번만 올린다.
+        if (!plate || known.has(plate) || seen.has(plate)) return false;
+        seen.add(plate);
+        return true;
+      })
+      .map((i) => ({
+        vehicleNumber: i.vehicleNumber,
+        vehicleModel: i.vehicleName,
+        modelYear: i.modelYear,
+        mileage: i.checkedMileage || i.mileage,
+        purchasedOn: formatDateOnly(i.date),
+        reason: isValidPlate(normalizePlate(i.vehicleNumber))
+          ? null
+          : '차량번호 형식이 규칙과 달라 등록되지 않았습니다. 매입 관리에서 고쳐 주세요.',
+      }));
+  }
+
+  /**
+   * 그 차를 차량 관리에 올린다.
+   *
+   * 매입 관리에 적힌 값을 그대로 가져온다 — 제시 가능 여부를 가리는 연식·주행거리까지
+   * 같이 넣어야 올리자마자 제시 대상에 뜬다.
+   */
+  async registerFromIntake(vehicleNumber: string) {
+    const plate = this.assertPlate(vehicleNumber);
+    const intake = await this.prisma.purchaseIntake.findFirst({
+      where: { vehicleNumber: { in: [plate, vehicleNumber] } },
+      orderBy: { date: 'desc' },
+    });
+    if (!intake) throw new NotFoundException('매입 내역을 찾을 수 없습니다.');
+
+    const row = await this.prisma.managedVehicle.upsert({
+      where: { vehicleNumber: plate },
+      create: {
+        vehicleNumber: plate,
+        plateTail: plateTailOf(plate),
+        vehicleModel: intake.vehicleName.trim(),
+        priceManwon: Math.round(intake.purchaseAmount / 10_000),
+        fuel: intake.fuel,
+        modelYear: intake.modelYear,
+        mileage: intake.checkedMileage || intake.mileage,
+        firstRegisteredOn: intake.firstRegisteredOn,
+      },
+      update: {},
+    });
+    return this.toView(row);
   }
 
   /**
@@ -230,6 +315,10 @@ export class VehiclesService {
             ? { modelYear: dto.modelYear.trim() }
             : {}),
           ...(dto.mileage !== undefined ? { mileage: dto.mileage } : {}),
+          ...(dto.cashVehicle !== undefined ? { cashVehicle: dto.cashVehicle } : {}),
+          ...(dto.firstRegisteredOn !== undefined
+            ? { firstRegisteredOn: toDateOnlyOrNull(dto.firstRegisteredOn) }
+            : {}),
           ...(dto.offerDate !== undefined
             ? { offerDate: toDateOnlyOrNull(dto.offerDate) }
             : {}),

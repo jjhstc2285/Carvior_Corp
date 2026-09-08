@@ -53,7 +53,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'vehicle') return <VehicleModule />;
   if (module === 'chat') return <ChatModule role={role} />;
   if (module === 'cleaning') return <CleaningModule role={role} />;
-  if (module === 'purchaseIntake') return <PurchaseIntakeModule role={role} />;
+  if (module === 'purchaseIntake') return <PurchaseIntakeModule />;
   if (module === 'purchaseList') return <PurchaseListModule role={role} />;
   if (module === 'stockFinance') return <StockFinanceModule />;
   if (module === 'dealerFee') return <DealerFeeModule />;
