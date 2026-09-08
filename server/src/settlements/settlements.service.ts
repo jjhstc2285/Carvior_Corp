@@ -286,12 +286,7 @@ export class SettlementsService {
    * 못 찾은 건수도 같이 돌려준다 — 안 넘어온 게 짝이 없어서인지 이미 같은 값이어서인지
    * 알아야 다음에 무엇을 볼지 정할 수 있다.
    */
-  async syncAllFromBrokerage(): Promise<{
-    updated: number;
-    already: number;
-    noMatch: number;
-    missingPlates: string[];
-  }> {
+  async syncAllFromBrokerage() {
     const rows = await this.prisma.brokerageSettlement.findMany({
       select: {
         vehicleNumber: true,
@@ -313,11 +308,37 @@ export class SettlementsService {
       else missing.push(row.vehicleNumber);
     }
 
-    this.logger.log(
-      `알선 → 매입 정산 옮기기: ${updated}건 옮김 / ${already}건 그대로 / ${missing.length}건 짝 없음`,
+    /*
+     * 어디서 끊겼는지 같이 돌려준다.
+     *
+     * '0건 가져옴'만 보면 왜 안 됐는지 알 수가 없다. 알선 정산이 아예 없는 건지,
+     * 판매금액을 안 적은 건지, 차량번호가 매입 정산과 안 겹치는 건지 —
+     * 셋은 고칠 방법이 완전히 다르다.
+     */
+    const withAmount = rows.filter((r) => r.totalSaleAmount > 0).length;
+    const purchasePlates = new Set(
+      (await this.prisma.purchaseSettlement.findMany({ select: { vehicleNumber: true } })).map((p) =>
+        normalizePlate(p.vehicleNumber),
+      ),
     );
-    // 짝 없는 차량번호를 몇 개 보여준다 — 숫자만으로는 무엇을 고쳐야 할지 알 수 없다.
-    return { updated, already, noMatch: missing.length, missingPlates: missing.slice(0, 10) };
+
+    this.logger.log(
+      `알선 → 매입 정산 옮기기: 알선 ${rows.length}건(금액 적힌 것 ${withAmount}건) / ` +
+        `매입 정산 ${purchasePlates.size}대 / ${updated}건 옮김 / ${already}건 그대로 / ${missing.length}건 짝 없음`,
+    );
+
+    return {
+      updated,
+      already,
+      noMatch: missing.length,
+      missingPlates: missing.slice(0, 10),
+      // 점검용 — 양쪽에 무엇이 있는지
+      brokerageCount: rows.length,
+      brokerageWithAmount: withAmount,
+      purchaseCount: purchasePlates.size,
+      brokeragePlates: rows.slice(0, 5).map((r) => r.vehicleNumber),
+      purchasePlates: [...purchasePlates].slice(0, 5),
+    };
   }
 
   async removeBrokerage(id: string) {

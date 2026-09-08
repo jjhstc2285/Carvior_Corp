@@ -108,20 +108,34 @@ export default function PurchaseSettlementTab({ role }: Props) {
         already: number;
         noMatch: number;
         missingPlates: string[];
+        brokerageCount: number;
+        brokerageWithAmount: number;
+        purchaseCount: number;
+        brokeragePlates: string[];
+        purchasePlates: string[];
       }>('/settlements/purchase/sync-from-brokerage', { method: 'POST' });
       await refresh();
+
+      /*
+       * 어디서 끊겼는지 그대로 보여준다.
+       *
+       * '0건 가져옴'만 띄우면 왜 안 됐는지 알 수가 없다. 알선 정산이 없는 건지,
+       * 판매금액을 안 적은 건지, 차량번호가 안 겹치는 건지 — 고칠 방법이 다 다르다.
+       */
+      const lines = [
+        `알선 정산 ${res.brokerageCount}건 (판매금액 적힌 것 ${res.brokerageWithAmount}건)`,
+        `매입 정산 ${res.purchaseCount}대`,
+        `가져옴 ${res.updated}건 · 이미 같음 ${res.already}건 · 짝 없음 ${res.noMatch}건`,
+      ];
+      if (res.noMatch > 0) lines.push(`짝 없는 알선 차량번호: ${res.missingPlates.join(', ')}`);
+      if (res.updated === 0 && res.brokeragePlates.length > 0) {
+        lines.push(`알선 쪽 차량번호 예: ${res.brokeragePlates.join(', ')}`);
+        lines.push(`매입 정산 쪽 차량번호 예: ${res.purchasePlates.join(', ')}`);
+      }
+
       void alertSuccess(
-        res.updated > 0 ? `${res.updated}건을 가져왔습니다` : '새로 가져올 게 없습니다',
-        [
-          res.already > 0 && `이미 같은 값인 ${res.already}건은 그대로 뒀습니다.`,
-          // 숫자만으로는 무엇을 고쳐야 할지 알 수 없어 차량번호를 몇 개 보여준다.
-          res.noMatch > 0 &&
-            `매입 정산이 없는 ${res.noMatch}건은 넣을 데가 없습니다 — ${res.missingPlates.join(', ')}${
-              res.noMatch > res.missingPlates.length ? ' 외' : ''
-            }`,
-        ]
-          .filter(Boolean)
-          .join(' ') || undefined,
+        res.updated > 0 ? `${res.updated}건을 가져왔습니다` : '가져온 게 없습니다',
+        lines.join(' / '),
       );
     } catch (e) {
       void alertError('가져오지 못했습니다', e instanceof ApiError ? e.message : '');
