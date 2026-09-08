@@ -118,6 +118,14 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       .filter(({ vehicle: v, eligibility }) => {
         // 매도·출고 예정은 재고금융과 상관없이 가른다 — 현금차량도 팔린다.
         if (view === 'sold') return Boolean(v.soldDate);
+
+        // 넘긴 차는 매도 차량에만 남는다. 제시 대상·제시함·재고차량·현금차량은
+        // 앞으로 할 일을 모아 놓은 곳이라 이미 끝난 차가 섞이면 안 된다.
+        //
+        // 상환 예정만 예외다 — 팔았다고 재고금융이 저절로 갚아지는 게 아니라
+        // 갚는 날까지 챙겨야 한다.
+        if (v.soldDate && view !== 'repay') return false;
+
         if (view === 'release') return saleStage(v) === 'RELEASE_PENDING';
         if (view === 'cash') return v.cashVehicle;
         if (v.cashVehicle) return false;
@@ -126,9 +134,6 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         // 이미 제시일자를 적은 차는 제시 가능 여부와 상관없이 남긴다 —
         // 진행 중인 건이 어느 목록에도 없으면 이전일자를 적을 자리가 사라진다.
         if (view === 'candidate') {
-          // 이미 넘긴 차를 이제 와서 제시할 일은 없다. 재고차량·상환 예정에는 그대로 남긴다 —
-          // 팔았다고 재고가 저절로 상환되는 게 아니라 갚을 때까지 챙겨야 한다.
-          if (v.soldDate) return false;
           return (eligibility.ok !== false || Boolean(v.offerDate)) && !(v.offerDate && v.transferDate);
         }
         // 재고를 잡으면 제시함에서 빠지고 재고차량으로 넘어간다 — 그래야 제시함에
