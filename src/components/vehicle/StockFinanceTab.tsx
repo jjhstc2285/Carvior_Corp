@@ -122,9 +122,10 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       .sort((a, b) => {
         if (view === 'sold') return (b.vehicle.soldDate ?? '').localeCompare(a.vehicle.soldDate ?? '');
         if (view === 'repay') return (a.vehicle.repayDate ?? '').localeCompare(b.vehicle.repayDate ?? '');
-        // 등록증을 봐야 갈리는 차부터 올린다 — 그게 지금 할 일이다.
+        // 바로 제시할 수 있는 차부터 올린다 — 그게 지금 할 일이다.
+        // 다음이 등록증만 보면 갈리는 차, 맨 아래가 연식·주행거리를 아직 모르는 차다.
         if (view === 'candidate') {
-          const rank = (ok: unknown) => (ok === 'check' ? 0 : ok === null ? 1 : 2);
+          const rank = (ok: unknown) => (ok === true ? 0 : ok === 'check' ? 1 : 2);
           const gap = rank(a.eligibility.ok) - rank(b.eligibility.ok);
           if (gap !== 0) return gap;
         }
