@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import type { AuthUser } from './current-user.decorator';
 
 /**
- * 매입리스트·상조회비 같은 돈 장부를 볼 수 있는 사람.
+ * 상조회비 같은 돈 장부를 볼 수 있는 사람.
  *
  * 대표와 사무장, 그리고 테스트 계정. 넷이다.
  *

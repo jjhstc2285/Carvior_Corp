@@ -12,7 +12,7 @@ import type { ManagedVehicle } from '../types';
 export const MAX_AGE_YEARS = 10;
 export const MAX_MILEAGE_KM = 200_000;
 
-/** 캐피탈사 — 매입리스트의 재고가능금액 칸과 같은 곳들이다. */
+/** 재고금융을 받는 캐피탈사. */
 export const CAPITAL_COMPANIES = ['BMW', '우리', '케이비', '메리츠', '하나', '현대'] as const;
 
 export type OfferEligibility =
