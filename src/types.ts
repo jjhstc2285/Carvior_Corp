@@ -700,6 +700,8 @@ export interface ManagedVehicle {
   soldDate: string | null;
   /** 출고 예정 — 상담이 판매완료인데 아직 매도일자를 안 적었다. 서버가 상담과 맞춰 내려준다 */
   releasePending?: boolean;
+  /** 매입 관리에 적은 매입금액(원). 매입 기록이 없으면 null */
+  intakeAmount?: number | null;
   stockCapital: string; // 할부사
   stockAmount: number; // 재고금액(원)
   /** 이 차 한 대에 쓴 광고비(원) — 광고 관리에서 적는다 */

@@ -49,7 +49,7 @@ export class VehiclesService {
       firstRegisteredOn: Date | null;
       vehicleNumber?: string;
     },
-  >(row: T, soldPlates?: Set<string>) {
+  >(row: T, soldPlates?: Set<string>, intakeAmounts?: Map<string, number>) {
     return {
       ...row,
       offerDate: formatDateOnlyOrNull(row.offerDate),
@@ -66,7 +66,31 @@ export class VehiclesService {
        */
       releasePending:
         row.soldDate == null && (soldPlates?.has(normalizePlate(row.vehicleNumber ?? '')) ?? false),
+      /**
+       * 매입 관리에 적은 매입금액(원).
+       *
+       * 차에도 priceManwon 이 있지만 그건 주차 배치를 가리려고 매입할 때 복사해둔 값이라
+       * 나중에 금액을 고치면 어긋난다. 얼마에 샀는지는 매입 관리가 원본이라 그걸 읽는다.
+       * 목록을 안 거쳐 들어온 경우(단건 조회)에는 알 수 없어 null 로 둔다.
+       */
+      intakeAmount: intakeAmounts?.get(normalizePlate(row.vehicleNumber ?? '')) ?? null,
     };
+  }
+
+  /**
+   * 차량번호별 매입금액(원).
+   *
+   * 같은 차를 두 번 매입하는 일이 있다(팔았다 되사오는 경우). 그때는 최근 것이 맞다.
+   * 차량번호는 손으로 적는 값이라 띄어쓰기가 섞여 들어온다 — 정리한 꼴로 맞춘다.
+   */
+  private async intakeAmounts(): Promise<Map<string, number>> {
+    const rows = await this.prisma.purchaseIntake.findMany({
+      where: { purchaseAmount: { gt: 0 } },
+      select: { vehicleNumber: true, purchaseAmount: true },
+      orderBy: { date: 'asc' },
+    });
+    // 오래된 것부터 넣어 최근 것이 덮어쓰게 한다.
+    return new Map(rows.map((r) => [normalizePlate(r.vehicleNumber), r.purchaseAmount]));
   }
 
   /** 상담이 판매완료로 찍힌 차량번호 — 출고 예정을 가리는 데 쓴다. */
@@ -96,7 +120,8 @@ export class VehiclesService {
     return Promise.all([
       this.prisma.managedVehicle.findMany({ where, orderBy: { createdAt: "desc" } }),
       this.soldPlates(),
-    ]).then(([rows, sold]) => rows.map((r) => this.toView(r, sold)));
+      this.intakeAmounts(),
+    ]).then(([rows, sold, amounts]) => rows.map((r) => this.toView(r, sold, amounts)));
   }
 
   /**

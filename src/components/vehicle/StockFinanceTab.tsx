@@ -63,17 +63,21 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const { state } = useStore();
 
   /**
-   * 차량번호로 매입가를 찾는다(만원).
+   * 매입가(만원).
    *
-   * 매입 정산에 적힌 값이 먼저다 — 실제로 얼마에 샀는지가 거기 있다.
-   * 정산이 아직 없으면 매입 관리에서 넘어올 때 채워진 값을 쓴다.
+   * 매입 관리에 적은 금액이 원본이다 — 서버가 차량번호로 맞춰 붙여 내려준다.
+   * 그게 없으면 매입 정산, 그것도 없으면 매입할 때 차에 복사해둔 값을 쓴다.
    */
   const purchasePriceOf = useMemo(() => {
-    const byPlate = new Map<string, number>();
+    const settled = new Map<string, number>();
     for (const s of state.purchaseSettlements) {
-      if (s.purchasePrice > 0) byPlate.set(s.vehicleNumber, s.purchasePrice / 10000);
+      if (s.purchasePrice > 0) settled.set(s.vehicleNumber.replace(/\s+/g, ''), s.purchasePrice);
     }
-    return (v: ManagedVehicle) => byPlate.get(v.vehicleNumber) ?? (v.priceManwon || null);
+    return (v: ManagedVehicle) => {
+      const won = v.intakeAmount || settled.get(v.vehicleNumber.replace(/\s+/g, ''));
+      if (won) return Math.round(won / 10000);
+      return v.priceManwon || null;
+    };
   }, [state.purchaseSettlements]);
   const views = useMemo(() => VIEWS.filter(v => isOfficeManager || !v.officeOnly), [isOfficeManager]);
 
