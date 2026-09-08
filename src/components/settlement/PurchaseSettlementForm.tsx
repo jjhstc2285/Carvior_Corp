@@ -149,6 +149,10 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         {/* 판 값. 산 값과 한 화면에 있어야 그 차에서 얼마가 남았는지가 보인다. */}
         <div className="mt-4 rounded-xl border border-slate-200 p-3">
           <p className="mb-2 text-xs font-semibold text-slate-600">판매 (판매완료된 뒤에 적습니다)</p>
+          <p className="mb-2 text-[11px] text-slate-400">
+            차량판매가는 알선 정산에 <b>총 진행 판매금액</b>을 적으면 그때 따라옵니다 — 여기서 고쳐도
+            알선 정산을 다시 저장하면 그 값으로 돌아갑니다.
+          </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <MoneyField label="차량판매가" value={salePrice} onChange={setSalePrice} decimal />
             <MoneyField label="현금 수수료" value={cashCommission} onChange={setCashCommission} decimal />

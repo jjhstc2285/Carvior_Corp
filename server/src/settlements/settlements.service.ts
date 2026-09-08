@@ -201,6 +201,7 @@ export class SettlementsService {
       },
       include: EMPLOYEE_SELECT,
     });
+    await this.syncSalePrice(row.vehicleNumber, row.totalSaleAmount);
     return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
   }
 
@@ -211,7 +212,42 @@ export class SettlementsService {
       data: { ...this.stripDate(dto), ...(dto.date ? { date: toDateOnly(dto.date) } : {}) },
       include: EMPLOYEE_SELECT,
     });
+    await this.syncSalePrice(row.vehicleNumber, row.totalSaleAmount);
     return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
+  }
+
+  /**
+   * 알선 정산에 적은 '총 진행 판매금액'을 매입 정산의 차량판매가로 옮긴다.
+   *
+   * 같은 차를 두 곳에 적게 하지 않는다 — 얼마에 팔았는지는 알선팀이 먼저 아는 값이고,
+   * 계약팀이 그걸 옮겨 적으면 어느 쪽이 맞는지 알 수 없게 된다.
+   *
+   * 승인이 찍힌 정산은 건드리지 않는다. 결재한 뒤에 금액이 저절로 바뀌면
+   * 무엇을 보고 찍었는지가 남지 않는다.
+   *
+   * 차량번호는 손으로 적는 값이라 띄어쓰기가 섞여 들어온다 — 정리한 꼴로도 찾는다.
+   * 같은 차를 두 번 사고팔았으면 최근 매입 건에 넣는다.
+   */
+  private async syncSalePrice(vehicleNumber: string, totalSaleAmount: number): Promise<void> {
+    if (totalSaleAmount <= 0) return;
+    try {
+      const plates = [...new Set([vehicleNumber, normalizePlate(vehicleNumber)])].filter(Boolean);
+      const target = await this.prisma.purchaseSettlement.findFirst({
+        where: { vehicleNumber: { in: plates }, chiefApprovedAt: null },
+        orderBy: { date: 'desc' },
+        select: { id: true, salePrice: true },
+      });
+      if (!target || target.salePrice === totalSaleAmount) return;
+
+      await this.prisma.purchaseSettlement.update({
+        where: { id: target.id },
+        data: { salePrice: totalSaleAmount },
+      });
+      this.logger.log(`${vehicleNumber} 차량판매가를 알선 정산에서 가져왔습니다: ${totalSaleAmount}원`);
+    } catch (e) {
+      // 옮기지 못해도 알선 정산은 그대로 저장된다 — 손으로 적으면 된다.
+      this.logger.warn(`차량판매가를 옮기지 못했습니다(${vehicleNumber}): ${(e as Error).message}`);
+    }
   }
 
   async removeBrokerage(id: string) {
