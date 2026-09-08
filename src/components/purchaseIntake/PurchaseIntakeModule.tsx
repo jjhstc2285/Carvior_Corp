@@ -251,7 +251,7 @@ export default function PurchaseIntakeModule() {
             </div>
 
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-slate-100 pt-3 text-xs sm:grid-cols-4">
-              <div><dt className="text-slate-400">고객</dt><dd className="text-slate-700">{r.customerName} · {r.customerPhone}</dd></div>
+              <div><dt className="text-slate-400">고객</dt><dd className="text-slate-700">{[r.customerName, r.customerPhone].filter(Boolean).join(' · ')}</dd></div>
               <div><dt className="text-slate-400">실차 확인자</dt><dd className="text-slate-700">{r.inspector || '-'}</dd></div>
               <div><dt className="text-slate-400">연식 · 연료</dt><dd className="text-slate-700">{[r.modelYear && `${r.modelYear}년식`, r.fuel].filter(Boolean).join(' · ') || '-'}</dd></div>
               <div><dt className="text-slate-400">최초등록일</dt><dd className="text-slate-700">{r.firstRegisteredOn ?? '-'}</dd></div>
