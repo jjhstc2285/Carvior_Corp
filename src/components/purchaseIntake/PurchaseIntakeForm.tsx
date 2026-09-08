@@ -109,8 +109,9 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
 
   const handleSubmit = async () => {
     const plate = normalizePlate(vehicleNumber);
-    if (!customerName.trim() || !customerPhone.trim()) {
-      setError('고객이름과 고객번호는 필수 입력입니다.');
+    // 고객번호는 안 받아오는 경우가 있다(대리점에서 넘어온 차 등) — 없어도 등록된다.
+    if (!customerName.trim()) {
+      setError('고객이름은 필수 입력입니다.');
       return;
     }
     if (!vehicleName.trim() || !plate) {
@@ -220,7 +221,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
         <p className="mt-5 mb-2 text-xs font-bold text-slate-600">고객 · 매입처</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {field('날짜', <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />)}
-          {field('고객번호 *', text(customerPhone, setCustomerPhone, '010-0000-0000'))}
+          {field('고객번호', text(customerPhone, setCustomerPhone, '010-0000-0000 (없으면 비움)'))}
           {field('고객이름 *', text(customerName, setCustomerName, '이동훈'))}
           {field('실차 확인자', text(inspector, setInspector, '검차업체(예나)'))}
           {field('매입처', text(source, setSource, '아우디 평촌 류호성상조회장'), 'col-span-2 sm:col-span-4')}

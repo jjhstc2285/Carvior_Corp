@@ -50,7 +50,8 @@ const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 export class CreatePurchaseIntakeDto {
   @IsOptional() @Matches(DATE_PATTERN, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) date?: string;
 
-  @IsString() @MaxLength(20) customerPhone!: string;
+  // 고객번호는 안 받아오는 경우가 있다(대리점에서 넘어온 차 등).
+  @IsOptional() @IsString() @MaxLength(20) customerPhone?: string;
   @IsString() @MaxLength(30) customerName!: string;
   @IsOptional() @IsString() @MaxLength(120) source?: string;
   @IsOptional() @IsString() @MaxLength(60) inspector?: string;
@@ -326,7 +327,7 @@ export class PurchaseIntakeService {
     const row = await this.prisma.purchaseIntake.create({
       data: {
         date: toDateOnly(dto.date || todayKst()),
-        customerPhone: dto.customerPhone.trim(),
+        customerPhone: dto.customerPhone?.trim() ?? '',
         customerName: dto.customerName.trim(),
         source: dto.source?.trim() ?? '',
         inspector: dto.inspector?.trim() ?? '',
