@@ -72,13 +72,16 @@ export default function PendingPurchaseDrafts({ onCreated }: { onCreated: () => 
 
   if (rows.length === 0) return null;
 
+  // 어느 달 것이 밀려 있는지 먼저 보이게 한다 — 몇 건인지보다 어느 달인지가 먼저 궁금하다.
+  const months = [...new Set(rows.map(r => dayjs(r.date).format('M월')))].join(' · ');
+
   return (
     <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50/50 p-4">
       <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
         <FilePlus2 size={14} className="text-amber-700" />
         <p className="text-xs font-bold text-amber-900">정산 줄이 없는 매입 {rows.length}건</p>
         <span className="text-[11px] text-amber-800/70">
-          누르면 매입 관리에 적힌 값이 채워진 줄이 생깁니다. 상품화 비용과 판매가는 비어 있습니다
+          {months} · 누르면 매입 관리에 적힌 값이 채워진 줄이 생깁니다
         </span>
         <button
           disabled={busy != null}

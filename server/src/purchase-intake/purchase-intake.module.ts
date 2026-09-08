@@ -48,14 +48,6 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  * 구전 지급방식 — 매입(BrokerFeeType)과 정산(BrokerFeePayout)이 이름만 다르고 같은 것이다.
  * 정산 줄을 만들 때 옮겨 담는다.
  */
-/**
- * 정산 줄을 만들어 줄 매입의 시작일.
- *
- * 7·8월 매입은 이 기능이 생기기 전에 따로 정산을 끝냈다. 그걸 다시 목록에 올리면
- * 이미 끝난 일이 할 일처럼 쌓인다.
- */
-const SETTLEMENT_DRAFT_FROM = '2026-09-01';
-
 const BROKER_FEE_PAYOUT: Record<BrokerFeeType, BrokerFeePayout> = {
   [BrokerFeeType.CASH]: BrokerFeePayout.CASH,
   [BrokerFeeType.WITHHOLD_3_3]: BrokerFeePayout.TAX_3_3,
@@ -606,14 +598,13 @@ export class PurchaseIntakeService {
   /**
    * 매입한 차 중 정산 줄이 아직 없는 것 — 화면에서 만들어 채운다.
    *
-   * 이 날보다 앞선 매입은 안 센다. 7·8월은 이 기능이 생기기 전에 따로 정산을 끝냈고,
-   * 그걸 다시 목록에 올리면 이미 끝난 일이 할 일처럼 쌓인다.
-   * 지난 것까지 챙길 일이 생기면 이 날짜를 앞으로 당긴다.
+   * 달로 가리지 않고 전부 올린다. 한때 9월치만 올렸는데, 그러면 7·8월에 사온 차의
+   * 정산 줄이 아예 안 생겨서 알선 정산에 적어둔 판매금액이 갈 데가 없어졌다.
+   * 지난 달 것을 안 보고 싶으면 화면에서 달을 골라 거른다.
    */
   async findSettlementDrafts() {
     const [intakes, settlements] = await Promise.all([
       this.prisma.purchaseIntake.findMany({
-        where: { date: { gte: toDateOnly(SETTLEMENT_DRAFT_FROM) } },
         select: {
           id: true,
           vehicleNumber: true,
