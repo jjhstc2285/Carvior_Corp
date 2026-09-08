@@ -36,6 +36,9 @@ const MAN = (n: number) => wonToManwon(n);
 export default function PurchaseSettlementTab({ role }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
+  /** 이번 달부터 본다. 지난 달 것까지 한 화면에 쌓이면 지금 처리할 게 안 보인다. */
+  const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
+  const [allMonths, setAllMonths] = useState(false);
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -73,6 +76,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
   };
 
   const filtered = scoped
+    .filter(s => allMonths || s.date.startsWith(month))
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
     .filter(s => role !== 'ADMIN' || employeeFilter === 'all' || s.employeeId === employeeFilter)
     .filter(s => !query.trim() || s.vehicleNumber.includes(query.trim()) || s.vehicleName.includes(query.trim()))
@@ -162,7 +166,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '매입정산');
-    XLSX.writeFile(wb, `매입정산_${dayjs().format('YYYYMMDD')}.xlsx`);
+    XLSX.writeFile(wb, `매입정산_${allMonths ? dayjs().format('YYYYMMDD') : month}.xlsx`);
   };
 
   return (
@@ -241,6 +245,17 @@ export default function PurchaseSettlementTab({ role }: Props) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="차량번호·차량명 검색"
           className="w-52 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+        <input
+          type="month"
+          value={month}
+          disabled={allMonths}
+          onChange={e => setMonth(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400 disabled:bg-slate-50 disabled:text-slate-400"
+        />
+        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+          <input type="checkbox" checked={allMonths} onChange={e => setAllMonths(e.target.checked)} className="rounded" />
+          전체 기간
+        </label>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as SettlementStatus | 'all')}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
           <option value="all">전체 상태</option>
