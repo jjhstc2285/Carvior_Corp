@@ -244,6 +244,7 @@ export class SettlementsService {
     totalSaleAmount: number;
     transferFee: number;
     transferFeeBalance: number;
+    date: Date;
   }): Promise<'updated' | 'already' | 'noMatch'> {
     // 이전비 잔액이 매입 정산의 '추가이전비' 자리다. 둘을 더해 한 칸에 넣는다.
     const transferFee = row.transferFee + row.transferFeeBalance;
@@ -254,16 +255,24 @@ export class SettlementsService {
       const target = await this.prisma.purchaseSettlement.findFirst({
         where: { vehicleNumber: { in: plates }, chiefApprovedAt: null },
         orderBy: { date: 'desc' },
-        select: { id: true, salePrice: true, transferFee: true },
+        select: { id: true, salePrice: true, transferFee: true, date: true },
       });
       if (!target) return 'noMatch';
 
+      /*
+       * 정산은 판 달로 잡는다.
+       *
+       * 7월에 사서 9월에 팔았으면 그건 9월 정산이다. 매입일에 머물러 있으면 이번 달
+       * 목록에 안 보이고, 지난 달을 뒤져야 나온다 — 정산은 판 다음에 하는 일이다.
+       * 매입일은 매입 관리에 그대로 남아 있으니 여기서 또 들고 있을 필요가 없다.
+       */
+      const sold = row.totalSaleAmount > 0;
+
       // 0으로 덮어써서 이미 적어둔 값을 지우지 않는다 — 안 적은 칸은 그대로 둔다.
       const data = {
-        ...(row.totalSaleAmount > 0 && target.salePrice !== row.totalSaleAmount
-          ? { salePrice: row.totalSaleAmount }
-          : {}),
+        ...(sold && target.salePrice !== row.totalSaleAmount ? { salePrice: row.totalSaleAmount } : {}),
         ...(transferFee > 0 && target.transferFee !== transferFee ? { transferFee } : {}),
+        ...(sold && formatDateOnly(target.date) !== formatDateOnly(row.date) ? { date: row.date } : {}),
       };
       if (Object.keys(data).length === 0) return 'already';
 
@@ -293,6 +302,7 @@ export class SettlementsService {
         totalSaleAmount: true,
         transferFee: true,
         transferFeeBalance: true,
+        date: true,
       },
       orderBy: { date: 'asc' },
     });

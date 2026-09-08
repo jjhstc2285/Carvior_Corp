@@ -120,7 +120,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         <p className="mt-0.5 text-xs text-slate-400">구전은 방식마다 나가는 금액이 다릅니다 — 현금 90 / 3.3% 88 / 13.3% 75 처럼 <b>실제로 나간 금액</b>을 적습니다.</p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <DateField label="일자" value={date} onChange={setDate} />
+          <DateField label="정산일자" value={date} onChange={setDate} />
           <TextField label="차량명" value={vehicleName} onChange={setVehicleName} placeholder="그랜저 GN7" required />
           <TextField label="차량번호" value={vehicleNumber} onChange={setVehicleNumber} placeholder="12가3456" required />
           <EmployeeField label="담당자" value={employeeId} onChange={setEmployeeId} employees={state.employees} />
