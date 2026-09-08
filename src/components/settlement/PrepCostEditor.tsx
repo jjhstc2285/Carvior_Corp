@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
-import { manwonToWon, toManwonValue, withManwonCommas, wonToManwon } from '../../lib/money';
+import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
 import {
   PREP_COST_KINDS,
   PREP_COST_LABEL,
@@ -7,7 +7,7 @@ import {
   type PrepCostKind,
 } from '../../types';
 
-/** 편집 중에는 금액을 '만원 표기 문자열'로 들고 있는다("3.5"). 저장할 때 원으로 바꾼다. */
+/** 편집 중에는 금액을 문자열로 들고 있는다("35000"). 저장할 때 숫자로 바꾼다. */
 export interface PrepCostRow {
   kind: PrepCostKind;
   vendor: string;
@@ -38,9 +38,9 @@ export default function PrepCostEditor({ rows, onChange, vendors }: Props) {
     rows.map((row, index) => ({ row, index })).filter(({ row }) => row.kind === kind);
 
   const subtotalOf = (kind: PrepCostKind) =>
-    rows.filter(r => r.kind === kind).reduce((sum, r) => sum + manwonToWon(r.amount), 0);
+    rows.filter(r => r.kind === kind).reduce((sum, r) => sum + moneyToNumber(r.amount), 0);
 
-  const total = rows.reduce((sum, r) => sum + manwonToWon(r.amount), 0);
+  const total = rows.reduce((sum, r) => sum + moneyToNumber(r.amount), 0);
 
   const addRow = (kind: PrepCostKind) => onChange([...rows, { kind, vendor: '', amount: '', memo: '' }]);
 
@@ -52,9 +52,9 @@ export default function PrepCostEditor({ rows, onChange, vendors }: Props) {
   return (
     <div className="rounded-xl border border-slate-200">
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-3.5 py-2">
-        <span className="text-xs font-bold text-slate-600">상품화 비용 명세 <span className="font-normal text-slate-400">(만원 · 3.5 = 35,000원)</span></span>
+        <span className="text-xs font-bold text-slate-600">상품화 비용 명세 <span className="font-normal text-slate-400">(원)</span></span>
         <span className="text-xs text-slate-500">
-          합계 <b className="text-sm text-slate-800">{wonToManwon(total)}</b> 만원
+          합계 <b className="text-sm text-slate-800">{withCommas(total)}</b> 원
         </span>
       </div>
 
@@ -72,7 +72,7 @@ export default function PrepCostEditor({ rows, onChange, vendors }: Props) {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs font-bold ${subtotal ? 'text-slate-800' : 'text-slate-300'}`}>
-                    {wonToManwon(subtotal)}
+                    {withCommas(subtotal)}
                   </span>
                   <button
                     type="button"
@@ -96,8 +96,8 @@ export default function PrepCostEditor({ rows, onChange, vendors }: Props) {
                         className={`${INPUT} min-w-0 flex-1`}
                       />
                       <input
-                        value={withManwonCommas(row.amount)}
-                        onChange={e => patchRow(index, { amount: toManwonValue(e.target.value) })}
+                        value={withCommas(row.amount)}
+                        onChange={e => patchRow(index, { amount: toMoneyValue(e.target.value) })}
                         inputMode="decimal"
                         placeholder="3.5"
                         className={`${INPUT} w-24 text-right`}

@@ -3,7 +3,6 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, Lock, Pencil, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
-import { WON_PER_MANWON, wonToManwon } from '../../lib/money';
 import {
   EMPTY_PREP_BREAKDOWN,
   EMPTY_VEHICLE_COST,
@@ -30,8 +29,13 @@ interface Props {
 }
 
 const NUM = (n: number) => n.toLocaleString();
-/** 매입 정산 금액은 원으로 저장하고 만원으로 보여준다(3.5 = 35,000원). */
-const MAN = (n: number) => wonToManwon(n);
+/**
+ * 금액은 원으로 저장하고 원으로 보여준다.
+ *
+ * 예전에는 만원으로 접어서 보여줬는데 2,761.22만원 같은 소수가 나와 읽기 어려웠다.
+ * 27,612,200원이 자릿수는 길어도 눈으로 바로 읽힌다.
+ */
+const MAN = (n: number) => n.toLocaleString();
 
 export default function PurchaseSettlementTab({ role }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
@@ -205,26 +209,22 @@ export default function PurchaseSettlementTab({ role }: Props) {
   }), [filtered]);
 
   const handleExport = () => {
-    // 엑셀에서 더하고 곱할 수 있게 문자열이 아니라 숫자로 넣는다.
-    // 저장은 원이지만 사람이 보는 단위는 만원이라 나눠서 내보낸다(35,000원 → 3.5).
-    const man = (won: number) => won / WON_PER_MANWON;
-
+    // 엑셀에서 더하고 곱할 수 있게 문자열이 아니라 숫자로 넣는다. 전부 원 단위다.
     const rows = filtered.map(s => ({
       일자: s.date,
       차량명: s.vehicleName,
       차량번호: s.vehicleNumber,
-      '이전비+추가이전비(만원)': man(s.transferFee),
-      '매입가(만원)': man(s.purchasePrice),
+      '이전비+추가이전비(원)': s.transferFee,
+      '매입가(원)': s.purchasePrice,
       // 항목별 합계 6칸 — 업체별 세부는 '상품화 명세' 열에 풀어 쓴다.
-      ...Object.fromEntries(PREP_COST_KINDS.map(k => [`${PREP_COST_LABEL[k]}(만원)`, man(breakdownOf(s)[k])])),
-      '구전(만원)': man(s.brokerFee),
-      '상품화총비용(만원)': man(prepTotalOf(s)),
+      ...Object.fromEntries(PREP_COST_KINDS.map(k => [`${PREP_COST_LABEL[k]}(원)`, breakdownOf(s)[k]])),
+      '구전(원)': s.brokerFee,
+      '상품화총비용(원)': prepTotalOf(s),
       '상품화 명세': (s.prepCosts ?? [])
-        .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${wonToManwon(c.amount)}`)
+        .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount.toLocaleString()}`)
         .join(' / '),
-      '매입+상품화총비용(만원)': man(grandTotalOf(s)),
-      '정산금액(만원)': man(s.settlementAmount),
-      // 아래 네 열만 '원' 단위다(차량관리에서 자동으로 붙는 값).
+      '매입+상품화총비용(원)': grandTotalOf(s),
+      '정산금액(원)': s.settlementAmount,
       '주유(원)': costOf(s).fuel,
       '배터리(원)': costOf(s).battery,
       '주차(원)': costOf(s).parking,
@@ -282,15 +282,15 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">매입가 합계</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">{MAN(totals.purchase)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+          <p className="mt-1 text-2xl font-bold text-slate-800">{MAN(totals.purchase)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">상품화총비용 합계</p>
-          <p className="mt-1 text-2xl font-bold text-amber-600">{MAN(totals.prep)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+          <p className="mt-1 text-2xl font-bold text-amber-600">{MAN(totals.prep)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">정산금액 합계</p>
-          <p className="mt-1 text-2xl font-bold text-indigo-600">{MAN(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">만원</span></p>
+          <p className="mt-1 text-2xl font-bold text-indigo-600">{MAN(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">차량비용 합계</p>
@@ -304,7 +304,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
         <div className="flex items-baseline justify-between border-b border-amber-200/70 px-4 py-2">
           <span className="text-xs font-bold text-amber-800">상품화총비용 항목별</span>
           <span className="text-[11px] text-amber-700/80">
-            합계 {MAN(totals.prep)}만원 · {totals.count}건 기준
+            합계 {MAN(totals.prep)}원 · {totals.count}건 기준
           </span>
         </div>
         <div className="grid grid-cols-3 divide-x divide-y divide-amber-200/60 sm:grid-cols-6 sm:divide-y-0">
