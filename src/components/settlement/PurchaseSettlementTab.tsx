@@ -22,7 +22,7 @@ import {
 } from '../../types';
 import PurchaseSettlementForm from './PurchaseSettlementForm';
 import PendingPurchaseDrafts from './PendingPurchaseDrafts';
-import { alertError, confirmDanger } from '../../lib/alert';
+import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
 
 interface Props {
@@ -58,12 +58,42 @@ export default function PurchaseSettlementTab({ role }: Props) {
    * 이름 두 개로 못 박혀 있다(서버 settlements/approvers.ts). 직책으로 가리면
    * 나중에 본부장이 한 명 더 생겼을 때 그 사람도 돈을 승인하게 된다.
    */
+  /** 한 달치를 지우는 건 무거운 일이라 사무장·대표만. 서버도 같은 기준으로 다시 본다. */
+  const canClear = role === 'ADMIN' || ['대표', '사무장'].some(k => (me?.position ?? '').includes(k));
   const approverRole: 'CHIEF' | 'CEO' | null =
     me?.name === '안원용' ? 'CHIEF' : me?.name === '유진욱' ? 'CEO' : null;
   const seesAll = role !== 'EMPLOYEE' || myDepartment === '계약팀';
   const scoped = seesAll
     ? state.purchaseSettlements
     : state.purchaseSettlements.filter(s => s.employeeId === state.currentEmployeeId);
+
+  /**
+   * 그 달 정산을 한 번에 지운다.
+   *
+   * 이 화면이 생기기 전에 따로 정산을 끝낸 달이 있다. 수십 건을 손으로 지우게 두지 않는다.
+   * 승인이 찍힌 건은 서버가 남긴다 — 그건 누가 무엇을 보고 결재했는지가 남아야 하는 기록이다.
+   */
+  const clearMonth = async () => {
+    const count = filtered.length;
+    const label = dayjs(month).format('YYYY년 M월');
+    const ok = await confirmDanger(
+      `${label} 매입 정산 ${count}건을 지울까요?`,
+      '되돌릴 수 없습니다. 승인이 찍힌 건은 남습니다 — 그건 승인을 먼저 취소해야 지워집니다.',
+    );
+    if (!ok) return;
+    try {
+      const res = await api<{ deleted: number; kept: number }>(`/settlements/purchase/month/${month}`, {
+        method: 'DELETE',
+      });
+      await refresh();
+      void alertSuccess(
+        `${res.deleted}건을 지웠습니다`,
+        res.kept > 0 ? `승인이 찍힌 ${res.kept}건은 남겼습니다.` : undefined,
+      );
+    } catch (e) {
+      void alertError('지우지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
 
   /** 결재 한 걸음. 서버가 순서와 자격을 다시 본다 — 여기서는 버튼만 가린다. */
   const step = async (s: PurchaseSettlement, action: 'submit' | 'approve' | 'revoke') => {
@@ -270,6 +300,16 @@ export default function PurchaseSettlementTab({ role }: Props) {
           </select>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {/* 따로 정산을 끝낸 달을 정리할 때. 사무장·대표만 보인다 */}
+          {canClear && !allMonths && filtered.length > 0 && (
+            <button
+              onClick={() => void clearMonth()}
+              className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+              title="이 달 정산을 한 번에 지웁니다. 승인된 건은 남습니다"
+            >
+              {dayjs(month).format('M월')} 정산 비우기
+            </button>
+          )}
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download size={14} /> 엑셀 다운로드
           </button>

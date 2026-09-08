@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { Role, SettlementStatus } from '@prisma/client';
 import { SettlementsService } from './settlements.service';
 import {
@@ -10,6 +10,7 @@ import {
   UpdateSettlementDto,
 } from './dto/settlement.dto';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+import { assertOfficeManager } from '../auth/office-manager';
 
 @Controller('settlements')
 export class SettlementsController {
@@ -111,6 +112,17 @@ export class SettlementsController {
   @HttpCode(204)
   async removePurchase(@Param('id') id: string) {
     await this.settlements.removePurchase(id);
+  }
+
+  /**
+   * 그 달 매입 정산을 한 번에 지운다 — 따로 정산을 끝낸 달을 정리할 때 쓴다.
+   * 사무장·대표만. 승인이 찍힌 건은 안 지운다.
+   */
+  @Delete('purchase/month/:month')
+  removePurchaseMonth(@CurrentUser() user: AuthUser, @Param('month') month: string) {
+    assertOfficeManager(user);
+    if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
+    return this.settlements.removePurchaseMonth(month);
   }
 
   /** 계약팀이 다 채워 올린다 — 여기서부터 본부장이 볼 차례다. */

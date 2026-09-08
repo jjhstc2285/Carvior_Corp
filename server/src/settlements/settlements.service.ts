@@ -519,6 +519,29 @@ export class SettlementsService {
     return this.withVehicleCost(row);
   }
 
+  /**
+   * 그 달 매입 정산을 한 번에 지운다.
+   *
+   * 이 화면이 생기기 전에 따로 정산을 끝낸 달이 있다. 그런 달은 여기 남아 있어봐야
+   * 끝난 일이 할 일처럼 보인다. 손으로 수십 건을 지우게 두지 않는다.
+   *
+   * 승인이 찍힌 건은 안 지운다 — 그건 누가 무엇을 보고 결재했는지가 남아야 하는 기록이다.
+   * 지우려면 승인을 먼저 취소해야 한다.
+   */
+  async removePurchaseMonth(month: string): Promise<{ deleted: number; kept: number }> {
+    const where = { date: monthRange(month) };
+    const [total, approved] = await Promise.all([
+      this.prisma.purchaseSettlement.count({ where }),
+      this.prisma.purchaseSettlement.count({ where: { ...where, chiefApprovedAt: { not: null } } }),
+    ]);
+
+    const { count } = await this.prisma.purchaseSettlement.deleteMany({
+      where: { ...where, chiefApprovedAt: null },
+    });
+    this.logger.log(`${month} 매입 정산 ${count}건을 지웠습니다(승인된 ${approved}건은 남김, 전체 ${total}건).`);
+    return { deleted: count, kept: approved };
+  }
+
   /** 자동완성용 — 지금까지 쓴 업체·카테고리 이름. 항목별로 나눠서 준다. */
   async prepVendors(): Promise<Record<string, string[]>> {
     const rows = await this.prisma.purchasePrepCost.findMany({
