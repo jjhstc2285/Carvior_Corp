@@ -189,7 +189,9 @@ export class SettlementsService {
     const row = await this.prisma.brokerageSettlement.create({
       data: {
         date: toDateOnly(dto.date),
-        vehicleNumber: dto.vehicleNumber,
+        // 차량번호는 손으로 적는 값이라 띄어쓰기가 섞여 들어온다. 넣을 때 정리해 둔다 —
+        // 찾을 때마다 맞추면 한 군데만 빠뜨려도 다른 화면과 어긋난다.
+        vehicleNumber: normalizePlate(dto.vehicleNumber),
         vehicleName: dto.vehicleName,
         ...nums,
         // 비워서 보내면 판매 수익을 그대로 정산받을금액으로 잡는다(프론트 폼과 동일한 규칙).
@@ -209,7 +211,11 @@ export class SettlementsService {
     await this.assert('brokerageSettlement', id);
     const row = await this.prisma.brokerageSettlement.update({
       where: { id },
-      data: { ...this.stripDate(dto), ...(dto.date ? { date: toDateOnly(dto.date) } : {}) },
+      data: {
+        ...this.stripDate(dto),
+        ...(dto.date ? { date: toDateOnly(dto.date) } : {}),
+        ...(dto.vehicleNumber !== undefined ? { vehicleNumber: normalizePlate(dto.vehicleNumber) } : {}),
+      },
       include: EMPLOYEE_SELECT,
     });
     void (await this.syncFromBrokerage(row));
@@ -280,7 +286,12 @@ export class SettlementsService {
    * 못 찾은 건수도 같이 돌려준다 — 안 넘어온 게 짝이 없어서인지 이미 같은 값이어서인지
    * 알아야 다음에 무엇을 볼지 정할 수 있다.
    */
-  async syncAllFromBrokerage(): Promise<{ updated: number; already: number; noMatch: number }> {
+  async syncAllFromBrokerage(): Promise<{
+    updated: number;
+    already: number;
+    noMatch: number;
+    missingPlates: string[];
+  }> {
     const rows = await this.prisma.brokerageSettlement.findMany({
       select: {
         vehicleNumber: true,
@@ -293,17 +304,20 @@ export class SettlementsService {
 
     let updated = 0;
     let already = 0;
-    let noMatch = 0;
+    const missing: string[] = [];
 
     for (const row of rows) {
       const result = await this.syncFromBrokerage(row);
       if (result === 'updated') updated += 1;
       else if (result === 'already') already += 1;
-      else noMatch += 1;
+      else missing.push(row.vehicleNumber);
     }
 
-    this.logger.log(`알선 → 매입 정산 옮기기: ${updated}건 옮김 / ${already}건 그대로 / ${noMatch}건 짝 없음`);
-    return { updated, already, noMatch };
+    this.logger.log(
+      `알선 → 매입 정산 옮기기: ${updated}건 옮김 / ${already}건 그대로 / ${missing.length}건 짝 없음`,
+    );
+    // 짝 없는 차량번호를 몇 개 보여준다 — 숫자만으로는 무엇을 고쳐야 할지 알 수 없다.
+    return { updated, already, noMatch: missing.length, missingPlates: missing.slice(0, 10) };
   }
 
   async removeBrokerage(id: string) {
@@ -567,7 +581,7 @@ export class SettlementsService {
       data: {
         date: toDateOnly(dto.date),
         vehicleName: dto.vehicleName,
-        vehicleNumber: dto.vehicleNumber,
+        vehicleNumber: normalizePlate(dto.vehicleNumber),
         transferFee: dto.transferFee ?? 0,
         purchasePrice,
         brokerFee: dto.brokerFee ?? 0,
@@ -604,6 +618,7 @@ export class SettlementsService {
       data: {
         ...this.stripDate(rest),
         ...(dto.date ? { date: toDateOnly(dto.date) } : {}),
+        ...(dto.vehicleNumber !== undefined ? { vehicleNumber: normalizePlate(dto.vehicleNumber) } : {}),
         ...(prepCosts ? { prepCosts: { deleteMany: {}, create: normalizePrepCosts(prepCosts) } } : {}),
       },
       include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },

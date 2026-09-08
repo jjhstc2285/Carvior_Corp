@@ -103,16 +103,22 @@ export default function PurchaseSettlementTab({ role }: Props) {
    */
   const pullFromBrokerage = async () => {
     try {
-      const res = await api<{ updated: number; already: number; noMatch: number }>(
-        '/settlements/purchase/sync-from-brokerage',
-        { method: 'POST' },
-      );
+      const res = await api<{
+        updated: number;
+        already: number;
+        noMatch: number;
+        missingPlates: string[];
+      }>('/settlements/purchase/sync-from-brokerage', { method: 'POST' });
       await refresh();
       void alertSuccess(
         res.updated > 0 ? `${res.updated}건을 가져왔습니다` : '새로 가져올 게 없습니다',
         [
           res.already > 0 && `이미 같은 값인 ${res.already}건은 그대로 뒀습니다.`,
-          res.noMatch > 0 && `짝이 되는 매입 정산이 없는 ${res.noMatch}건은 넘어가지 못했습니다 — 차량번호를 확인해 주세요.`,
+          // 숫자만으로는 무엇을 고쳐야 할지 알 수 없어 차량번호를 몇 개 보여준다.
+          res.noMatch > 0 &&
+            `매입 정산이 없는 ${res.noMatch}건은 넣을 데가 없습니다 — ${res.missingPlates.join(', ')}${
+              res.noMatch > res.missingPlates.length ? ' 외' : ''
+            }`,
         ]
           .filter(Boolean)
           .join(' ') || undefined,
