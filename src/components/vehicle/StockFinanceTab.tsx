@@ -180,11 +180,11 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
             : eligibility.reason,
       제시일자: v.offerDate ?? '',
       이전일자: v.transferDate ?? '',
-      상환일자: v.repayDate ?? '',
       매도일자: v.soldDate ?? '',
       판매상태: saleStage(v) ? SALE_STAGE_LABEL[saleStage(v)!] : '',
       할부사: v.stockCapital,
       '재고금액(원)': v.stockAmount || '',
+      상환일자: v.repayDate ?? '',
       현금차량: v.cashVehicle ? 'O' : '',
       최초등록일: v.firstRegisteredOn ?? '',
       연식: v.modelYear,
@@ -342,10 +342,10 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                 <th className="px-3 py-3 text-right font-medium">매입가</th>
                 <th className="px-3 py-3 font-medium">제시일자</th>
                 <th className="px-3 py-3 font-medium">이전일자</th>
-                <th className="px-3 py-3 font-medium">상환일자</th>
                 <th className="px-3 py-3 font-medium">매도일자</th>
                 <th className="px-3 py-3 font-medium">할부사</th>
                 <th className="px-3 py-3 text-right font-medium">재고금액</th>
+                <th className="px-3 py-3 font-medium">상환일자</th>
                 <th className="px-3 py-3 text-center font-medium">현금</th>
                 <th className="px-3 py-3 font-medium">연식</th>
                 <th className="px-3 py-3 text-right font-medium">주행거리</th>
@@ -389,7 +389,6 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
 
                   <td className="px-3 py-2.5">{dateInput(v.offerDate, next => patch(v, { offerDate: next }))}</td>
                   <td className="px-3 py-2.5">{dateInput(v.transferDate, next => patch(v, { transferDate: next }))}</td>
-                  <td className="px-3 py-2.5">{dateInput(v.repayDate, next => patch(v, { repayDate: next }))}</td>
                   <td className="whitespace-nowrap px-3 py-2.5">
                     {/* 매도일자를 적으면 매도 차량으로 넘어간다. 오늘 넘긴 차는 버튼 한 번으로 끝낸다. */}
                     {v.soldDate ? (
@@ -432,6 +431,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                       className="w-28 rounded-lg border border-slate-200 px-1.5 py-1 text-right text-[13px] outline-none focus:border-indigo-400"
                     />
                   </td>
+                  <td className="px-3 py-2.5">{dateInput(v.repayDate, next => patch(v, { repayDate: next }))}</td>
 
                   {/* 재고가 안 되는 차는 여기 체크해 두면 제시 대상에서 빠지고 현금차량으로 모인다 */}
                   <td className="px-3 py-2.5 text-center">
