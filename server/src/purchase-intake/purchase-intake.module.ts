@@ -16,7 +16,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BrokerFeeType, NotificationType, Role } from '@prisma/client';
+import { BrokerFeePayout, BrokerFeeType, NotificationType, Role } from '@prisma/client';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { PushService } from '../push/push.service';
 import { RealtimeModule } from '../realtime/realtime.module';
@@ -43,6 +43,16 @@ const WON_PER_MANWON = 10000;
 const MILEAGE_GAP_ALERT_KM = 1000;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 구전 지급방식 — 매입(BrokerFeeType)과 정산(BrokerFeePayout)이 이름만 다르고 같은 것이다.
+ * 정산 줄을 만들 때 옮겨 담는다.
+ */
+const BROKER_FEE_PAYOUT: Record<BrokerFeeType, BrokerFeePayout> = {
+  [BrokerFeeType.CASH]: BrokerFeePayout.CASH,
+  [BrokerFeeType.WITHHOLD_3_3]: BrokerFeePayout.TAX_3_3,
+  [BrokerFeeType.WITHHOLD_13_3]: BrokerFeePayout.TAX_13_3,
+};
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 
 // ── DTO ──────────────────────────────
@@ -234,7 +244,7 @@ export class PurchaseIntakeService {
     let imported = 0;
     for (const { contract, plate } of items) {
       try {
-        await this.prisma.purchaseIntake.create({
+        const created = await this.prisma.purchaseIntake.create({
           data: {
             date: toDateOnly(formatDateOnly(new Date(contract.createdAt))),
             customerPhone: '',
@@ -255,6 +265,7 @@ export class PurchaseIntakeService {
             employeeId,
           },
         });
+        await this.createSettlementDraft(created);
         await this.syncManagedVehicle(plate, contract.carModel ?? '', {
           priceManwon: contract.purchasePrice ?? 0,
           // 카비어는 연료·연식을 안 내려준다 — 차량 관리에서 채운다.
@@ -350,6 +361,7 @@ export class PurchaseIntakeService {
       include: { employee: { select: { id: true, name: true, position: true } } },
     });
 
+    await this.createSettlementDraft(row);
     await this.syncManagedVehicle(vehicleNumber, dto.vehicleName, {
       priceManwon: Math.round((dto.purchaseAmount ?? 0) / WON_PER_MANWON),
       fuel: dto.fuel?.trim() ?? '',
@@ -533,6 +545,99 @@ export class PurchaseIntakeService {
   }
 
   /**
+   * 매입 정산에 빈 줄을 만들어 둔다.
+   *
+   * 매입하면 언젠가는 정산한다. 그런데 지금까지는 계약팀이 매입 관리를 보고 차량번호·
+   * 차명·매입가·구전을 정산에 다시 쳐야 했다 — 이미 적혀 있는 값을 옮겨 적는 일이다.
+   *
+   * 상품화 비용과 판매가는 비워둔다. 그건 나중에 생기는 값이라 매입 시점에는 알 수 없다.
+   * 계약팀이 그 빈칸을 채우면 정산이 된다.
+   *
+   * 같은 차를 두 번 매입해도 각각 한 줄씩 만든다 — 팔았다 되사온 건 다른 거래다.
+   * 대신 같은 매입 건으로 두 번 만들지는 않는다(차량번호 + 매입일로 가른다).
+   *
+   * 실패해도 매입 기록은 그대로 둔다 — 정산 줄 하나 때문에 매입을 못 남기면 안 된다.
+   * 빠진 건은 정산 화면에서 다시 만들 수 있다.
+   */
+  private async createSettlementDraft(row: {
+    vehicleNumber: string;
+    vehicleName: string;
+    date: Date;
+    purchaseAmount: number;
+    brokerFee: number;
+    brokerFeeType: BrokerFeeType;
+    employeeId: string;
+  }): Promise<void> {
+    try {
+      const exists = await this.prisma.purchaseSettlement.findFirst({
+        where: { vehicleNumber: row.vehicleNumber, date: row.date },
+        select: { id: true },
+      });
+      if (exists) return;
+
+      await this.prisma.purchaseSettlement.create({
+        data: {
+          date: row.date,
+          vehicleName: row.vehicleName,
+          vehicleNumber: row.vehicleNumber,
+          purchasePrice: row.purchaseAmount,
+          brokerFee: row.brokerFee,
+          brokerFeePayout: BROKER_FEE_PAYOUT[row.brokerFeeType],
+          // 상품화가 아직 안 끝나서 총비용을 모른다. 0 으로 두면 '매입가만큼 정산'으로
+          // 잘못 굳으므로 계약팀이 채운 다음에 내게 한다.
+          settlementAmount: 0,
+          employeeId: row.employeeId,
+          memo: '',
+        },
+      });
+    } catch (e) {
+      this.logger.warn(`매입 정산 줄을 만들지 못했습니다(${row.vehicleNumber}): ${(e as Error).message}`);
+    }
+  }
+
+  /** 매입한 차 중 정산 줄이 아직 없는 것 — 화면에서 만들어 채운다. */
+  async findSettlementDrafts() {
+    const [intakes, settlements] = await Promise.all([
+      this.prisma.purchaseIntake.findMany({
+        select: {
+          id: true,
+          vehicleNumber: true,
+          vehicleName: true,
+          date: true,
+          purchaseAmount: true,
+          brokerFee: true,
+          employee: { select: { name: true } },
+        },
+        orderBy: { date: 'desc' },
+      }),
+      this.prisma.purchaseSettlement.findMany({ select: { vehicleNumber: true, date: true } }),
+    ]);
+
+    const made = new Set(
+      settlements.map((s) => `${normalizePlate(s.vehicleNumber)}|${formatDateOnly(s.date)}`),
+    );
+
+    return intakes
+      .filter((i) => !made.has(`${normalizePlate(i.vehicleNumber)}|${formatDateOnly(i.date)}`))
+      .map((i) => ({
+        intakeId: i.id,
+        vehicleNumber: i.vehicleNumber,
+        vehicleName: i.vehicleName,
+        date: formatDateOnly(i.date),
+        totalAmount: i.purchaseAmount + i.brokerFee,
+        employeeName: i.employee?.name ?? '',
+      }));
+  }
+
+  /** 그 매입 건으로 정산 줄을 만든다. 이미 있으면 아무 일도 안 한다. */
+  async makeSettlementDraft(intakeId: string) {
+    const intake = await this.prisma.purchaseIntake.findUnique({ where: { id: intakeId } });
+    if (!intake) throw new NotFoundException('매입 내역을 찾을 수 없습니다.');
+    await this.createSettlementDraft(intake);
+    return { ok: true };
+  }
+
+  /**
    * 차량번호별 차량판매가(원).
    *
    * 같은 차를 두 번 사고팔았으면 최근 것이 맞다.
@@ -683,6 +788,18 @@ export class PurchaseIntakeController {
   @HttpCode(204)
   async remove(@Param('id') id: string) {
     await this.intake.remove(id);
+  }
+
+  /** 매입했는데 정산 줄이 아직 없는 차 — 정산 화면에서 만들어 채운다. */
+  @Get('settlement-drafts')
+  findSettlementDrafts() {
+    return this.intake.findSettlementDrafts();
+  }
+
+  /** 그 매입 건으로 정산 줄을 만든다. */
+  @Post('settlement-drafts/:intakeId')
+  makeSettlementDraft(@Param('intakeId') intakeId: string) {
+    return this.intake.makeSettlementDraft(intakeId);
   }
 
   /** 카비어 계약 일괄 등록 — 무엇이 들어오고 무엇이 빠지는지 먼저 본다. */

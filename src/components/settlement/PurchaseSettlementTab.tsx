@@ -19,6 +19,7 @@ import {
   type SettlementStatus,
 } from '../../types';
 import PurchaseSettlementForm from './PurchaseSettlementForm';
+import PendingPurchaseDrafts from './PendingPurchaseDrafts';
 import { confirmDanger } from '../../lib/alert';
 
 interface Props {
@@ -30,16 +31,24 @@ const NUM = (n: number) => n.toLocaleString();
 const MAN = (n: number) => wonToManwon(n);
 
 export default function PurchaseSettlementTab({ role }: Props) {
-  const { state, deletePurchaseSettlement } = useStore();
+  const { state, deletePurchaseSettlement, refresh } = useStore();
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PurchaseSettlement | null>(null);
 
-  const scoped = role === 'EMPLOYEE'
-    ? state.purchaseSettlements.filter(s => s.employeeId === state.currentEmployeeId)
-    : state.purchaseSettlements;
+  /**
+   * 계약팀은 남의 건도 본다.
+   *
+   * 매입은 매입팀이 해오고 빈칸은 계약팀이 채운다. 자기 담당 건만 보이면
+   * 정작 채워야 할 사람이 아무것도 못 본다.
+   */
+  const myDepartment = state.employees.find(e => e.id === state.currentEmployeeId)?.department ?? null;
+  const seesAll = role !== 'EMPLOYEE' || myDepartment === '계약팀';
+  const scoped = seesAll
+    ? state.purchaseSettlements
+    : state.purchaseSettlements.filter(s => s.employeeId === state.currentEmployeeId);
 
   const filtered = scoped
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
@@ -133,6 +142,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
 
   return (
     <>
+      {/* 매입은 있는데 정산 줄이 없는 차 — 계약팀이 채울 빈칸부터 만든다 */}
+      {seesAll && <PendingPurchaseDrafts onCreated={() => void refresh()} />}
+
       {awaitingSale.length > 0 && (
         <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
           <div className="mb-2.5 flex items-center gap-1.5">
