@@ -125,6 +125,16 @@ export class SettlementsController {
     return this.settlements.removePurchaseMonth(month);
   }
 
+  /**
+   * 이미 적어둔 알선 정산을 한 번에 끌어온다.
+   * 옮기는 건 알선 정산을 저장할 때 일어나서, 그 전에 적어둔 건은 이걸로 훑는다.
+   */
+  @Post('purchase/sync-from-brokerage')
+  syncFromBrokerage(@CurrentUser() user: AuthUser) {
+    assertOfficeManager(user);
+    return this.settlements.syncAllFromBrokerage();
+  }
+
   /** 계약팀이 다 채워 올린다 — 여기서부터 본부장이 볼 차례다. */
   @Post('purchase/:id/submit')
   submitPurchase(@Param('id') id: string, @CurrentUser() user: AuthUser) {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
-import { Check, Download, Lock, Pencil, Plus, ReceiptText, Send, Trash2, Undo2 } from 'lucide-react';
+import { Check, Download, Lock, Pencil, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { WON_PER_MANWON, wonToManwon } from '../../lib/money';
 import {
@@ -92,6 +92,33 @@ export default function PurchaseSettlementTab({ role }: Props) {
       );
     } catch (e) {
       void alertError('지우지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
+  /**
+   * 이미 적어둔 알선 정산을 한 번에 끌어온다.
+   *
+   * 옮기는 건 알선 정산을 저장할 때 일어난다. 그 전에 적어둔 건은 아무 일도 안 일어나서
+   * "한 대도 안 넘어왔다"가 된다.
+   */
+  const pullFromBrokerage = async () => {
+    try {
+      const res = await api<{ updated: number; already: number; noMatch: number }>(
+        '/settlements/purchase/sync-from-brokerage',
+        { method: 'POST' },
+      );
+      await refresh();
+      void alertSuccess(
+        res.updated > 0 ? `${res.updated}건을 가져왔습니다` : '새로 가져올 게 없습니다',
+        [
+          res.already > 0 && `이미 같은 값인 ${res.already}건은 그대로 뒀습니다.`,
+          res.noMatch > 0 && `짝이 되는 매입 정산이 없는 ${res.noMatch}건은 넘어가지 못했습니다 — 차량번호를 확인해 주세요.`,
+        ]
+          .filter(Boolean)
+          .join(' ') || undefined,
+      );
+    } catch (e) {
+      void alertError('가져오지 못했습니다', e instanceof ApiError ? e.message : '');
     }
   };
 
@@ -300,6 +327,16 @@ export default function PurchaseSettlementTab({ role }: Props) {
           </select>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {/* 알선 정산에 적어둔 판매금액·이전비를 지난 것까지 한 번에 끌어온다 */}
+          {canClear && (
+            <button
+              onClick={() => void pullFromBrokerage()}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              title="알선 정산의 총 진행 판매금액 · 이전비를 매입 정산으로 가져옵니다"
+            >
+              <RefreshCw size={14} /> 알선에서 가져오기
+            </button>
+          )}
           {/* 따로 정산을 끝낸 달을 정리할 때. 사무장·대표만 보인다 */}
           {canClear && !allMonths && filtered.length > 0 && (
             <button

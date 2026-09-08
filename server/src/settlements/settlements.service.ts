@@ -201,7 +201,7 @@ export class SettlementsService {
       },
       include: EMPLOYEE_SELECT,
     });
-    await this.syncSalePrice(row.vehicleNumber, row.totalSaleAmount);
+    void (await this.syncFromBrokerage(row));
     return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
   }
 
@@ -212,15 +212,20 @@ export class SettlementsService {
       data: { ...this.stripDate(dto), ...(dto.date ? { date: toDateOnly(dto.date) } : {}) },
       include: EMPLOYEE_SELECT,
     });
-    await this.syncSalePrice(row.vehicleNumber, row.totalSaleAmount);
+    void (await this.syncFromBrokerage(row));
     return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
   }
 
   /**
-   * 알선 정산에 적은 '총 진행 판매금액'을 매입 정산의 차량판매가로 옮긴다.
+   * 알선 정산에 적은 값을 매입 정산으로 옮긴다.
    *
-   * 같은 차를 두 곳에 적게 하지 않는다 — 얼마에 팔았는지는 알선팀이 먼저 아는 값이고,
-   * 계약팀이 그걸 옮겨 적으면 어느 쪽이 맞는지 알 수 없게 된다.
+   *   총 진행 판매금액  →  차량판매가
+   *   이전비 + 이전비 잔액  →  이전비 + 추가이전비
+   *
+   * 같은 차를 두 곳에 적게 하지 않는다 — 얼마에 팔았고 이전비가 얼마 들었는지는
+   * 알선팀이 먼저 아는 값이고, 계약팀이 그걸 옮겨 적으면 어느 쪽이 맞는지 알 수 없게 된다.
+   *
+   * 둘 다 원 단위라 환산하지 않는다(알선 정산도 원으로 적는다).
    *
    * 승인이 찍힌 정산은 건드리지 않는다. 결재한 뒤에 금액이 저절로 바뀌면
    * 무엇을 보고 찍었는지가 남지 않는다.
@@ -228,26 +233,77 @@ export class SettlementsService {
    * 차량번호는 손으로 적는 값이라 띄어쓰기가 섞여 들어온다 — 정리한 꼴로도 찾는다.
    * 같은 차를 두 번 사고팔았으면 최근 매입 건에 넣는다.
    */
-  private async syncSalePrice(vehicleNumber: string, totalSaleAmount: number): Promise<void> {
-    if (totalSaleAmount <= 0) return;
+  private async syncFromBrokerage(row: {
+    vehicleNumber: string;
+    totalSaleAmount: number;
+    transferFee: number;
+    transferFeeBalance: number;
+  }): Promise<'updated' | 'already' | 'noMatch'> {
+    // 이전비 잔액이 매입 정산의 '추가이전비' 자리다. 둘을 더해 한 칸에 넣는다.
+    const transferFee = row.transferFee + row.transferFeeBalance;
+    if (row.totalSaleAmount <= 0 && transferFee <= 0) return 'already';
+
     try {
-      const plates = [...new Set([vehicleNumber, normalizePlate(vehicleNumber)])].filter(Boolean);
+      const plates = [...new Set([row.vehicleNumber, normalizePlate(row.vehicleNumber)])].filter(Boolean);
       const target = await this.prisma.purchaseSettlement.findFirst({
         where: { vehicleNumber: { in: plates }, chiefApprovedAt: null },
         orderBy: { date: 'desc' },
-        select: { id: true, salePrice: true },
+        select: { id: true, salePrice: true, transferFee: true },
       });
-      if (!target || target.salePrice === totalSaleAmount) return;
+      if (!target) return 'noMatch';
 
-      await this.prisma.purchaseSettlement.update({
-        where: { id: target.id },
-        data: { salePrice: totalSaleAmount },
-      });
-      this.logger.log(`${vehicleNumber} 차량판매가를 알선 정산에서 가져왔습니다: ${totalSaleAmount}원`);
+      // 0으로 덮어써서 이미 적어둔 값을 지우지 않는다 — 안 적은 칸은 그대로 둔다.
+      const data = {
+        ...(row.totalSaleAmount > 0 && target.salePrice !== row.totalSaleAmount
+          ? { salePrice: row.totalSaleAmount }
+          : {}),
+        ...(transferFee > 0 && target.transferFee !== transferFee ? { transferFee } : {}),
+      };
+      if (Object.keys(data).length === 0) return 'already';
+
+      await this.prisma.purchaseSettlement.update({ where: { id: target.id }, data });
+      this.logger.log(`${row.vehicleNumber} 매입 정산에 알선 값을 옮겼습니다: ${JSON.stringify(data)}`);
+      return 'updated';
     } catch (e) {
       // 옮기지 못해도 알선 정산은 그대로 저장된다 — 손으로 적으면 된다.
-      this.logger.warn(`차량판매가를 옮기지 못했습니다(${vehicleNumber}): ${(e as Error).message}`);
+      this.logger.warn(`알선 값을 옮기지 못했습니다(${row.vehicleNumber}): ${(e as Error).message}`);
+      return 'noMatch';
     }
+  }
+
+  /**
+   * 이미 적어둔 알선 정산을 한 번에 끌어온다.
+   *
+   * 옮기는 건 알선 정산을 저장할 때 일어난다. 그 전에 적어둔 건은 아무 일도 안 일어나서
+   * "한 대도 안 넘어왔다"가 된다. 여기서 지난 것까지 한 번 훑는다.
+   *
+   * 못 찾은 건수도 같이 돌려준다 — 안 넘어온 게 짝이 없어서인지 이미 같은 값이어서인지
+   * 알아야 다음에 무엇을 볼지 정할 수 있다.
+   */
+  async syncAllFromBrokerage(): Promise<{ updated: number; already: number; noMatch: number }> {
+    const rows = await this.prisma.brokerageSettlement.findMany({
+      select: {
+        vehicleNumber: true,
+        totalSaleAmount: true,
+        transferFee: true,
+        transferFeeBalance: true,
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    let updated = 0;
+    let already = 0;
+    let noMatch = 0;
+
+    for (const row of rows) {
+      const result = await this.syncFromBrokerage(row);
+      if (result === 'updated') updated += 1;
+      else if (result === 'already') already += 1;
+      else noMatch += 1;
+    }
+
+    this.logger.log(`알선 → 매입 정산 옮기기: ${updated}건 옮김 / ${already}건 그대로 / ${noMatch}건 짝 없음`);
+    return { updated, already, noMatch };
   }
 
   async removeBrokerage(id: string) {
