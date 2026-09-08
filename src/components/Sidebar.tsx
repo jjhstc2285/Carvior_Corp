@@ -1,4 +1,4 @@
-import { Building2, CalendarClock, Megaphone, Stamp, Car, ClipboardList, Landmark, Handshake, Sparkles, Images, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, X } from 'lucide-react';
+import { Building2, CalendarClock, Megaphone, Stamp, Car, Landmark, Handshake, Sparkles, Images, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   /** 메시지 메뉴에 붙는 안 읽은 개수 */
   chatUnread?: number;
   /** 이 사람이 볼 수 없는 메뉴는 아예 안 그린다 */
-  canSeePurchaseList: boolean;
+  canSeeLedger: boolean;
 }
 
 const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[] = [
@@ -23,7 +23,6 @@ const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[]
   { key: 'vehiclePost', label: '매물 사진 등록', icon: Images },
   { key: 'ad', label: '광고 관리', icon: Megaphone },
   { key: 'purchaseIntake', label: '매입 관리', icon: Handshake },
-  { key: 'purchaseList', label: '매입리스트', icon: ClipboardList },
   { key: 'stockFinance', label: '재고금융 (제시)', icon: Landmark },
   { key: 'dealerFee', label: '신차영업소 상조회비', icon: Building2 },
   { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
@@ -36,11 +35,11 @@ export default function Sidebar({
   mobileOpen,
   onMobileClose,
   chatUnread = 0,
-  canSeePurchaseList,
+  canSeeLedger,
 }: Props) {
-  // 매입리스트와 상조회비 대장은 사무장과 관리자만 본다.
-  const officeOnly: ModuleKey[] = ['purchaseList', 'dealerFee'];
-  const navItems = NAV_ITEMS.filter(item => !officeOnly.includes(item.key) || canSeePurchaseList);
+  // 상조회비 대장은 사무장과 관리자만 본다.
+  const officeOnly: ModuleKey[] = ['dealerFee'];
+  const navItems = NAV_ITEMS.filter(item => !officeOnly.includes(item.key) || canSeeLedger);
   const content = (
     <>
       <div className="flex items-center justify-between px-4 py-4">

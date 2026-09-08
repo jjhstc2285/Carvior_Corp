@@ -794,70 +794,10 @@ export interface AppState {
 }
 
 // ─────────────────────────────────────────────
-// 매입리스트 — 재고금융(캐피탈 대출) 장부
-// ─────────────────────────────────────────────
-
-// 금액 단위는 정산(만원)과 달리 전부 '원'이다. 엑셀에 원 단위로 적어온 것을 그대로 옮긴다.
-export interface PurchaseListItem {
-  id: string;
-  seq: number;
-  date: string | null; // 매입 날짜 YYYY-MM-DD
-  vehicleNumber: string;
-  vehicleName: string;
-  managerName: string;
-  askingPrice: number; // 제시가(원)
-  modelYear: string; // 년식
-  mileage: number; // 주행거리(km)
-
-  stockCapital: string | null; // 재고 — 캐피탈사
-  stockAmount: number; // 재고 — 금액(원)
-
-  // 재고가능금액 — 캐피탈사별(원)
-  limitBmw: number;
-  limitWoori: number;
-  limitKb: number;
-  limitMeritz: number;
-  limitHana: number;
-  limitHyundai: number;
-
-  note: string; // 비고 — 특이사항
-
-  loanDate: string | null; // 대출일자
-  interestRate: number | null; // 이율(%)
-  repayDate: string | null; // 상환일자 — 월별 현황은 이 날짜로 모은다
-  loanStatus: string; // 대출상황
-  repaidDate: string | null; // 상환날짜 — 실제로 갚은 날
-  repaymentAmount: number; // 상환금액(원)
-
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** 재고가능금액 칸 — 헤더의 한도는 엑셀 시트지에 적혀 있던 값 그대로다. */
-export const CAPITAL_LIMIT_COLUMNS = [
-  { key: 'limitBmw', label: 'BMW', quota: '10억', head: 'bg-emerald-200' },
-  { key: 'limitWoori', label: '우리', quota: '15억', head: 'bg-yellow-200' },
-  { key: 'limitKb', label: '케이비', quota: '6억', head: 'bg-teal-200' },
-  { key: 'limitMeritz', label: '메리츠', quota: '7억', head: 'bg-orange-200' },
-  { key: 'limitHana', label: '하나', quota: '2억', head: 'bg-sky-200' },
-  { key: 'limitHyundai', label: '현대', quota: '10억', head: 'bg-amber-300' },
-] as const;
-
-export type CapitalLimitKey = (typeof CAPITAL_LIMIT_COLUMNS)[number]['key'];
-
-export interface PurchaseListSummary {
-  month: string; // YYYY-MM
-  count: number;
-  repaymentTotal: number; // 그 달 상환금액 합계(원)
-  stockTotal: number; // 그 달 재고금액 합계(원)
-}
-
-// ─────────────────────────────────────────────
 // 매입 관리 — 차를 사올 때 받아 적는 인수 내역
 // ─────────────────────────────────────────────
 
-// 매입리스트(재고금융)와는 다른 단계다 — 여기는 '사올 때 확인한 것'이다.
-// 금액 단위는 매입리스트와 같은 '원'이다.
+// 금액 단위는 정산(만원)과 달리 '원'이다.
 /**
  * 구전 지급 방식. 세금 처리가 달라 금액만으로는 실지급액을 알 수 없다.
  * 현금이 제일 많아 기본값으로 둔다.

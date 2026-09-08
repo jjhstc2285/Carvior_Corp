@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StoreProvider } from './store';
 import { AuthProvider, useAuth } from './authStore';
-import { canSeePurchaseList } from './lib/permissions';
+import { canSeeLedger } from './lib/permissions';
 import type { ModuleKey } from './modules';
 import type { Role } from './types';
 import Sidebar from './components/Sidebar';
@@ -16,7 +16,6 @@ import WorkLogModule from './components/workLog/WorkLogModule';
 import VehicleModule from './components/vehicle/VehicleModule';
 import ChatModule from './components/chat/ChatModule';
 import CleaningModule from './components/cleaning/CleaningModule';
-import PurchaseListModule from './components/purchaseList/PurchaseListModule';
 import PurchaseIntakeModule from './components/purchaseIntake/PurchaseIntakeModule';
 import StockFinanceModule from './components/vehicle/StockFinanceModule';
 import DealerFeeModule from './components/dealerFee/DealerFeeModule';
@@ -39,7 +38,6 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   vehiclePost: '매물 사진 등록',
   ad: '광고 관리',
   purchaseIntake: '매입 관리',
-  purchaseList: '매입리스트',
   stockFinance: '재고금융 (제시)',
   dealerFee: '신차영업소 상조회비',
   cleaning: '청소 관리 대장',
@@ -54,7 +52,6 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'chat') return <ChatModule role={role} />;
   if (module === 'cleaning') return <CleaningModule role={role} />;
   if (module === 'purchaseIntake') return <PurchaseIntakeModule />;
-  if (module === 'purchaseList') return <PurchaseListModule role={role} />;
   if (module === 'stockFinance') return <StockFinanceModule />;
   if (module === 'dealerFee') return <DealerFeeModule />;
   if (module === 'settlement') return <SettlementModule role={role} />;
@@ -66,15 +63,15 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
 
 function AuthedApp({ role }: { role: Role }) {
   const { user } = useAuth();
-  const seePurchaseList = canSeePurchaseList(user);
+  const seeLedger = canSeeLedger(user);
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
   const { state, submitAttendanceRequest } = useStore();
 
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
-  const officeOnly: ModuleKey[] = ['purchaseList', 'dealerFee'];
-  const shownModule: ModuleKey = officeOnly.includes(module) && !seePurchaseList ? 'attendance' : module;
+  const officeOnly: ModuleKey[] = ['dealerFee'];
+  const shownModule: ModuleKey = officeOnly.includes(module) && !seeLedger ? 'attendance' : module;
 
   // 어느 화면에 있든 재야 해서 앱 껍데기에 단다.
   useIdleAway({
@@ -91,7 +88,7 @@ function AuthedApp({ role }: { role: Role }) {
         mobileOpen={mobileNavOpen}
         onMobileClose={() => setMobileNavOpen(false)}
         chatUnread={chatUnread}
-        canSeePurchaseList={seePurchaseList}
+        canSeeLedger={seeLedger}
       />
       <div className="min-w-0 flex-1">
         <TopBar

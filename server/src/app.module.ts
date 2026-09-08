@@ -15,7 +15,6 @@ import { VehiclesModule } from './vehicles/vehicles.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ChatModule } from './chat/chat.module';
 import { PushModule } from './push/push.module';
-import { PurchaseListModule } from './purchase-list/purchase-list.module';
 import { PurchaseIntakeModule } from './purchase-intake/purchase-intake.module';
 import { CarviorModule } from './carvior/carvior.module';
 import { DealerFeesModule } from './dealer-fees/dealer-fees.module';
@@ -42,7 +41,6 @@ import { RolesGuard } from './auth/roles.guard';
     RealtimeModule,
     ChatModule,
     PushModule,
-    PurchaseListModule,
     PurchaseIntakeModule,
     CarviorModule,
     CleaningModule,

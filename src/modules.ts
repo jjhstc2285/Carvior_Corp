@@ -9,7 +9,6 @@ export type ModuleKey =
   | 'vehiclePost'
   | 'ad'
   | 'purchaseIntake'
-  | 'purchaseList'
   | 'stockFinance'
   | 'dealerFee'
   | 'cleaning'
