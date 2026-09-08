@@ -32,8 +32,14 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
     desc: `${MAX_AGE_YEARS}년 이내 · ${(MAX_MILEAGE_KM / 10000).toLocaleString()}만km 미만인데 제시일자·이전일자를 아직 다 못 적은 차입니다.`,
     officeOnly: true,
   },
-  { key: 'offered', label: '제시함', desc: '제시일자와 이전일자를 다 적은 차입니다. 재고 내용을 마저 채웁니다.', officeOnly: true },
-  { key: 'stocked', label: '재고 잡힘', desc: '할부사와 재고금액이 들어간 차입니다.', officeOnly: true },
+  {
+    key: 'offered',
+    label: '제시함',
+    desc: '제시일자와 이전일자를 다 적은 차입니다. 할부사와 재고금액을 넣으면 재고차량으로 넘어갑니다.',
+    officeOnly: true,
+  },
+  { key: 'stocked', label: '재고차량', desc: '할부사와 재고금액이 들어간 차입니다.', officeOnly: true },
+  { key: 'cash', label: '현금차량', desc: '재고금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: false },
   { key: 'repay', label: '상환 예정', desc: '상환일자를 월별로 모아 봅니다. 그 달에 갚아야 하는 차량입니다.', officeOnly: false },
   {
     key: 'release',
@@ -42,8 +48,12 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
     officeOnly: false,
   },
   { key: 'sold', label: '매도 차량', desc: '매도일자를 적은 차입니다. 끝난 차입니다.', officeOnly: false },
-  { key: 'cash', label: '현금차량', desc: '재고금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: false },
 ];
+
+/** 재고가 잡혔는가 — 할부사나 재고금액 중 하나라도 들어가면 잡힌 것으로 본다. */
+function isStocked(v: ManagedVehicle): boolean {
+  return v.stockAmount > 0 || Boolean(v.stockCapital);
+}
 
 /** 날짜 칸을 기간으로 거른다. 어느 날짜를 볼지는 보기마다 다르다. */
 type DateField = 'offerDate' | 'transferDate' | 'repayDate' | 'soldDate' | 'intakeDate';
@@ -116,13 +126,15 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         // 이미 제시일자를 적은 차는 제시 가능 여부와 상관없이 남긴다 —
         // 진행 중인 건이 어느 목록에도 없으면 이전일자를 적을 자리가 사라진다.
         if (view === 'candidate') {
-          // 이미 넘긴 차를 이제 와서 제시할 일은 없다. 재고 잡힘·상환 예정에는 그대로 남긴다 —
+          // 이미 넘긴 차를 이제 와서 제시할 일은 없다. 재고차량·상환 예정에는 그대로 남긴다 —
           // 팔았다고 재고가 저절로 상환되는 게 아니라 갚을 때까지 챙겨야 한다.
           if (v.soldDate) return false;
           return (eligibility.ok !== false || Boolean(v.offerDate)) && !(v.offerDate && v.transferDate);
         }
-        if (view === 'offered') return Boolean(v.offerDate && v.transferDate);
-        if (view === 'stocked') return v.stockAmount > 0 || Boolean(v.stockCapital);
+        // 재고를 잡으면 제시함에서 빠지고 재고차량으로 넘어간다 — 그래야 제시함에
+        // 아직 챙길 차만 남는다. 현금차량으로 빼는 것과 같은 방식이다.
+        if (view === 'offered') return Boolean(v.offerDate && v.transferDate) && !isStocked(v);
+        if (view === 'stocked') return isStocked(v);
         return v.repayDate?.startsWith(month) ?? false;
       })
       .filter(({ vehicle: v }) => {
