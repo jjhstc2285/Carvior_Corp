@@ -150,9 +150,19 @@ export default function PurchaseIntakeModule() {
                   </span>
                   <span className="text-sm font-bold text-slate-800">{r.vehicleName}</span>
                   {r.detailModel && <span className="text-xs text-slate-500">{r.detailModel}</span>}
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-                    <Car size={11} /> 차량관리 등록
-                  </span>
+                  {/* 차량 관리에 안 올라가면 재고금융 제시 대상에 안 뜬다 — 여기서 바로 보이게 한다 */}
+                  {r.registered === false ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
+                      title="재고금융 제시 대상에 안 뜹니다. 제시 대상 화면 위쪽에서 올릴 수 있습니다"
+                    >
+                      <Car size={11} /> 차량관리 미등록
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                      <Car size={11} /> 차량관리 등록
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-xs text-slate-400">
                   {r.date} · 등록자 {r.employee?.name ?? '-'}

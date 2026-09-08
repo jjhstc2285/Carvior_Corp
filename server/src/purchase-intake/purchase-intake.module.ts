@@ -301,7 +301,8 @@ export class PurchaseIntakeService {
       include: { employee: { select: { id: true, name: true, position: true } } },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     });
-    return rows.map((r) => this.toView(r));
+    const registered = await this.registeredPlates();
+    return rows.map((r) => this.toView(r, registered));
   }
 
   async create(user: AuthUser, dto: CreatePurchaseIntakeDto) {
@@ -480,14 +481,37 @@ export class PurchaseIntakeService {
 
   /** 총 매입금액은 저장하지 않고 여기서 더한다(계산식이 바뀌어도 과거 데이터가 안 꼬이게). */
   private toView<
-    T extends { date: Date; firstRegisteredOn: Date | null; purchaseAmount: number; brokerFee: number },
-  >(row: T) {
+    T extends {
+      date: Date;
+      firstRegisteredOn: Date | null;
+      purchaseAmount: number;
+      brokerFee: number;
+      vehicleNumber?: string;
+    },
+  >(row: T, registeredPlates?: Set<string>) {
     return {
       ...row,
       date: formatDateOnly(row.date),
       firstRegisteredOn: formatDateOnlyOrNull(row.firstRegisteredOn),
       totalAmount: row.purchaseAmount + row.brokerFee,
+      /**
+       * 차량 관리에 올라가 있는가.
+       *
+       * 매입을 적으면 차량 관리에도 같이 올라가는데, 차량번호 형식이 다르거나 저장이
+       * 막히면 조용히 건너뛴다. 그러면 재고금융 제시 대상에 안 뜨는데 왜인지 알 길이 없다.
+       * 목록에서 바로 보이게 한다. 목록을 안 거쳐 들어온 경우에는 알 수 없어 true 로 둔다 —
+       * 모르면서 '미등록'이라고 겁주지 않는다.
+       */
+      registered: registeredPlates
+        ? registeredPlates.has(normalizePlate(row.vehicleNumber ?? ''))
+        : true,
     };
+  }
+
+  /** 차량 관리에 올라가 있는 차량번호 — 목록에 등록 여부를 붙이는 데 쓴다. */
+  private async registeredPlates(): Promise<Set<string>> {
+    const rows = await this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true } });
+    return new Set(rows.map((r) => normalizePlate(r.vehicleNumber)));
   }
 }
 
