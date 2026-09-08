@@ -98,6 +98,12 @@ export class UpdatePurchaseIntakeDto {
 
 export class PurchaseIntakeQueryDto {
   @IsOptional() @Matches(MONTH_PATTERN, { message: 'month는 YYYY-MM 형식이어야 합니다.' }) month?: string;
+  /**
+   * 기간으로 볼 때 쓴다(반기 등). month 가 있으면 그쪽이 먼저다.
+   * 부가세는 반기로 맞춰보기 때문에 달 하나로는 안 된다.
+   */
+  @IsOptional() @Matches(DATE_PATTERN, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) from?: string;
+  @IsOptional() @Matches(DATE_PATTERN, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) to?: string;
   /** 고객이름·차량번호·차명·매입처 검색 */
   @IsOptional() @IsString() q?: string;
 }
@@ -281,7 +287,16 @@ export class PurchaseIntakeService {
 
   async findAll(params: PurchaseIntakeQueryDto) {
     const where: Prisma.PurchaseIntakeWhereInput = {
-      ...(params.month ? { date: monthRange(params.month) } : {}),
+      ...(params.month
+        ? { date: monthRange(params.month) }
+        : params.from || params.to
+          ? {
+              date: {
+                ...(params.from ? { gte: toDateOnly(params.from) } : {}),
+                ...(params.to ? { lte: toDateOnly(params.to) } : {}),
+              },
+            }
+          : {}),
       ...(params.q
         ? {
             OR: [
@@ -301,8 +316,8 @@ export class PurchaseIntakeService {
       include: { employee: { select: { id: true, name: true, position: true } } },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     });
-    const registered = await this.registeredPlates();
-    return rows.map((r) => this.toView(r, registered));
+    const [registered, sales] = await Promise.all([this.registeredPlates(), this.salePrices()]);
+    return rows.map((r) => this.toView(r, registered, sales));
   }
 
   async create(user: AuthUser, dto: CreatePurchaseIntakeDto) {
@@ -488,7 +503,7 @@ export class PurchaseIntakeService {
       brokerFee: number;
       vehicleNumber?: string;
     },
-  >(row: T, registeredPlates?: Set<string>) {
+  >(row: T, registeredPlates?: Set<string>, salePrices?: Map<string, number>) {
     return {
       ...row,
       date: formatDateOnly(row.date),
@@ -505,7 +520,30 @@ export class PurchaseIntakeService {
       registered: registeredPlates
         ? registeredPlates.has(normalizePlate(row.vehicleNumber ?? ''))
         : true,
+      /**
+       * 이 차가 얼마에 팔렸는가(원). 아직 안 팔았으면 0.
+       *
+       * 매입 정산에 적은 차량판매가를 차량번호로 맞춰 온다. 부가세는 매입만으로는 안 나오고
+       * 매출이 있어야 맞춰볼 수 있어서 여기까지 끌어온다.
+       */
+      salePrice: salePrices?.get(normalizePlate(row.vehicleNumber ?? '')) ?? 0,
     };
+  }
+
+  /**
+   * 차량번호별 차량판매가(원).
+   *
+   * 같은 차를 두 번 사고팔았으면 최근 것이 맞다.
+   * 차량번호는 손으로 적는 값이라 띄어쓰기가 섞여 들어온다 — 정리한 꼴로 맞춘다.
+   */
+  private async salePrices(): Promise<Map<string, number>> {
+    const rows = await this.prisma.purchaseSettlement.findMany({
+      where: { salePrice: { gt: 0 } },
+      select: { vehicleNumber: true, salePrice: true },
+      orderBy: { date: 'asc' },
+    });
+    // 오래된 것부터 넣어 최근 것이 덮어쓰게 한다.
+    return new Map(rows.map((r) => [normalizePlate(r.vehicleNumber), r.salePrice]));
   }
 
   /** 차량 관리에 올라가 있는 차량번호 — 목록에 등록 여부를 붙이는 데 쓴다. */

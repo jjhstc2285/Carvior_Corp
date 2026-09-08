@@ -849,6 +849,8 @@ export interface PurchaseIntake {
   brokerFeeType: BrokerFeeType; // 구전 지급 방식
   /** 차량 관리에 올라가 있는가 — 안 올라가 있으면 재고금융 제시 대상에 안 뜬다 */
   registered?: boolean;
+  /** 이 차가 얼마에 팔렸는지(원). 아직 안 팔았으면 0 */
+  salePrice?: number;
   /** 서버 파생값 — 실매입금액 + 구전. 저장하지 않는다. */
   totalAmount: number;
 

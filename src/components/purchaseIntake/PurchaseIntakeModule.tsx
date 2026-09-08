@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { Car, CloudDownload, Download, Plus, Trash2 } from 'lucide-react';
@@ -7,20 +7,28 @@ import PurchaseIntakeForm from './PurchaseIntakeForm';
 import CarviorImportModal from './CarviorImportModal';
 import { usePurchaseIntake } from './usePurchaseIntake';
 import { alertError, confirmDanger } from '../../lib/alert';
+import { halfYearRange, vatBalance, VAT_PERIOD_MONTHS } from '../../lib/vat';
 
 const NUM = (n: number) => (n ? n.toLocaleString() : '');
 
 export default function PurchaseIntakeModule() {
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
-  const [allMonths, setAllMonths] = useState(false);
+  /** 달로 볼지, 반기로 볼지, 전부 볼지. 부가세는 반기로 맞춰봐서 그 칸을 따로 뒀다. */
+  const [period, setPeriod] = useState<'month' | 'half' | 'all'>('month');
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PurchaseIntake | null>(null);
   const [carviorOpen, setCarviorOpen] = useState(false);
 
-  const api = usePurchaseIntake(allMonths ? '' : month, query);
+  const half = useMemo(() => halfYearRange(month), [month]);
+  const api = usePurchaseIntake(period === 'month' ? month : '', query, period === 'half' ? half : null);
+  const periodLabel = period === 'month' ? dayjs(month).format('M월') : period === 'half' ? half.label : '전체';
 
   const total = api.items.reduce((sum, r) => sum + r.totalAmount, 0);
+  // 매입만 봐서는 부가세가 안 나온다 — 그 차들이 얼마에 팔렸는지까지 맞춰봐야 한다.
+  const saleTotal = api.items.reduce((sum, r) => sum + (r.salePrice ?? 0), 0);
+  const vat = vatBalance(total, saleTotal);
+  const soldCount = api.items.filter(r => (r.salePrice ?? 0) > 0).length;
 
   const handleDelete = async (item: PurchaseIntake) => {
     if (!(await confirmDanger(`${item.vehicleNumber} ${item.customerName} 매입 내역을 지울까요?`, '차량 관리에 올라간 차는 그대로 남습니다.'))) return;
@@ -50,12 +58,13 @@ export default function PurchaseIntakeModule() {
       '구전(원)': r.brokerFee,
       '구전 지급방식': BROKER_FEE_TYPE_LABEL[r.brokerFeeType],
       '총 매입금액(원)': r.totalAmount,
+      '차량판매가(원)': r.salePrice || '',
       등록자: r.employee?.name ?? '',
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '매입관리');
-    XLSX.writeFile(wb, `매입관리_${allMonths ? dayjs().format('YYYYMMDD') : month}.xlsx`);
+    XLSX.writeFile(wb, `매입관리_${period === 'month' ? month : period === 'half' ? half.label : dayjs().format('YYYYMMDD')}.xlsx`);
   };
 
   return (
@@ -93,35 +102,89 @@ export default function PurchaseIntakeModule() {
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">{allMonths ? '전체' : dayjs(month).format('M월')} 매입 대수</p>
+          <p className="text-xs font-medium text-slate-400">{periodLabel} 매입 대수</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">
             {api.items.length}
             <span className="ml-1 text-sm font-medium text-slate-400">대</span>
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5 sm:col-span-2">
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">총 매입금액 (실매입 + 구전)</p>
           <p className="mt-1 text-2xl font-bold text-indigo-600">
             {NUM(total) || 0}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
         </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-xs font-medium text-slate-400">총 매도금액</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-600">
+            {NUM(saleTotal) || 0}
+            <span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          <p className="text-[11px] text-slate-400">{api.items.length}대 중 {soldCount}대 판매</p>
+        </div>
+
+        {/*
+          매입만큼 매출이 잡혀야 의제매입세액 공제가 자리를 잡는다.
+          못 판 만큼은 부가세로 남는다 — 값 안에 들어 있는 세금이라 10%가 아니라 10/110이다.
+        */}
+        <div
+          className={`rounded-2xl border px-4 py-3.5 ${
+            vat.gap > 0 ? 'border-red-200 bg-red-50/50' : 'border-emerald-200 bg-emerald-50/40'
+          }`}
+        >
+          <p className={`text-xs font-medium ${vat.gap > 0 ? 'text-red-700/80' : 'text-emerald-700/80'}`}>
+            {vat.gap > 0 ? '못 판 만큼 걸린 부가세' : '매입만큼 팔았습니다'}
+          </p>
+          <p className={`mt-1 text-2xl font-bold ${vat.gap > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+            {NUM(vat.vat) || 0}
+            <span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          <p className="text-[11px] text-slate-500">
+            {vat.gap > 0
+              ? `매입 − 매도 = ${NUM(vat.gap)}원 · 이만큼 더 팔아야 합니다`
+              : `매도가 매입보다 ${NUM(-vat.gap) || 0}원 많습니다`}
+          </p>
+        </div>
       </div>
+
+      <p className="mb-4 text-[11px] leading-relaxed text-slate-400">
+        중고차는 매입할 때 낸 세금을 의제매입세액으로 공제받는데, 그 차를 팔아 매출이 잡혀야
+        자리를 잡습니다. {VAT_PERIOD_MONTHS}개월(반기) 동안 매입만큼 매출이 안 나오면 그 차이만큼
+        부가세가 남습니다. 값 안에 세금이 들어 있어 <b>10/110</b>으로 뽑습니다 — 1억이면 909만원입니다.
+        신고서가 아니라 얼마나 벌어져 있는지 보는 눈대중입니다.
+      </p>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input
           type="month"
           value={month}
-          disabled={allMonths}
+          disabled={period === 'all'}
+          title="반기로 볼 때는 이 달이 속한 반기를 봅니다"
           onChange={e => setMonth(e.target.value)}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400 disabled:bg-slate-50 disabled:text-slate-400"
         />
-        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-          <input type="checkbox" checked={allMonths} onChange={e => setAllMonths(e.target.checked)} className="rounded" />
-          전체 기간
-        </label>
+        {/* 부가세는 반기로 맞춰본다 — 달 하나만 봐서는 벌어진 정도를 알 수 없다 */}
+        <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
+          {([
+            ['month', '월'],
+            ['half', '반기'],
+            ['all', '전체'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setPeriod(key)}
+              className={`rounded-md px-2.5 py-1.5 transition-colors ${
+                period === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {period === 'half' && <span className="text-xs font-medium text-slate-500">{half.label}</span>}
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}

@@ -28,7 +28,12 @@ function message(e: unknown, fallback: string): string {
   return e instanceof ApiError ? e.message : fallback;
 }
 
-export function usePurchaseIntake(month: string, query: string): PurchaseIntakeApi {
+/** 달로 보거나(month), 기간으로 보거나(range), 둘 다 비우면 전체를 본다. */
+export function usePurchaseIntake(
+  month: string,
+  query: string,
+  range?: { from: string; to: string } | null,
+): PurchaseIntakeApi {
   const [items, setItems] = useState<PurchaseIntake[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +46,10 @@ export function usePurchaseIntake(month: string, query: string): PurchaseIntakeA
     try {
       const params = new URLSearchParams();
       if (month) params.set('month', month);
+      else if (range) {
+        params.set('from', range.from);
+        params.set('to', range.to);
+      }
       if (query.trim()) params.set('q', query.trim());
       const suffix = params.toString() ? `?${params}` : '';
 
@@ -54,7 +63,7 @@ export function usePurchaseIntake(month: string, query: string): PurchaseIntakeA
     } finally {
       if (myReq === reqId.current) setLoading(false);
     }
-  }, [month, query]);
+  }, [month, query, range?.from, range?.to]);
 
   useEffect(() => {
     void load();
