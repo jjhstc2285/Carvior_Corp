@@ -112,4 +112,21 @@ export class SettlementsController {
   async removePurchase(@Param('id') id: string) {
     await this.settlements.removePurchase(id);
   }
+
+  /** 계약팀이 다 채워 올린다 — 여기서부터 본부장이 볼 차례다. */
+  @Post('purchase/:id/submit')
+  submitPurchase(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.settlements.submitPurchase(id, user);
+  }
+
+  /** 본부장 → 대표 순서로 찍는다. 누가 찍을 수 있는지는 settlements/approvers.ts 에 있다. */
+  @Post('purchase/:id/approve')
+  approvePurchase(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.settlements.approvePurchase(id, user);
+  }
+
+  @Post('purchase/:id/revoke')
+  revokePurchase(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.settlements.revokePurchase(id, user);
+  }
 }

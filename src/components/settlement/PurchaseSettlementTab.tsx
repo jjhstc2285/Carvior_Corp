@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
-import { Download, Pencil, Plus, ReceiptText, Trash2 } from 'lucide-react';
+import { Check, Download, Lock, Pencil, Plus, ReceiptText, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { WON_PER_MANWON, wonToManwon } from '../../lib/money';
 import {
@@ -11,6 +11,8 @@ import {
   PREP_COST_LABEL,
   prepBreakdown,
   saleProfit,
+  SETTLEMENT_STAGE_CLASS,
+  SETTLEMENT_STAGE_LABEL,
   purchaseGrandTotal,
   purchasePrepTotal,
   SETTLEMENT_STATUS_LABEL,
@@ -20,7 +22,8 @@ import {
 } from '../../types';
 import PurchaseSettlementForm from './PurchaseSettlementForm';
 import PendingPurchaseDrafts from './PendingPurchaseDrafts';
-import { confirmDanger } from '../../lib/alert';
+import { alertError, confirmDanger } from '../../lib/alert';
+import { api, ApiError } from '../../lib/api';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -44,11 +47,30 @@ export default function PurchaseSettlementTab({ role }: Props) {
    * 매입은 매입팀이 해오고 빈칸은 계약팀이 채운다. 자기 담당 건만 보이면
    * 정작 채워야 할 사람이 아무것도 못 본다.
    */
-  const myDepartment = state.employees.find(e => e.id === state.currentEmployeeId)?.department ?? null;
+  const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
+  const myDepartment = me?.department ?? null;
+  /**
+   * 결재할 수 있는 사람인지.
+   *
+   * 이름 두 개로 못 박혀 있다(서버 settlements/approvers.ts). 직책으로 가리면
+   * 나중에 본부장이 한 명 더 생겼을 때 그 사람도 돈을 승인하게 된다.
+   */
+  const approverRole: 'CHIEF' | 'CEO' | null =
+    me?.name === '안원용' ? 'CHIEF' : me?.name === '유진욱' ? 'CEO' : null;
   const seesAll = role !== 'EMPLOYEE' || myDepartment === '계약팀';
   const scoped = seesAll
     ? state.purchaseSettlements
     : state.purchaseSettlements.filter(s => s.employeeId === state.currentEmployeeId);
+
+  /** 결재 한 걸음. 서버가 순서와 자격을 다시 본다 — 여기서는 버튼만 가린다. */
+  const step = async (s: PurchaseSettlement, action: 'submit' | 'approve' | 'revoke') => {
+    try {
+      await api(`/settlements/purchase/${s.id}/${action}`, { method: 'POST' });
+      await refresh();
+    } catch (e) {
+      void alertError('처리하지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
 
   const filtered = scoped
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
@@ -131,6 +153,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
       '총합계(원)': totalWonOf(s),
       신차이름: s.newCarName,
       담당자: employeeOf(s.employeeId)?.name ?? '',
+      결재: SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT'],
+      '본부장 승인': s.chiefApprover || '',
+      '대표 승인': s.ceoApprover || '',
       상태: SETTLEMENT_STATUS_LABEL[s.status],
       메모: s.memo,
     }));
@@ -266,13 +291,14 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600">판매수익</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">신차이름</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">담당자</th>
+                <th className="whitespace-nowrap px-3 py-2.5 font-medium">결재</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">상태</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">관리</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={23} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={24} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => (
                 <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -305,6 +331,18 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   <td className="px-3 py-2.5 text-right font-semibold text-emerald-700">{MAN(profitOf(s))}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{s.newCarName || '-'}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{employeeOf(s.employeeId)?.name}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${SETTLEMENT_STAGE_CLASS[s.stage ?? 'DRAFT']}`}
+                      title={[
+                        s.chiefApprover && `본부장 ${s.chiefApprover}`,
+                        s.ceoApprover && `대표 ${s.ceoApprover}`,
+                      ].filter(Boolean).join(' · ') || undefined}
+                    >
+                      {s.locked && <Lock size={10} />}
+                      {SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']}
+                    </span>
+                  </td>
                   <td className="px-3 py-2.5">
                     <span className={`inline-flex whitespace-nowrap items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${s.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-700 ring-amber-600/20'}`}>
                       {SETTLEMENT_STATUS_LABEL[s.status]}
@@ -312,10 +350,51 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex justify-end gap-1">
-                      <button onClick={() => { setEditing(s); setFormOpen(true); }} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                      {/* 다 채웠으면 올린다. 올려야 본부장이 볼 차례가 된다 */}
+                      {s.stage === 'DRAFT' && (
+                        <button
+                          onClick={() => void step(s, 'submit')}
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                          title="본부장에게 올립니다"
+                        >
+                          <Send size={12} /> 올리기
+                        </button>
+                      )}
+                      {/* 내 차례일 때만 승인 버튼이 보인다 */}
+                      {((approverRole === 'CHIEF' && s.stage === 'SUBMITTED') ||
+                        (approverRole === 'CEO' && s.stage === 'CHIEF')) && (
+                        <button
+                          onClick={() => void step(s, 'approve')}
+                          className="flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
+                        >
+                          <Check size={12} /> 승인
+                        </button>
+                      )}
+                      {/* 내가 찍은 것만 되돌린다 */}
+                      {((approverRole === 'CHIEF' && s.stage === 'CHIEF') ||
+                        (approverRole === 'CEO' && s.stage === 'DONE')) && (
+                        <button
+                          onClick={() => void step(s, 'revoke')}
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+                          title="승인을 취소하면 다시 고칠 수 있습니다"
+                        >
+                          <Undo2 size={12} /> 승인 취소
+                        </button>
+                      )}
+                      <button
+                        disabled={s.locked}
+                        onClick={() => { setEditing(s); setFormOpen(true); }}
+                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
+                        title={s.locked ? '승인된 정산은 고칠 수 없습니다' : '수정'}
+                      >
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => void confirmDanger('매입 정산 내역을 삭제할까요?', '상품화 비용 명세도 함께 지워집니다.').then(ok => { if (ok) void deletePurchaseSettlement(s.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
+                      <button
+                        disabled={s.locked}
+                        onClick={() => void confirmDanger('매입 정산 내역을 삭제할까요?', '상품화 비용 명세도 함께 지워집니다.').then(ok => { if (ok) void deletePurchaseSettlement(s.id); })}
+                        className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
+                        title={s.locked ? '승인된 정산은 지울 수 없습니다' : '삭제'}
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>

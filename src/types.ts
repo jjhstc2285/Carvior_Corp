@@ -350,6 +350,28 @@ export function brokerageSettlementAmount(profit: number): number {
   return Math.round(profit * (tier.rate ?? 0));
 }
 
+/**
+ * 매입 정산 결재 단계.
+ *
+ * 작성 중 → 승인 요청 → 본부장 승인 → 대표 승인(확정).
+ * 서버(settlements/approvers.ts)와 같은 이름을 쓴다 — 고칠 땐 양쪽을 같이 본다.
+ */
+export type SettlementStage = 'DRAFT' | 'SUBMITTED' | 'CHIEF' | 'DONE';
+
+export const SETTLEMENT_STAGE_LABEL: Record<SettlementStage, string> = {
+  DRAFT: '작성 중',
+  SUBMITTED: '본부장 승인 대기',
+  CHIEF: '대표 승인 대기',
+  DONE: '확정',
+};
+
+export const SETTLEMENT_STAGE_CLASS: Record<SettlementStage, string> = {
+  DRAFT: 'border-slate-200 bg-slate-100 text-slate-600',
+  SUBMITTED: 'border-amber-300 bg-amber-50 text-amber-800',
+  CHIEF: 'border-sky-300 bg-sky-50 text-sky-800',
+  DONE: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+};
+
 // ─────────────────────────────────────────────────────────────
 // 매입 정산 — 시트지 컬럼 그대로
 // ─────────────────────────────────────────────────────────────
@@ -437,6 +459,18 @@ export interface PurchaseSettlement {
   vehicleCost?: VehicleCostSummary;
   /** 최종 합계(원) = (매입+상품화총비용) × 10,000 + 차량비용 */
   grandTotalWon?: number;
+  // ── 결재 ──
+  /** 계약팀이 다 채워 올린 때 */
+  submittedAt?: string | null;
+  chiefApprovedAt?: string | null;
+  chiefApprover?: string;
+  ceoApprovedAt?: string | null;
+  ceoApprover?: string;
+  /** 서버가 날짜로 내주는 단계 */
+  stage?: SettlementStage;
+  /** 본부장이 찍은 뒤부터는 못 고친다 */
+  locked?: boolean;
+
   /** 판매수익 — 현금 수수료 + 할부 피 + 보험 피 + 차대금업 − 현금으로 준 구전 */
   saleProfit?: number;
   /** 차량판매가 − (매입+부대비용) + 판매수익 */

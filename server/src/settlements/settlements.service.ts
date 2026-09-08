@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, SettlementStatus, VehicleExpenseKind } from '@prisma/client';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { NotificationType, Prisma, SettlementStatus, VehicleExpenseKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { formatDateOnly, monthRange, toDateOnly } from '../common/date.util';
+import { formatDateOnly, monthRange, toDateOnly, todayKst } from '../common/date.util';
 import {
   EMPTY_VEHICLE_COST,
   brokerageProfit,
@@ -18,6 +18,10 @@ import {
   type VehicleCostSummary,
 } from './settlement.calc';
 import { normalizePlate } from '../vehicles/vehicle.rules';
+import { approvalRoleOf, CEO_APPROVER, CHIEF_APPROVER, isLocked, stageOf } from './approvers';
+import type { AuthUser } from '../auth/current-user.decorator';
+import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
+import { PushService } from '../push/push.service';
 import type {
   CreateBrokerageDto,
   PrepCostInput,
@@ -43,6 +47,9 @@ const PREP_COST_INCLUDE = { prepCosts: { orderBy: { sortOrder: 'asc' } } } satis
 /** 조회 결과에서 파생값 계산에 필요한 최소 모양 */
 interface PurchaseRow extends SaleFields {
   date: Date;
+  submittedAt: Date | null;
+  chiefApprovedAt: Date | null;
+  ceoApprovedAt: Date | null;
   purchasePrice: number;
   salePrice: number;
   prepCosts: { kind: PrepCostKind; amount: number }[];
@@ -82,7 +89,13 @@ const COST_FIELD: Record<VehicleExpenseKind, 'fuel' | 'battery' | 'parking' | 'r
 
 @Injectable()
 export class SettlementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(SettlementsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeGateway,
+    private readonly push: PushService,
+  ) {}
 
   /** 목록 공통 필터 — 날짜 범위 + 상태 + 담당자 */
   private baseWhere(params: ListParams) {
@@ -267,6 +280,162 @@ export class SettlementsService {
     );
   }
 
+  /**
+   * 결재 단계에 따라 고칠 수 있는지 본다.
+   *
+   * 본부장이 찍은 다음부터는 못 고친다 — 승인한 뒤에 금액이 바뀌면 무엇을 보고 찍었는지가
+   * 남지 않는다. 고쳐야 하면 승인을 먼저 취소한다.
+   */
+  private async assertEditable(id: string): Promise<void> {
+    const row = await this.prisma.purchaseSettlement.findUnique({
+      where: { id },
+      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true },
+    });
+    if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    if (isLocked(stageOf(row))) {
+      throw new ForbiddenException('승인된 정산은 고칠 수 없습니다. 승인을 먼저 취소해 주세요.');
+    }
+  }
+
+  /**
+   * 계약팀이 다 채워 올린다.
+   *
+   * 여기서부터 본부장이 볼 차례다. 올렸다고 잠기지는 않는다 —
+   * 본부장이 보기 전에 빠진 걸 발견하면 그냥 고치면 된다.
+   */
+  async submitPurchase(id: string, user: AuthUser) {
+    const row = await this.prisma.purchaseSettlement.findUnique({
+      where: { id },
+      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, vehicleNumber: true, vehicleName: true },
+    });
+    if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    if (isLocked(stageOf(row))) throw new ForbiddenException('이미 승인된 정산입니다.');
+
+    const updated = await this.prisma.purchaseSettlement.update({
+      where: { id },
+      data: { submittedAt: new Date() },
+      include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
+    });
+    void this.notifyApprover(CHIEF_APPROVER, `${row.vehicleNumber} ${row.vehicleName} 정산이 올라왔습니다.`, user.name);
+    return this.withVehicleCost(updated);
+  }
+
+  /**
+   * 승인한다.
+   *
+   * 본부장 → 대표 순서다. 본부장이 안 찍었는데 대표가 먼저 찍을 수는 없다 —
+   * 순서를 건너뛰면 본부장이 무엇을 보고 넘겼는지가 없어진다.
+   */
+  async approvePurchase(id: string, user: AuthUser) {
+    const role = approvalRoleOf(user.name);
+    if (!role) throw new ForbiddenException('정산을 승인할 수 있는 계정이 아닙니다.');
+
+    const row = await this.prisma.purchaseSettlement.findUnique({
+      where: { id },
+      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, vehicleNumber: true, vehicleName: true },
+    });
+    if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    const stage = stageOf(row);
+
+    if (role === 'CHIEF') {
+      if (stage !== 'SUBMITTED') {
+        throw new ForbiddenException(
+          stage === 'DRAFT' ? '아직 올라오지 않은 정산입니다.' : '이미 승인한 정산입니다.',
+        );
+      }
+    } else if (stage !== 'CHIEF') {
+      throw new ForbiddenException(
+        stage === 'DONE' ? '이미 확정된 정산입니다.' : '본부장 승인이 먼저입니다.',
+      );
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.purchaseSettlement.update({
+      where: { id },
+      data:
+        role === 'CHIEF'
+          ? { chiefApprovedAt: now, chiefApprover: user.name }
+          : { ceoApprovedAt: now, ceoApprover: user.name, status: SettlementStatus.COMPLETED },
+      include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
+    });
+
+    const car = `${row.vehicleNumber} ${row.vehicleName}`.trim();
+    if (role === 'CHIEF') {
+      void this.notifyApprover(CEO_APPROVER, `${car} 정산을 본부장이 승인했습니다.`, user.name);
+    } else {
+      void this.notifyEmployee(updated.employeeId, `${car} 정산이 확정됐습니다.`);
+    }
+    return this.withVehicleCost(updated);
+  }
+
+  /** 승인을 취소한다. 자기가 찍은 것만 되돌린다 — 대표가 찍은 걸 본부장이 지울 수는 없다. */
+  async revokePurchase(id: string, user: AuthUser) {
+    const role = approvalRoleOf(user.name);
+    if (!role) throw new ForbiddenException('정산을 승인할 수 있는 계정이 아닙니다.');
+
+    const row = await this.prisma.purchaseSettlement.findUnique({
+      where: { id },
+      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true },
+    });
+    if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    const stage = stageOf(row);
+
+    if (role === 'CEO') {
+      if (stage !== 'DONE') throw new ForbiddenException('취소할 승인이 없습니다.');
+    } else {
+      if (stage !== 'CHIEF') {
+        throw new ForbiddenException(
+          stage === 'DONE' ? '대표 승인이 먼저 취소돼야 합니다.' : '취소할 승인이 없습니다.',
+        );
+      }
+    }
+
+    const updated = await this.prisma.purchaseSettlement.update({
+      where: { id },
+      data:
+        role === 'CEO'
+          ? { ceoApprovedAt: null, ceoApprover: '', status: SettlementStatus.IN_PROGRESS }
+          : { chiefApprovedAt: null, chiefApprover: '' },
+      include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
+    });
+    return this.withVehicleCost(updated);
+  }
+
+  /** 이름으로 찾아 알린다. 그 이름을 가진 직원이 없으면 조용히 넘어간다. */
+  private async notifyApprover(name: string, message: string, from: string): Promise<void> {
+    const found = await this.prisma.employee.findFirst({
+      where: { active: true, name },
+      select: { id: true },
+    });
+    if (!found) {
+      this.logger.warn(`정산 결재자 '${name}' 를 직원과 못 맞췄습니다.`);
+      return;
+    }
+    await this.notifyEmployee(found.id, `${message} (${from})`);
+  }
+
+  private async notifyEmployee(employeeId: string, message: string): Promise<void> {
+    try {
+      const today = todayKst();
+      await this.prisma.notification.create({
+        data: {
+          type: NotificationType.APPROVAL,
+          message,
+          employeeId,
+          date: new Date(`${today}T00:00:00.000Z`),
+        },
+      });
+      this.realtime.toEmployees([employeeId], REALTIME_EVENT.notification, {
+        type: NotificationType.APPROVAL,
+        message,
+        date: today,
+      });
+      void this.push.sendToEmployees([employeeId], { title: '매입 정산', body: message });
+    } catch (e) {
+      this.logger.warn(`정산 알림을 보내지 못했습니다: ${(e as Error).message}`);
+    }
+  }
+
   private toPurchaseView<T extends PurchaseRow>(row: T, cost: VehicleCostSummary | undefined) {
     const vehicleCost = cost ?? EMPTY_VEHICLE_COST;
     // 상품화총비용과 항목별 합계는 명세를 더해서 낸다 — 저장하지 않는다.
@@ -281,6 +450,11 @@ export class SettlementsService {
       vehicleCost,
       grandTotalWon: purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost),
       // 판 값. 아직 안 팔았으면 전부 0이라 판매수익도 0으로 나온다.
+      submittedAt: row.submittedAt?.toISOString() ?? null,
+      chiefApprovedAt: row.chiefApprovedAt?.toISOString() ?? null,
+      ceoApprovedAt: row.ceoApprovedAt?.toISOString() ?? null,
+      stage: stageOf(row),
+      locked: isLocked(stageOf(row)),
       saleProfit: saleProfit(row),
       saleNet: saleNet(row.salePrice, purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost), saleProfit(row)),
     };
@@ -330,7 +504,7 @@ export class SettlementsService {
    * 명세를 아예 안 보내면 건드리지 않는다(다른 칸만 고치는 경우).
    */
   async updatePurchase(id: string, dto: UpdatePurchaseDto) {
-    await this.assert('purchaseSettlement', id);
+    await this.assertEditable(id);
     const { prepCosts, ...rest } = dto;
 
     const row = await this.prisma.purchaseSettlement.update({
@@ -360,7 +534,7 @@ export class SettlementsService {
   }
 
   async removePurchase(id: string) {
-    await this.assert('purchaseSettlement', id);
+    await this.assertEditable(id);
     await this.prisma.purchaseSettlement.delete({ where: { id } });
   }
 

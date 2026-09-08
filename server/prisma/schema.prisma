@@ -578,17 +578,27 @@ model PurchaseSettlement {
 
   // ⚠️ 아래 6개는 PurchasePrepCost 명세로 옮겼다. 값을 옮겨둔 뒤 읽지도 쓰지도 않는다.
   //    옮긴 숫자가 맞는지 운영에서 확인한 다음 컬럼을 지운다(그때까지는 되돌릴 수 있게 남겨둔다).
-  polishWashCost   Int              @default(0)
-  dentCost         Int              @default(0)
-  performanceCost  Int              @default(0)
-  deliveryCost     Int              @default(0)
-  repairCost       Int              @default(0)
-  diagnosisCost    Int              @default(0)
-  settlementAmount Int              @default(0) // 정산금액(원)
-  newCarName       String           @default("") // 신차이름
-  employeeId       String
-  status           SettlementStatus @default(IN_PROGRESS)
-  memo             String           @db.Text
+  polishWashCost   Int @default(0)
+  dentCost         Int @default(0)
+  performanceCost  Int @default(0)
+  deliveryCost     Int @default(0)
+  repairCost       Int @default(0)
+  diagnosisCost    Int @default(0)
+  settlementAmount Int @default(0) // 정산금액(원)
+
+  // ── 결재 ──
+  // 계약팀이 빈칸을 채워 올리면 본부장이 보고, 대표가 마지막에 찍는다.
+  // 단계는 저장하지 않고 찍힌 날짜로 낸다 — 단계와 날짜를 둘 다 두면 어긋난다.
+  // 승인한 사람은 그때의 이름을 박아 남긴다. 나중에 사람이 바뀌어도 누가 찍었는지는 그대로다.
+  submittedAt     DateTime?
+  chiefApprovedAt DateTime?
+  chiefApprover   String           @default("") @db.VarChar(30)
+  ceoApprovedAt   DateTime?
+  ceoApprover     String           @default("") @db.VarChar(30)
+  newCarName      String           @default("") // 신차이름
+  employeeId      String
+  status          SettlementStatus @default(IN_PROGRESS)
+  memo            String           @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
