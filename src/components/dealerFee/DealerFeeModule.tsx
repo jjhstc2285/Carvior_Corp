@@ -25,9 +25,6 @@ export default function DealerFeeModule() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
-  const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
-  /** 대당 영업소의 그 달 매입 대수 — 매입 관리의 매입처를 세어 온다 */
-  const [counts, setCounts] = useState<Record<string, { count: number; amount: number }>>({});
   /** 이 장부를 볼 수 있는 사람 — "누가 보는지"를 화면에서 확인한다 */
   const [viewers, setViewers] = useState<{ id: string; name: string; position: string }[]>([]);
   const reqId = useRef(0);
@@ -58,13 +55,6 @@ export default function DealerFeeModule() {
       .then(setViewers)
       .catch(() => setViewers([]));
   }, []);
-
-  useEffect(() => {
-    // 대수 세기는 곁다리라 못 받아와도 목록은 그대로 써야 한다.
-    api<{ id: string; count: number; amount: number }[]>(`/dealer-fees/monthly-counts?month=${month}`)
-      .then(rows => setCounts(Object.fromEntries(rows.map(r => [r.id, r]))))
-      .catch(() => setCounts({}));
-  }, [month, rows.length]);
 
   /** 한 칸만 고쳐 보낸다. 고친 게 이체 조건이면 서버가 알림을 띄운다. */
   const patch = async (row: DealerFeeAccount, body: Partial<DealerFeeAccount>) => {
@@ -111,12 +101,8 @@ export default function DealerFeeModule() {
     );
   }, [rows, query]);
 
-  // 대당으로 받는 곳은 그 달 매입 대수로 회비가 정해진다 — 세어 온 값을 합계에 같이 넣는다.
   const active = filtered.filter(r => r.active);
-  const fixedTotal = active.reduce((sum, r) => sum + r.monthlyFee, 0);
-  const perUnitTotal = active.reduce((sum, r) => sum + (counts[r.id]?.amount ?? 0), 0);
-  const monthlyTotal = fixedTotal + perUnitTotal;
-  const perUnit = active.filter(r => r.perUnitFee > 0).length;
+  const monthlyTotal = active.reduce((sum, r) => sum + r.monthlyFee, 0);
   const autoCount = filtered.filter(r => r.active && r.method === 'AUTO').length;
 
   const handleExport = () => {
@@ -131,9 +117,6 @@ export default function DealerFeeModule() {
       자동이체날짜: r.transferDay,
       이체일: r.transferDayOfMonth || '',
       '매달 회비': r.monthlyFee || r.feeNote,
-      '대당 회비': r.perUnitFee || '',
-      [`${dayjs(month).format('M월')} 대수`]: r.perUnitFee ? (counts[r.id]?.count ?? 0) : '',
-      [`${dayjs(month).format('M월')} 대당 회비`]: r.perUnitFee ? (counts[r.id]?.amount ?? 0) : '',
       자동이체여부: DEALER_FEE_METHOD_LABEL[r.method],
       비고: r.note,
       자동이체기한: r.autoTransferUntil,
@@ -201,16 +184,12 @@ export default function DealerFeeModule() {
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">
-          <p className="text-xs font-medium text-indigo-700/80">{dayjs(month).format('M월')} 회비 합계</p>
+          <p className="text-xs font-medium text-indigo-700/80">매달 회비 합계</p>
           <p className="mt-1 text-2xl font-bold text-indigo-700">
             {monthlyTotal.toLocaleString()}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
-          {perUnit > 0 && (
-            <p className="text-[11px] text-slate-400">
-              정액 {fixedTotal.toLocaleString()}원 + 대당 {perUnit}곳 {perUnitTotal.toLocaleString()}원
-            </p>
-          )}
+          <p className="text-[11px] text-slate-400">거래중인 곳만 셉니다</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">거래중</p>
@@ -235,13 +214,6 @@ export default function DealerFeeModule() {
           onChange={e => setQuery(e.target.value)}
           placeholder="업체명·담당자·예금주·은행 검색"
           className="w-64 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
-        />
-        <input
-          type="month"
-          value={month}
-          onChange={e => setMonth(e.target.value)}
-          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
-          title="대당 영업소의 매입 대수를 셀 달"
         />
         <label className="flex items-center gap-1.5 text-sm text-slate-500">
           <input
@@ -272,7 +244,6 @@ export default function DealerFeeModule() {
                 <th className="px-3 py-3 font-medium">자동이체날짜</th>
                 <th className="px-3 py-3 text-center font-medium">이체일</th>
                 <th className="px-3 py-3 text-right font-medium">매달 회비</th>
-                <th className="px-3 py-3 font-medium">매입처 매칭</th>
                 <th className="px-3 py-3 font-medium">자동이체여부</th>
                 <th className="px-3 py-3 font-medium">자동이체기한</th>
                 <th className="px-3 py-3 font-medium">비고</th>
@@ -343,39 +314,6 @@ export default function DealerFeeModule() {
                       placeholder="100,000"
                       className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-[13px] outline-none focus:border-indigo-400"
                     />
-                    {/* 대당으로 받는 곳 — 금액을 비우고 대당 얼마인지 적는다 */}
-                    <div className="mt-1 flex items-center justify-end gap-1">
-                      <span className="text-[11px] text-slate-400">대당</span>
-                      <input
-                        defaultValue={r.perUnitFee ? withCommas(r.perUnitFee) : ''}
-                        onBlur={e => {
-                          const next = Number(digitsOnly(e.target.value)) || 0;
-                          if (next !== r.perUnitFee) void patch(r, { perUnitFee: next });
-                        }}
-                        inputMode="numeric"
-                        placeholder="50,000"
-                        className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-[13px] outline-none focus:border-indigo-400"
-                      />
-                    </div>
-                    {/* 세어 온 대수 — 매입 관리의 매입처에서 나온다 */}
-                    {r.perUnitFee > 0 && (
-                      <p className="mt-1 text-[11px] font-semibold text-indigo-600">
-                        {dayjs(month).format('M월')} {counts[r.id]?.count ?? 0}대 ·{' '}
-                        {(counts[r.id]?.amount ?? 0).toLocaleString()}원
-                      </p>
-                    )}
-                  </td>
-
-                  {/*
-                    매입 관리의 '매입처'에 이 말이 들어가면 이 영업소가 매입한 것으로 센다.
-                    업체명과 매입처 표기가 달라서(BYD 송도 / bps전영진과장) 따로 받는다.
-                  */}
-                  <td className="px-3 py-2.5">
-                    {r.perUnitFee > 0 ? (
-                      text(r, 'matchKeywords', 'w-40', r.dealerName)
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
                   </td>
                   <td className="px-3 py-2.5">
                     <select

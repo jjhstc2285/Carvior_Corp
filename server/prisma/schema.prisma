@@ -172,8 +172,8 @@ enum DealerFeeMethod {
 
 /**
  * 신차영업소 상조회비 납부현황.
- * 엑셀로 돌리던 대장을 그대로 옮겼다. 이체날짜·회비·기한이 수시로 바뀌고 대당으로
- * 잡힌 곳도 있어서, 바뀌면 사무장과 대표에게 알린다.
+ * 엑셀로 돌리던 대장을 그대로 옮겼다. 이체날짜·회비·기한이 수시로 바뀌고
+ * 하는 곳도 있어서, 바뀌면 사무장과 대표에게 알린다.
  * 날짜 꼴이 제각각이라(매달5일 / 10-01 / 매달1일고정 / 직접이체) 날짜형으로 두지 않고
  * 적힌 그대로 문자열로 받는다. 억지로 맞추면 원장과 달라진다.
  */
@@ -192,17 +192,11 @@ model DealerFeeAccount {
   // 위 문장에서 뽑아낸 이체일(1~31). 0이면 정해진 날이 없다(직접이체 등).
   // 원문은 그대로 두고 숫자만 따로 둔다 — 알림은 숫자로 돌고, 원장은 적힌 대로 남는다.
   transferDayOfMonth Int    @default(0)
-  monthlyFee         Int    @default(0) // 매달 회비(원). 대당처럼 정액이 아니면 0
-  feeNote            String @default("") @db.VarChar(60) // "대당 5만" 처럼 정액이 아닐 때
+  monthlyFee         Int    @default(0) // 매달 회비(원)
+  // 금액으로 안 떨어지는 조건은 적힌 그대로 남긴다 — 사람이 보고 판단할 일이다.
+  feeNote            String @default("") @db.VarChar(60)
 
-  // 대당으로 받는 곳 — 그 달 매입 대수로 회비가 정해진다.
-  perUnitFee Int @default(0) // 대당 얼마(원). 0이면 대당이 아니다
-
-  // 매입 관리의 '매입처'에 이 말이 들어가면 이 영업소가 매입한 것으로 센다.
-  // 업체명과 매입처 표기가 달라서(BYD 송도 / bps전영진과장) 따로 받는다.
-  // 쉼표로 여러 개를 넣을 수 있다. 비어 있으면 업체명으로 찾는다.
-  matchKeywords String          @default("") @db.VarChar(255)
-  method        DealerFeeMethod @default(AUTO) // 자동이체여부
+  method DealerFeeMethod @default(AUTO) // 자동이체여부
 
   autoTransferUntil String @default("") @db.VarChar(30) // 자동이체기한 — "2026년12월"
   note              String @default("") @db.VarChar(255) // 비고

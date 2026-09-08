@@ -15,7 +15,6 @@ interface ParsedRow {
   transferDay: string;
   monthlyFee: number;
   feeNote: string;
-  perUnitFee: number;
   method: DealerFeeMethod;
   note: string;
   autoTransferUntil: string;
@@ -52,24 +51,15 @@ function toDate(text: string): string | null {
 }
 
 /**
- * "100,000" 은 정액, "대당 5만" 은 대당이다.
+ * "100,000" 은 금액, 그 밖의 말은 조건으로 적어둔다.
  *
- * 대당은 금액이 아니라 단가라 따로 담는다 — 그 달 매입 대수를 곱해야 회비가 나온다.
- * "5만"·"50,000"·"5" 처럼 적는 사람마다 달라서 만 단위 표기를 풀어준다.
+ * 숫자로 안 떨어지는 조건은 사람이 보고 판단할 일이라 문장 그대로 남긴다.
  */
-function toFee(text: string): { monthlyFee: number; feeNote: string; perUnitFee: number } {
+function toFee(text: string): { monthlyFee: number; feeNote: string } {
   const raw = text.trim();
-  const none = { monthlyFee: 0, feeNote: '', perUnitFee: 0 };
-  if (!raw) return none;
-
-  if (/^[\d,]+$/.test(raw)) return { ...none, monthlyFee: Number(raw.replace(/,/g, '')) || 0 };
-
-  if (raw.includes('대당')) {
-    const m = raw.match(/([\d,]+)\s*(만)?/);
-    const n = m ? Number(m[1].replace(/,/g, '')) : 0;
-    return { ...none, feeNote: raw.slice(0, 60), perUnitFee: m?.[2] ? n * 10000 : n };
-  }
-  return { ...none, feeNote: raw.slice(0, 60) };
+  if (!raw) return { monthlyFee: 0, feeNote: '' };
+  if (/^[\d,]+$/.test(raw)) return { monthlyFee: Number(raw.replace(/,/g, '')) || 0, feeNote: '' };
+  return { monthlyFee: 0, feeNote: raw.slice(0, 60) };
 }
 
 function toMethod(text: string): DealerFeeMethod {
@@ -200,10 +190,7 @@ export default function DealerFeePasteModal({ onClose, onImported }: Props) {
                         {r.monthlyFee ? (
                           r.monthlyFee.toLocaleString()
                         ) : (
-                          <span className="text-amber-700">
-                            {r.feeNote}
-                            {r.perUnitFee > 0 && ` (대당 ${r.perUnitFee.toLocaleString()}원)`}
-                          </span>
+                          <span className="text-amber-700">{r.feeNote}</span>
                         )}
                       </td>
                       <td className="px-3 py-1.5 text-slate-600">{DEALER_FEE_METHOD_LABEL[r.method]}</td>
@@ -214,8 +201,7 @@ export default function DealerFeePasteModal({ onClose, onImported }: Props) {
               </table>
             </div>
             <p className="mt-2 text-[11px] text-slate-400">
-              회비가 숫자면 정액으로, <b>“대당 5만”이면 대당 단가</b>로 들어갑니다. 대당인 곳은
-              매입 관리의 <b>매입처</b>를 세어 그 달 회비를 자동으로 냅니다 — 표에서 매칭할 말만 확인해 주세요.
+              회비가 숫자면 <b>매달 회비</b>로 들어가고, 숫자가 아닌 말은 <b>회비 조건</b>에 그대로 적어둡니다.
             </p>
           </>
         )}
