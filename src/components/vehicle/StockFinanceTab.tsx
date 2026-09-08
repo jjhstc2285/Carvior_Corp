@@ -46,7 +46,17 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
 ];
 
 /** 날짜 칸을 기간으로 거른다. 어느 날짜를 볼지는 보기마다 다르다. */
-type DateField = 'offerDate' | 'transferDate' | 'repayDate' | 'soldDate';
+type DateField = 'offerDate' | 'transferDate' | 'repayDate' | 'soldDate' | 'intakeDate';
+
+/** 보기마다 챙기는 날짜가 다르다. 제시 대상은 아직 제시를 안 한 차라 매입일로 본다. */
+const DATE_FIELD: Partial<Record<View, { field: DateField; label: string }>> = {
+  candidate: { field: 'intakeDate', label: '매입일자' },
+  offered: { field: 'offerDate', label: '제시일자' },
+  stocked: { field: 'transferDate', label: '이전일자' },
+  release: { field: 'intakeDate', label: '매입일자' },
+  sold: { field: 'soldDate', label: '매도일자' },
+  cash: { field: 'intakeDate', label: '매입일자' },
+};
 
 /**
  * 재고금융(제시) 관리.
@@ -87,9 +97,8 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
-  // 제시함은 제시일자로, 재고 잡힘은 이전일자로 거른다 — 그 화면에서 챙기는 날짜다.
-  const dateField: DateField | null =
-    view === 'offered' ? 'offerDate' : view === 'stocked' ? 'transferDate' : view === 'sold' ? 'soldDate' : null;
+  const dateFilter = DATE_FIELD[view] ?? null;
+  const dateField: DateField | null = dateFilter?.field ?? null;
 
   const rows = useMemo(() => {
     const q = query.trim();
@@ -265,7 +274,23 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
 
         {dateField && (
           <span className="flex items-center gap-1 text-sm text-slate-500">
-            {view === 'offered' ? '제시일자' : view === 'sold' ? '매도일자' : '이전일자'}
+            {dateFilter?.label}
+            {/* 달로 보는 일이 제일 잦다 — 고르면 그 달 1일~말일로 채운다 */}
+            <input
+              type="month"
+              value={from && to && from.slice(0, 7) === to.slice(0, 7) ? from.slice(0, 7) : ''}
+              onChange={e => {
+                const m = e.target.value;
+                if (!m) {
+                  setFrom('');
+                  setTo('');
+                  return;
+                }
+                setFrom(dayjs(m).startOf('month').format('YYYY-MM-DD'));
+                setTo(dayjs(m).endOf('month').format('YYYY-MM-DD'));
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-indigo-400"
+            />
             <input
               type="date"
               value={from}
@@ -287,7 +312,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                 }}
                 className="rounded-md px-1.5 py-1 text-xs font-medium text-slate-400 hover:bg-slate-100"
               >
-                해제
+                전체 기간
               </button>
             )}
           </span>

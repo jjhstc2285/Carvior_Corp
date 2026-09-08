@@ -702,6 +702,8 @@ export interface ManagedVehicle {
   releasePending?: boolean;
   /** 매입 관리에 적은 매입금액(원). 매입 기록이 없으면 null */
   intakeAmount?: number | null;
+  /** 매입 관리에 적은 매입일. 제시 대상을 달별로 볼 때 쓴다 */
+  intakeDate?: string | null;
   stockCapital: string; // 할부사
   stockAmount: number; // 재고금액(원)
   /** 이 차 한 대에 쓴 광고비(원) — 광고 관리에서 적는다 */
