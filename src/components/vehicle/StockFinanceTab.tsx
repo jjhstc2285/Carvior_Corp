@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { Download } from 'lucide-react';
+import { Download, Search } from 'lucide-react';
 import {
   CAPITAL_COMPANIES,
   MAX_AGE_YEARS,
@@ -49,6 +49,46 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
   },
   { key: 'sold', label: '매도 차량', desc: '매도일자를 적은 차입니다. 끝난 차입니다.', officeOnly: false },
 ];
+
+/**
+ * 그 차가 이 보기에 뜨는가.
+ *
+ * 필터 안에 두면 "이 차가 지금 어느 보기에 있나"를 물어볼 수가 없다. 밖으로 빼서
+ * 목록을 거를 때도, 검색한 차를 찾아줄 때도 같은 규칙을 쓴다 —
+ * 두 벌로 두면 반드시 어긋난다.
+ */
+function inView(
+  view: View,
+  v: ManagedVehicle,
+  opts: { month: string; showIneligible: boolean },
+): boolean {
+  // 매도·출고 예정은 재고금융과 상관없이 가른다 — 현금차량도 팔린다.
+  if (view === 'sold') return Boolean(v.soldDate);
+
+  // 넘긴 차는 매도 차량에만 남는다. 제시 대상·제시함·재고차량·현금차량은
+  // 앞으로 할 일을 모아 놓은 곳이라 이미 끝난 차가 섞이면 안 된다.
+  //
+  // 상환 예정만 예외다 — 팔았다고 재고금융이 저절로 갚아지는 게 아니라
+  // 갚는 날까지 챙겨야 한다.
+  if (v.soldDate && view !== 'repay') return false;
+
+  if (view === 'release') return saleStage(v) === 'RELEASE_PENDING';
+  if (view === 'cash') return v.cashVehicle;
+  if (v.cashVehicle) return false;
+
+  // 제시일자만 적어도 넘어가면 이전일자를 적을 자리가 사라진다. 둘 다 적어야 넘긴다.
+  if (view === 'candidate') {
+    if (v.offerDate && v.transferDate) return false;
+    // 제시일자를 이미 적은 건 진행 중이라 가능 여부와 상관없이 남긴다.
+    return offerEligibility(v).ok !== false || Boolean(v.offerDate) || opts.showIneligible;
+  }
+
+  // 재고를 잡으면 제시함에서 빠지고 재고차량으로 넘어간다 — 그래야 제시함에
+  // 아직 챙길 차만 남는다. 현금차량으로 빼는 것과 같은 방식이다.
+  if (view === 'offered') return Boolean(v.offerDate && v.transferDate) && !isStocked(v);
+  if (view === 'stocked') return isStocked(v);
+  return v.repayDate?.startsWith(opts.month) ?? false;
+}
 
 /**
  * 재고가 잡혔는가.
@@ -129,35 +169,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
     return vehicles
       .map(v => ({ vehicle: v, eligibility: offerEligibility(v) }))
       .filter(({ vehicle: v }) => !q || v.vehicleNumber.includes(q) || v.vehicleModel.includes(q))
-      .filter(({ vehicle: v, eligibility }) => {
-        // 매도·출고 예정은 재고금융과 상관없이 가른다 — 현금차량도 팔린다.
-        if (view === 'sold') return Boolean(v.soldDate);
-
-        // 넘긴 차는 매도 차량에만 남는다. 제시 대상·제시함·재고차량·현금차량은
-        // 앞으로 할 일을 모아 놓은 곳이라 이미 끝난 차가 섞이면 안 된다.
-        //
-        // 상환 예정만 예외다 — 팔았다고 재고금융이 저절로 갚아지는 게 아니라
-        // 갚는 날까지 챙겨야 한다.
-        if (v.soldDate && view !== 'repay') return false;
-
-        if (view === 'release') return saleStage(v) === 'RELEASE_PENDING';
-        if (view === 'cash') return v.cashVehicle;
-        if (v.cashVehicle) return false;
-        // 제시일자만 적어도 넘어가면 이전일자를 적을 자리가 사라진다.
-        // 둘 다 적어야 제시함으로 넘긴다.
-        // 이미 제시일자를 적은 차는 제시 가능 여부와 상관없이 남긴다 —
-        // 진행 중인 건이 어느 목록에도 없으면 이전일자를 적을 자리가 사라진다.
-        if (view === 'candidate') {
-          if (v.offerDate && v.transferDate) return false;
-          // 제시일자를 이미 적은 건 진행 중이라 가능 여부와 상관없이 남긴다.
-          return eligibility.ok !== false || Boolean(v.offerDate) || showIneligible;
-        }
-        // 재고를 잡으면 제시함에서 빠지고 재고차량으로 넘어간다 — 그래야 제시함에
-        // 아직 챙길 차만 남는다. 현금차량으로 빼는 것과 같은 방식이다.
-        if (view === 'offered') return Boolean(v.offerDate && v.transferDate) && !isStocked(v);
-        if (view === 'stocked') return isStocked(v);
-        return v.repayDate?.startsWith(month) ?? false;
-      })
+      .filter(({ vehicle: v }) => inView(view, v, { month, showIneligible }))
       .filter(({ vehicle: v }) => {
         if (!dateField) return true;
         const value = v[dateField];
@@ -178,6 +190,28 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         return (b.vehicle.offerDate ?? '').localeCompare(a.vehicle.offerDate ?? '');
       });
   }, [vehicles, query, view, month, dateField, from, to, showIneligible]);
+
+  /**
+   * 검색한 차가 어느 보기에 있는지.
+   *
+   * 보기마다 목록이 갈려 있어서, 찾는 차가 지금 보고 있는 보기에 없으면 그냥 안 나온다.
+   * 그 차가 어디로 갔는지 알려면 일곱 개를 하나씩 눌러봐야 했다.
+   */
+  const foundElsewhere = useMemo(() => {
+    const q = query.trim();
+    if (!q) return [];
+
+    const hits = vehicles.filter(v => v.vehicleNumber.includes(q) || v.vehicleModel.includes(q));
+    if (hits.length === 0) return [];
+
+    return views
+      .filter(other => other.key !== view)
+      .map(other => ({
+        view: other,
+        cars: hits.filter(v => inView(other.key, v, { month, showIneligible: true })),
+      }))
+      .filter(r => r.cars.length > 0);
+  }, [query, vehicles, views, view, month]);
 
   /** 제시 불가로 빠진 차가 몇 대인지 — 켜지 않아도 몇 대가 숨어 있는지는 알려준다. */
   const ineligibleCount = useMemo(() => {
@@ -392,6 +426,26 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
 
       {/* 알선처럼 우리가 안 사온 차는 차량 관리에 없다. 그래도 판 건 남아야 한다. */}
       {(view === 'release' || view === 'sold') && <UnregisteredSoldPanel onRegistered={() => void reload()} />}
+
+      {/* 찾는 차가 다른 보기에 있으면 어디 있는지 알려주고 바로 넘어가게 한다 */}
+      {foundElsewhere.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/50 px-3.5 py-2.5">
+          <Search size={14} className="text-indigo-700" />
+          <span className="text-xs font-bold text-indigo-900">
+            “{query.trim()}” 은(는) 다른 보기에 있습니다
+          </span>
+          {foundElsewhere.map(({ view: other, cars }) => (
+            <button
+              key={other.key}
+              onClick={() => setView(other.key)}
+              className="rounded-lg border border-indigo-300 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+              title={cars.map(c => `${c.vehicleNumber} ${c.vehicleModel}`).join(', ')}
+            >
+              {other.label} {cars.length}대
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">

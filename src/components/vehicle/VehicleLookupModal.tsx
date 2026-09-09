@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { MapPin, Search, X } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -84,8 +85,14 @@ export default function VehicleLookupModal({ onClose }: { onClose: () => void })
     return e.ok === true ? `제시 대상 · ${e.age}년차` : `제시 대상 · ${e.reason}`;
   };
 
-  return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-10" onClick={onClose}>
+  /*
+   * body 에 붙여 그린다.
+   *
+   * 상단바가 backdrop-blur 를 쓰는데, 흐림 효과가 걸린 요소 안에서는 fixed 가
+   * 화면이 아니라 그 요소를 기준으로 잡힌다. 그래서 헤더 안에 갇혀 찌그러졌다.
+   */
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-10" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">차량 조회</h3>
@@ -201,6 +208,7 @@ export default function VehicleLookupModal({ onClose }: { onClose: () => void })
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
