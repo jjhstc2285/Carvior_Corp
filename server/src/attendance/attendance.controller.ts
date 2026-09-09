@@ -28,6 +28,12 @@ export class AttendanceController {
     return this.attendance.findRecords(month ?? todayKst().slice(0, 7), scope);
   }
 
+  /** 지금 근무 중인 사람 — 누구인지만 준다. 전 직원이 본다. */
+  @Get('working')
+  working() {
+    return this.attendance.workingNow();
+  }
+
   @Get('today')
   today(@CurrentUser() user: AuthUser) {
     return this.attendance.today(user.id);

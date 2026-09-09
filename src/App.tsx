@@ -22,8 +22,6 @@ import DealerFeeModule from './components/dealerFee/DealerFeeModule';
 import ApprovalModule from './components/approval/ApprovalModule';
 import AdModule from './components/ad/AdModule';
 import { useChatUnread } from './components/chat/useChat';
-import { useIdleAway } from './hooks/useIdleAway';
-import { useStore } from './store';
 import RealtimeToasts from './components/RealtimeToasts';
 import LoginPage from './components/auth/LoginPage';
 
@@ -67,18 +65,10 @@ function AuthedApp({ role }: { role: Role }) {
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
-  const { state, submitAttendanceRequest } = useStore();
 
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
   const officeOnly: ModuleKey[] = ['dealerFee'];
   const shownModule: ModuleKey = officeOnly.includes(module) && !seeLedger ? 'attendance' : module;
-
-  // 어느 화면에 있든 재야 해서 앱 껍데기에 단다.
-  useIdleAway({
-    employeeId: state.currentEmployeeId,
-    records: state.records,
-    submit: submitAttendanceRequest,
-  });
 
   return (
     <div className="flex min-h-screen bg-slate-50">

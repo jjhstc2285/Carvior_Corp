@@ -48,6 +48,20 @@ export class AttendanceService {
   }
 
   /**
+   * 지금 근무 중인 사람 — 오늘 출근을 찍고 아직 퇴근을 안 찍은 직원의 id.
+   *
+   * 근태 기록 자체는 남의 것을 못 본다(내 출퇴근 시각은 남에게 보일 일이 아니다).
+   * 그런데 "지금 누가 자리에 있나"는 다 같이 봐야 한다 — 시각은 빼고 누구인지만 준다.
+   */
+  async workingNow(): Promise<string[]> {
+    const rows = await this.prisma.attendanceRecord.findMany({
+      where: { date: toDateOnly(todayKst()), clockIn: { not: null }, clockOut: null },
+      select: { employeeId: true },
+    });
+    return rows.map((r) => r.employeeId);
+  }
+
+  /**
    * 출근 등록.
    * 허용 조건은 IP와 단말 두 가지이고, 등록된 것만 검사한다(둘 다 비어 있으면 제한 없음).
    */

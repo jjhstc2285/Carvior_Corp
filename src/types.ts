@@ -20,6 +20,10 @@ export interface Employee {
   phones: string[];
   role: Role;
   active: boolean;
+  /** 지금 상태 — 본인이 적는다("🚗 외근 중"). 안 적었으면 null */
+  statusEmoji?: string | null;
+  statusText?: string | null;
+  statusAt?: string | null;
 }
 
 /**

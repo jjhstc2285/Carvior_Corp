@@ -42,6 +42,17 @@ model Employee {
   loginId      String?       @unique
   passwordHash String?
 
+  /**
+   * 지금 상태 — "🚗 외근 중", "🍜 점심", "📞 통화 중" 처럼 본인이 적는다.
+   * 근태 신청(연차·외근)과는 다르다. 그건 승인을 받는 기록이고 이건 지금 옆자리에
+   * 대고 말하는 것에 가깝다. 그래서 승인도 이력도 없이 지금 값만 들고 있는다.
+   * 언제 적었는지를 같이 둔다 — 어제 적어둔 '외근 중'이 오늘까지 붙어 있으면
+   * 안 보느니만 못하다. 오래된 건 화면에서 흐리게 처리한다.
+   */
+  statusEmoji String?   @db.VarChar(8)
+  statusText  String?   @db.VarChar(40)
+  statusAt    DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

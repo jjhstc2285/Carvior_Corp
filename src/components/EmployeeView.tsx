@@ -17,6 +17,7 @@ import StatusBadge from './StatusBadge';
 import CorrectionRequestModal from './CorrectionRequestModal';
 import AttendanceRequestModal from './AttendanceRequestModal';
 import ClockCard from './ClockCard';
+import StatusBar from './StatusBar';
 import CalendarView from './CalendarView';
 
 const REQUEST_STATUS_LABEL: Record<string, string> = {
@@ -183,6 +184,11 @@ export default function EmployeeView() {
         </div>
         )}
       </section>
+
+      {/* 지금 누가 자리에 있고 무엇을 하고 있는지 — 내 신청 위에 둔다 */}
+      <div className="mt-6">
+        <StatusBar />
+      </div>
 
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-5 py-3.5">

@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseBoolPipe, Patch, Post, Query } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { EmployeesService } from './employees.service';
-import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto';
+import { CreateEmployeeDto, UpdateEmployeeDto, UpdateStatusDto } from './dto/employee.dto';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
 
 @Controller('employees')
@@ -17,6 +18,17 @@ export class EmployeesController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.employees.findOne(id);
+  }
+
+  /**
+   * 내 상태 적기 — "🚗 외근 중" 처럼.
+   *
+   * :id 보다 먼저 선언해야 'me' 가 id 로 잡히지 않는다.
+   * 본인 것만 고친다 — 남의 상태를 대신 적으면 그 사람이 말한 게 아니게 된다.
+   */
+  @Patch('me/status')
+  setStatus(@CurrentUser() user: AuthUser, @Body() dto: UpdateStatusDto) {
+    return this.employees.setStatus(user.id, dto);
   }
 
   @Roles(Role.ADMIN)

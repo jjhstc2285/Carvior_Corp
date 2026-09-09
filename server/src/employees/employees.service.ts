@@ -15,6 +15,10 @@ export interface EmployeeView {
   phones: string[];
   role: Role;
   active: boolean;
+  /** 지금 상태 — 본인이 적는다. 안 적었으면 전부 null */
+  statusEmoji: string | null;
+  statusText: string | null;
+  statusAt: string | null;
 }
 
 @Injectable()
@@ -31,6 +35,9 @@ export class EmployeesService {
     department: true,
     role: true,
     active: true,
+    statusEmoji: true,
+    statusText: true,
+    statusAt: true,
     phones: { select: { number: true }, orderBy: { sortOrder: 'asc' as const } },
   };
 
@@ -41,9 +48,40 @@ export class EmployeesService {
     department: string | null;
     role: Role;
     active: boolean;
+    statusEmoji: string | null;
+    statusText: string | null;
+    statusAt: Date | null;
     phones: { number: string }[];
   }): EmployeeView {
-    return { ...row, phones: row.phones.map((p) => p.number) };
+    return {
+      ...row,
+      statusAt: row.statusAt?.toISOString() ?? null,
+      phones: row.phones.map((p) => p.number),
+    };
+  }
+
+  /**
+   * 지금 상태를 적는다 — "🚗 외근 중" 처럼.
+   *
+   * 본인 것만 고친다. 남의 상태를 대신 적어주는 건 그 사람이 말한 게 아니게 된다.
+   * 비우면 상태를 내린다. 목록 캐시를 지워야 다른 사람 화면에도 바로 보인다.
+   */
+  async setStatus(employeeId: string, dto: { emoji?: string | null; text?: string | null }) {
+    const emoji = dto.emoji?.trim() || null;
+    const text = dto.text?.trim() || null;
+    const cleared = !emoji && !text;
+
+    const row = await this.prisma.employee.update({
+      where: { id: employeeId },
+      data: {
+        statusEmoji: emoji,
+        statusText: text,
+        statusAt: cleared ? null : new Date(),
+      },
+      select: this.select,
+    });
+    await this.redis.del(LIST_CACHE_KEY);
+    return this.toView(row);
   }
 
   async findAll(includeInactive = false): Promise<EmployeeView[]> {
