@@ -10,7 +10,6 @@ import {
   prepBreakdown,
   purchaseGrandTotal,
   purchaseGrandTotalWon,
-  saleNet,
   saleProfit,
   type SaleFields,
   purchasePrepTotal,
@@ -593,11 +592,9 @@ export class SettlementsService {
       ceoApprovedAt: row.ceoApprovedAt?.toISOString() ?? null,
       stage: stageOf(row),
       locked: isLocked(stageOf(row)),
-      saleProfit: saleProfit(row),
-      saleNet: saleNet(
+      saleProfit: saleProfit(
         row.salePrice,
         purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, row.transferFee, row.brokerFee),
-        saleProfit(row),
       ),
     };
   }

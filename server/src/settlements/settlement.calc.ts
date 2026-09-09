@@ -175,18 +175,16 @@ export interface SaleFields {
 }
 
 /**
- * 판매수익 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업
+ * 판매수익 = 차량판매가 − 총합계
  *
- * 구전은 여기서 안 뺀다. 총비용에 들어가 있어서 여기서 또 빼면 두 번 빠진다.
- * 지급방식은 어느 쪽으로 나갔는지 남겨두려고 따로 적는다.
+ * 그 차에 들어간 돈을 다 더한 게 총합계(총비용 + 주유·배터리·주차 같은 차량비용)다.
+ * 판 값에서 그걸 빼면 그 차 한 대에서 남은 돈이 나온다.
+ *
+ * 현금 수수료·할부 피·보험 피·차대금업은 적어두기만 하고 여기서는 안 센다.
+ * 아직 안 판 차는 차량판매가가 0이라 총합계만큼 마이너스로 나온다 — 판 다음에 본다.
  */
-export function saleProfit(r: SaleFields): number {
-  return r.cashCommission + r.installmentFee + r.insuranceFee + r.dealerLoanFee;
-}
-
-/** 차 한 대에서 최종으로 남은 돈 = 차량판매가 − (매입 + 부대비용) + 판매수익 */
-export function saleNet(salePrice: number, grandTotalWon: number, profit: number): number {
-  return salePrice - grandTotalWon + profit;
+export function saleProfit(salePrice: number, grandTotalWon: number): number {
+  return salePrice - grandTotalWon;
 }
 
 // ── 차량비용(주유·배터리·주차) 연동 ──

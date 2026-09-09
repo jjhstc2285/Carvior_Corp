@@ -7,7 +7,6 @@ import {
   BROKER_FEE_PAYOUT_LABEL,
   purchaseGrandTotal,
   purchasePrepTotal,
-  saleNet,
   saleProfit,
   type BrokerFeePayout,
   type PurchaseSettlement,
@@ -50,7 +49,6 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   // 업체·카테고리 자동완성 목록 — 지금까지 쓴 이름을 서버에서 받아온다.
   const [vendors, setVendors] = useState<Record<string, string[]>>({});
   const [settlementAmount, setSettlementAmount] = useState(editing ? String(editing.settlementAmount) : '');
-  const [newCarName, setNewCarName] = useState(editing?.newCarName ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
   const [memo, setMemo] = useState(editing?.memo ?? '');
@@ -81,8 +79,8 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   };
   const prepTotal = purchasePrepTotal(prepCosts);
   const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal, nums.transferFee, nums.brokerFee);
-  const profit = saleProfit(nums);
-  const net = saleNet(nums.salePrice, grandTotal, profit);
+  // 폼에서는 차량비용(주유·배터리)을 모른다 — 표에서는 그것까지 더한 총합계로 낸다.
+  const profit = saleProfit(nums.salePrice, grandTotal);
 
   const handleSubmit = () => {
     if (!vehicleName.trim() || !vehicleNumber.trim() || !purchasePrice) {
@@ -99,7 +97,6 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
       prepCosts,
       // 비워두면 매입+상품화총비용을 그대로 정산금액으로 잡는다
       settlementAmount: settlementAmount === '' ? grandTotal : moneyToNumber(settlementAmount),
-      newCarName: newCarName.trim(),
       employeeId,
       status,
       memo: memo.trim(),
@@ -165,17 +162,11 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         <div className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
           <CalcRow label="상품화총비용" formula="광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비 (이전비·구전 제외)" value={prepTotal} />
           <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상품화총비용" value={grandTotal} strong />
-          <CalcRow
-            label="판매수익"
-            formula="현금 수수료 + 할부 피 + 보험 피 + 차대금업 (구전은 총비용에 들어갑니다)"
-            value={profit}
-          />
-          <CalcRow label="남은 돈" formula="차량판매가 − 총비용 + 판매수익" value={net} strong />
+          <CalcRow label="판매수익" formula="차량판매가 − 총비용 (주유·배터리 같은 차량비용은 표에서 더합니다)" value={profit} strong />
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <MoneyField label="정산금액" value={settlementAmount} onChange={setSettlementAmount} />
-          <TextField label="신차이름" value={newCarName} onChange={setNewCarName} placeholder="교체 신차 (없으면 비움)" />
           <StatusField value={status} onChange={v => setStatus(v as SettlementStatus)} />
           <TextField label="메모" value={memo} onChange={setMemo} />
         </div>

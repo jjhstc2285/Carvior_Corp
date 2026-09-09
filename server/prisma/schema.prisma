@@ -595,7 +595,8 @@ model PurchaseSettlement {
   chiefApprover   String           @default("") @db.VarChar(30)
   ceoApprovedAt   DateTime?
   ceoApprover     String           @default("") @db.VarChar(30)
-  newCarName      String           @default("") // 신차이름
+  // 신차이름 — 화면에서 뺐다. 지난 기록이 있어 칸은 남겨둔다.
+  newCarName      String           @default("")
   employeeId      String
   status          SettlementStatus @default(IN_PROGRESS)
   memo            String           @db.Text

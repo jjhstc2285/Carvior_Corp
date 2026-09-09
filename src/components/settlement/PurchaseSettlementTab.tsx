@@ -186,7 +186,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
   /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
   const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
   // 서버가 계산해 주지만, 목록을 손에서 고치는 동안에는 없을 수 있어 같은 식으로 다시 낸다.
-  const profitOf = (s: PurchaseSettlement) => s.saleProfit ?? saleProfit(s);
+  const profitOf = (s: PurchaseSettlement) => s.saleProfit ?? saleProfit(s.salePrice, totalWonOf(s));
 
   /** 항목 칸에 마우스를 올리면 어느 업체에 얼마 썼는지 보인다. */
   const vendorsOf = (s: PurchaseSettlement, kind: PrepCostKind) => {
@@ -233,7 +233,6 @@ export default function PurchaseSettlementTab({ role }: Props) {
       '기타(원)': costOf(s).etc,
       '차량비용 합계(원)': costOf(s).total,
       '총합계(원)': totalWonOf(s),
-      신차이름: s.newCarName,
       담당자: employeeOf(s.employeeId)?.name ?? '',
       결재: SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT'],
       '본부장 승인': s.chiefApprover || '',
@@ -403,7 +402,6 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">총합계(원)</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600">차량판매가</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600">판매수익</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">신차이름</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">담당자</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">결재</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">상태</th>
@@ -412,7 +410,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={24} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={23} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => (
                 <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -443,7 +441,6 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-sky-700">{NUM(totalWonOf(s))}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600">{s.salePrice > 0 ? MAN(s.salePrice) : '—'}</td>
                   <td className="px-3 py-2.5 text-right font-semibold text-emerald-700">{MAN(profitOf(s))}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{s.newCarName || '-'}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{employeeOf(s.employeeId)?.name}</td>
                   <td className="whitespace-nowrap px-3 py-2.5">
                     <span
