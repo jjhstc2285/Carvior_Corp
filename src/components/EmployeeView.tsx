@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { CalendarDays, List, Plus } from 'lucide-react';
+import { CalendarDays, ChevronRight, List, Plus } from 'lucide-react';
 import { useStore } from '../store';
 import { approvedRequestKind, computeStatus, formatMinutes, isWorkday, workedMinutes } from '../lib/attendance';
 import { ANNUAL_LEAVE_QUOTA, ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
@@ -36,6 +36,23 @@ export default function EmployeeView() {
   const [requestDate, setRequestDate] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [attReqOpen, setAttReqOpen] = useState(false);
+  /** 내 근태 신청 칸을 펼쳐 둘지 — 이 브라우저에 기억한다. 기본은 접힘. */
+  const [requestsOpen, setRequestsOpen] = useState(() => {
+    try {
+      return localStorage.getItem('attendance.requestsOpen') === '1';
+    } catch {
+      // 사생활 보호 모드처럼 저장을 막는 브라우저가 있다 — 그때는 접힌 채로 쓴다.
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('attendance.requestsOpen', requestsOpen ? '1' : '0');
+    } catch {
+      // 못 적어도 화면은 그대로 돈다.
+    }
+  }, [requestsOpen]);
 
   // 명단 캐시 등으로 내가 목록에서 빠질 수 있다 — 단언하지 않고 안내로 넘긴다(예전엔 화면이 통째로 죽었다).
   const employee = state.employees.find(e => e.id === state.currentEmployeeId);
@@ -190,11 +207,22 @@ export default function EmployeeView() {
         <StatusBar />
       </div>
 
+      {/*
+        접었다 폈다 한다. 대부분은 낸 적이 없거나 이미 승인된 걸 다시 볼 일이 없는데,
+        늘 펼쳐져 있으면 아래 있는 것들이 밀린다. 접은 상태는 이 브라우저에 기억한다.
+      */}
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-5 py-3.5">
+        <button
+          onClick={() => setRequestsOpen(v => !v)}
+          className="flex w-full items-center gap-2 border-b border-slate-100 px-5 py-3.5 text-left hover:bg-slate-50/60"
+        >
+          <ChevronRight size={15} className={`text-slate-400 transition-transform ${requestsOpen ? 'rotate-90' : ''}`} />
           <h2 className="text-sm font-bold text-slate-800">내 근태 신청(연차/외근) 현황</h2>
-        </div>
-        {myAttendanceRequests.length === 0 ? (
+          {myAttendanceRequests.length > 0 && (
+            <span className="text-xs font-medium text-slate-400">{myAttendanceRequests.length}건</span>
+          )}
+        </button>
+        {!requestsOpen ? null : myAttendanceRequests.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-slate-400">제출한 근태 신청이 없습니다.</p>
         ) : (
           <ul className="divide-y divide-slate-50">

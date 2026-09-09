@@ -20,6 +20,16 @@ const KIND_LABEL: Record<AttendanceRequestKind, string> = {
  * 그래서 '하루에 한 건' 규칙에서 뺀다. 연차 낸 날 자리를 비운다는 말도 성립하지 않으니
  * 다른 신청을 막을 때도 자리비움은 세지 않는다.
  */
+/** 오늘 자리에 없다고 볼 신청 — 승인된 것만 센다. */
+const OUT_OF_OFFICE_KINDS = [
+  AttendanceRequestKind.ANNUAL_LEAVE,
+  AttendanceRequestKind.HALF_DAY,
+  AttendanceRequestKind.FIELD_WORK,
+] as const;
+
+/** 오늘 상태 — 신청 종류 셋에 근무 중·퇴근을 더한 것 */
+export type TodayState = (typeof OUT_OF_OFFICE_KINDS)[number] | 'WORKING' | 'DONE';
+
 const ONE_PER_DAY_KINDS = Object.values(AttendanceRequestKind).filter(
   (k) => k !== AttendanceRequestKind.AWAY,
 );
@@ -48,17 +58,39 @@ export class AttendanceService {
   }
 
   /**
-   * 지금 근무 중인 사람 — 오늘 출근을 찍고 아직 퇴근을 안 찍은 직원의 id.
+   * 오늘 누가 무엇을 하고 있는가 — 근무 중 · 퇴근 · 연차 · 반차 · 외근.
    *
    * 근태 기록 자체는 남의 것을 못 본다(내 출퇴근 시각은 남에게 보일 일이 아니다).
-   * 그런데 "지금 누가 자리에 있나"는 다 같이 봐야 한다 — 시각은 빼고 누구인지만 준다.
+   * 그런데 "오늘 누가 있나"는 다 같이 봐야 한다 — 시각은 빼고 무엇을 하는지만 준다.
+   *
+   * 목록에 없는 사람은 아직 출근 전이다. 없는 걸 굳이 실어 보내지 않는다.
    */
-  async workingNow(): Promise<string[]> {
-    const rows = await this.prisma.attendanceRecord.findMany({
-      where: { date: toDateOnly(todayKst()), clockIn: { not: null }, clockOut: null },
-      select: { employeeId: true },
-    });
-    return rows.map((r) => r.employeeId);
+  async workingNow(): Promise<{ employeeId: string; state: TodayState }[]> {
+    const today = toDateOnly(todayKst());
+
+    const [records, requests] = await Promise.all([
+      this.prisma.attendanceRecord.findMany({
+        where: { date: today },
+        select: { employeeId: true, clockIn: true, clockOut: true },
+      }),
+      this.prisma.attendanceRequest.findMany({
+        where: { date: today, status: RequestStatus.APPROVED, kind: { in: [...OUT_OF_OFFICE_KINDS] } },
+        select: { employeeId: true, kind: true },
+      }),
+    ]);
+
+    // 연차·반차·외근이 먼저다. 외근 나갔다가 들어와 찍은 사람은 외근으로 본다 —
+    // 그날 무엇을 하기로 했는지가 지금 자리에 있는지보다 크다.
+    const board = new Map<string, TodayState>();
+    for (const r of requests) board.set(r.employeeId, r.kind as TodayState);
+
+    for (const r of records) {
+      if (board.has(r.employeeId)) continue;
+      if (r.clockIn && !r.clockOut) board.set(r.employeeId, 'WORKING');
+      else if (r.clockIn && r.clockOut) board.set(r.employeeId, 'DONE');
+    }
+
+    return [...board].map(([employeeId, state]) => ({ employeeId, state }));
   }
 
   /**
