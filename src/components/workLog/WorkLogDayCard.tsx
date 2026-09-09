@@ -23,6 +23,18 @@ interface Props {
   onRemove: (id: string) => void;
 }
 
+/**
+ * 줄 수에 맞춰 늘어나는 칸.
+ *
+ * 한 줄짜리 input 이면 Shift+Enter 로 줄을 바꿀 수가 없다. textarea 로 두되
+ * 적은 만큼만 커지게 한다 — 빈 줄을 미리 잡아 두면 카드가 쓸데없이 길어진다.
+ */
+function autoGrow(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 export default function WorkLogDayCard({ day, logs, canAdd, ownerName, readOnly = false, onAdd, onToggle, onEdit, onRemove }: Props) {
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,8 +80,12 @@ export default function WorkLogDayCard({ day, logs, canAdd, ownerName, readOnly 
     onEdit(log.id, content);
   };
 
-  const onEditKeyDown = (e: KeyboardEvent<HTMLInputElement>, log: WorkLog) => {
-    if (e.key === 'Enter') commitEdit(log);
+  const onEditKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>, log: WorkLog) => {
+    // Shift+Enter 는 줄바꿈이라 그대로 흘려보낸다.
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      commitEdit(log);
+    }
     if (e.key === 'Escape') closeEdit(); // 되돌리기 — blur가 뒤따라도 commitEdit이 막힌다
   };
 
@@ -110,19 +126,24 @@ export default function WorkLogDayCard({ day, logs, canAdd, ownerName, readOnly 
             </button>
 
             {editingId === log.id ? (
-              <input
+              <textarea
+                rows={1}
                 value={editDraft}
-                onChange={e => setEditDraft(e.target.value)}
+                ref={autoGrow}
+                onChange={e => {
+                  setEditDraft(e.target.value);
+                  autoGrow(e.target);
+                }}
                 onKeyDown={e => onEditKeyDown(e, log)}
                 onBlur={() => commitEdit(log)}
                 autoFocus
-                className="min-w-0 flex-1 rounded border border-indigo-300 px-1 py-0.5 text-[13px] outline-none"
+                className="min-w-0 flex-1 resize-none rounded border border-indigo-300 px-1 py-0.5 text-[13px] leading-snug outline-none"
               />
             ) : (
               <button
                 onClick={() => startEdit(log)}
                 disabled={readOnly}
-                className={`min-w-0 flex-1 wrap-break-word text-left text-[13px] leading-snug disabled:cursor-default ${
+                className={`min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-left text-[13px] leading-snug disabled:cursor-default ${
                   log.done ? 'text-slate-400 line-through' : 'text-slate-700'
                 }`}
               >
@@ -150,13 +171,24 @@ export default function WorkLogDayCard({ day, logs, canAdd, ownerName, readOnly 
 
       {canAdd && (
         <div className="px-2 pb-2">
-          <input
+          {/* Enter 로 등록, Shift+Enter 로 줄바꿈 — 한 항목에 여러 줄을 적는다 */}
+          <textarea
+            rows={1}
             value={draft}
-            onChange={e => changeDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') submitNew(); }}
+            ref={autoGrow}
+            onChange={e => {
+              changeDraft(e.target.value);
+              autoGrow(e.target);
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submitNew();
+              }
+            }}
             onBlur={submitNew}
-            placeholder="+ 할 일"
-            className="w-full rounded-lg border border-transparent bg-slate-50 px-2 py-1.5 text-[13px] outline-none placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white"
+            placeholder="+ 할 일 (Shift+Enter 줄바꿈)"
+            className="w-full resize-none rounded-lg border border-transparent bg-slate-50 px-2 py-1.5 text-[13px] leading-snug outline-none placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white"
           />
         </div>
       )}
