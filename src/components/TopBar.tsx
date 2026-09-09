@@ -1,8 +1,10 @@
-import { Loader2, Menu, MessageSquare, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { Car, Loader2, Menu, MessageSquare, RefreshCw } from 'lucide-react';
 import { useStore } from '../store';
 import type { Role } from '../types';
 import NotificationBell from './NotificationBell';
 import UserMenu from './UserMenu';
+import VehicleLookupModal from './vehicle/VehicleLookupModal';
 
 interface Props {
   title: string;
@@ -15,6 +17,7 @@ interface Props {
 
 export default function TopBar({ title, role, onMenuClick, chatUnread, onOpenChat }: Props) {
   const { refresh, loading, error } = useStore();
+  const [lookupOpen, setLookupOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -28,6 +31,15 @@ export default function TopBar({ title, role, onMenuClick, chatUnread, onOpenCha
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* 마당에서 전화를 받으면서 차를 찾는다 — 어느 화면에 있든 눌러서 찾게 둔다 */}
+          <button
+            onClick={() => setLookupOpen(true)}
+            title="차량 조회 — 차량번호로 그 차가 어디 있는지 봅니다"
+            className="rounded-full p-2 text-slate-600 transition-colors hover:bg-slate-100"
+          >
+            <Car size={19} />
+          </button>
+
           {/* 어느 화면에 있든 안 읽은 메시지가 눈에 띄게 계정 옆에 둔다 */}
           <button
             onClick={onOpenChat}
@@ -58,6 +70,8 @@ export default function TopBar({ title, role, onMenuClick, chatUnread, onOpenCha
           <UserMenu />
         </div>
       </div>
+
+      {lookupOpen && <VehicleLookupModal onClose={() => setLookupOpen(false)} />}
     </header>
   );
 }
