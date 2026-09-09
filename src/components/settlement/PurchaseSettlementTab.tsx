@@ -181,7 +181,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
   /** 상품화총비용·항목별 합계는 서버가 명세를 더해서 내려준다. 없으면 화면에서 같은 식으로 낸다. */
   const prepTotalOf = (s: PurchaseSettlement) => s.prepTotal ?? purchasePrepTotal(s.prepCosts ?? []);
   const breakdownOf = (s: PurchaseSettlement) => s.prepBreakdown ?? prepBreakdown(s.prepCosts ?? []);
-  const grandTotalOf = (s: PurchaseSettlement) => s.grandTotal ?? purchaseGrandTotal(s.purchasePrice, prepTotalOf(s));
+  const grandTotalOf = (s: PurchaseSettlement) =>
+    s.grandTotal ?? purchaseGrandTotal(s.purchasePrice, prepTotalOf(s), s.transferFee, s.brokerFee);
   /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
   const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
   // 서버가 계산해 주지만, 목록을 손에서 고치는 동안에는 없을 수 있어 같은 식으로 다시 낸다.
@@ -223,7 +224,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
       '상품화 명세': (s.prepCosts ?? [])
         .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount.toLocaleString()}`)
         .join(' / '),
-      '매입+상품화총비용(원)': grandTotalOf(s),
+      '총비용(원)': grandTotalOf(s),
       '정산금액(원)': s.settlementAmount,
       '주유(원)': costOf(s).fuel,
       '배터리(원)': costOf(s).battery,
@@ -396,7 +397,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">진단비</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">상품화총비용</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">구전</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">매입+상품화</th>
+                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">총비용</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">정산금액</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">차량비용(원)</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">총합계(원)</th>

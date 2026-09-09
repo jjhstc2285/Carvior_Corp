@@ -80,7 +80,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     dealerLoanFee: moneyToNumber(dealerLoanFee),
   };
   const prepTotal = purchasePrepTotal(prepCosts);
-  const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal);
+  const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal, nums.transferFee, nums.brokerFee);
   const profit = saleProfit(nums);
   const net = saleNet(nums.salePrice, grandTotal, profit);
 
@@ -164,13 +164,13 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
 
         <div className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
           <CalcRow label="상품화총비용" formula="광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비 (이전비·구전 제외)" value={prepTotal} />
-          <CalcRow label="매입 + 상품화총비용" formula="매입가 + 상품화총비용" value={grandTotal} strong />
+          <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상품화총비용" value={grandTotal} strong />
           <CalcRow
             label="판매수익"
-            formula={`현금 수수료 + 할부 피 + 보험 피 + 차대금업 − 구전(${BROKER_FEE_PAYOUT_LABEL[brokerFeePayout]} ${withCommas(nums.brokerFee)}원)`}
+            formula="현금 수수료 + 할부 피 + 보험 피 + 차대금업 (구전은 총비용에 들어갑니다)"
             value={profit}
           />
-          <CalcRow label="남은 돈" formula="차량판매가 − (매입 + 상품화총비용) + 판매수익" value={net} strong />
+          <CalcRow label="남은 돈" formula="차량판매가 − 총비용 + 판매수익" value={net} strong />
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -179,7 +179,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           <StatusField value={status} onChange={v => setStatus(v as SettlementStatus)} />
           <TextField label="메모" value={memo} onChange={setMemo} />
         </div>
-        <p className="mt-1.5 text-[11px] text-slate-400">정산금액을 비워두면 위의 매입+상품화총비용({withCommas(grandTotal)}원)이 자동으로 들어갑니다.</p>
+        <p className="mt-1.5 text-[11px] text-slate-400">정산금액을 비워두면 위의 총비용({withCommas(grandTotal)}원)이 자동으로 들어갑니다.</p>
 
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 

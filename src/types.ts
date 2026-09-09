@@ -518,9 +518,19 @@ export function prepBreakdown(costs: { kind: PrepCostKind; amount: number }[]): 
   return result;
 }
 
-// 매입+상품화총비용 = 매입가 + 상품화총비용
-export function purchaseGrandTotal(purchasePrice: number, prepTotal: number): number {
-  return purchasePrice + prepTotal;
+/**
+ * 총비용 = 매입가 + 이전비 + 구전 + 상품화총비용
+ *
+ * 그 차에 들어간 돈을 다 더한다. 예전에는 이전비와 구전이 빠져 있어서,
+ * 이전비 121만원을 적어도 총비용은 매입가 그대로였다.
+ */
+export function purchaseGrandTotal(
+  purchasePrice: number,
+  prepTotal: number,
+  transferFee = 0,
+  brokerFee = 0,
+): number {
+  return purchasePrice + transferFee + brokerFee + prepTotal;
 }
 
 // ── 판매 쪽 (매입 정산) ──
@@ -549,15 +559,13 @@ export interface SaleFields {
 }
 
 /**
- * 판매수익 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업 − 구전
+ * 판매수익 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업
  *
- * 구전은 방식과 상관없이 나간 만큼 뺀다. 다만 같은 건이라도 방식마다 실제로 나가는
- * 금액이 다르다 — 현금 90만원짜리가 3.3% 공제면 88만원, 13.3% 공제면 75만원 식이다.
- * 비율이 딱 떨어지지 않아 계산하지 않고 실제 나간 금액을 그대로 받는다.
- * 지급방식은 어느 쪽으로 나갔는지 남겨두려고 함께 적는다.
+ * 구전은 여기서 안 뺀다. 총비용에 들어가 있어서 여기서 또 빼면 두 번 빠진다.
+ * 지급방식은 어느 쪽으로 나갔는지 남겨두려고 따로 적는다.
  */
 export function saleProfit(r: SaleFields): number {
-  return r.cashCommission + r.installmentFee + r.insuranceFee + r.dealerLoanFee - r.brokerFee;
+  return r.cashCommission + r.installmentFee + r.insuranceFee + r.dealerLoanFee;
 }
 
 /** 차 한 대에서 최종으로 남은 돈 = 차량판매가 − (매입 + 부대비용) + 판매수익 */
