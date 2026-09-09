@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StoreProvider } from './store';
 import { AuthProvider, useAuth } from './authStore';
 import { canSeeLedger } from './lib/permissions';
+import { useStore } from './store';
+import { useAutoAwayStatus } from './hooks/useAutoAwayStatus';
+import { api } from './lib/api';
+import dayjs from 'dayjs';
 import type { ModuleKey } from './modules';
 import type { Role } from './types';
 import Sidebar from './components/Sidebar';
@@ -65,6 +69,29 @@ function AuthedApp({ role }: { role: Role }) {
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
+  const { state, refresh } = useStore();
+
+  /*
+   * 30분 조작이 없으면 상태를 자리비움으로 바꾼다.
+   *
+   * 어느 화면에 있든 돌아야 해서 앱 껍데기에 단다. 출근을 찍고 아직 퇴근을 안 찍었을
+   * 때만 잡는다 — 퇴근한 사람이 자리를 비운 건 당연한 일이다.
+   */
+  const today = dayjs().format('YYYY-MM-DD');
+  const myRecord = state.records.find(r => r.employeeId === state.currentEmployeeId && r.date === today);
+  const me = state.employees.find(e => e.id === state.currentEmployeeId);
+
+  useAutoAwayStatus({
+    working: Boolean(myRecord?.clockIn) && !myRecord?.clockOut,
+    statusText: me?.statusText,
+    setStatus: useCallback(
+      async (next: { emoji: string | null; text: string | null }) => {
+        await api('/employees/me/status', { method: 'PATCH', body: next });
+        await refresh();
+      },
+      [refresh],
+    ),
+  });
 
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
   const officeOnly: ModuleKey[] = ['dealerFee'];

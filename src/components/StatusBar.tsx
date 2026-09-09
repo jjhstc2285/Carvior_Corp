@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { useStore } from '../store';
 import { alertError } from '../lib/alert';
+import { IDLE_AWAY_MINUTES } from '../hooks/useAutoAwayStatus';
 import type { Employee } from '../types';
 
 /**
@@ -94,7 +95,8 @@ export default function StatusBar() {
         <div>
           <h2 className="text-sm font-bold text-slate-800">지금 근무 중 {working.length}명</h2>
           <p className="mt-0.5 text-[11px] text-slate-400">
-            출근을 찍고 아직 퇴근을 안 찍은 사람입니다. 상태는 본인이 적습니다.
+            출근을 찍고 아직 퇴근을 안 찍은 사람입니다. 상태는 본인이 적고,
+            {IDLE_AWAY_MINUTES}분 조작이 없으면 자리비움으로 바뀝니다(적어둔 상태는 그대로 둡니다).
           </p>
         </div>
         {me && (
