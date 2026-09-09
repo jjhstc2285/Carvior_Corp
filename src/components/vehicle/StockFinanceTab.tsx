@@ -10,7 +10,6 @@ import {
   SALE_STAGE_CLASS,
   SALE_STAGE_LABEL,
   saleStage,
-  stockDeadline,
 } from '../../lib/stockFinance';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { useStore } from '../../store';
@@ -29,7 +28,7 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
   {
     key: 'candidate',
     label: '제시 대상',
-    desc: `${MAX_AGE_YEARS}년 이내 · ${(MAX_MILEAGE_KM / 10000).toLocaleString()}만km 미만인데 제시일자·이전일자를 아직 다 못 적은 차입니다.`,
+    desc: `제시일자·이전일자를 아직 다 못 적은 차입니다. 제시는 넣어봐야 아는 것이라 다 보여줍니다 — 제시할 수 있는 차인지는 '제시 가능' 칸을 봅니다(${MAX_AGE_YEARS}년 이내 · ${(MAX_MILEAGE_KM / 10000).toLocaleString()}만km 미만).`,
     officeOnly: true,
   },
   {
@@ -57,11 +56,7 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
  * 목록을 거를 때도, 검색한 차를 찾아줄 때도 같은 규칙을 쓴다 —
  * 두 벌로 두면 반드시 어긋난다.
  */
-function inView(
-  view: View,
-  v: ManagedVehicle,
-  opts: { month: string; showIneligible: boolean },
-): boolean {
+function inView(view: View, v: ManagedVehicle, opts: { month: string }): boolean {
   // 매도·출고 예정은 재고금융과 상관없이 가른다 — 현금차량도 팔린다.
   if (view === 'sold') return Boolean(v.soldDate);
 
@@ -74,14 +69,19 @@ function inView(
 
   if (view === 'release') return saleStage(v) === 'RELEASE_PENDING';
   if (view === 'cash') return v.cashVehicle;
-  if (v.cashVehicle) return false;
 
-  // 제시일자만 적어도 넘어가면 이전일자를 적을 자리가 사라진다. 둘 다 적어야 넘긴다.
-  if (view === 'candidate') {
-    if (v.offerDate && v.transferDate) return false;
-    // 제시일자를 이미 적은 건 진행 중이라 가능 여부와 상관없이 남긴다.
-    return offerEligibility(v).ok !== false || Boolean(v.offerDate) || opts.showIneligible;
-  }
+  /*
+   * 제시 대상에서는 아무것도 빼지 않는다.
+   *
+   * 10년을 넘겼든 주행거리가 많든 현금차량으로 찍혀 있든, 제시는 넣어봐야 아는 것이다.
+   * 미리 걸러 두면 넣어볼 차가 목록에서 사라져 어디로 갔는지 알 수가 없다.
+   * 제시할 수 있는 차인지는 '제시 가능' 칸에 이유까지 적어 두었으니 보고 판단한다.
+   *
+   * 빠지는 건 이미 진행된 차뿐이다 — 제시일자·이전일자를 다 적었으면 제시함으로 갔다.
+   */
+  if (view === 'candidate') return !(v.offerDate && v.transferDate);
+
+  if (v.cashVehicle) return false;
 
   // 재고를 잡으면 제시함에서 빠지고 재고차량으로 넘어간다 — 그래야 제시함에
   // 아직 챙길 차만 남는다. 현금차량으로 빼는 것과 같은 방식이다.
@@ -152,14 +152,6 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  /**
-   * 제시 불가로 빠진 차도 볼지.
-   *
-   * 매입 관리에 적었는데 제시 대상에 안 뜬다는 말이 자주 나온다. 10년을 넘겼거나
-   * 20만km를 넘겨서 빠진 건데, 목록에서 그냥 사라지니 왜인지 알 길이 없다.
-   * 켜면 이유와 함께 같이 보여준다.
-   */
-  const [showIneligible, setShowIneligible] = useState(false);
 
   const dateFilter = DATE_FIELD[view] ?? null;
   const dateField: DateField | null = dateFilter?.field ?? null;
@@ -169,7 +161,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
     return vehicles
       .map(v => ({ vehicle: v, eligibility: offerEligibility(v) }))
       .filter(({ vehicle: v }) => !q || v.vehicleNumber.includes(q) || v.vehicleModel.includes(q))
-      .filter(({ vehicle: v }) => inView(view, v, { month, showIneligible }))
+      .filter(({ vehicle: v }) => inView(view, v, { month }))
       .filter(({ vehicle: v }) => {
         if (!dateField) return true;
         const value = v[dateField];
@@ -189,7 +181,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         }
         return (b.vehicle.offerDate ?? '').localeCompare(a.vehicle.offerDate ?? '');
       });
-  }, [vehicles, query, view, month, dateField, from, to, showIneligible]);
+  }, [vehicles, query, view, month, dateField, from, to]);
 
   /**
    * 검색한 차가 어느 보기에 있는지.
@@ -208,25 +200,10 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       .filter(other => other.key !== view)
       .map(other => ({
         view: other,
-        cars: hits.filter(v => inView(other.key, v, { month, showIneligible: true })),
+        cars: hits.filter(v => inView(other.key, v, { month })),
       }))
       .filter(r => r.cars.length > 0);
   }, [query, vehicles, views, view, month]);
-
-  /** 제시 불가로 빠진 차가 몇 대인지 — 켜지 않아도 몇 대가 숨어 있는지는 알려준다. */
-  const ineligibleCount = useMemo(() => {
-    if (view !== 'candidate') return 0;
-    const q = query.trim();
-    return vehicles.filter(
-      v =>
-        !v.cashVehicle &&
-        !v.soldDate &&
-        !(v.offerDate && v.transferDate) &&
-        !v.offerDate &&
-        offerEligibility(v).ok === false &&
-        (!q || v.vehicleNumber.includes(q) || v.vehicleModel.includes(q)),
-    ).length;
-  }, [vehicles, view, query]);
 
   const stockTotal = rows.reduce((sum, r) => sum + r.vehicle.stockAmount, 0);
   const current = views.find(v => v.key === view) ?? views[0];
@@ -268,7 +245,6 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       '재고금액(원)': v.stockAmount || '',
       상환일자: v.repayDate ?? '',
       현금차량: v.cashVehicle ? 'O' : '',
-      최초등록일: v.firstRegisteredOn ?? '',
       연식: v.modelYear,
       주행거리: v.mileage || '',
     }));
@@ -352,19 +328,6 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
             onChange={e => setMonth(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
           />
-        )}
-
-        {/* 매입 관리에 적었는데 제시 대상에 안 뜬다 — 대개 10년·20만km에 걸린 차다 */}
-        {view === 'candidate' && ineligibleCount > 0 && (
-          <label className="flex items-center gap-1.5 text-sm text-slate-500">
-            <input
-              type="checkbox"
-              checked={showIneligible}
-              onChange={e => setShowIneligible(e.target.checked)}
-              className="size-4 accent-indigo-600"
-            />
-            제시 불가 {ineligibleCount}대도 보기
-          </label>
         )}
 
         {dateField && (
@@ -464,14 +427,13 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                 <th className="px-3 py-3 text-center font-medium">현금</th>
                 <th className="px-3 py-3 font-medium">연식</th>
                 <th className="px-3 py-3 text-right font-medium">주행거리</th>
-                <th className="px-3 py-3 font-medium">최초등록일 · 기한</th>
                 <th className="px-3 py-3 font-medium">제시 가능</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
                     해당하는 차량이 없습니다.
                   </td>
                 </tr>
@@ -585,34 +547,6 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                         v.mileage ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
                       }`}
                     />
-                  </td>
-
-                  {/*
-                    최초등록일은 등록증이 손에 있는 매입 때 적는다 — 여기서는 보기만 한다.
-                    딱 10년차인데 비어 있으면 노랗게 칠해 매입 관리에서 채우라고 알린다.
-                  */}
-                  <td className="px-3 py-2.5">
-                    {v.firstRegisteredOn ? (
-                      <span className="text-[13px] text-slate-600">
-                        {v.firstRegisteredOn}
-                        {/* 언제까지 되는지가 날짜보다 중요하다 */}
-                        {(() => {
-                          const d = stockDeadline(v.firstRegisteredOn);
-                          if (!d) return null;
-                          return (
-                            <span className={`ml-1 text-[11px] font-semibold ${d.passed ? 'text-red-600' : 'text-emerald-700'}`}>
-                              {d.passed ? `${d.date} 만료` : `${d.date}까지`}
-                            </span>
-                          );
-                        })()}
-                      </span>
-                    ) : eligibility.ok === 'check' ? (
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800">
-                        매입 관리에서 입력
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
                   </td>
 
                   <td className="px-3 py-2.5">
