@@ -35,10 +35,10 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
   {
     key: 'offered',
     label: '제시함',
-    desc: '제시일자와 이전일자를 다 적은 차입니다. 할부사와 재고금액을 넣으면 재고차량으로 넘어갑니다.',
+    desc: '제시일자와 이전일자를 다 적은 차입니다. 할부사 · 재고금액 · 상환일자를 다 넣으면 재고차량으로 넘어갑니다.',
     officeOnly: true,
   },
-  { key: 'stocked', label: '재고차량', desc: '할부사와 재고금액이 들어간 차입니다.', officeOnly: true },
+  { key: 'stocked', label: '재고차량', desc: '할부사 · 재고금액 · 상환일자를 다 적은 차입니다.', officeOnly: true },
   { key: 'cash', label: '현금차량', desc: '재고금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: false },
   { key: 'repay', label: '상환 예정', desc: '상환일자를 월별로 모아 봅니다. 그 달에 갚아야 하는 차량입니다.', officeOnly: false },
   {
@@ -50,9 +50,15 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
   { key: 'sold', label: '매도 차량', desc: '매도일자를 적은 차입니다. 끝난 차입니다.', officeOnly: false },
 ];
 
-/** 재고가 잡혔는가 — 할부사나 재고금액 중 하나라도 들어가면 잡힌 것으로 본다. */
+/**
+ * 재고가 잡혔는가.
+ *
+ * 할부사·재고금액·상환일자를 다 적어야 잡힌 것으로 본다. 하나라도 들어가면 넘기던 때가
+ * 있었는데, 할부사를 치자마자 제시함에서 사라져 나머지를 적을 자리가 없어졌다.
+ * 제시일자·이전일자를 다 적어야 제시함으로 넘기는 것과 같은 규칙이다.
+ */
 function isStocked(v: ManagedVehicle): boolean {
-  return v.stockAmount > 0 || Boolean(v.stockCapital);
+  return Boolean(v.stockCapital) && v.stockAmount > 0 && Boolean(v.repayDate);
 }
 
 /** 날짜 칸을 기간으로 거른다. 어느 날짜를 볼지는 보기마다 다르다. */
@@ -106,6 +112,14 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  /**
+   * 제시 불가로 빠진 차도 볼지.
+   *
+   * 매입 관리에 적었는데 제시 대상에 안 뜬다는 말이 자주 나온다. 10년을 넘겼거나
+   * 20만km를 넘겨서 빠진 건데, 목록에서 그냥 사라지니 왜인지 알 길이 없다.
+   * 켜면 이유와 함께 같이 보여준다.
+   */
+  const [showIneligible, setShowIneligible] = useState(false);
 
   const dateFilter = DATE_FIELD[view] ?? null;
   const dateField: DateField | null = dateFilter?.field ?? null;
@@ -134,7 +148,9 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         // 이미 제시일자를 적은 차는 제시 가능 여부와 상관없이 남긴다 —
         // 진행 중인 건이 어느 목록에도 없으면 이전일자를 적을 자리가 사라진다.
         if (view === 'candidate') {
-          return (eligibility.ok !== false || Boolean(v.offerDate)) && !(v.offerDate && v.transferDate);
+          if (v.offerDate && v.transferDate) return false;
+          // 제시일자를 이미 적은 건 진행 중이라 가능 여부와 상관없이 남긴다.
+          return eligibility.ok !== false || Boolean(v.offerDate) || showIneligible;
         }
         // 재고를 잡으면 제시함에서 빠지고 재고차량으로 넘어간다 — 그래야 제시함에
         // 아직 챙길 차만 남는다. 현금차량으로 빼는 것과 같은 방식이다.
@@ -161,7 +177,22 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         }
         return (b.vehicle.offerDate ?? '').localeCompare(a.vehicle.offerDate ?? '');
       });
-  }, [vehicles, query, view, month, dateField, from, to]);
+  }, [vehicles, query, view, month, dateField, from, to, showIneligible]);
+
+  /** 제시 불가로 빠진 차가 몇 대인지 — 켜지 않아도 몇 대가 숨어 있는지는 알려준다. */
+  const ineligibleCount = useMemo(() => {
+    if (view !== 'candidate') return 0;
+    const q = query.trim();
+    return vehicles.filter(
+      v =>
+        !v.cashVehicle &&
+        !v.soldDate &&
+        !(v.offerDate && v.transferDate) &&
+        !v.offerDate &&
+        offerEligibility(v).ok === false &&
+        (!q || v.vehicleNumber.includes(q) || v.vehicleModel.includes(q)),
+    ).length;
+  }, [vehicles, view, query]);
 
   const stockTotal = rows.reduce((sum, r) => sum + r.vehicle.stockAmount, 0);
   const current = views.find(v => v.key === view) ?? views[0];
@@ -287,6 +318,19 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
             onChange={e => setMonth(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
           />
+        )}
+
+        {/* 매입 관리에 적었는데 제시 대상에 안 뜬다 — 대개 10년·20만km에 걸린 차다 */}
+        {view === 'candidate' && ineligibleCount > 0 && (
+          <label className="flex items-center gap-1.5 text-sm text-slate-500">
+            <input
+              type="checkbox"
+              checked={showIneligible}
+              onChange={e => setShowIneligible(e.target.checked)}
+              className="size-4 accent-indigo-600"
+            />
+            제시 불가 {ineligibleCount}대도 보기
+          </label>
         )}
 
         {dateField && (
