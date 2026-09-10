@@ -10,6 +10,7 @@ import {
   prepBreakdown,
   purchaseGrandTotal,
   purchaseGrandTotalWon,
+  transferFeeOf,
   saleProfit,
   type SaleFields,
   purchasePrepTotal,
@@ -568,15 +569,24 @@ export class SettlementsService {
     const vehicleCost = cost ?? EMPTY_VEHICLE_COST;
     // 상품화총비용과 항목별 합계는 명세를 더해서 낸다 — 저장하지 않는다.
     const prepTotal = purchasePrepTotal(row.prepCosts);
+    /*
+     * 이전비가 비어 있으면 매입가로 계산한 값을 쓴다.
+     *
+     * 이전비는 매입가로 정해지는 값이다(상사 이전비 + 추가이전비). 자동 계산이 생기기
+     * 전에 만들어진 줄은 0으로 남아 있는데, 그대로 두면 총비용이 매입가만큼만 나온다.
+     * 적어 넣은 값이 있으면 그게 먼저다 — 다르게 잡힌 건이 있어서다.
+     */
+    const transferFee = row.transferFee || transferFeeOf(row.purchasePrice);
     return {
       ...row,
+      transferFee,
       date: formatDateOnly(row.date),
       prepTotal,
       prepBreakdown: prepBreakdown(row.prepCosts),
-      grandTotal: purchaseGrandTotal(row.purchasePrice, prepTotal, row.transferFee, row.brokerFee),
+      grandTotal: purchaseGrandTotal(row.purchasePrice, prepTotal, transferFee, row.brokerFee),
       // 차량관리에서 자동으로 붙는 값 — 저장하지 않고 조회할 때마다 계산한다.
       vehicleCost,
-      grandTotalWon: purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, row.transferFee, row.brokerFee),
+      grandTotalWon: purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee),
       // 판 값. 아직 안 팔았으면 전부 0이라 판매수익도 0으로 나온다.
       submittedAt: row.submittedAt?.toISOString() ?? null,
       chiefApprovedAt: row.chiefApprovedAt?.toISOString() ?? null,
@@ -585,7 +595,7 @@ export class SettlementsService {
       locked: isLocked(stageOf(row)),
       saleProfit: saleProfit(
         row.salePrice,
-        purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, row.transferFee, row.brokerFee),
+        purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee),
       ),
     };
   }
