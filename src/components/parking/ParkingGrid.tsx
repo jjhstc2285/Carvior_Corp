@@ -161,6 +161,7 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
   useEffect(() => {
     if (!found) return;
     const timer = window.setTimeout(() => {
+      // 가운데로 옮긴다 — 위에 붙은 상단바·검색칸에 가리지 않는다.
       foundRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     }, 50);
     return () => window.clearTimeout(timer);
@@ -205,15 +206,19 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
           차를 <b>꾹 눌러</b> 다른 칸에 놓으면 자리가 바뀝니다. 그 칸에 차가 있으면 서로 맞바뀝니다. (휴대폰도 됩니다)
         </p>
 
-        {/* 차를 찾으면 그 칸으로 화면을 옮기고 테두리를 칠한다 */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
+        {/*
+          차를 찾으면 그 칸으로 화면을 옮기고 테두리를 칠한다.
+          표가 길어 아래로 한참 내려가 있어도 손에 닿게 위에 붙여 둔다 —
+          찾을 때마다 맨 위로 올라갔다 오게 하지 않는다.
+        */}
+        <div className="sticky top-14 z-10 -mx-1 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50/95 px-1 py-2 backdrop-blur">
+          <div className="relative min-w-0 flex-1 sm:flex-none">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="차량번호·차명으로 자리 찾기"
-              className="w-56 rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-2 text-sm outline-none focus:border-indigo-400"
+              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-2 text-sm outline-none focus:border-indigo-400 sm:w-56"
             />
           </div>
           {query.replace(/\s+/g, '').length >= 2 &&

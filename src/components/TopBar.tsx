@@ -21,16 +21,21 @@ export default function TopBar({ title, role, onMenuClick, chatUnread, onOpenCha
 
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
-      <div className="flex items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
-        <div className="flex items-center gap-2">
-          <button onClick={onMenuClick} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 md:hidden">
+      {/*
+        휴대폰에서 오른쪽 아이콘들이 자리를 다 먹어 제목이 한 글자 폭으로 눌렸다.
+        '주차장 관리'가 세로로 한 자씩 쌓여 읽을 수가 없었다.
+        제목은 줄이되 줄바꿈은 안 하고(길면 …), 오른쪽 묶음은 안 줄어들게 못박는다.
+      */}
+      <div className="flex items-center justify-between gap-2 px-3 py-3.5 sm:gap-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <button onClick={onMenuClick} className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 md:hidden">
             <Menu size={19} />
           </button>
-          <span className="text-[15px] font-bold text-slate-800">{title}</span>
+          <span className="truncate whitespace-nowrap text-[15px] font-bold text-slate-800">{title}</span>
           {error && <span className="hidden text-xs text-red-500 sm:inline">{error}</span>}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-3">
           {/* 마당에서 전화를 받으면서 차를 찾는다 — 어느 화면에 있든 눌러서 찾게 둔다 */}
           <button
             onClick={() => setLookupOpen(true)}

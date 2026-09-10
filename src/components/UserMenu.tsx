@@ -49,11 +49,12 @@ export default function UserMenu() {
           {user.name.slice(0, 1)}
         </span>
         {/* 모바일에선 이름까지만, 데스크탑에선 역할도 같이 */}
-        <span className="hidden text-left leading-tight sm:block">
+        {/* 휴대폰에서는 이름 대신 동그라미만 — 이게 넓어서 제목이 눌렸다 */}
+        <span className="hidden text-left leading-tight lg:block">
           <span className="block text-[13px] font-semibold text-slate-700">{user.name}</span>
           <span className="block text-[11px] text-slate-400">{roleLabel} · {providerLabel}</span>
         </span>
-        <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`hidden shrink-0 text-slate-400 transition-transform sm:block ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
