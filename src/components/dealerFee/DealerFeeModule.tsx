@@ -427,6 +427,32 @@ export default function DealerFeeModule() {
         </div>
       </div>
 
+      {/*
+        장부 어디에도 안 붙은 이름.
+        장부에 없는 영업소이거나, 있는데 이름이 달라 못 맞춘 곳이다.
+        실적이 0으로 보이는 곳이 있으면 여기부터 본다.
+      */}
+      {unmatched.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50/50 p-4">
+          <p className="text-xs font-bold text-amber-900">장부에 없는 카비어 딜러 {unmatched.length}곳</p>
+          <p className="mt-0.5 text-[11px] text-amber-800/70">
+            장부에 없는 영업소이거나, 있는데 이름이 달라 못 맞춘 곳입니다.
+            실적이 0인 영업소가 있으면 여기에 다른 이름으로 들어와 있는지 봐 주세요.
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {unmatched.map(u => (
+              <span
+                key={u.name}
+                className="rounded-lg border border-amber-200 bg-white px-2 py-1 text-[11px] text-slate-700"
+              >
+                {u.name}
+                {u.count > 1 && <b className="ml-1 text-amber-700">{u.count}</b>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {pasteOpen && <DealerFeePasteModal onClose={() => setPasteOpen(false)} onImported={() => void load()} />}
     </div>
   );

@@ -33,6 +33,7 @@ import {
 import { DealerFeeMethod, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CarviorModule, CarviorService } from '../carvior/carvior.module';
+import { bestMatch } from './dealer-match';
 import { formatDateOnly, formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager, LEDGER_VIEWER_WHERE } from '../auth/office-manager';
@@ -331,14 +332,16 @@ export class DealerFeesService {
    *
    * 카비어가 막히면 검차는 0으로 두고 매입만 센다 — 장부 화면이 통째로 막히면 안 된다.
    */
-  async activity(): Promise<
-    Record<string, { inspected: number; completed: number; purchased: number; lastAt: string | null }>
-  > {
+  async activity(): Promise<{
+    byDealer: Record<string, { inspected: number; completed: number; purchased: number; lastAt: string | null }>;
+    /** 어느 장부에도 안 붙은 이름 — 장부에 없는 곳이거나 이름이 안 맞는 곳이다 */
+    unmatched: { name: string; count: number }[];
+  }> {
     const dealers = await this.prisma.dealerFeeAccount.findMany({
       where: { active: true },
       select: { id: true, dealerName: true },
     });
-    if (dealers.length === 0) return {};
+    if (dealers.length === 0) return { byDealer: {}, unmatched: [] };
 
     const [contracts, intakes] = await Promise.all([
       this.carvior.findContracts().catch((e: Error) => {
@@ -348,35 +351,43 @@ export class DealerFeesService {
       this.prisma.purchaseIntake.findMany({ select: { source: true } }),
     ]);
 
-    const key = (name: string) => name.replace(/\s+/g, '').toLowerCase();
-    const matches = (dealer: string, other: string) => {
-      const a = key(dealer);
-      const b = key(other);
-      return a.length > 1 && b.length > 1 && (b.includes(a) || a.includes(b));
-    };
-
-    const result: Record<
+    const byDealer: Record<
       string,
       { inspected: number; completed: number; purchased: number; lastAt: string | null }
     > = {};
-
     for (const d of dealers) {
-      const mine = contracts.filter((c) => matches(d.dealerName, c.dealerName ?? ''));
-      const last = mine
-        .map((c) => c.createdAt)
-        .filter(Boolean)
-        .sort()
-        .at(-1);
-
-      result[d.id] = {
-        inspected: mine.length,
-        // 매입가가 적힌 건이 실제로 거래가 끝난 건이다.
-        completed: mine.filter((c) => (c.purchasePrice ?? 0) > 0).length,
-        purchased: intakes.filter((i) => matches(d.dealerName, i.source)).length,
-        lastAt: last ? formatDateOnly(new Date(last)) : null,
-      };
+      byDealer[d.id] = { inspected: 0, completed: 0, purchased: 0, lastAt: null };
     }
-    return result;
+
+    const orphan = new Map<string, number>();
+
+    for (const c of contracts) {
+      const name = (c.dealerName ?? '').trim();
+      const hit = bestMatch(name, dealers);
+      if (!hit) {
+        if (name) orphan.set(name, (orphan.get(name) ?? 0) + 1);
+        continue;
+      }
+
+      const row = byDealer[hit.id];
+      row.inspected += 1;
+      // 매입가가 적힌 건이 실제로 거래가 끝난 건이다.
+      if ((c.purchasePrice ?? 0) > 0) row.completed += 1;
+
+      const at = c.createdAt ? formatDateOnly(new Date(c.createdAt)) : null;
+      if (at && (!row.lastAt || at > row.lastAt)) row.lastAt = at;
+    }
+
+    for (const i of intakes) {
+      const hit = bestMatch(i.source ?? '', dealers);
+      if (hit) byDealer[hit.id].purchased += 1;
+    }
+
+    const unmatched = [...orphan]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+    return { byDealer, unmatched };
   }
 
   /** 지금 이 장부를 볼 수 있는 사람 — 화면에서 "누가 보는지"를 확인한다 */
