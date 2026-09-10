@@ -17,6 +17,7 @@ export const CAPITAL_COMPANIES = [
   '우리금융',
   '메리츠',
   '제이비우리',
+  '새마을엠지',
   '하나캐피탈',
   'KB캐피탈',
   '현대캐피탈',
@@ -26,8 +27,9 @@ export const CAPITAL_COMPANIES = [
 /**
  * 캐피탈사별 상환일.
  *
- * 갚는 날이 회사마다 정해져 있다 — 우리금융은 8일, 메리츠는 10일 하는 식이고,
- * 다섯 달 뒤 그 날에 갚는다. BMW만 정해진 날이 없어 넉 달 뒤 같은 날에 갚는다.
+ * 갚는 날이 회사마다 정해져 있다 — 우리금융은 다섯 달 뒤 8일, KB캐피탈은 석 달 뒤 20일,
+ * 현대캐피탈은 여섯 달 뒤 25일 하는 식이다.
+ * BMW만 정해진 날이 없어 넉 달 뒤 같은 날에 갚는다.
  *
  * 할부사는 손으로 적는 칸이라 '우리' · '우리금융' · '(주)우리금융' 이 다 들어온다.
  * 이름을 통째로 견주지 않고 들어 있는 말로 찾는다.
@@ -38,9 +40,10 @@ export const REPAY_RULES: { keywords: string[]; label: string; months: number; d
   { keywords: ['제이비', 'JB', 'jb'], label: '제이비우리', months: 5, day: 14 },
   { keywords: ['우리'], label: '우리금융', months: 5, day: 8 },
   { keywords: ['메리츠'], label: '메리츠', months: 5, day: 10 },
+  { keywords: ['새마을', 'MG', 'mg', '엠지'], label: '새마을엠지', months: 5, day: 14 },
   { keywords: ['하나'], label: '하나캐피탈', months: 5, day: 15 },
-  { keywords: ['KB', 'kb', '케이비', '국민'], label: 'KB캐피탈', months: 5, day: 20 },
-  { keywords: ['현대'], label: '현대캐피탈', months: 5, day: 25 },
+  { keywords: ['KB', 'kb', '케이비', '국민'], label: 'KB캐피탈', months: 3, day: 20 },
+  { keywords: ['현대'], label: '현대캐피탈', months: 6, day: 25 },
   { keywords: ['BMW', 'bmw', '비엠'], label: 'BMW', months: 4, day: null },
 ];
 
@@ -51,7 +54,7 @@ export function repayRuleOf(capital: string) {
 }
 
 /**
- * 상환일자를 낸다 — 기준일로부터 다섯 달 뒤, 그 달의 정해진 날.
+ * 상환일자를 낸다 — 기준일로부터 정해진 달 수 뒤, 그 달의 정해진 날.
  *
  * 정해진 날이 없는 곳(BMW)은 넉 달 뒤 같은 날이다.
  * 모르는 할부사면 null — 넘겨짚어 날짜를 적어두면 그게 맞는 줄 알고 넘어간다.
