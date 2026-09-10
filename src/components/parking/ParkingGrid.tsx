@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core';
 import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
-import { ChevronRight, Search } from 'lucide-react';
+import { ChevronRight, Move, Search } from 'lucide-react';
 import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
@@ -43,6 +43,7 @@ function ParkingCell({
   vehicle,
   onClick,
   highlight,
+  inviting,
   cellRef,
 }: {
   pos: CellPos;
@@ -50,6 +51,8 @@ function ParkingCell({
   onClick: () => void;
   /** 찾는 차가 여기 있다 — 눈에 띄게 칠하고 화면을 여기로 옮긴다 */
   highlight: boolean;
+  /** 차를 손에 든 상태 — 놓을 수 있는 칸이라고 알려준다 */
+  inviting?: boolean;
   cellRef?: (el: HTMLTableCellElement | null) => void;
 }) {
   const { setNodeRef: dropRef, isOver } = useDroppable({ id: `cell:${cellKey(pos)}`, data: pos });
@@ -73,7 +76,9 @@ function ParkingCell({
       className={`p-0 transition-all ${
         highlight
           ? 'relative z-10 scale-[1.04] border-2 border-indigo-500 shadow-[0_6px_20px_-4px_rgba(79,70,229,0.55)]'
-          : 'border border-slate-100'
+          : inviting
+            ? 'border border-dashed border-indigo-300'
+            : 'border border-slate-100'
       }`}
     >
       <button
@@ -144,6 +149,18 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
    * 넓은 화면은 그대로 다 펼친다 — 거기서는 한눈에 들어온다.
    */
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  /**
+   * 손에 든 차 — 눌러서 고르고 놓을 칸을 누르는 방식.
+   *
+   * 끌어다 놓기는 휴대폰에서 거의 안 된다. 표가 옆으로도 아래로도 밀리는 화면이라
+   * 손가락을 대면 스크롤인지 끌기인지 판판이 갈리고, 놓을 칸이 화면 밖에 있으면
+   * 끌고 가는 동안 화면이 안 따라온다.
+   *
+   * 두 번 누르는 방식은 그런 게 없다. 고르고, 스크롤해서 찾고, 누르면 끝이다.
+   */
+  const [holding, setHolding] = useState<ParkingVehicle | null>(null);
+  /** 옮기기를 눌러 '다음에 누르는 차를 손에 든다' 는 상태 */
+  const [picking, setPicking] = useState(false);
   /** 찾은 칸 — 화면을 그리로 옮긴다 */
   const foundRef = useRef<HTMLTableCellElement | null>(null);
 
@@ -203,6 +220,37 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
   const vehicleAt = (pos: CellPos) =>
     state.parkingVehicles.find(v => v.lot === pos.lot && v.zone === pos.zone && v.slot === pos.slot) ?? null;
 
+  /**
+   * 칸을 눌렀을 때.
+   *
+   * 차를 손에 들고 있으면 놓는다. 아니면 그 칸을 연다(등록·수정).
+   * 들고 있던 차를 다시 누르면 내려놓는다 — 잘못 골랐을 때 빠져나갈 길이 있어야 한다.
+   */
+  const handleCell = async (pos: CellPos, v: ParkingVehicle | null) => {
+    if (picking) {
+      // 빈 칸을 골랐으면 들 게 없다 — 고르는 중인 채로 둔다.
+      if (!v) return;
+      setHolding(v);
+      setPicking(false);
+      return;
+    }
+
+    if (!holding) {
+      onCellClick(pos.lot, pos.zone, pos.slot, v);
+      return;
+    }
+
+    setHolding(null);
+    if (v?.id === holding.id) return;
+    if (holding.lot === pos.lot && holding.zone === pos.zone && holding.slot === pos.slot) return;
+
+    try {
+      await moveParkingVehicle(holding.id, pos);
+    } catch (err) {
+      onMoveError(err instanceof Error ? err.message : '자리를 옮기지 못했습니다.');
+    }
+  };
+
   const handleDragStart = (e: DragStartEvent) => {
     setDragging((e.active.data.current?.vehicle as ParkingVehicle | undefined) ?? null);
   };
@@ -225,9 +273,39 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="space-y-6">
-        <p className="text-xs text-slate-400">
-          차를 <b>꾹 눌러</b> 다른 칸에 놓으면 자리가 바뀝니다. 그 칸에 차가 있으면 서로 맞바뀝니다. (휴대폰도 됩니다)
-        </p>
+        {/* 손에 들고 있으면 그 말만 크게 보여준다 — 지금 무엇을 하는 중인지가 제일 중요하다 */}
+        {holding ? (
+          <div className="sticky top-14 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-2.5">
+            <Move size={15} className="shrink-0 text-indigo-700" />
+            <span className="text-sm font-bold text-indigo-900">
+              {holding.vehicleNumber}
+              <span className="ml-1.5 font-medium text-indigo-700/70">{holding.vehicleModel}</span>
+            </span>
+            <span className="text-xs text-indigo-800">— 놓을 칸을 누르세요</span>
+            <button
+              onClick={() => setHolding(null)}
+              className="ml-auto rounded-lg border border-indigo-300 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700"
+            >
+              취소
+            </button>
+          </div>
+        ) : picking ? (
+          <div className="sticky top-14 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-2.5">
+            <Move size={15} className="shrink-0 text-indigo-700" />
+            <span className="text-sm font-bold text-indigo-900">옮길 차를 누르세요</span>
+            <button
+              onClick={() => setPicking(false)}
+              className="ml-auto rounded-lg border border-indigo-300 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700"
+            >
+              취소
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400">
+            자리를 옮기려면 <b>옮기기</b>를 누르고 차를 고른 다음, 놓을 칸을 누르세요.
+            컴퓨터에서는 차를 <b>꾹 눌러</b> 끌어다 놓아도 됩니다. 그 칸에 차가 있으면 서로 맞바뀝니다.
+          </p>
+        )}
 
         {/*
           차를 찾으면 그 칸으로 화면을 옮기고 테두리를 칠한다.
@@ -254,6 +332,19 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
               <span className="text-xs text-slate-400">구역도에 없습니다</span>
             ))}
         </div>
+
+        {/*
+          옮기기 — 켜면 다음에 누르는 차를 손에 든다.
+          끌어다 놓기가 안 되는 화면(휴대폰)에서 자리를 옮기는 유일한 길이다.
+        */}
+        <button
+          onClick={() => setPicking(v => !v)}
+          className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${
+            picking ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-600'
+          }`}
+        >
+          {picking ? '옮길 차 고르는 중' : '옮기기'}
+        </button>
 
         {/* 다 접어두고 볼 곳만 펴는 게 휴대폰에서는 빠르다 */}
         <button
@@ -348,9 +439,10 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
                               key={zone}
                               pos={pos}
                               vehicle={v}
-                              highlight={found != null && v?.id === found.id}
+                              highlight={(found != null && v?.id === found.id) || holding?.id === v?.id && v != null}
+                              inviting={holding != null && holding.id !== v?.id}
                               cellRef={found != null && v?.id === found.id ? el => (foundRef.current = el) : undefined}
-                              onClick={() => onCellClick(lot, zone, slot, v)}
+                              onClick={() => void handleCell(pos, v)}
                             />
                           );
                         })}
