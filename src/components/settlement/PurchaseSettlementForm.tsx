@@ -5,7 +5,11 @@ import { useStore } from '../../store';
 import {
   BROKER_FEE_PAYOUTS,
   BROKER_FEE_PAYOUT_LABEL,
+  acquisitionTax,
+  ACQUISITION_TAX_RATE,
   dealerTransferFee,
+  extraTransferFee,
+  EXTRA_FEE_RATE,
   purchaseGrandTotal,
   purchasePrepTotal,
   saleProfit,
@@ -167,8 +171,13 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             formula="매입가의 1% (500만원 이하 5만원 · 3000만원 이상 30만원)"
             value={dealerTransferFee(nums.purchasePrice)}
           />
+          <CalcRow
+            label="추가이전비"
+            formula={`취득세(매입가의 ${ACQUISITION_TAX_RATE * 100}%)가 200만원을 넘으면 그 ${EXTRA_FEE_RATE * 100}% — 취득세 ${withCommas(acquisitionTax(nums.purchasePrice))}원`}
+            value={extraTransferFee(nums.purchasePrice)}
+          />
           <CalcRow label="상품화총비용" formula="광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비 (이전비·구전 제외)" value={prepTotal} />
-          <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상사 이전비 + 상품화총비용" value={grandTotal} strong />
+          <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상사 이전비 + 추가이전비 + 상품화총비용" value={grandTotal} strong />
           <CalcRow
             label="판매수익"
             formula={`차량판매가 − 총비용 − 세금 ${SALE_TAX_RATE * 100}% (주유·배터리 같은 차량비용은 표에서 더합니다)`}

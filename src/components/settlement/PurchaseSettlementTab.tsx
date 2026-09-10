@@ -15,6 +15,7 @@ import {
   SETTLEMENT_STAGE_CLASS,
   SETTLEMENT_STAGE_LABEL,
   dealerTransferFee,
+  extraTransferFee,
   purchaseGrandTotal,
   purchasePrepTotal,
   SETTLEMENT_STATUS_LABEL,
@@ -224,6 +225,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
       ...Object.fromEntries(PREP_COST_KINDS.map(k => [`${PREP_COST_LABEL[k]}(원)`, breakdownOf(s)[k]])),
       '구전(원)': s.brokerFee,
       '상사 이전비(원)': dealerTransferFee(s.purchasePrice),
+      '추가이전비(원)': extraTransferFee(s.purchasePrice),
       '상품화총비용(원)': prepTotalOf(s),
       '상품화 명세': (s.prepCosts ?? [])
         .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount.toLocaleString()}`)
@@ -407,6 +409,12 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 >
                   상사 이전비
                 </th>
+                <th
+                  className="whitespace-nowrap px-3 py-2.5 text-right font-medium"
+                  title="취득세(매입가의 7%)가 200만원을 넘으면 그 15% — 매입가 2,857만원부터 붙습니다"
+                >
+                  추가이전비
+                </th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">총비용</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">정산금액</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">차량비용(원)</th>
@@ -426,7 +434,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={24} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={25} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => (
                 <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -444,6 +452,14 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   <td className="px-3 py-2.5 text-right text-slate-500">{MAN(s.brokerFee)}</td>
                   {/* 매입가로 정해지는 값이라 따로 안 받고 계산해서 보여준다 */}
                   <td className="px-3 py-2.5 text-right text-slate-500">{MAN(dealerTransferFee(s.purchasePrice))}</td>
+                  {/* 취득세가 200만원을 넘는 차에만 붙는다 — 싼 차는 0원이라 흐리게 */}
+                  <td className="px-3 py-2.5 text-right text-slate-500">
+                    {extraTransferFee(s.purchasePrice) > 0 ? (
+                      MAN(extraTransferFee(s.purchasePrice))
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">{MAN(grandTotalOf(s))}</td>
                   <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{MAN(s.settlementAmount)}</td>
                   <td

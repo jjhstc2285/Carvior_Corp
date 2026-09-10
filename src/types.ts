@@ -545,12 +545,39 @@ export function dealerTransferFee(purchasePrice: number): number {
 }
 
 /**
- * 총비용 = 매입가 + 이전비 + 구전 + 상사 이전비 + 상품화총비용
+ * 추가이전비 — 취득세가 200만원을 넘으면 그 취득세의 15%를 우리가 더 낸다.
+ *
+ * 상사 이전비와는 별개다. 상사 이전비는 이전을 대행해 주고 받는 값이고,
+ * 이건 세금이다 — 비싼 차를 사면 취득세가 커지고 그만큼 더 나간다.
+ *
+ * 취득세는 매입가의 7%로 본다. 200만원을 넘는 건 매입가로 치면 2,857만원부터다.
+ * 그보다 싼 차는 0원이다.
+ *
+ * 예) 4,000만원 → 취득세 280만원 → 42만원
+ */
+export const ACQUISITION_TAX_RATE = 0.07;
+export const EXTRA_FEE_TAX_THRESHOLD = 2_000_000;
+export const EXTRA_FEE_RATE = 0.15;
+
+/** 취득세 — 지방세라 10원 미만은 버린다. */
+export function acquisitionTax(purchasePrice: number): number {
+  if (purchasePrice <= 0) return 0;
+  return Math.floor((purchasePrice * ACQUISITION_TAX_RATE) / 10) * 10;
+}
+
+export function extraTransferFee(purchasePrice: number): number {
+  const tax = acquisitionTax(purchasePrice);
+  if (tax <= EXTRA_FEE_TAX_THRESHOLD) return 0;
+  return Math.floor((tax * EXTRA_FEE_RATE) / 10) * 10;
+}
+
+/**
+ * 총비용 = 매입가 + 이전비 + 구전 + 상사 이전비 + 추가이전비 + 상품화총비용
  *
  * 그 차에 들어간 돈을 다 더한다. 예전에는 이전비와 구전이 빠져 있어서,
  * 이전비 121만원을 적어도 총비용은 매입가 그대로였다.
  *
- * 상사 이전비는 매입가로 정해지는 값이라 따로 받지 않고 여기서 낸다.
+ * 상사 이전비와 추가이전비는 매입가로 정해지는 값이라 따로 받지 않고 여기서 낸다.
  */
 export function purchaseGrandTotal(
   purchasePrice: number,
@@ -558,7 +585,14 @@ export function purchaseGrandTotal(
   transferFee = 0,
   brokerFee = 0,
 ): number {
-  return purchasePrice + transferFee + brokerFee + dealerTransferFee(purchasePrice) + prepTotal;
+  return (
+    purchasePrice +
+    transferFee +
+    brokerFee +
+    dealerTransferFee(purchasePrice) +
+    extraTransferFee(purchasePrice) +
+    prepTotal
+  );
 }
 
 // ── 판매 쪽 (매입 정산) ──
