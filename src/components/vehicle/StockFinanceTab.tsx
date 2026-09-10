@@ -7,6 +7,7 @@ import {
   MAX_AGE_YEARS,
   MAX_MILEAGE_KM,
   offerEligibility,
+  suggestRepayDate,
   SALE_STAGE_CLASS,
   SALE_STAGE_LABEL,
   saleStage,
@@ -225,6 +226,27 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   }, [vehicles, month]);
 
   const patch = (v: ManagedVehicle, body: Partial<ManagedVehicle>) => void toggleFlag(v, body);
+
+  /**
+   * 재고금액을 적으면 상환일자까지 채워 재고차량으로 넘긴다.
+   *
+   * 갚는 날은 할부사가 정해 놓은 규칙이라 사람이 셀 일이 아니다 — 우리금융이면
+   * 다섯 달 뒤 8일 하는 식이다. 한 칸 적을 때마다 달력을 뒤지게 두지 않는다.
+   *
+   * 이미 적어둔 상환일자는 안 건드린다. 규칙과 다르게 잡은 건이 있을 수 있고,
+   * 그건 사람이 알고 적은 값이다.
+   * 모르는 할부사면 그냥 둔다 — 넘겨짚어 적어두면 그게 맞는 줄 알고 넘어간다.
+   */
+  const saveStockAmount = (v: ManagedVehicle, stockAmount: number) => {
+    if (stockAmount === v.stockAmount) return;
+    // 이전일자가 있으면 그날부터 센다. 없으면 오늘 잡은 것으로 본다.
+    const repayDate =
+      v.repayDate || !v.stockCapital || stockAmount <= 0
+        ? null
+        : suggestRepayDate(v.stockCapital, v.transferDate || dayjs());
+
+    patch(v, { stockAmount, ...(repayDate ? { repayDate } : {}) });
+  };
 
   const handleExport = () => {
     const data = rows.map(({ vehicle: v, eligibility }) => ({
@@ -499,10 +521,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                   <td className="px-3 py-2.5 text-right">
                     <input
                       defaultValue={v.stockAmount ? withCommas(v.stockAmount) : ''}
-                      onBlur={e => {
-                        const next = Number(digitsOnly(e.target.value)) || 0;
-                        if (next !== v.stockAmount) patch(v, { stockAmount: next });
-                      }}
+                      onBlur={e => saveStockAmount(v, Number(digitsOnly(e.target.value)) || 0)}
                       inputMode="numeric"
                       placeholder="원"
                       className="w-28 rounded-lg border border-slate-200 px-1.5 py-1 text-right text-[13px] outline-none focus:border-indigo-400"
