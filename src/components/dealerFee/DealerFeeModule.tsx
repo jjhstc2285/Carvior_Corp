@@ -30,7 +30,7 @@ export default function DealerFeeModule() {
   /**
    * 영업소별 실적 — 검차를 몇 건 맡겼고 우리가 몇 대를 사왔는가.
    *
-   * 회비는 매달 나가는데 검차도 안 맡기고 차도 안 주는 곳이 있다.
+   * 회비는 매달 나가는데 판매도 안 넘기고 차도 안 주는 곳이 있다.
    * 그런 곳을 찾으려면 회비 옆에 실적이 같이 보여야 한다.
    */
   const [activity, setActivity] = useState<
@@ -122,7 +122,7 @@ export default function DealerFeeModule() {
   const active = filtered.filter(r => r.active);
   const monthlyTotal = active.reduce((sum, r) => sum + r.monthlyFee, 0);
 
-  /** 회비는 나가는데 검차도 매입도 없는 곳 — 끊을지 볼 자리다. */
+  /** 회비는 나가는데 판매도 매입도 없는 곳 — 끊을지 볼 자리다. */
   const idle = (id: string) => (activity[id]?.inspected ?? 0) === 0 && (activity[id]?.purchased ?? 0) === 0;
   const idleAccounts = active.filter(r => r.monthlyFee > 0 && idle(r.id));
   const idleTotal = idleAccounts.reduce((sum, r) => sum + r.monthlyFee, 0);
@@ -140,10 +140,10 @@ export default function DealerFeeModule() {
       자동이체날짜: r.transferDay,
       이체일: r.transferDayOfMonth || '',
       '매달 회비': r.monthlyFee || r.feeNote,
-      '검차 누적': activity[r.id]?.inspected ?? 0,
-      거래완료: activity[r.id]?.completed ?? 0,
+      '판매 누적': activity[r.id]?.inspected ?? 0,
+      판매완료: activity[r.id]?.completed ?? 0,
       매입: activity[r.id]?.purchased ?? 0,
-      '최근 검차': activity[r.id]?.lastAt ?? '',
+      '최근 판매': activity[r.id]?.lastAt ?? '',
       자동이체여부: DEALER_FEE_METHOD_LABEL[r.method],
       비고: r.note,
       자동이체기한: r.autoTransferUntil,
@@ -221,7 +221,7 @@ export default function DealerFeeModule() {
         {/* 끊으면 바로 굳는 돈이라 합계 옆에 크게 둔다 */}
         <div className={`rounded-2xl border px-4 py-3.5 ${idleAccounts.length > 0 ? 'border-red-200 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
           <p className={`text-xs font-medium ${idleAccounts.length > 0 ? 'text-red-700/80' : 'text-slate-400'}`}>
-            검차·매입 없는 곳
+            판매·매입 없는 곳
           </p>
           <p className={`mt-1 text-2xl font-bold ${idleAccounts.length > 0 ? 'text-red-700' : 'text-slate-800'}`}>
             {idleAccounts.length}
@@ -284,14 +284,14 @@ export default function DealerFeeModule() {
                 <th className="px-3 py-3 text-right font-medium">매달 회비</th>
                 <th
                   className="px-3 py-3 text-right font-medium"
-                  title="카비어에 접수된 검차 건수 / 그중 거래완료(매입가가 잡힌 건)"
+                  title="카비어에 접수된 건수 / 그중 판매완료(매입가가 잡힌 건)"
                 >
-                  검차 누적
+                  판매 누적
                 </th>
                 <th className="px-3 py-3 text-right font-medium" title="매입 관리의 매입처로 셉니다">
                   매입
                 </th>
-                <th className="px-3 py-3 font-medium">최근 검차</th>
+                <th className="px-3 py-3 font-medium">최근 판매</th>
                 <th className="px-3 py-3 font-medium">자동이체여부</th>
                 <th className="px-3 py-3 font-medium">자동이체기한</th>
                 <th className="px-3 py-3 font-medium">비고</th>
@@ -366,13 +366,13 @@ export default function DealerFeeModule() {
 
                   {/*
                     회비만 나가고 아무것도 안 들어오는 곳을 찾는 칸이다.
-                    검차도 매입도 0이면 빨갛게 — 그게 끊을지 말지 볼 자리다.
+                    판매도 매입도 0이면 빨갛게 — 그게 끊을지 말지 볼 자리다.
                   */}
                   <td className={`whitespace-nowrap px-3 py-2.5 text-right ${idle(r.id) ? 'font-bold text-red-600' : 'text-slate-700'}`}>
                     {activity[r.id]?.inspected ?? 0}
                     {(activity[r.id]?.completed ?? 0) > 0 && (
                       <span className="ml-1 text-[11px] font-normal text-slate-400">
-                        (거래 {activity[r.id]?.completed})
+                        (판매 {activity[r.id]?.completed})
                       </span>
                     )}
                   </td>

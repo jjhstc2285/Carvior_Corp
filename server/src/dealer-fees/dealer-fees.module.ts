@@ -320,17 +320,17 @@ export class DealerFeesService {
   }
 
   /**
-   * 영업소별 실적 — 검차를 몇 건 맡겼고 우리가 몇 대를 사왔는가.
+   * 영업소별 실적 — 판매를 몇 건 넘겼고 우리가 몇 대를 사왔는가.
    *
-   * 회비는 매달 나가는데 검차도 안 맡기고 차도 안 주는 곳이 있다. 그런 곳을 찾으려면
+   * 회비는 매달 나가는데 판매도 안 넘기고 차도 안 주는 곳이 있다. 그런 곳을 찾으려면
    * 회비 옆에 실적이 같이 보여야 한다 — 장부만 봐서는 어디가 밑지는지 알 수가 없다.
    *
-   * 검차는 카비어에 접수된 건으로 세고, 그중 매입가가 잡힌 건을 거래완료로 본다.
+   * 판매는 카비어에 접수된 건으로 세고, 그중 매입가가 잡힌 건을 판매완료로 본다.
    * 매입은 매입 관리의 매입처로 센다.
    * 영업소 이름과 적어 오는 이름이 달라서(BYD 서초 / byd서초 / BYD서초점) 띄어쓰기를
    * 지우고 소문자로 맞춘 다음, 한쪽이 다른 쪽에 들어 있으면 같은 곳으로 본다.
    *
-   * 카비어가 막히면 검차는 0으로 두고 매입만 센다 — 장부 화면이 통째로 막히면 안 된다.
+   * 카비어가 막히면 판매는 0으로 두고 매입만 센다 — 장부 화면이 통째로 막히면 안 된다.
    */
   async activity(): Promise<{
     byDealer: Record<string, { inspected: number; completed: number; purchased: number; lastAt: string | null }>;
@@ -345,7 +345,7 @@ export class DealerFeesService {
 
     const [contracts, intakes] = await Promise.all([
       this.carvior.findContracts().catch((e: Error) => {
-        this.logger.warn(`카비어에서 검차 건수를 못 가져왔습니다: ${e.message}`);
+        this.logger.warn(`카비어에서 판매 건수를 못 가져왔습니다: ${e.message}`);
         return [] as Awaited<ReturnType<CarviorService['findContracts']>>;
       }),
       this.prisma.purchaseIntake.findMany({ select: { source: true } }),
@@ -542,7 +542,7 @@ export class DealerFeesController {
     return this.dealerFees.findAll(query);
   }
 
-  /** 영업소별 검차·매입 실적 — 회비만 나가는 곳을 찾는 데 쓴다. */
+  /** 영업소별 판매·매입 실적 — 회비만 나가는 곳을 찾는 데 쓴다. */
   @Get('activity')
   activity(@CurrentUser() user: AuthUser) {
     assertOfficeManager(user);
