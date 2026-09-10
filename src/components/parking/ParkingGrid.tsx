@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core';
 import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
-import { Search } from 'lucide-react';
+import { ChevronRight, Search } from 'lucide-react';
 import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
@@ -65,8 +65,15 @@ function ParkingCell({
         dropRef(el);
         cellRef?.(el);
       }}
-      className={`border p-0 transition-colors ${
-        highlight ? 'border-indigo-500 ring-2 ring-inset ring-indigo-400' : 'border-slate-100'
+      /*
+        찾은 칸은 "여기 있습니다" 하고 떠 보이게 한다.
+        테두리만 칠하면 옆 칸과 붙어 있어 눈에 안 들어온다 — 굵게 두르고 그림자로 띄운다.
+        relative 를 줘야 그림자가 옆 칸 밑으로 안 깔린다.
+      */
+      className={`p-0 transition-all ${
+        highlight
+          ? 'relative z-10 scale-[1.04] border-2 border-indigo-500 shadow-[0_6px_20px_-4px_rgba(79,70,229,0.55)]'
+          : 'border border-slate-100'
       }`}
     >
       <button
@@ -77,9 +84,11 @@ function ParkingCell({
         className={`flex min-h-14 w-full flex-col items-center justify-center gap-0.5 px-1 py-1 text-center transition-colors ${
           isOver
             ? 'bg-indigo-200 ring-2 ring-inset ring-indigo-500'
-            : vehicle
-              ? PARKING_STATUS_STYLE[vehicle.status].cell
-              : 'bg-white hover:bg-slate-50'
+            : highlight
+              ? 'bg-indigo-50 font-semibold'
+              : vehicle
+                ? PARKING_STATUS_STYLE[vehicle.status].cell
+                : 'bg-white hover:bg-slate-50'
         } ${isDragging ? 'opacity-30' : ''} ${vehicle ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         {vehicle ? (
@@ -127,6 +136,14 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
   // 주차장이 열 곳이 넘어 다 펼치면 표가 너무 길다 — 본관/외부로 나눠 본다.
   const [group, setGroup] = useState<ParkingGroup>('본관');
   const [query, setQuery] = useState('');
+  /**
+   * 휴대폰에서 접어둔 주차장.
+   *
+   * 주차장이 열 곳이 넘고 구역이 옆으로 길어, 다 펼치면 찾는 차까지 가는 데
+   * 한참 밀어야 한다. 휴대폰에서는 접어두고 볼 곳만 편다.
+   * 넓은 화면은 그대로 다 펼친다 — 거기서는 한눈에 들어온다.
+   */
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   /** 찾은 칸 — 화면을 그리로 옮긴다 */
   const foundRef = useRef<HTMLTableCellElement | null>(null);
 
@@ -157,7 +174,13 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
     if (lot && lot.group !== group) setGroup(lot.group);
   }, [found, group]);
 
-  // 칸이 그려진 다음에 옮긴다 — 묶음이 바뀌면 표가 새로 그려진다.
+  // 찾은 차가 접어둔 주차장에 있으면 펴 준다 — 접힌 채로는 아무리 칠해도 안 보인다.
+  useEffect(() => {
+    if (!found) return;
+    setCollapsed(prev => (prev[found.lot] ? { ...prev, [found.lot]: false } : prev));
+  }, [found]);
+
+  // 칸이 그려진 다음에 옮긴다 — 묶음이 바뀌거나 접힌 게 펴지면 표가 새로 그려진다.
   useEffect(() => {
     if (!found) return;
     const timer = window.setTimeout(() => {
@@ -165,7 +188,7 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
       foundRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     }, 50);
     return () => window.clearTimeout(timer);
-  }, [found, group]);
+  }, [found, group, collapsed]);
 
   /**
    * 손가락으로도 끌 수 있게 포인터 하나로 마우스·터치를 같이 받는다.
@@ -232,6 +255,21 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
             ))}
         </div>
 
+        {/* 다 접어두고 볼 곳만 펴는 게 휴대폰에서는 빠르다 */}
+        <button
+          onClick={() => {
+            const allCollapsed = PARKING_LOTS.filter(l => l.group === group).every(l => collapsed[l.lot]);
+            setCollapsed(prev => {
+              const next = { ...prev };
+              for (const l of PARKING_LOTS.filter(x => x.group === group)) next[l.lot] = !allCollapsed;
+              return next;
+            });
+          }}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 sm:hidden"
+        >
+          {PARKING_LOTS.filter(l => l.group === group).every(l => collapsed[l.lot]) ? '다 펴기' : '다 접기'}
+        </button>
+
         {/* 묶음 탭 — 어느 주차장에 차가 몇 대 있는지도 같이 보여준다 */}
         <div className="flex w-fit rounded-lg bg-slate-100 p-0.5 text-sm">
           {PARKING_GROUPS.map(g => (
@@ -256,12 +294,29 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
           // 본관은 앞/뒤 두 대씩 겹쳐 대서 묶음 이름을 세로로 합쳐 보여준다.
           // 외부는 그냥 줄이 늘어서 있을 뿐이라 줄 이름을 그대로 적는다.
           const grouped = slots.length === 4 && slots[0] === '앞1';
+          const parked = state.parkingVehicles.filter(v => v.lot === lot).length;
+          const isCollapsed = collapsed[lot] ?? false;
           return (
           <div key={lot} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="overflow-x-auto">
+            {/*
+              휴대폰에서만 접는 머리를 보여준다. 넓은 화면에서는 표의 배너가 곧 제목이라
+              같은 이름이 두 줄로 겹친다.
+            */}
+            <button
+              onClick={() => setCollapsed(prev => ({ ...prev, [lot]: !isCollapsed }))}
+              style={{ backgroundColor: bandColor }}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left sm:hidden"
+            >
+              <ChevronRight size={16} className={`shrink-0 text-slate-800 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
+              <span className="text-sm font-bold text-slate-900">{lot}</span>
+              <span className="ml-auto text-xs font-medium text-slate-700">{parked}대</span>
+            </button>
+
+            <div className={`overflow-x-auto ${isCollapsed ? 'hidden sm:block' : ''}`}>
               <table className="w-full border-collapse text-xs">
                 <thead>
-                  <tr>
+                  {/* 휴대폰에서는 위의 접는 머리가 제목이라 배너를 뺀다 */}
+                  <tr className="hidden sm:table-row">
                     <th style={{ backgroundColor: bandColor }} className="w-10 border border-white/40" />
                     <th colSpan={zones.length} style={{ backgroundColor: bandColor }} className="border border-white/40 py-1.5 text-center text-sm font-bold text-slate-900">
                       {lot}
