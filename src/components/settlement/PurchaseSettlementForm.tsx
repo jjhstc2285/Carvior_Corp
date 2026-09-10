@@ -11,6 +11,7 @@ import {
   extraTransferFee,
   EXTRA_FEE_RATE,
   purchaseGrandTotal,
+  transferFeeOf,
   purchasePrepTotal,
   saleProfit,
   SALE_TAX_RATE,
@@ -36,6 +37,18 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
   const [transferFee, setTransferFee] = useState(editing ? String(editing.transferFee) : '0');
   const [purchasePrice, setPurchasePrice] = useState(editing ? String(editing.purchasePrice) : '');
+
+  /**
+   * 매입가를 적으면 이전비 칸을 채운다.
+   *
+   * 이전비는 사람이 세어 적을 값이 아니라 매입가로 정해진다 —
+   * 상사 이전비(매입가의 1%)와 추가이전비(취득세의 15%)를 더한 값이다.
+   * 채워 넣은 뒤에는 그 칸에서 고칠 수 있다. 다르게 잡힌 건이 있어서다.
+   */
+  const changePurchasePrice = (next: string) => {
+    setPurchasePrice(next);
+    setTransferFee(String(transferFeeOf(moneyToNumber(next))));
+  };
   const [brokerFee, setBrokerFee] = useState(editing ? String(editing.brokerFee) : '0');
   const [brokerFeePayout, setBrokerFeePayout] = useState<BrokerFeePayout>(editing?.brokerFeePayout ?? 'CASH');
   // 판 값 — 상담이 판매완료로 끝나면 채운다. 아직 안 팔았으면 비워둔다.
@@ -129,7 +142,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           <EmployeeField label="담당자" value={employeeId} onChange={setEmployeeId} employees={state.employees} />
 
           <MoneyField label="이전비 + 추가이전비" value={transferFee} onChange={setTransferFee} className="col-span-2 sm:col-span-1" />
-          <MoneyField label="매입가" value={purchasePrice} onChange={setPurchasePrice} required />
+          <MoneyField label="매입가" value={purchasePrice} onChange={changePurchasePrice} required />
           <MoneyField label="구전" value={brokerFee} onChange={setBrokerFee} />
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">구전 지급방식</label>
@@ -166,18 +179,19 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         </div>
 
         <div className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+          {/* 이전비 칸에 들어간 값이 어떻게 나왔는지 — 총비용에는 이전비로 한 번만 잡힌다 */}
           <CalcRow
-            label="상사 이전비"
+            label="└ 상사 이전비"
             formula="매입가의 1% (500만원 이하 5만원 · 3000만원 이상 30만원)"
             value={dealerTransferFee(nums.purchasePrice)}
           />
           <CalcRow
-            label="추가이전비"
+            label="└ 추가이전비"
             formula={`취득세(매입가의 ${ACQUISITION_TAX_RATE * 100}%)가 200만원을 넘으면 그 ${EXTRA_FEE_RATE * 100}% — 취득세 ${withCommas(acquisitionTax(nums.purchasePrice))}원`}
             value={extraTransferFee(nums.purchasePrice)}
           />
           <CalcRow label="상품화총비용" formula="광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비 (이전비·구전 제외)" value={prepTotal} />
-          <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상사 이전비 + 추가이전비 + 상품화총비용" value={grandTotal} strong />
+          <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상품화총비용" value={grandTotal} strong />
           <CalcRow
             label="판매수익"
             formula={`차량판매가 − 총비용 − 세금 ${SALE_TAX_RATE * 100}% (주유·배터리 같은 차량비용은 표에서 더합니다)`}

@@ -183,12 +183,12 @@ export function extraTransferFee(purchasePrice: number): number {
 }
 
 /**
- * 총비용 = 매입가 + 이전비 + 구전 + 상사 이전비 + 추가이전비 + 상품화총비용
+ * 총비용 = 매입가 + 이전비 + 구전 + 상품화총비용
  *
- * 그 차에 들어간 돈을 다 더한다. 예전에는 이전비와 구전이 빠져 있어서,
- * 이전비 121만원을 적어도 총비용은 매입가 그대로였다.
+ * 그 차에 들어간 돈을 다 더한다.
  *
- * 상사 이전비와 추가이전비는 매입가로 정해지는 값이라 따로 받지 않고 여기서 낸다.
+ * 상사 이전비와 추가이전비는 '이전비 + 추가이전비' 칸에 들어간다(transferFeeOf).
+ * 여기서 또 더하면 두 번 잡힌다.
  */
 export function purchaseGrandTotal(
   purchasePrice: number,
@@ -196,14 +196,17 @@ export function purchaseGrandTotal(
   transferFee = 0,
   brokerFee = 0,
 ): number {
-  return (
-    purchasePrice +
-    transferFee +
-    brokerFee +
-    dealerTransferFee(purchasePrice) +
-    extraTransferFee(purchasePrice) +
-    prepTotal
-  );
+  return purchasePrice + transferFee + brokerFee + prepTotal;
+}
+
+/**
+ * 이전비 + 추가이전비 — 매입가만 있으면 나온다.
+ *
+ * 사람이 세어 적을 값이 아니라 매입가로 정해지는 값이다. 매입가를 적으면 이 값이
+ * '이전비 + 추가이전비' 칸에 채워진다. 다르게 잡힌 건이 있으면 그 칸에서 고친다.
+ */
+export function transferFeeOf(purchasePrice: number): number {
+  return dealerTransferFee(purchasePrice) + extraTransferFee(purchasePrice);
 }
 
 // ── 판매 쪽 (매입 정산) ──

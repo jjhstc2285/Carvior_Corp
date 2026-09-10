@@ -226,12 +226,14 @@ export class SettlementsService {
    * 알선 정산에 적은 값을 매입 정산으로 옮긴다.
    *
    *   실차주입금  →  차량판매가
-   *   이전비 + 이전비 잔액  →  이전비 + 추가이전비
    *
-   * 같은 차를 두 곳에 적게 하지 않는다 — 얼마에 팔았고 이전비가 얼마 들었는지는
-   * 알선팀이 먼저 아는 값이고, 계약팀이 그걸 옮겨 적으면 어느 쪽이 맞는지 알 수 없게 된다.
+   * 같은 차를 두 곳에 적게 하지 않는다 — 얼마에 팔았는지는 알선팀이 먼저 아는 값이고,
+   * 계약팀이 그걸 옮겨 적으면 어느 쪽이 맞는지 알 수 없게 된다.
    *
    * 총 진행 판매금액이 아니라 실차주입금을 쓴다 — 실제로 들어온 돈이 그쪽이다.
+   *
+   * 이전비는 안 가져온다. 매입 정산의 이전비는 매입가로 정해지는 값이라(상사 이전비 +
+   * 추가이전비) 알선 쪽 이전비로 덮으면 계산해 둔 값이 어긋난다.
    *
    * 둘 다 원 단위라 환산하지 않는다(알선 정산도 원으로 적는다).
    *
@@ -244,20 +246,16 @@ export class SettlementsService {
   private async syncFromBrokerage(row: {
     vehicleNumber: string;
     ownerDeposit: number;
-    transferFee: number;
-    transferFeeBalance: number;
     date: Date;
   }): Promise<'updated' | 'already' | 'noMatch'> {
-    // 이전비 잔액이 매입 정산의 '추가이전비' 자리다. 둘을 더해 한 칸에 넣는다.
-    const transferFee = row.transferFee + row.transferFeeBalance;
-    if (row.ownerDeposit <= 0 && transferFee <= 0) return 'already';
+    if (row.ownerDeposit <= 0) return 'already';
 
     try {
       const plates = [...new Set([row.vehicleNumber, normalizePlate(row.vehicleNumber)])].filter(Boolean);
       const target = await this.prisma.purchaseSettlement.findFirst({
         where: { vehicleNumber: { in: plates }, chiefApprovedAt: null },
         orderBy: { date: 'desc' },
-        select: { id: true, salePrice: true, transferFee: true, date: true },
+        select: { id: true, salePrice: true, date: true },
       });
       if (!target) return 'noMatch';
 
@@ -268,13 +266,10 @@ export class SettlementsService {
        * 목록에 안 보이고, 지난 달을 뒤져야 나온다 — 정산은 판 다음에 하는 일이다.
        * 매입일은 매입 관리에 그대로 남아 있으니 여기서 또 들고 있을 필요가 없다.
        */
-      const sold = row.ownerDeposit > 0;
-
       // 0으로 덮어써서 이미 적어둔 값을 지우지 않는다 — 안 적은 칸은 그대로 둔다.
       const data = {
-        ...(sold && target.salePrice !== row.ownerDeposit ? { salePrice: row.ownerDeposit } : {}),
-        ...(transferFee > 0 && target.transferFee !== transferFee ? { transferFee } : {}),
-        ...(sold && formatDateOnly(target.date) !== formatDateOnly(row.date) ? { date: row.date } : {}),
+        ...(target.salePrice !== row.ownerDeposit ? { salePrice: row.ownerDeposit } : {}),
+        ...(formatDateOnly(target.date) !== formatDateOnly(row.date) ? { date: row.date } : {}),
       };
       if (Object.keys(data).length === 0) return 'already';
 
@@ -299,13 +294,7 @@ export class SettlementsService {
    */
   async syncAllFromBrokerage() {
     const rows = await this.prisma.brokerageSettlement.findMany({
-      select: {
-        vehicleNumber: true,
-        ownerDeposit: true,
-        transferFee: true,
-        transferFeeBalance: true,
-        date: true,
-      },
+      select: { vehicleNumber: true, ownerDeposit: true, date: true },
       orderBy: { date: 'asc' },
     });
 

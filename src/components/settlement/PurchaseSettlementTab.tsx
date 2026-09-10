@@ -359,9 +359,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
             <button
               onClick={() => void pullFromBrokerage()}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              title="알선 정산의 실차주입금 · 이전비를 매입 정산으로 가져옵니다"
+              title="알선 정산의 실차주입금을 매입 정산의 차량판매가로 가져옵니다"
             >
-              <RefreshCw size={14} /> 알선에서 가져오기
+              <RefreshCw size={14} /> 판매가 가져오기
             </button>
           )}
           {/* 따로 정산을 끝낸 달을 정리할 때. 사무장·대표만 보인다 */}

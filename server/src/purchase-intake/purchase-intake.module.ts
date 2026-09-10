@@ -25,6 +25,7 @@ import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { transferFeeOf } from '../settlements/settlement.calc';
 import { formatDateOnly, formatDateOnlyOrNull, monthRange, toDateOnly, toDateOnlyOrNull, todayKst } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { isValidPlate, normalizePlate, plateTailOf } from '../vehicles/vehicle.rules';
@@ -581,6 +582,8 @@ export class PurchaseIntakeService {
           vehicleName: row.vehicleName,
           vehicleNumber: row.vehicleNumber,
           purchasePrice: row.purchaseAmount,
+          // 이전비는 매입가로 정해진다(상사 이전비 + 추가이전비) — 사람이 다시 적을 값이 아니다.
+          transferFee: transferFeeOf(row.purchaseAmount),
           brokerFee: row.brokerFee,
           brokerFeePayout: BROKER_FEE_PAYOUT[row.brokerFeeType],
           // 상품화가 아직 안 끝나서 총비용을 모른다. 0 으로 두면 '매입가만큼 정산'으로
