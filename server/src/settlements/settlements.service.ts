@@ -570,13 +570,13 @@ export class SettlementsService {
     // 상품화총비용과 항목별 합계는 명세를 더해서 낸다 — 저장하지 않는다.
     const prepTotal = purchasePrepTotal(row.prepCosts);
     /*
-     * 이전비가 비어 있으면 매입가로 계산한 값을 쓴다.
+     * 이전비는 늘 매입가로 낸다 — 저장된 값을 안 쓴다.
      *
-     * 이전비는 매입가로 정해지는 값이다(상사 이전비 + 추가이전비). 자동 계산이 생기기
-     * 전에 만들어진 줄은 0으로 남아 있는데, 그대로 두면 총비용이 매입가만큼만 나온다.
-     * 적어 넣은 값이 있으면 그게 먼저다 — 다르게 잡힌 건이 있어서다.
+     * 상사 이전비(매입가의 1%)와 추가이전비(취득세의 15%)를 더한 값이라 매입가만 있으면
+     * 정해진다. 예전에 알선 정산에서 가져다 넣은 값이 남아 있는데, 그건 알선 쪽 이전비라
+     * 여기 쓸 값이 아니다. 저장값을 살려두면 그게 계속 덮어씌워진다.
      */
-    const transferFee = row.transferFee || transferFeeOf(row.purchasePrice);
+    const transferFee = transferFeeOf(row.purchasePrice);
     return {
       ...row,
       transferFee,

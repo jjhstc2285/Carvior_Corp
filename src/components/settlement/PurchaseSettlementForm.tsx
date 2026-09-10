@@ -35,20 +35,15 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
   const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
-  const [transferFee, setTransferFee] = useState(editing ? String(editing.transferFee) : '0');
   const [purchasePrice, setPurchasePrice] = useState(editing ? String(editing.purchasePrice) : '');
 
   /**
-   * 매입가를 적으면 이전비 칸을 채운다.
+   * 이전비는 매입가로 정해진다 — 상사 이전비(매입가의 1%) + 추가이전비(취득세의 15%).
    *
-   * 이전비는 사람이 세어 적을 값이 아니라 매입가로 정해진다 —
-   * 상사 이전비(매입가의 1%)와 추가이전비(취득세의 15%)를 더한 값이다.
-   * 채워 넣은 뒤에는 그 칸에서 고칠 수 있다. 다르게 잡힌 건이 있어서다.
+   * 적는 칸이 아니라 계산 결과다. 예전에는 손으로 적었고 알선 정산에서 가져다 넣기도
+   * 했는데, 값이 두 군데서 오니 어느 쪽이 맞는지 알 수 없었다.
    */
-  const changePurchasePrice = (next: string) => {
-    setPurchasePrice(next);
-    setTransferFee(String(transferFeeOf(moneyToNumber(next))));
-  };
+  const transferFee = transferFeeOf(moneyToNumber(purchasePrice));
   const [brokerFee, setBrokerFee] = useState(editing ? String(editing.brokerFee) : '0');
   const [brokerFeePayout, setBrokerFeePayout] = useState<BrokerFeePayout>(editing?.brokerFeePayout ?? 'CASH');
   // 판 값 — 상담이 판매완료로 끝나면 채운다. 아직 안 팔았으면 비워둔다.
@@ -87,7 +82,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     .filter(r => r.amount > 0);
 
   const nums = {
-    transferFee: moneyToNumber(transferFee),
+    transferFee,
     purchasePrice: moneyToNumber(purchasePrice),
     brokerFee: moneyToNumber(brokerFee),
     salePrice: moneyToNumber(salePrice),
@@ -141,8 +136,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           <TextField label="차량번호" value={vehicleNumber} onChange={setVehicleNumber} placeholder="12가3456" required />
           <EmployeeField label="담당자" value={employeeId} onChange={setEmployeeId} employees={state.employees} />
 
-          <MoneyField label="이전비 + 추가이전비" value={transferFee} onChange={setTransferFee} className="col-span-2 sm:col-span-1" />
-          <MoneyField label="매입가" value={purchasePrice} onChange={changePurchasePrice} required />
+          <MoneyField label="매입가" value={purchasePrice} onChange={setPurchasePrice} required />
           <MoneyField label="구전" value={brokerFee} onChange={setBrokerFee} />
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">구전 지급방식</label>
@@ -179,7 +173,12 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         </div>
 
         <div className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
-          {/* 이전비 칸에 들어간 값이 어떻게 나왔는지 — 총비용에는 이전비로 한 번만 잡힌다 */}
+          {/* 이전비는 적는 칸이 아니라 계산 결과다 — 무엇이 더해졌는지 펼쳐 보여준다 */}
+          <CalcRow
+            label="이전비 + 추가이전비"
+            formula="상사 이전비 + 추가이전비 — 매입가로 정해집니다"
+            value={transferFee}
+          />
           <CalcRow
             label="└ 상사 이전비"
             formula="매입가의 1% (500만원 이하 5만원 · 3000만원 이상 30만원)"
