@@ -27,6 +27,15 @@ export default function DealerFeeModule() {
   const [pasteOpen, setPasteOpen] = useState(false);
   /** 이 장부를 볼 수 있는 사람 — "누가 보는지"를 화면에서 확인한다 */
   const [viewers, setViewers] = useState<{ id: string; name: string; position: string }[]>([]);
+  /**
+   * 영업소별 실적 — 검차를 몇 건 맡겼고 우리가 몇 대를 사왔는가.
+   *
+   * 회비는 매달 나가는데 검차도 안 맡기고 차도 안 주는 곳이 있다.
+   * 그런 곳을 찾으려면 회비 옆에 실적이 같이 보여야 한다.
+   */
+  const [activity, setActivity] = useState<
+    Record<string, { inspected: number; diagnosed: number; purchased: number; lastAt: string | null }>
+  >({});
   const reqId = useRef(0);
 
   const load = useCallback(async () => {
@@ -54,6 +63,10 @@ export default function DealerFeeModule() {
     api<{ id: string; name: string; position: string }[]>('/dealer-fees/viewers')
       .then(setViewers)
       .catch(() => setViewers([]));
+    // 실적은 곁다리라 못 받아와도 장부는 그대로 쓴다(카비어가 막힐 수 있다).
+    api<typeof activity>('/dealer-fees/activity')
+      .then(setActivity)
+      .catch(() => setActivity({}));
   }, []);
 
   /** 한 칸만 고쳐 보낸다. 고친 게 이체 조건이면 서버가 알림을 띄운다. */
@@ -103,6 +116,11 @@ export default function DealerFeeModule() {
 
   const active = filtered.filter(r => r.active);
   const monthlyTotal = active.reduce((sum, r) => sum + r.monthlyFee, 0);
+
+  /** 회비는 나가는데 검차도 매입도 없는 곳 — 끊을지 볼 자리다. */
+  const idle = (id: string) => (activity[id]?.inspected ?? 0) === 0 && (activity[id]?.purchased ?? 0) === 0;
+  const idleAccounts = active.filter(r => r.monthlyFee > 0 && idle(r.id));
+  const idleTotal = idleAccounts.reduce((sum, r) => sum + r.monthlyFee, 0);
   const autoCount = filtered.filter(r => r.active && r.method === 'AUTO').length;
 
   const handleExport = () => {
@@ -117,6 +135,10 @@ export default function DealerFeeModule() {
       자동이체날짜: r.transferDay,
       이체일: r.transferDayOfMonth || '',
       '매달 회비': r.monthlyFee || r.feeNote,
+      '검차 누적': activity[r.id]?.inspected ?? 0,
+      진단완료: activity[r.id]?.diagnosed ?? 0,
+      매입: activity[r.id]?.purchased ?? 0,
+      '최근 검차': activity[r.id]?.lastAt ?? '',
       자동이체여부: DEALER_FEE_METHOD_LABEL[r.method],
       비고: r.note,
       자동이체기한: r.autoTransferUntil,
@@ -182,7 +204,7 @@ export default function DealerFeeModule() {
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">
           <p className="text-xs font-medium text-indigo-700/80">매달 회비 합계</p>
           <p className="mt-1 text-2xl font-bold text-indigo-700">
@@ -190,6 +212,17 @@ export default function DealerFeeModule() {
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
           <p className="text-[11px] text-slate-400">거래중인 곳만 셉니다</p>
+        </div>
+        {/* 끊으면 바로 굳는 돈이라 합계 옆에 크게 둔다 */}
+        <div className={`rounded-2xl border px-4 py-3.5 ${idleAccounts.length > 0 ? 'border-red-200 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+          <p className={`text-xs font-medium ${idleAccounts.length > 0 ? 'text-red-700/80' : 'text-slate-400'}`}>
+            검차·매입 없는 곳
+          </p>
+          <p className={`mt-1 text-2xl font-bold ${idleAccounts.length > 0 ? 'text-red-700' : 'text-slate-800'}`}>
+            {idleAccounts.length}
+            <span className="ml-1 text-sm font-medium text-slate-400">곳</span>
+          </p>
+          <p className="text-[11px] text-slate-500">매달 {idleTotal.toLocaleString()}원 나갑니다</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">거래중</p>
@@ -244,6 +277,16 @@ export default function DealerFeeModule() {
                 <th className="px-3 py-3 font-medium">자동이체날짜</th>
                 <th className="px-3 py-3 text-center font-medium">이체일</th>
                 <th className="px-3 py-3 text-right font-medium">매달 회비</th>
+                <th
+                  className="px-3 py-3 text-right font-medium"
+                  title="카비어에 접수된 검차 건수 / 그중 진단완료"
+                >
+                  검차 누적
+                </th>
+                <th className="px-3 py-3 text-right font-medium" title="매입 관리의 매입처로 셉니다">
+                  매입
+                </th>
+                <th className="px-3 py-3 font-medium">최근 검차</th>
                 <th className="px-3 py-3 font-medium">자동이체여부</th>
                 <th className="px-3 py-3 font-medium">자동이체기한</th>
                 <th className="px-3 py-3 font-medium">비고</th>
@@ -315,6 +358,30 @@ export default function DealerFeeModule() {
                       className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-[13px] outline-none focus:border-indigo-400"
                     />
                   </td>
+
+                  {/*
+                    회비만 나가고 아무것도 안 들어오는 곳을 찾는 칸이다.
+                    검차도 매입도 0이면 빨갛게 — 그게 끊을지 말지 볼 자리다.
+                  */}
+                  <td className={`whitespace-nowrap px-3 py-2.5 text-right ${idle(r.id) ? 'font-bold text-red-600' : 'text-slate-700'}`}>
+                    {activity[r.id]?.inspected ?? 0}
+                    {(activity[r.id]?.diagnosed ?? 0) > 0 && (
+                      <span className="ml-1 text-[11px] font-normal text-slate-400">
+                        (진단 {activity[r.id]?.diagnosed})
+                      </span>
+                    )}
+                  </td>
+                  <td className={`px-3 py-2.5 text-right ${idle(r.id) ? 'font-bold text-red-600' : 'text-slate-700'}`}>
+                    {activity[r.id]?.purchased ?? 0}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
+                    {activity[r.id]?.lastAt ? (
+                      dayjs(activity[r.id]!.lastAt!).format('YY.M.D')
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+
                   <td className="px-3 py-2.5">
                     <select
                       value={r.method}

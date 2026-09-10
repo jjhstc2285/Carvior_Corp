@@ -32,7 +32,8 @@ import {
 } from 'class-validator';
 import { DealerFeeMethod, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
+import { CarviorModule, CarviorService } from '../carvior/carvior.module';
+import { formatDateOnly, formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager, LEDGER_VIEWER_WHERE } from '../auth/office-manager';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
@@ -134,6 +135,7 @@ export class DealerFeesService {
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
     private readonly push: PushService,
+    private readonly carvior: CarviorService,
   ) {}
 
   async findAll(params: DealerFeeQueryDto) {
@@ -316,6 +318,65 @@ export class DealerFeesService {
     return rows.map((r) => r.id);
   }
 
+  /**
+   * 영업소별 실적 — 검차를 몇 건 맡겼고 우리가 몇 대를 사왔는가.
+   *
+   * 회비는 매달 나가는데 검차도 안 맡기고 차도 안 주는 곳이 있다. 그런 곳을 찾으려면
+   * 회비 옆에 실적이 같이 보여야 한다 — 장부만 봐서는 어디가 밑지는지 알 수가 없다.
+   *
+   * 검차는 카비어에 접수된 건으로 세고, 매입은 매입 관리의 매입처로 센다.
+   * 영업소 이름과 적어 오는 이름이 달라서(BYD 서초 / byd서초 / BYD서초점) 띄어쓰기를
+   * 지우고 소문자로 맞춘 다음, 한쪽이 다른 쪽에 들어 있으면 같은 곳으로 본다.
+   *
+   * 카비어가 막히면 검차는 0으로 두고 매입만 센다 — 장부 화면이 통째로 막히면 안 된다.
+   */
+  async activity(): Promise<
+    Record<string, { inspected: number; diagnosed: number; purchased: number; lastAt: string | null }>
+  > {
+    const dealers = await this.prisma.dealerFeeAccount.findMany({
+      where: { active: true },
+      select: { id: true, dealerName: true },
+    });
+    if (dealers.length === 0) return {};
+
+    const [contracts, intakes] = await Promise.all([
+      this.carvior.findContracts().catch((e: Error) => {
+        this.logger.warn(`카비어에서 검차 건수를 못 가져왔습니다: ${e.message}`);
+        return [] as Awaited<ReturnType<CarviorService['findContracts']>>;
+      }),
+      this.prisma.purchaseIntake.findMany({ select: { source: true } }),
+    ]);
+
+    const key = (name: string) => name.replace(/\s+/g, '').toLowerCase();
+    const matches = (dealer: string, other: string) => {
+      const a = key(dealer);
+      const b = key(other);
+      return a.length > 1 && b.length > 1 && (b.includes(a) || a.includes(b));
+    };
+
+    const result: Record<
+      string,
+      { inspected: number; diagnosed: number; purchased: number; lastAt: string | null }
+    > = {};
+
+    for (const d of dealers) {
+      const mine = contracts.filter((c) => matches(d.dealerName, c.dealerName ?? ''));
+      const last = mine
+        .map((c) => c.createdAt)
+        .filter(Boolean)
+        .sort()
+        .at(-1);
+
+      result[d.id] = {
+        inspected: mine.length,
+        diagnosed: mine.filter((c) => c.reportUrl).length,
+        purchased: intakes.filter((i) => matches(d.dealerName, i.source)).length,
+        lastAt: last ? formatDateOnly(new Date(last)) : null,
+      };
+    }
+    return result;
+  }
+
   /** 지금 이 장부를 볼 수 있는 사람 — 화면에서 "누가 보는지"를 확인한다 */
   async viewers() {
     return this.prisma.employee.findMany({
@@ -468,6 +529,13 @@ export class DealerFeesController {
     return this.dealerFees.findAll(query);
   }
 
+  /** 영업소별 검차·매입 실적 — 회비만 나가는 곳을 찾는 데 쓴다. */
+  @Get('activity')
+  activity(@CurrentUser() user: AuthUser) {
+    assertOfficeManager(user);
+    return this.dealerFees.activity();
+  }
+
   /** 지금 이 장부를 볼 수 있는 사람 — 화면에서 확인용 */
   @Get('viewers')
   viewers(@CurrentUser() user: AuthUser) {
@@ -510,7 +578,7 @@ export class DealerFeesController {
 }
 
 @Module({
-  imports: [RealtimeModule, PushModule],
+  imports: [RealtimeModule, PushModule, CarviorModule],
   controllers: [DealerFeesController],
   providers: [DealerFeesService, DealerFeeReminderService],
 })
