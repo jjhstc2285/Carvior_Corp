@@ -36,6 +36,8 @@ export default function DealerFeeModule() {
   const [activity, setActivity] = useState<
     Record<string, { inspected: number; completed: number; purchased: number; lastAt: string | null }>
   >({});
+  /** 어느 장부에도 안 붙은 카비어 이름 — 장부에 없는 곳이거나 이름이 안 맞는 곳이다 */
+  const [unmatched, setUnmatched] = useState<{ name: string; count: number }[]>([]);
   const reqId = useRef(0);
 
   const load = useCallback(async () => {
@@ -64,8 +66,11 @@ export default function DealerFeeModule() {
       .then(setViewers)
       .catch(() => setViewers([]));
     // 실적은 곁다리라 못 받아와도 장부는 그대로 쓴다(카비어가 막힐 수 있다).
-    api<typeof activity>('/dealer-fees/activity')
-      .then(setActivity)
+    api<{ byDealer: typeof activity; unmatched: { name: string; count: number }[] }>('/dealer-fees/activity')
+      .then(res => {
+        setActivity(res.byDealer);
+        setUnmatched(res.unmatched);
+      })
       .catch(() => setActivity({}));
   }, []);
 
