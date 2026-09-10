@@ -322,6 +322,21 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
               className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-2 text-sm outline-none focus:border-indigo-400 sm:w-56"
             />
           </div>
+
+          {/*
+            옮기기 — 켜면 다음에 누르는 차를 손에 든다.
+            끌어다 놓기가 안 되는 화면(휴대폰)에서 자리를 옮기는 유일한 길이라
+            검색칸 옆에 붙여 둔다. 따로 떨어져 있으면 눈에 안 들어온다.
+          */}
+          <button
+            onClick={() => setPicking(v => !v)}
+            className={`flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-2 text-sm font-semibold ${
+              picking ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-600'
+            }`}
+          >
+            <Move size={14} />
+            {picking ? '고르는 중' : '옮기기'}
+          </button>
           {query.replace(/\s+/g, '').length >= 2 &&
             (found ? (
               <span className="text-xs font-semibold text-indigo-700">
@@ -332,19 +347,6 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
               <span className="text-xs text-slate-400">구역도에 없습니다</span>
             ))}
         </div>
-
-        {/*
-          옮기기 — 켜면 다음에 누르는 차를 손에 든다.
-          끌어다 놓기가 안 되는 화면(휴대폰)에서 자리를 옮기는 유일한 길이다.
-        */}
-        <button
-          onClick={() => setPicking(v => !v)}
-          className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${
-            picking ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-600'
-          }`}
-        >
-          {picking ? '옮길 차 고르는 중' : '옮기기'}
-        </button>
 
         {/* 다 접어두고 볼 곳만 펴는 게 휴대폰에서는 빠르다 */}
         <button
