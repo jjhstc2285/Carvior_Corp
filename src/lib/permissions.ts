@@ -1,15 +1,19 @@
 import type { AuthUser } from './auth';
 
 /**
- * 사무장 장부(신차영업소 상조회비)를 볼 수 있는 사람.
+ * 돈 장부(신차영업소 상조회비)를 볼 수 있는 사람 — 대표·사무장·본부장·테스트 계정.
  *
- * 사무장이 맡아 보는 장부라 전 직원에게 열어둘 이유가 없다. 관리자도 함께 열어둔다 —
- * 잘못 들어간 값을 고칠 사람이 아무도 없으면 곤란하고, 대표도 관리자 계정이다.
+ * 서버(auth/office-manager.ts)와 같은 목록을 쓴다. 여기서 감추는 건 메뉴일 뿐이고
+ * 실제로 막는 건 서버라, 목록이 어긋나면 메뉴는 보이는데 열면 막히는 일이 생긴다.
  *
- * 여기서 감추는 건 메뉴일 뿐이다. 실제로 막는 건 서버(auth/office-manager.ts)다.
+ * 직급으로 가린다 — 사람이 바뀌어도 자리를 물려받은 사람이 그대로 보고,
+ * 이름으로 박아두면 사람이 바뀔 때 코드를 고쳐야 하는데 그 사실을 아무도 기억하지 못한다.
  */
+export const LEDGER_POSITIONS = ['대표', '사무장', '본부장', '테스트'] as const;
+
 export function canSeeLedger(user: AuthUser | null): boolean {
-  return isOfficeManager(user);
+  if (!user) return false;
+  return LEDGER_POSITIONS.some(p => user.position.includes(p));
 }
 
 /**
