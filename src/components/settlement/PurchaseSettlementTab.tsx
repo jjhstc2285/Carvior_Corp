@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, Lock, Pencil, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { percentLabel } from '../../lib/money';
 import { canSeeAllSettlements } from '../../lib/permissions';
 import {
   EMPTY_PREP_BREAKDOWN,
@@ -411,7 +412,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600">차량판매가</th>
                 <th
                   className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600"
-                  title={`차량판매가 − 총합계 − 세금 ${SALE_TAX_RATE * 100}%`}
+                  title={`차량판매가 − 총합계 − 세금 ${percentLabel(SALE_TAX_RATE)}%`}
                 >
                   판매수익
                 </th>

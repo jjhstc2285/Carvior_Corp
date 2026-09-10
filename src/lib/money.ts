@@ -83,3 +83,13 @@ export function withManwonCommas(value: string): string {
   const head = whole ? Number(whole).toLocaleString() : '0';
   return decimal !== undefined ? `${head}.${decimal}` : head;
 }
+
+/**
+ * 비율을 퍼센트 글자로 — 0.07 → "7".
+ *
+ * 그냥 곱하면 7.000000000000001 이 나온다. 컴퓨터가 0.07을 딱 떨어지게 담지 못해서다.
+ * 소수 한 자리까지만 남기고 끊는다(13.3% 처럼 소수가 필요한 비율이 있다).
+ */
+export function percentLabel(rate: number): string {
+  return String(Math.round(rate * 1000) / 10);
+}
