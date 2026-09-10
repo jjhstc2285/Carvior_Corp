@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, Lock, Pencil, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { canSeeAllSettlements } from '../../lib/permissions';
 import {
   EMPTY_PREP_BREAKDOWN,
   EMPTY_VEHICLE_COST,
@@ -66,7 +67,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
   const canClear = role === 'ADMIN' || ['대표', '사무장'].some(k => (me?.position ?? '').includes(k));
   const approverRole: 'CHIEF' | 'CEO' | null =
     me?.name === '안원용' ? 'CHIEF' : me?.name === '유진욱' ? 'CEO' : null;
-  const seesAll = role !== 'EMPLOYEE' || myDepartment === '계약팀';
+  const seesAll = canSeeAllSettlements({ role }, myDepartment);
   const scoped = seesAll
     ? state.purchaseSettlements
     : state.purchaseSettlements.filter(s => s.employeeId === state.currentEmployeeId);
@@ -159,7 +160,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
   const filtered = scoped
     .filter(s => allMonths || s.date.startsWith(month))
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
-    .filter(s => role !== 'ADMIN' || employeeFilter === 'all' || s.employeeId === employeeFilter)
+    .filter(s => !seesAll || employeeFilter === 'all' || s.employeeId === employeeFilter)
     .filter(s => !query.trim() || s.vehicleNumber.includes(query.trim()) || s.vehicleName.includes(query.trim()))
     .sort((a, b) => b.date.localeCompare(a.date));
 
@@ -339,7 +340,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
           <option value="IN_PROGRESS">진행중</option>
           <option value="COMPLETED">정산완료</option>
         </select>
-        {role === 'ADMIN' && (
+        {/* 남의 것까지 보는 사람에게만 쓸모가 있다 — 자기 것만 보이면 고를 게 없다 */}
+        {seesAll && (
           <select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
             <option value="all">전체 담당자</option>

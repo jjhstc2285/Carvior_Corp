@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { canSeeAllSettlements } from '../../lib/permissions';
 import { netProfit, SETTLEMENT_STATUS_LABEL, type SettlementRecord, type SettlementStatus } from '../../types';
 import SettlementForm from './SettlementForm';
 import { confirmDanger } from '../../lib/alert';
@@ -18,13 +19,16 @@ export default function BasicSettlementTab({ role }: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SettlementRecord | null>(null);
 
-  const scoped = role === 'EMPLOYEE'
-    ? state.settlements.filter(s => s.employeeId === state.currentEmployeeId)
-    : state.settlements;
+  /** 계약팀은 남의 정산도 본다 — 빈칸을 채우는 게 그 팀 일이다. */
+  const myDepartment = state.employees.find(e => e.id === state.currentEmployeeId)?.department ?? null;
+  const seesAll = canSeeAllSettlements({ role }, myDepartment);
+  const scoped = seesAll
+    ? state.settlements
+    : state.settlements.filter(s => s.employeeId === state.currentEmployeeId);
 
   const filtered = scoped
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
-    .filter(s => role !== 'ADMIN' || employeeFilter === 'all' || s.employeeId === employeeFilter)
+    .filter(s => !seesAll || employeeFilter === 'all' || s.employeeId === employeeFilter)
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
@@ -83,7 +87,8 @@ export default function BasicSettlementTab({ role }: Props) {
           <option value="IN_PROGRESS">진행중</option>
           <option value="COMPLETED">정산완료</option>
         </select>
-        {role === 'ADMIN' && (
+        {/* 남의 것까지 보는 사람에게만 쓸모가 있다 — 자기 것만 보이면 고를 게 없다 */}
+        {seesAll && (
           <select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
             <option value="all">전체 담당자</option>

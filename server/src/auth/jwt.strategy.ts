@@ -27,13 +27,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload): Promise<AuthUser> {
     const employee = await this.prisma.employee.findUnique({
       where: { id: payload.sub },
-      select: { id: true, name: true, position: true, role: true, active: true },
+      select: { id: true, name: true, position: true, department: true, role: true, active: true },
     });
 
     if (!employee || !employee.active) {
       throw new UnauthorizedException('사용할 수 없는 계정입니다.');
     }
 
-    return { id: employee.id, name: employee.name, position: employee.position, role: employee.role };
+    return {
+      id: employee.id,
+      name: employee.name,
+      position: employee.position,
+      department: employee.department,
+      role: employee.role,
+    };
   }
 }

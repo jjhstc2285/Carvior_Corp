@@ -22,3 +22,16 @@ export function isOfficeManager(user: AuthUser | null): boolean {
   if (!user) return false;
   return user.role === 'ADMIN' || user.position.includes('사무장');
 }
+
+/**
+ * 남의 정산까지 볼 수 있는 사람.
+ *
+ * 매입은 매입팀이 해오고 빈칸은 계약팀이 채운다. 자기가 담당인 건만 보이면
+ * 정작 채워야 할 사람이 아무것도 못 본다.
+ *
+ * 부서로 가린다 — 사람이 바뀌어도 계약팀에 들어오면 그대로 보인다.
+ */
+export function canSeeAllSettlements(user: { role: string } | null, department?: string | null): boolean {
+  if (!user) return false;
+  return user.role !== 'EMPLOYEE' || department === '계약팀';
+}

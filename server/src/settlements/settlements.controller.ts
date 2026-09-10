@@ -10,14 +10,33 @@ import {
   UpdateSettlementDto,
 } from './dto/settlement.dto';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+
+/** 계약팀은 남의 정산도 본다 — 빈칸을 채우는 게 그 팀 일이다. */
+const CONTRACT_TEAM = '계약팀';
 import { assertOfficeManager } from '../auth/office-manager';
 
 @Controller('settlements')
 export class SettlementsController {
   constructor(private readonly settlements: SettlementsService) {}
 
-  /** 직원은 본인 담당 건만, 관리자는 전체(또는 담당자 지정) */
+  /**
+   * 직원은 본인 담당 건만, 관리자와 계약팀은 전체(또는 담당자 지정).
+   *
+   * 매입은 매입팀이 해오고 빈칸은 계약팀이 채운다. 자기가 담당인 건만 내려주면
+   * 정작 채워야 할 사람이 아무것도 못 본다.
+   */
   private scope(user: AuthUser, employeeId?: string) {
+    const seesAll = user.role === Role.ADMIN || user.department === CONTRACT_TEAM;
+    return seesAll ? employeeId : user.id;
+  }
+
+  /**
+   * 알선 정산은 본인 것만 본다 — 계약팀도 마찬가지다.
+   *
+   * 알선은 받아온 사람이 곧 정산받을 사람이라 남의 몫이 보일 이유가 없다.
+   * 매입 정산과 달리 남이 채워줄 빈칸도 없다.
+   */
+  private ownScope(user: AuthUser, employeeId?: string) {
     return user.role === Role.ADMIN ? employeeId : user.id;
   }
 
@@ -60,7 +79,7 @@ export class SettlementsController {
     @Query('month') month?: string,
     @Query('employeeId') employeeId?: string,
   ) {
-    return this.settlements.findBrokerage({ q, status, month, employeeId: this.scope(user, employeeId) });
+    return this.settlements.findBrokerage({ q, status, month, employeeId: this.ownScope(user, employeeId) });
   }
 
   @Post('brokerage')

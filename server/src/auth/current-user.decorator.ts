@@ -6,6 +6,8 @@ export interface AuthUser {
   name: string;
   /** 직급 — 대표 / 본부장 / 사무장 … 화면을 직급으로 가르는 데 쓴다 */
   position: string;
+  /** 부서 — 계약팀처럼 팀 단위로 갈리는 일이 있다(계약팀은 남의 정산도 본다) */
+  department: string | null;
   role: Role;
 }
 
