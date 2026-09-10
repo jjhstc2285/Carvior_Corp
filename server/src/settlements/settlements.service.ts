@@ -225,11 +225,13 @@ export class SettlementsService {
   /**
    * 알선 정산에 적은 값을 매입 정산으로 옮긴다.
    *
-   *   총 진행 판매금액  →  차량판매가
+   *   실차주입금  →  차량판매가
    *   이전비 + 이전비 잔액  →  이전비 + 추가이전비
    *
    * 같은 차를 두 곳에 적게 하지 않는다 — 얼마에 팔았고 이전비가 얼마 들었는지는
    * 알선팀이 먼저 아는 값이고, 계약팀이 그걸 옮겨 적으면 어느 쪽이 맞는지 알 수 없게 된다.
+   *
+   * 총 진행 판매금액이 아니라 실차주입금을 쓴다 — 실제로 들어온 돈이 그쪽이다.
    *
    * 둘 다 원 단위라 환산하지 않는다(알선 정산도 원으로 적는다).
    *
@@ -241,14 +243,14 @@ export class SettlementsService {
    */
   private async syncFromBrokerage(row: {
     vehicleNumber: string;
-    totalSaleAmount: number;
+    ownerDeposit: number;
     transferFee: number;
     transferFeeBalance: number;
     date: Date;
   }): Promise<'updated' | 'already' | 'noMatch'> {
     // 이전비 잔액이 매입 정산의 '추가이전비' 자리다. 둘을 더해 한 칸에 넣는다.
     const transferFee = row.transferFee + row.transferFeeBalance;
-    if (row.totalSaleAmount <= 0 && transferFee <= 0) return 'already';
+    if (row.ownerDeposit <= 0 && transferFee <= 0) return 'already';
 
     try {
       const plates = [...new Set([row.vehicleNumber, normalizePlate(row.vehicleNumber)])].filter(Boolean);
@@ -266,11 +268,11 @@ export class SettlementsService {
        * 목록에 안 보이고, 지난 달을 뒤져야 나온다 — 정산은 판 다음에 하는 일이다.
        * 매입일은 매입 관리에 그대로 남아 있으니 여기서 또 들고 있을 필요가 없다.
        */
-      const sold = row.totalSaleAmount > 0;
+      const sold = row.ownerDeposit > 0;
 
       // 0으로 덮어써서 이미 적어둔 값을 지우지 않는다 — 안 적은 칸은 그대로 둔다.
       const data = {
-        ...(sold && target.salePrice !== row.totalSaleAmount ? { salePrice: row.totalSaleAmount } : {}),
+        ...(sold && target.salePrice !== row.ownerDeposit ? { salePrice: row.ownerDeposit } : {}),
         ...(transferFee > 0 && target.transferFee !== transferFee ? { transferFee } : {}),
         ...(sold && formatDateOnly(target.date) !== formatDateOnly(row.date) ? { date: row.date } : {}),
       };
@@ -299,7 +301,7 @@ export class SettlementsService {
     const rows = await this.prisma.brokerageSettlement.findMany({
       select: {
         vehicleNumber: true,
-        totalSaleAmount: true,
+        ownerDeposit: true,
         transferFee: true,
         transferFeeBalance: true,
         date: true,
@@ -325,7 +327,7 @@ export class SettlementsService {
      * 판매금액을 안 적은 건지, 차량번호가 매입 정산과 안 겹치는 건지 —
      * 셋은 고칠 방법이 완전히 다르다.
      */
-    const withAmount = rows.filter((r) => r.totalSaleAmount > 0).length;
+    const withAmount = rows.filter((r) => r.ownerDeposit > 0).length;
     const purchasePlates = new Set(
       (await this.prisma.purchaseSettlement.findMany({ select: { vehicleNumber: true } })).map((p) =>
         normalizePlate(p.vehicleNumber),
