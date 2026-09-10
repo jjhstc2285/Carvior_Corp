@@ -11,6 +11,7 @@ import {
   PREP_COST_LABEL,
   prepBreakdown,
   saleProfit,
+  SALE_TAX_RATE,
   SETTLEMENT_STAGE_CLASS,
   SETTLEMENT_STAGE_LABEL,
   purchaseGrandTotal,
@@ -403,7 +404,12 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">차량비용(원)</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">총합계(원)</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600">차량판매가</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600">판매수익</th>
+                <th
+                  className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600"
+                  title={`차량판매가 − 총합계 − 세금 ${SALE_TAX_RATE * 100}%`}
+                >
+                  판매수익
+                </th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">담당자</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">결재</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">상태</th>

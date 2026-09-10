@@ -174,17 +174,24 @@ export interface SaleFields {
   brokerFee: number;
 }
 
+/** 판매수익에서 떼는 세금 */
+export const SALE_TAX_RATE = 0.133;
+
 /**
- * 판매수익 = 차량판매가 − 총합계
+ * 판매수익 = (차량판매가 − 총합계) − 세금 13.3%
  *
  * 그 차에 들어간 돈을 다 더한 게 총합계(총비용 + 주유·배터리·주차 같은 차량비용)다.
- * 판 값에서 그걸 빼면 그 차 한 대에서 남은 돈이 나온다.
+ * 판 값에서 그걸 빼면 남은 돈이 나오고, 거기서 세금을 뗀 게 실제로 손에 쥐는 돈이다.
+ *
+ * 손해면 그대로 둔다 — 뗄 세금이 없는데 13.3%를 빼면 손해가 줄어든 것처럼 보인다.
  *
  * 현금 수수료·할부 피·보험 피·차대금업은 적어두기만 하고 여기서는 안 센다.
  * 아직 안 판 차는 차량판매가가 0이라 총합계만큼 마이너스로 나온다 — 판 다음에 본다.
  */
 export function saleProfit(salePrice: number, grandTotalWon: number): number {
-  return salePrice - grandTotalWon;
+  const gross = salePrice - grandTotalWon;
+  if (gross <= 0) return gross;
+  return Math.round(gross * (1 - SALE_TAX_RATE));
 }
 
 // ── 차량비용(주유·배터리·주차) 연동 ──

@@ -8,6 +8,7 @@ import {
   purchaseGrandTotal,
   purchasePrepTotal,
   saleProfit,
+  SALE_TAX_RATE,
   type BrokerFeePayout,
   type PurchaseSettlement,
   type SettlementStatus,
@@ -162,7 +163,12 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         <div className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
           <CalcRow label="상품화총비용" formula="광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비 (이전비·구전 제외)" value={prepTotal} />
           <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상품화총비용" value={grandTotal} strong />
-          <CalcRow label="판매수익" formula="차량판매가 − 총비용 (주유·배터리 같은 차량비용은 표에서 더합니다)" value={profit} strong />
+          <CalcRow
+            label="판매수익"
+            formula={`차량판매가 − 총비용 − 세금 ${SALE_TAX_RATE * 100}% (주유·배터리 같은 차량비용은 표에서 더합니다)`}
+            value={profit}
+            strong
+          />
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
