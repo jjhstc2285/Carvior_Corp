@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -12,6 +12,7 @@ import {
 } from '@dnd-kit/core';
 import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
+import { Search } from 'lucide-react';
 import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
@@ -41,10 +42,15 @@ function ParkingCell({
   pos,
   vehicle,
   onClick,
+  highlight,
+  cellRef,
 }: {
   pos: CellPos;
   vehicle: ParkingVehicle | null;
   onClick: () => void;
+  /** 찾는 차가 여기 있다 — 눈에 띄게 칠하고 화면을 여기로 옮긴다 */
+  highlight: boolean;
+  cellRef?: (el: HTMLTableCellElement | null) => void;
 }) {
   const { setNodeRef: dropRef, isOver } = useDroppable({ id: `cell:${cellKey(pos)}`, data: pos });
   const { setNodeRef: dragRef, attributes, listeners, isDragging } = useDraggable({
@@ -54,13 +60,21 @@ function ParkingCell({
   });
 
   return (
-    <td ref={dropRef} className="border border-slate-100 p-0">
+    <td
+      ref={el => {
+        dropRef(el);
+        cellRef?.(el);
+      }}
+      className={`border p-0 transition-colors ${
+        highlight ? 'border-indigo-500 ring-2 ring-inset ring-indigo-400' : 'border-slate-100'
+      }`}
+    >
       <button
         ref={dragRef}
         {...attributes}
         {...listeners}
         onClick={onClick}
-        className={`flex min-h-11 w-full flex-col items-center justify-center gap-0.5 px-1 py-1 text-center transition-colors ${
+        className={`flex min-h-14 w-full flex-col items-center justify-center gap-0.5 px-1 py-1 text-center transition-colors ${
           isOver
             ? 'bg-indigo-200 ring-2 ring-inset ring-indigo-500'
             : vehicle
@@ -75,12 +89,19 @@ function ParkingCell({
               {vehicle.vehicleNumber}
             </span>
             {/*
-              메모는 "3시", "재검", "외부 고색"처럼 그 자리에서 바로 알아야 하는 말이 적힌다.
-              칸이 좁아 한 줄로는 차량번호에 묻히니 아래 줄에 따로 둔다.
+              차명과 메모를 번호 아래 한 줄씩 둔다.
+              번호만 보고는 어느 차인지 바로 안 떠오르고, 메모에는 "3시", "재검",
+              "외부 고색"처럼 그 자리에서 알아야 하는 말이 적힌다.
+              칸이 좁아 한 줄로 묶으면 번호에 묻히니 줄을 나눈다.
               길면 잘라 보여주고 전체는 마우스를 올려 본다.
             */}
+            {vehicle.vehicleModel && (
+              <span className="w-full truncate text-[10px] leading-tight opacity-80" title={vehicle.vehicleModel}>
+                {vehicle.vehicleModel}
+              </span>
+            )}
             {vehicle.memo && (
-              <span className="w-full truncate text-[10px] leading-tight opacity-70" title={vehicle.memo}>
+              <span className="w-full truncate text-[10px] leading-tight opacity-60" title={vehicle.memo}>
                 {vehicle.memo}
               </span>
             )}
@@ -105,6 +126,45 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
   const [dragging, setDragging] = useState<ParkingVehicle | null>(null);
   // 주차장이 열 곳이 넘어 다 펼치면 표가 너무 길다 — 본관/외부로 나눠 본다.
   const [group, setGroup] = useState<ParkingGroup>('본관');
+  const [query, setQuery] = useState('');
+  /** 찾은 칸 — 화면을 그리로 옮긴다 */
+  const foundRef = useRef<HTMLTableCellElement | null>(null);
+
+  /**
+   * 찾는 차.
+   *
+   * 뒤 네 자리만 쳐도 찾는다 — 무전으로 부를 때 앞자리까지 부르는 사람은 없다.
+   * 차명으로도 찾는다("모닝"). 여러 대가 걸리면 첫 대만 가리킨다.
+   */
+  const found = useMemo(() => {
+    const q = query.replace(/\s+/g, '');
+    if (q.length < 2) return null;
+    return (
+      state.parkingVehicles.find(
+        v => v.vehicleNumber.replace(/\s+/g, '').includes(q) || v.vehicleModel.includes(q),
+      ) ?? null
+    );
+  }, [query, state.parkingVehicles]);
+
+  /**
+   * 찾은 차가 다른 묶음에 있으면 그 묶음으로 넘어간다.
+   *
+   * 본관을 보고 있는데 차가 외부에 있으면 아무리 칠해도 안 보인다.
+   */
+  useEffect(() => {
+    if (!found) return;
+    const lot = PARKING_LOTS.find(l => l.lot === found.lot);
+    if (lot && lot.group !== group) setGroup(lot.group);
+  }, [found, group]);
+
+  // 칸이 그려진 다음에 옮긴다 — 묶음이 바뀌면 표가 새로 그려진다.
+  useEffect(() => {
+    if (!found) return;
+    const timer = window.setTimeout(() => {
+      foundRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [found, group]);
 
   /**
    * 손가락으로도 끌 수 있게 포인터 하나로 마우스·터치를 같이 받는다.
@@ -144,6 +204,28 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
         <p className="text-xs text-slate-400">
           차를 <b>꾹 눌러</b> 다른 칸에 놓으면 자리가 바뀝니다. 그 칸에 차가 있으면 서로 맞바뀝니다. (휴대폰도 됩니다)
         </p>
+
+        {/* 차를 찾으면 그 칸으로 화면을 옮기고 테두리를 칠한다 */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="차량번호·차명으로 자리 찾기"
+              className="w-56 rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-2 text-sm outline-none focus:border-indigo-400"
+            />
+          </div>
+          {query.replace(/\s+/g, '').length >= 2 &&
+            (found ? (
+              <span className="text-xs font-semibold text-indigo-700">
+                {found.lot} {found.zone} {found.slot}
+                <span className="ml-1.5 font-normal text-slate-500">{found.vehicleModel}</span>
+              </span>
+            ) : (
+              <span className="text-xs text-slate-400">구역도에 없습니다</span>
+            ))}
+        </div>
 
         {/* 묶음 탭 — 어느 주차장에 차가 몇 대 있는지도 같이 보여준다 */}
         <div className="flex w-fit rounded-lg bg-slate-100 p-0.5 text-sm">
@@ -206,7 +288,9 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
                               key={zone}
                               pos={pos}
                               vehicle={v}
-                                                  onClick={() => onCellClick(lot, zone, slot, v)}
+                              highlight={found != null && v?.id === found.id}
+                              cellRef={found != null && v?.id === found.id ? el => (foundRef.current = el) : undefined}
+                              onClick={() => onCellClick(lot, zone, slot, v)}
                             />
                           );
                         })}
