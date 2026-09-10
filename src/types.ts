@@ -524,10 +524,33 @@ export function prepBreakdown(costs: { kind: PrepCostKind; amount: number }[]): 
 }
 
 /**
- * 총비용 = 매입가 + 이전비 + 구전 + 상품화총비용
+ * 상사 이전비 — 매입가로 정해진다.
+ *
+ *   500만원 이하    5만원
+ *   500만원 초과    매입가의 1%
+ *   3000만원 이상   30만원 (최고)
+ *
+ * 세 줄이 이어져 있다. 500만원에서 1%가 곧 5만원이고 3000만원에서 1%가 곧 30만원이라,
+ * 결국 '1%를 내되 5만원 밑으로도 30만원 위로도 안 간다'는 한 문장이다.
+ * 구간을 if 로 늘어놓는 대신 그렇게 적는다 — 경계에서 값이 튀지 않는다.
+ */
+export const DEALER_FEE_RATE = 0.01;
+export const DEALER_FEE_MIN = 50_000;
+export const DEALER_FEE_MAX = 300_000;
+
+export function dealerTransferFee(purchasePrice: number): number {
+  if (purchasePrice <= 0) return 0;
+  const fee = Math.round(purchasePrice * DEALER_FEE_RATE);
+  return Math.min(Math.max(fee, DEALER_FEE_MIN), DEALER_FEE_MAX);
+}
+
+/**
+ * 총비용 = 매입가 + 이전비 + 구전 + 상사 이전비 + 상품화총비용
  *
  * 그 차에 들어간 돈을 다 더한다. 예전에는 이전비와 구전이 빠져 있어서,
  * 이전비 121만원을 적어도 총비용은 매입가 그대로였다.
+ *
+ * 상사 이전비는 매입가로 정해지는 값이라 따로 받지 않고 여기서 낸다.
  */
 export function purchaseGrandTotal(
   purchasePrice: number,
@@ -535,7 +558,7 @@ export function purchaseGrandTotal(
   transferFee = 0,
   brokerFee = 0,
 ): number {
-  return purchasePrice + transferFee + brokerFee + prepTotal;
+  return purchasePrice + transferFee + brokerFee + dealerTransferFee(purchasePrice) + prepTotal;
 }
 
 // ── 판매 쪽 (매입 정산) ──

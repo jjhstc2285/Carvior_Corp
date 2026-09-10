@@ -14,6 +14,7 @@ import {
   SALE_TAX_RATE,
   SETTLEMENT_STAGE_CLASS,
   SETTLEMENT_STAGE_LABEL,
+  dealerTransferFee,
   purchaseGrandTotal,
   purchasePrepTotal,
   SETTLEMENT_STATUS_LABEL,
@@ -222,6 +223,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
       // 항목별 합계 6칸 — 업체별 세부는 '상품화 명세' 열에 풀어 쓴다.
       ...Object.fromEntries(PREP_COST_KINDS.map(k => [`${PREP_COST_LABEL[k]}(원)`, breakdownOf(s)[k]])),
       '구전(원)': s.brokerFee,
+      '상사 이전비(원)': dealerTransferFee(s.purchasePrice),
       '상품화총비용(원)': prepTotalOf(s),
       '상품화 명세': (s.prepCosts ?? [])
         .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount.toLocaleString()}`)
@@ -399,6 +401,12 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">진단비</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">상품화총비용</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">구전</th>
+                <th
+                  className="whitespace-nowrap px-3 py-2.5 text-right font-medium"
+                  title="매입가의 1% (500만원 이하 5만원 · 3000만원 이상 30만원)"
+                >
+                  상사 이전비
+                </th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">총비용</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">정산금액</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">차량비용(원)</th>
@@ -418,7 +426,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={23} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={24} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => (
                 <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -434,6 +442,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   ))}
                   <td className="px-3 py-2.5 text-right font-medium text-amber-700">{MAN(prepTotalOf(s))}</td>
                   <td className="px-3 py-2.5 text-right text-slate-500">{MAN(s.brokerFee)}</td>
+                  {/* 매입가로 정해지는 값이라 따로 안 받고 계산해서 보여준다 */}
+                  <td className="px-3 py-2.5 text-right text-slate-500">{MAN(dealerTransferFee(s.purchasePrice))}</td>
                   <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">{MAN(grandTotalOf(s))}</td>
                   <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{MAN(s.settlementAmount)}</td>
                   <td
