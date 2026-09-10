@@ -324,14 +324,15 @@ export class DealerFeesService {
    * 회비는 매달 나가는데 검차도 안 맡기고 차도 안 주는 곳이 있다. 그런 곳을 찾으려면
    * 회비 옆에 실적이 같이 보여야 한다 — 장부만 봐서는 어디가 밑지는지 알 수가 없다.
    *
-   * 검차는 카비어에 접수된 건으로 세고, 매입은 매입 관리의 매입처로 센다.
+   * 검차는 카비어에 접수된 건으로 세고, 그중 매입가가 잡힌 건을 거래완료로 본다.
+   * 매입은 매입 관리의 매입처로 센다.
    * 영업소 이름과 적어 오는 이름이 달라서(BYD 서초 / byd서초 / BYD서초점) 띄어쓰기를
    * 지우고 소문자로 맞춘 다음, 한쪽이 다른 쪽에 들어 있으면 같은 곳으로 본다.
    *
    * 카비어가 막히면 검차는 0으로 두고 매입만 센다 — 장부 화면이 통째로 막히면 안 된다.
    */
   async activity(): Promise<
-    Record<string, { inspected: number; diagnosed: number; purchased: number; lastAt: string | null }>
+    Record<string, { inspected: number; completed: number; purchased: number; lastAt: string | null }>
   > {
     const dealers = await this.prisma.dealerFeeAccount.findMany({
       where: { active: true },
@@ -356,7 +357,7 @@ export class DealerFeesService {
 
     const result: Record<
       string,
-      { inspected: number; diagnosed: number; purchased: number; lastAt: string | null }
+      { inspected: number; completed: number; purchased: number; lastAt: string | null }
     > = {};
 
     for (const d of dealers) {
@@ -369,7 +370,8 @@ export class DealerFeesService {
 
       result[d.id] = {
         inspected: mine.length,
-        diagnosed: mine.filter((c) => c.reportUrl).length,
+        // 매입가가 적힌 건이 실제로 거래가 끝난 건이다.
+        completed: mine.filter((c) => (c.purchasePrice ?? 0) > 0).length,
         purchased: intakes.filter((i) => matches(d.dealerName, i.source)).length,
         lastAt: last ? formatDateOnly(new Date(last)) : null,
       };

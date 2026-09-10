@@ -34,7 +34,7 @@ export default function DealerFeeModule() {
    * 그런 곳을 찾으려면 회비 옆에 실적이 같이 보여야 한다.
    */
   const [activity, setActivity] = useState<
-    Record<string, { inspected: number; diagnosed: number; purchased: number; lastAt: string | null }>
+    Record<string, { inspected: number; completed: number; purchased: number; lastAt: string | null }>
   >({});
   const reqId = useRef(0);
 
@@ -136,7 +136,7 @@ export default function DealerFeeModule() {
       이체일: r.transferDayOfMonth || '',
       '매달 회비': r.monthlyFee || r.feeNote,
       '검차 누적': activity[r.id]?.inspected ?? 0,
-      진단완료: activity[r.id]?.diagnosed ?? 0,
+      거래완료: activity[r.id]?.completed ?? 0,
       매입: activity[r.id]?.purchased ?? 0,
       '최근 검차': activity[r.id]?.lastAt ?? '',
       자동이체여부: DEALER_FEE_METHOD_LABEL[r.method],
@@ -279,7 +279,7 @@ export default function DealerFeeModule() {
                 <th className="px-3 py-3 text-right font-medium">매달 회비</th>
                 <th
                   className="px-3 py-3 text-right font-medium"
-                  title="카비어에 접수된 검차 건수 / 그중 진단완료"
+                  title="카비어에 접수된 검차 건수 / 그중 거래완료(매입가가 잡힌 건)"
                 >
                   검차 누적
                 </th>
@@ -365,9 +365,9 @@ export default function DealerFeeModule() {
                   */}
                   <td className={`whitespace-nowrap px-3 py-2.5 text-right ${idle(r.id) ? 'font-bold text-red-600' : 'text-slate-700'}`}>
                     {activity[r.id]?.inspected ?? 0}
-                    {(activity[r.id]?.diagnosed ?? 0) > 0 && (
+                    {(activity[r.id]?.completed ?? 0) > 0 && (
                       <span className="ml-1 text-[11px] font-normal text-slate-400">
-                        (진단 {activity[r.id]?.diagnosed})
+                        (거래 {activity[r.id]?.completed})
                       </span>
                     )}
                   </td>
