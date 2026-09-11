@@ -218,7 +218,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           {field('날짜', <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />)}
           {field('고객번호', text(customerPhone, setCustomerPhone, '010-0000-0000 (없으면 비움)'))}
           {field('고객이름', text(customerName, setCustomerName, '이동훈 (없으면 비움)'))}
-          {field('실차 확인자', text(inspector, setInspector, '검차업체(예나)'))}
+          {field('실차 확인자', text(inspector, setInspector, '이름을 적으면 그 사람 앞으로 정산이 갑니다'))}
           {field('매입처', text(source, setSource, '아우디 평촌 류호성상조회장'), 'col-span-2 sm:col-span-4')}
         </div>
 

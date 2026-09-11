@@ -379,7 +379,7 @@ export class PurchaseIntakeService {
     await this.assertExists(id);
     const before = await this.prisma.purchaseIntake.findUnique({
       where: { id },
-      select: { checkedMileage: true },
+      select: { checkedMileage: true, inspector: true },
     });
     const vehicleNumber = dto.vehicleNumber !== undefined ? normalizePlate(dto.vehicleNumber) : undefined;
 
@@ -431,6 +431,12 @@ export class PurchaseIntakeService {
         mileage: row.checkedMileage || row.mileage,
         firstRegisteredOn: row.firstRegisteredOn,
       });
+    }
+
+    // 검차자를 이번에 적었으면 정산도 그 사람 앞으로 넘긴다.
+    // 카비어에서 자동으로 들어온 건은 검차자가 비어 있고, 실차를 본 사람이 나중에 적는다.
+    if (dto.inspector !== undefined && row.inspector !== before?.inspector) {
+      await this.moveSettlementOwner(row);
     }
 
     // 확인 주행거리를 이번에 적었을 때만 알린다 — 다른 칸을 고칠 때마다 또 울리면 안 된다.
@@ -560,6 +566,59 @@ export class PurchaseIntakeService {
    * 실패해도 매입 기록은 그대로 둔다 — 정산 줄 하나 때문에 매입을 못 남기면 안 된다.
    * 빠진 건은 정산 화면에서 다시 만들 수 있다.
    */
+  /**
+   * 정산 담당자 — 실차를 본 사람이다.
+   *
+   * 실차 검차자 칸에 이름을 적으면 그 사람 앞으로 정산이 간다. 차를 직접 보고
+   * 차키까지 세어 적은 사람이 그 차를 아는 사람이라, 빈칸을 채울 사람도 그 사람이다.
+   * 매입을 화면에 옮겨 적기만 한 사람이 아니다.
+   *
+   * 검차자 칸에는 '검차업체(예나)' 처럼 회사 이름이 섞여 들어온다. 이름이 들어 있는지만
+   * 본다. 긴 이름부터 봐야 '최수민'이 '수민'보다 먼저 맞는다.
+   * 못 찾으면 적은 사람 앞으로 둔다 — 담당자가 비면 목록에서 걸러지지도 않는다.
+   *
+   * 상담(알선)은 건드리지 않는다. 상담은 받은 사람이 끝까지 끌고 가는 일이다.
+   */
+  private async settlementOwner(inspector: string, fallback: string): Promise<string> {
+    const name = inspector.trim();
+    if (!name) return fallback;
+
+    const employees = await this.prisma.employee.findMany({
+      where: { active: true },
+      select: { id: true, name: true },
+    });
+    const found = [...employees]
+      .sort((a, b) => b.name.length - a.name.length)
+      .find((e) => e.name.length > 1 && name.includes(e.name));
+
+    return found?.id ?? fallback;
+  }
+
+  /**
+   * 검차자가 바뀌면 그 차의 정산 담당자도 옮긴다.
+   *
+   * 승인이 찍힌 정산은 건드리지 않는다 — 결재한 뒤에 담당자가 저절로 바뀌면
+   * 누구 걸 보고 찍었는지가 남지 않는다.
+   */
+  private async moveSettlementOwner(row: {
+    vehicleNumber: string;
+    date: Date;
+    inspector: string;
+    employeeId: string;
+  }): Promise<void> {
+    try {
+      const owner = await this.settlementOwner(row.inspector, row.employeeId);
+      const { count } = await this.prisma.purchaseSettlement.updateMany({
+        where: { vehicleNumber: row.vehicleNumber, date: row.date, chiefApprovedAt: null },
+        data: { employeeId: owner },
+      });
+      if (count > 0) this.logger.log(`${row.vehicleNumber} 정산 담당자를 검차자 앞으로 옮겼습니다.`);
+    } catch (e) {
+      // 못 옮겨도 매입 수정은 그대로 저장된다 — 정산에서 담당자를 고치면 된다.
+      this.logger.warn(`정산 담당자를 못 옮겼습니다(${row.vehicleNumber}): ${(e as Error).message}`);
+    }
+  }
+
   private async createSettlementDraft(row: {
     vehicleNumber: string;
     vehicleName: string;
@@ -567,6 +626,7 @@ export class PurchaseIntakeService {
     purchaseAmount: number;
     brokerFee: number;
     brokerFeeType: BrokerFeeType;
+    inspector: string;
     employeeId: string;
   }): Promise<void> {
     try {
@@ -589,7 +649,7 @@ export class PurchaseIntakeService {
           // 상품화가 아직 안 끝나서 총비용을 모른다. 0 으로 두면 '매입가만큼 정산'으로
           // 잘못 굳으므로 계약팀이 채운 다음에 내게 한다.
           settlementAmount: 0,
-          employeeId: row.employeeId,
+          employeeId: await this.settlementOwner(row.inspector, row.employeeId),
           memo: '',
         },
       });
