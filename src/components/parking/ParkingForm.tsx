@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import dayjs from 'dayjs';
 import { Trash2, X } from 'lucide-react';
 import { useStore } from '../../store';
-import { ApiError } from '../../lib/api';
+import { api, ApiError } from '../../lib/api';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import { PARKING_LOTS, PARKING_SLOTS } from '../../lib/parkingLayout';
 import { confirmDanger } from '../../lib/alert';
+import { REINSPECT_MONTHS, reinspectLabel } from '../../lib/reinspection';
 
 interface Props {
   editing: ParkingVehicle | null;
@@ -25,6 +27,13 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
   const [status, setStatus] = useState<ParkingStatus>(editing?.status ?? 'DISPLAY');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [memo, setMemo] = useState(editing?.memo ?? '');
+  /*
+    재검 받은 날.
+
+    차량 관리에 있는 값이지만, 적는 건 주차장에서 차를 보고 하는 일이라 여기에 둔다.
+    비워두면 이전일자로 센다 — 아직 한 번도 안 받은 차다.
+  */
+  const [lastInspectedOn, setLastInspectedOn] = useState(editing?.lastInspectedOn ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -57,6 +66,14 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
         employeeId,
         memo,
       });
+
+      // 재검일은 차량 관리 쪽 값이라 따로 적는다. 안 바뀌었으면 부르지 않는다.
+      if (lastInspectedOn !== (editing?.lastInspectedOn ?? '') && lastInspectedOn) {
+        await api('/parking/reinspected', {
+          method: 'POST',
+          body: { vehicleNumber: vehicleNumber.trim(), date: lastInspectedOn },
+        });
+      }
       onClose();
     } catch (e) {
       // 중복 차량번호 같은 서버 판단은 여기서만 알 수 있다 — 그대로 보여준다.
@@ -144,6 +161,45 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
               {state.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </div>
+          {/*
+            재검은 이전일자로부터 넉 달이다. 받고 나면 그날부터 다시 넉 달을 세므로
+            받은 날을 여기 적는다 — 안 적으면 받고도 계속 빨갛게 떠 있는다.
+            등록하는 화면(아직 차가 없을 때)에는 띄우지 않는다.
+          */}
+          {editing && (
+            <div className="col-span-2">
+              <label className="mb-1 block text-xs font-semibold text-slate-500">재검 받은 날</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={lastInspectedOn}
+                  onChange={e => setLastInspectedOn(e.target.value)}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setLastInspectedOn(dayjs().format('YYYY-MM-DD'))}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  오늘 받음
+                </button>
+                {editing.reinspect && (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                      editing.reinspect.level === 'DUE' ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {reinspectLabel(editing.reinspect)}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                적으면 그날부터 다시 {REINSPECT_MONTHS}개월을 셉니다. 비워두면 이전일자
+                {editing.transferDate ? ` (${editing.transferDate})` : ''}로 셉니다.
+              </p>
+            </div>
+          )}
+
           <div className="col-span-2">
             <label className="mb-1 block text-xs font-semibold text-slate-500">메모</label>
             <input value={memo} onChange={e => setMemo(e.target.value)}
