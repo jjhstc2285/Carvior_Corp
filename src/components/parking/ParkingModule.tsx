@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlertTriangle, Download, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, Download, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import ParkingForm from './ParkingForm';
@@ -8,6 +8,7 @@ import ParkingGrid from './ParkingGrid';
 import SheetImportModal from './SheetImportModal';
 import MoveSuggestions from './MoveSuggestions';
 import { alertError, confirmDanger } from '../../lib/alert';
+import { api, ApiError } from '../../lib/api';
 import { PARKING_LOTS } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 import { REINSPECT_MONTHS, reinspectLabel } from '../../lib/reinspection';
@@ -59,6 +60,31 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
     [state.parkingVehicles],
   );
   const overdue = dueReinspect.filter(v => v.reinspect?.level === 'DUE');
+
+  /**
+   * 재검을 받았다고 적는다 — 그날부터 다시 넉 달을 센다.
+   *
+   * 받은 날을 고를 수 있게 한다. 정비소에 맡겼다가 며칠 뒤에 적는 일이 흔한데,
+   * 무조건 오늘로 적으면 갚을 날이 뒤로 밀린다.
+   */
+  const markReinspected = async (v: ParkingVehicle) => {
+    const date = window.prompt(
+      `${v.vehicleNumber} ${v.vehicleModel}
+재검 받은 날을 적어주세요 (YYYY-MM-DD)`,
+      dayjs().format('YYYY-MM-DD'),
+    );
+    if (!date) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) {
+      void alertError('날짜를 다시 확인해 주세요', '2026-09-12 처럼 적어주세요.');
+      return;
+    }
+    try {
+      await api('/parking/reinspected', { method: 'POST', body: { vehicleNumber: v.vehicleNumber, date: date.trim() } });
+      await refresh();
+    } catch (e) {
+      void alertError('적지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
 
   const handleCellClick = (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => {
     // 차를 대고 자리를 적는 건 현장에서 하는 일이라 직원도 빈 칸을 누를 수 있다.
@@ -125,6 +151,13 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
                   {v.lot} {v.zone} {v.slot}
                 </span>
                 <span className="ml-1.5 font-bold">{v.reinspect && reinspectLabel(v.reinspect)}</span>
+                {/* 받고 와서 그 자리에서 적는다 — 적으면 그날부터 다시 넉 달을 센다 */}
+                <button
+                  onClick={() => void markReinspected(v)}
+                  className="ml-1.5 rounded-md bg-slate-700 px-1.5 py-0.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                >
+                  재검 완료
+                </button>
               </li>
             ))}
           </ul>
@@ -213,8 +246,18 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
                       >
                         {reinspectLabel(v.reinspect)}
                       </span>
+                    ) : v.lastInspectedOn ? (
+                      <span className="text-xs text-slate-400">{v.lastInspectedOn} 재검</span>
                     ) : (
                       <span className="text-xs text-slate-300">{v.transferDate ?? '이전일자 없음'}</span>
+                    )}
+                    {v.reinspect && (
+                      <button
+                        onClick={() => void markReinspected(v)}
+                        className="ml-1.5 inline-flex items-center gap-0.5 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        <Check size={10} /> 재검 완료
+                      </button>
                     )}
                   </td>
                   <td className="px-5 py-2.5 text-slate-500">{employeeOf(v.employeeId)?.name ?? '-'}</td>

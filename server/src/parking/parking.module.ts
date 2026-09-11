@@ -13,7 +13,8 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { DATE_PATTERN } from '../common/dto';
 import { NotificationType, ParkingStatus, Prisma, Role } from '@prisma/client';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -22,8 +23,8 @@ import { collectPlates, parseParkingSheet, type ParsedSpot, type SkippedCell } f
 import { normalizePlate, plateTailOf } from '../vehicles/vehicle.rules';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
-import { formatDateOnlyOrNull, todayKst } from '../common/date.util';
-import { reinspectionOf, reinspectLabel, type Reinspection } from './reinspection';
+import { formatDateOnlyOrNull, toDateOnly, todayKst } from '../common/date.util';
+import { reinspectBaseOf, reinspectionOf, reinspectLabel, type Reinspection } from './reinspection';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { PushModule } from '../push/push.module';
@@ -40,6 +41,12 @@ export class UpsertParkingDto {
   @IsOptional() @IsEnum(ParkingStatus) status?: ParkingStatus;
   @IsString() @IsNotEmpty() employeeId!: string;
   @IsOptional() @IsString() memo?: string;
+}
+
+/** 재검을 받았다고 적을 때 — 차량번호와 받은 날 */
+export class MarkReinspectedDto {
+  @IsString() @IsNotEmpty({ message: '차량번호를 입력해 주세요.' }) @MaxLength(30) vehicleNumber!: string;
+  @Matches(DATE_PATTERN, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) date!: string;
 }
 
 /** 자리 이동 — 끌어다 놓은 칸 */
@@ -225,22 +232,57 @@ export class ParkingService {
    * 어느 쪽이 맞는지 알 수 없게 된다 — 저장하지 않고 볼 때마다 붙인다.
    */
   private async withReinspection<T extends { vehicleNumber: string }>(rows: T[]) {
-    if (rows.length === 0) return rows.map((r) => ({ ...r, transferDate: null, reinspect: null }));
+    if (rows.length === 0) {
+      return rows.map((r) => ({ ...r, transferDate: null, lastInspectedOn: null, reinspect: null }));
+    }
 
     const vehicles = await this.prisma.managedVehicle.findMany({
       where: { vehicleNumber: { in: rows.map((r) => r.vehicleNumber) } },
-      select: { vehicleNumber: true, transferDate: true },
+      select: { vehicleNumber: true, transferDate: true, lastInspectedOn: true },
     });
     // 띄어쓰기가 섞여 들어온 번호가 남아 있어 양쪽을 같은 모양으로 맞춰 짝짓는다.
-    const transferOf = new Map(
-      vehicles.map((v) => [normalizePlate(v.vehicleNumber), formatDateOnlyOrNull(v.transferDate)]),
+    const dateOf = new Map(
+      vehicles.map((v) => [
+        normalizePlate(v.vehicleNumber),
+        {
+          transferDate: formatDateOnlyOrNull(v.transferDate),
+          lastInspectedOn: formatDateOnlyOrNull(v.lastInspectedOn),
+        },
+      ]),
     );
 
     const today = todayKst();
     return rows.map((r) => {
-      const transferDate = transferOf.get(normalizePlate(r.vehicleNumber)) ?? null;
-      return { ...r, transferDate, reinspect: reinspectionOf(transferDate, today) };
+      const dates = dateOf.get(normalizePlate(r.vehicleNumber)) ?? { transferDate: null, lastInspectedOn: null };
+      // 재검을 받았으면 그날부터 다시 넉 달을 센다
+      return { ...r, ...dates, reinspect: reinspectionOf(reinspectBaseOf(dates), today) };
     });
+  }
+
+  /**
+   * 재검을 받았다고 적는다 — 그날부터 다시 넉 달을 센다.
+   *
+   * 주차장에 선 차를 보고 적는 일이라 차량번호로 찾는다. 차량 관리에 없는 번호면
+   * 적을 자리가 없다 — 그건 먼저 차를 올려야 한다.
+   */
+  async markReinspected(vehicleNumber: string, date: string) {
+    const plate = normalizePlate(vehicleNumber);
+    const vehicle = await this.prisma.managedVehicle.findUnique({
+      where: { vehicleNumber: plate },
+      select: { id: true },
+    });
+    if (!vehicle) throw new NotFoundException('차량 관리에 없는 차량번호입니다.');
+
+    const row = await this.prisma.managedVehicle.update({
+      where: { id: vehicle.id },
+      data: { lastInspectedOn: toDateOnly(date) },
+      select: { vehicleNumber: true, transferDate: true, lastInspectedOn: true },
+    });
+    const dates = {
+      transferDate: formatDateOnlyOrNull(row.transferDate),
+      lastInspectedOn: formatDateOnlyOrNull(row.lastInspectedOn),
+    };
+    return { ...row, ...dates, reinspect: reinspectionOf(reinspectBaseOf(dates), todayKst()) };
   }
 
   /**
@@ -250,7 +292,16 @@ export class ParkingService {
    * 묻히면 알림이 있으나 마나가 된다.
    */
   async dueReinspections(): Promise<
-    { vehicleNumber: string; vehicleModel: string; lot: string; zone: string; slot: string; transferDate: string | null; reinspect: Reinspection }[]
+    {
+      vehicleNumber: string;
+      vehicleModel: string;
+      lot: string;
+      zone: string;
+      slot: string;
+      transferDate: string | null;
+      lastInspectedOn: string | null;
+      reinspect: Reinspection;
+    }[]
   > {
     const rows = await this.prisma.parkingVehicle.findMany({
       select: { vehicleNumber: true, vehicleModel: true, lot: true, zone: true, slot: true },
@@ -281,7 +332,7 @@ export class ParkingService {
 
     const lines = due.map(
       (r) =>
-        `${r.vehicleNumber} ${r.vehicleModel} (${r.lot} ${r.zone} ${r.slot} · 이전 ${r.transferDate} · ${reinspectLabel(r.reinspect)})`.replace(
+        `${r.vehicleNumber} ${r.vehicleModel} (${r.lot} ${r.zone} ${r.slot} · ${r.lastInspectedOn ? `재검 ${r.lastInspectedOn}` : `이전 ${r.transferDate}`} · ${reinspectLabel(r.reinspect)})`.replace(
           /\s+/g,
           ' ',
         ),
@@ -425,6 +476,16 @@ export class ParkingService {
 @Controller('parking')
 export class ParkingController {
   constructor(private readonly parking: ParkingService) {}
+
+  /**
+   * 재검을 받았다고 적는다 — 그날부터 다시 넉 달을 센다.
+   *
+   * 차를 보고 그 자리에서 적는 일이라 전 직원이 적을 수 있다(주차 자리를 옮기는 것과 같다).
+   */
+  @Post('reinspected')
+  markReinspected(@Body() dto: MarkReinspectedDto) {
+    return this.parking.markReinspected(dto.vehicleNumber, dto.date);
+  }
 
   /** 구역도·리스트 모두 전 직원이 본다 */
   @Get()

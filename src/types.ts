@@ -753,6 +753,8 @@ export interface ParkingVehicle {
   // ── 서버 파생값 ── (차량관리의 이전일자를 차량번호로 짝지어 붙여 준다)
   /** 이전일자 — 차량관리에 없는 번호면 null */
   transferDate?: string | null;
+  /** 재검을 받은 날 — 받았으면 이 날부터 다시 넉 달을 센다 */
+  lastInspectedOn?: string | null;
   /** 재검 시기. 아직 멀었으면 null */
   reinspect?: Reinspection | null;
 }
