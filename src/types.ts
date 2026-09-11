@@ -303,6 +303,22 @@ export interface BrokerageSettlement {
   status: SettlementStatus;
   memo: string;
   createdAt: string;
+
+  // ── 결재 ── (매입 정산과 같은 흐름 — 본부장 → 대표)
+  /** 계약서 사진 경로 — 한 장 */
+  contractPhotos?: string;
+  /** 담당자가 다 채워 올린 때 */
+  submittedAt?: string | null;
+  chiefApprovedAt?: string | null;
+  chiefApprover?: string;
+  ceoApprovedAt?: string | null;
+  ceoApprover?: string;
+  /** 서버가 날짜로 내주는 단계 */
+  stage?: SettlementStage;
+  /** 본부장이 찍은 뒤부터는 못 고친다 */
+  locked?: boolean;
+  /** 본부장을 거치는 건인가 — 담당자에 따라 대표만 찍는 건이 있다 */
+  chiefRequired?: boolean;
 }
 
 /**

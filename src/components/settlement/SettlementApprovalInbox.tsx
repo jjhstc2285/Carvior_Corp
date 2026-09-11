@@ -9,11 +9,14 @@ import { ContractPhotoThumb } from './ContractPhotos';
 import {
   SETTLEMENT_STAGE_CLASS,
   SETTLEMENT_STAGE_LABEL,
+  brokerageProfit,
+  type BrokerageSettlement,
   type PurchaseSettlement,
+  type SettlementStage,
 } from '../../types';
 
 /**
- * 매입 정산 승인함.
+ * 정산 승인함 — 매입·알선 두 가지를 한 자리에서.
  *
  * 정산 화면은 달로 걸러 보는 곳이라 지난 달에 올라온 건이 눈에 안 띈다. 결재를 기다리는
  * 건은 대시보드에서 바로 보여야 한다 — 찾으러 들어가야 하는 결재는 밀린다.
@@ -25,18 +28,61 @@ import {
 const CHIEF_APPROVER = '안원용';
 const CEO_APPROVER = '유진욱';
 
+/** 매입·알선을 한 줄로 놓고 보기 위한 최소 모양 */
+interface Pending {
+  kind: '매입' | '알선';
+  id: string;
+  vehicleNumber: string;
+  vehicleName: string;
+  employeeId: string;
+  amount: number;
+  contractPhotos?: string;
+  submittedAt?: string | null;
+  stage?: SettlementStage;
+  chiefRequired?: boolean;
+}
+
 export default function SettlementApprovalInbox() {
   const { user } = useAuth();
   const { state } = useStore();
-  const [rows, setRows] = useState<PurchaseSettlement[]>([]);
+  const [rows, setRows] = useState<Pending[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      setRows(await api<PurchaseSettlement[]>('/settlements/purchase/pending'));
-    } catch {
-      // 승인함이 없어도 정산 화면에서 처리할 수 있다 — 조용히 넘긴다.
-    }
+    // 한쪽이 실패해도 다른 쪽은 보여준다 — 승인함이 통째로 사라지면 결재가 밀린다.
+    const [purchase, brokerage] = await Promise.all([
+      api<PurchaseSettlement[]>('/settlements/purchase/pending').catch(() => []),
+      api<BrokerageSettlement[]>('/settlements/brokerage/pending').catch(() => []),
+    ]);
+    const merged: Pending[] = [
+      ...purchase.map(s => ({
+        kind: '매입' as const,
+        id: s.id,
+        vehicleNumber: s.vehicleNumber,
+        vehicleName: s.vehicleName,
+        employeeId: s.employeeId,
+        // 매입은 최종 합계가 결재의 기준이 되는 금액이다.
+        amount: s.grandTotalWon ?? 0,
+        contractPhotos: s.contractPhotos,
+        submittedAt: s.submittedAt,
+        stage: s.stage,
+        chiefRequired: s.chiefRequired,
+      })),
+      ...brokerage.map(s => ({
+        kind: '알선' as const,
+        id: s.id,
+        vehicleNumber: s.vehicleNumber,
+        vehicleName: s.vehicleName,
+        employeeId: s.employeeId,
+        // 알선은 수익금이 결재의 기준이다 — 정산받을금액은 그 안에서 나온다.
+        amount: brokerageProfit(s),
+        contractPhotos: s.contractPhotos,
+        submittedAt: s.submittedAt,
+        stage: s.stage,
+        chiefRequired: s.chiefRequired,
+      })),
+    ].sort((a, b) => (a.submittedAt ?? '').localeCompare(b.submittedAt ?? ''));
+    setRows(merged);
   }, []);
 
   useEffect(() => {
@@ -46,16 +92,17 @@ export default function SettlementApprovalInbox() {
   const role = user?.name === CHIEF_APPROVER ? 'CHIEF' : user?.name === CEO_APPROVER ? 'CEO' : null;
 
   /** 지금 이 사람이 찍을 차례인가 */
-  const myTurn = (s: PurchaseSettlement) => {
+  const myTurn = (s: Pending) => {
     if (role === 'CHIEF') return s.stage === 'SUBMITTED' && s.chiefRequired !== false;
     if (role === 'CEO') return s.stage === 'CHIEF' || (s.stage === 'SUBMITTED' && s.chiefRequired === false);
     return false;
   };
 
-  const approve = async (s: PurchaseSettlement) => {
+  const approve = async (s: Pending) => {
     setBusyId(s.id);
     try {
-      await api(`/settlements/purchase/${s.id}/approve`, { method: 'POST' });
+      const path = s.kind === '매입' ? 'purchase' : 'brokerage';
+      await api(`/settlements/${path}/${s.id}/approve`, { method: 'POST' });
       await load();
     } catch (e) {
       void alertError('승인하지 못했습니다', e instanceof ApiError ? e.message : '');
@@ -72,7 +119,7 @@ export default function SettlementApprovalInbox() {
     <section className="rounded-2xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3.5">
         <Stamp size={15} className="text-indigo-700" />
-        <h2 className="text-sm font-bold text-slate-800">매입 정산 결재 {rows.length}건</h2>
+        <h2 className="text-sm font-bold text-slate-800">정산 결재 {rows.length}건</h2>
         {mine > 0 && (
           <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
             내 차례 {mine}건
@@ -82,7 +129,14 @@ export default function SettlementApprovalInbox() {
 
       <ul className="divide-y divide-slate-50">
         {rows.map(s => (
-          <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3">
+          <li key={`${s.kind}-${s.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3">
+            <span
+              className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                s.kind === '매입' ? 'bg-indigo-50 text-indigo-700' : 'bg-teal-50 text-teal-700'
+              }`}
+            >
+              {s.kind}
+            </span>
             <span className="font-mono text-sm font-semibold text-slate-800">{s.vehicleNumber}</span>
             <span className="text-sm text-slate-600">{s.vehicleName}</span>
 
@@ -110,7 +164,7 @@ export default function SettlementApprovalInbox() {
             )}
 
             <span className="ml-auto text-sm font-semibold text-slate-700">
-              {(s.grandTotalWon ?? 0).toLocaleString()}
+              {s.amount.toLocaleString()}
               <span className="ml-0.5 text-xs font-normal text-slate-400">원</span>
             </span>
 

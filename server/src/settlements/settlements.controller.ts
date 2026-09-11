@@ -119,6 +119,29 @@ export class SettlementsController {
     return this.settlements.confirmCash(id, user, dto.confirmed !== false);
   }
 
+  /** 승인을 기다리는 알선 정산 — 관리자 대시보드의 승인함에서 쓴다. */
+  @Get('brokerage/pending')
+  pendingBrokerage() {
+    return this.settlements.pendingBrokerage();
+  }
+
+  /** 알선팀이 다 채워 올린다 — 여기서부터 결재하는 쪽이 볼 차례다. */
+  @Post('brokerage/:id/submit')
+  submitBrokerage(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.settlements.submitBrokerage(id, user);
+  }
+
+  /** 본부장 → 대표 순서로 찍는다. 누가 찍을 수 있는지는 settlements/approvers.ts 에 있다. */
+  @Post('brokerage/:id/approve')
+  approveBrokerage(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.settlements.approveBrokerage(id, user);
+  }
+
+  @Post('brokerage/:id/revoke')
+  revokeBrokerage(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.settlements.revokeBrokerage(id, user);
+  }
+
   @Post('brokerage')
   createBrokerage(@Body() dto: CreateBrokerageDto) {
     return this.settlements.createBrokerage(dto);

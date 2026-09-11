@@ -10,6 +10,7 @@ import {
   type SettlementStatus,
 } from '../../types';
 import { CalcRow, DateField, EmployeeField, MoneyField, StatusField, TextField } from './fields';
+import ContractPhotos from './ContractPhotos';
 
 interface Props {
   editing: BrokerageSettlement | null;
@@ -39,6 +40,7 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? preset?.employeeId ?? defaultEmployeeId);
   const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
   const [memo, setMemo] = useState(editing?.memo ?? '');
+  const [contractPhotos, setContractPhotos] = useState(editing?.contractPhotos ?? '');
   const [error, setError] = useState<string | null>(null);
 
   const nums = {
@@ -72,6 +74,7 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
       employeeId,
       status,
       memo: memo.trim(),
+      contractPhotos,
     });
     onClose();
   };
@@ -131,6 +134,10 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
           {rate > 0 ? ` (수익금의 ${Math.round(rate * 100)}%)` : ' (수익금 100만원 미만 — 정액)'}이 들어갑니다.
           예외가 있으면 직접 적으세요.
         </p>
+
+        <div className="mt-3">
+          <ContractPhotos value={contractPhotos} onChange={setContractPhotos} />
+        </div>
 
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 

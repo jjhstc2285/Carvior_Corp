@@ -63,6 +63,8 @@ export class CreateBrokerageDto {
   @IsString() @IsNotEmpty() employeeId!: string;
   @IsOptional() @IsEnum(SettlementStatus) status?: SettlementStatus;
   @IsOptional() @IsString() memo?: string;
+  /** 계약서 사진 경로 — 한 장 */
+  @IsOptional() @IsString() contractPhotos?: string;
 }
 
 export class UpdateBrokerageDto {
@@ -81,6 +83,8 @@ export class UpdateBrokerageDto {
   @IsOptional() @IsString() employeeId?: string;
   @IsOptional() @IsEnum(SettlementStatus) status?: SettlementStatus;
   @IsOptional() @IsString() memo?: string;
+  /** 계약서 사진 경로 — 한 장 */
+  @IsOptional() @IsString() contractPhotos?: string;
 }
 
 // ── 매입 정산 ──

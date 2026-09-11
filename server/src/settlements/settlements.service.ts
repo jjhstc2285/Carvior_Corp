@@ -169,6 +169,48 @@ export class SettlementsService {
 
   // ── 알선 정산 ──────────────────────────────
 
+  /**
+   * 알선 정산 한 줄을 화면이 쓰는 모양으로.
+   *
+   * 날짜 꼴·수익금·결재 단계를 한 곳에서 낸다 — 흩어 두면 화면마다 다르게 나온다.
+   */
+  private brokerageView<
+    T extends {
+      date: Date;
+      cashConfirmedAt?: Date | null;
+      submittedAt?: Date | null;
+      chiefApprovedAt?: Date | null;
+      ceoApprovedAt?: Date | null;
+      employee?: { name: string } | null;
+      cashCommission: number;
+      installmentFee: number;
+      insuranceFee: number;
+      etcCost: number;
+    },
+  >(row: T) {
+    const withChief = needsChief(row.employee?.name);
+    const stage = stageOf(
+      {
+        submittedAt: row.submittedAt ?? null,
+        chiefApprovedAt: row.chiefApprovedAt ?? null,
+        ceoApprovedAt: row.ceoApprovedAt ?? null,
+      },
+      withChief,
+    );
+    return {
+      ...row,
+      date: formatDateOnly(row.date),
+      cashConfirmedAt: row.cashConfirmedAt?.toISOString() ?? null,
+      submittedAt: row.submittedAt?.toISOString() ?? null,
+      chiefApprovedAt: row.chiefApprovedAt?.toISOString() ?? null,
+      ceoApprovedAt: row.ceoApprovedAt?.toISOString() ?? null,
+      stage,
+      locked: isLocked(stage),
+      chiefRequired: withChief,
+      profit: brokerageProfit(row),
+    };
+  }
+
   async findBrokerage(params: ListParams) {
     const where: Prisma.BrokerageSettlementWhereInput = {
       ...this.baseWhere(params),
@@ -181,12 +223,7 @@ export class SettlementsService {
       include: EMPLOYEE_SELECT,
       orderBy: { date: 'desc' },
     });
-    return rows.map((r) => ({
-      ...r,
-      date: formatDateOnly(r.date),
-      cashConfirmedAt: r.cashConfirmedAt?.toISOString() ?? null,
-      profit: brokerageProfit(r),
-    }));
+    return rows.map((r) => this.brokerageView(r));
   }
 
   async createBrokerage(dto: CreateBrokerageDto) {
@@ -214,15 +251,16 @@ export class SettlementsService {
         employeeId: dto.employeeId,
         status: dto.status ?? SettlementStatus.IN_PROGRESS,
         memo: dto.memo ?? '',
+        contractPhotos: dto.contractPhotos ?? '',
       },
       include: EMPLOYEE_SELECT,
     });
     void (await this.syncFromBrokerage(row));
-    return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
+    return this.brokerageView(row);
   }
 
   async updateBrokerage(id: string, dto: UpdateBrokerageDto) {
-    await this.assert('brokerageSettlement', id);
+    await this.assertBrokerageEditable(id);
     const row = await this.prisma.brokerageSettlement.update({
       where: { id },
       data: {
@@ -233,7 +271,7 @@ export class SettlementsService {
       include: EMPLOYEE_SELECT,
     });
     void (await this.syncFromBrokerage(row));
-    return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
+    return this.brokerageView(row);
   }
 
   /**
@@ -357,6 +395,130 @@ export class SettlementsService {
   }
 
   /**
+   * 알선 정산 결재 — 매입 정산과 같은 흐름이다.
+   *
+   * 결재하는 규칙(누가 찍는가, 순서, 잠기는 시점)을 매입 쪽과 같은 함수로 낸다.
+   * 두 벌로 두면 한쪽만 고쳐 놓고 다른 쪽이 어긋난다.
+   */
+  async submitBrokerage(id: string, user: AuthUser) {
+    const row = await this.prisma.brokerageSettlement.findUnique({
+      where: { id },
+      select: {
+        submittedAt: true,
+        chiefApprovedAt: true,
+        ceoApprovedAt: true,
+        vehicleNumber: true,
+        vehicleName: true,
+        ...OWNER_NAME,
+      },
+    });
+    if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    const withChief = needsChief(row.employee?.name);
+    if (isLocked(stageOf(row, withChief))) throw new ForbiddenException('이미 승인된 정산입니다.');
+
+    const updated = await this.prisma.brokerageSettlement.update({
+      where: { id },
+      data: { submittedAt: new Date() },
+      include: EMPLOYEE_SELECT,
+    });
+    void this.notifyApprover(
+      withChief ? CHIEF_APPROVER : CEO_APPROVER,
+      `${row.vehicleNumber} ${row.vehicleName} 알선 정산이 올라왔습니다.`,
+      user.name,
+    );
+    return this.brokerageView(updated);
+  }
+
+  async approveBrokerage(id: string, user: AuthUser) {
+    const role = approvalRoleOf(user.name);
+    if (!role) throw new ForbiddenException('정산을 승인할 수 있는 계정이 아닙니다.');
+
+    const row = await this.prisma.brokerageSettlement.findUnique({
+      where: { id },
+      select: {
+        submittedAt: true,
+        chiefApprovedAt: true,
+        ceoApprovedAt: true,
+        vehicleNumber: true,
+        vehicleName: true,
+        employeeId: true,
+        ...OWNER_NAME,
+      },
+    });
+    if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    const withChief = needsChief(row.employee?.name);
+    const stage = stageOf(row, withChief);
+
+    if (role === 'CHIEF' && !withChief) throw new ForbiddenException('이 정산은 대표만 승인합니다.');
+    if (role === 'CHIEF') {
+      if (stage !== 'SUBMITTED') {
+        throw new ForbiddenException(stage === 'DRAFT' ? '아직 올라오지 않은 정산입니다.' : '이미 승인한 정산입니다.');
+      }
+    } else if (stage !== (withChief ? 'CHIEF' : 'SUBMITTED')) {
+      throw new ForbiddenException(
+        stage === 'DONE' ? '이미 확정된 정산입니다.' : withChief ? '본부장 승인이 먼저입니다.' : '아직 올라오지 않은 정산입니다.',
+      );
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.brokerageSettlement.update({
+      where: { id },
+      data:
+        role === 'CHIEF'
+          ? { chiefApprovedAt: now, chiefApprover: user.name }
+          : { ceoApprovedAt: now, ceoApprover: user.name, status: SettlementStatus.COMPLETED },
+      include: EMPLOYEE_SELECT,
+    });
+
+    const car = `${row.vehicleNumber} ${row.vehicleName}`.trim();
+    if (role === 'CHIEF') {
+      void this.notifyApprover(CEO_APPROVER, `${car} 알선 정산을 본부장이 승인했습니다.`, user.name);
+    } else {
+      void this.notifyEmployee(row.employeeId, `${car} 알선 정산이 확정됐습니다.`);
+    }
+    return this.brokerageView(updated);
+  }
+
+  /** 승인 취소 — 자기가 찍은 것만 되돌린다. */
+  async revokeBrokerage(id: string, user: AuthUser) {
+    const role = approvalRoleOf(user.name);
+    if (!role) throw new ForbiddenException('정산을 승인할 수 있는 계정이 아닙니다.');
+
+    const row = await this.prisma.brokerageSettlement.findUnique({
+      where: { id },
+      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, ...OWNER_NAME },
+    });
+    if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    const stage = stageOf(row, needsChief(row.employee?.name));
+
+    if (role === 'CEO') {
+      if (stage !== 'DONE') throw new ForbiddenException('취소할 승인이 없습니다.');
+    } else if (stage !== 'CHIEF') {
+      throw new ForbiddenException(stage === 'DONE' ? '대표 승인이 먼저 취소돼야 합니다.' : '취소할 승인이 없습니다.');
+    }
+
+    const updated = await this.prisma.brokerageSettlement.update({
+      where: { id },
+      data:
+        role === 'CEO'
+          ? { ceoApprovedAt: null, ceoApprover: '', status: SettlementStatus.IN_PROGRESS }
+          : { chiefApprovedAt: null, chiefApprover: '' },
+      include: EMPLOYEE_SELECT,
+    });
+    return this.brokerageView(updated);
+  }
+
+  /** 승인을 기다리는 알선 정산 — 관리자 대시보드의 승인함에 같이 띄운다. */
+  async pendingBrokerage() {
+    const rows = await this.prisma.brokerageSettlement.findMany({
+      where: { submittedAt: { not: null }, ceoApprovedAt: null },
+      include: EMPLOYEE_SELECT,
+      orderBy: { submittedAt: 'asc' },
+    });
+    return rows.map((r) => this.brokerageView(r));
+  }
+
+  /**
    * 승인을 기다리는 매입 정산 — 관리자 대시보드의 승인함에 띄운다.
    *
    * 정산 화면은 달로 걸러 보는 곳이라, 지난 달에 올라온 건이 눈에 안 띈다.
@@ -394,11 +556,27 @@ export class SettlementsService {
       data: { cashConfirmedAt: confirmed ? new Date() : null },
       include: EMPLOYEE_SELECT,
     });
-    return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
+    return this.brokerageView(row);
+  }
+
+  /**
+   * 승인이 찍힌 알선 정산은 못 고친다 — 매입 정산과 같은 규칙이다.
+   *
+   * 승인한 뒤에 금액이 바뀌면 무엇을 보고 찍었는지가 남지 않는다. 고쳐야 하면 승인을 먼저 취소한다.
+   */
+  private async assertBrokerageEditable(id: string): Promise<void> {
+    const row = await this.prisma.brokerageSettlement.findUnique({
+      where: { id },
+      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, ...OWNER_NAME },
+    });
+    if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    if (isLocked(stageOf(row, needsChief(row.employee?.name)))) {
+      throw new ForbiddenException('승인된 정산은 고칠 수 없습니다. 승인을 먼저 취소해 주세요.');
+    }
   }
 
   async removeBrokerage(id: string) {
-    await this.assert('brokerageSettlement', id);
+    await this.assertBrokerageEditable(id);
     await this.prisma.brokerageSettlement.delete({ where: { id } });
   }
 
