@@ -11,8 +11,8 @@ import { isImportable, parseStockSheet, toCsvUrl, type StockSheetParse } from '.
  * 넣기 전에 무엇이 들어갈지 먼저 보여준다 — 확인 없이 밀어넣으면 무엇이 잘못
  * 들어갔는지 알 수가 없다(주차장 시트 가져오기와 같은 방식이다).
  *
- * 시트에서 읽는 것: 차량번호 · 차명 · 연식 · 제시일 · 재고금액 · 여신사
- * 전산이 채우는 것: 이전일자(= 제시일자) · 상환일자(여신사 규칙대로)
+ * 시트에서 읽는 것: 차량번호 · 차명 · 연식 · 제시일 · 재고금액 · 여신사 · 상환일자
+ * 전산이 채우는 것: 이전일자(= 제시일자) · 상환일자가 안 적힌 차의 상환일자
  */
 
 /** 시트 주소를 매번 붙여넣지 않게 이 브라우저에 기억해 둔다 */
@@ -97,7 +97,8 @@ export default function StockSheetImportModal({
         <p className="mt-1 text-xs text-slate-500">
           구글 시트 주소를 넣고 먼저 확인한 다음 가져옵니다. 시트는 <b>링크가 있는 모든 사용자</b>가 볼 수 있어야 합니다.
           <br />
-          이전일자는 <b>제시일자와 같은 날</b>로, 상환일자는 <b>여신사 규칙대로</b> 전산이 채웁니다. 시트에 적힌 상환일자는 쓰지 않습니다.
+          이전일자는 <b>제시일자와 같은 날</b>로 넣습니다. 상환일자는 <b>장부에 적힌 날</b>을 그대로 씁니다 —
+          연도가 없는 칸("09월 14일")은 제시일자 뒤로 해를 맞춥니다. 안 적힌 차만 여신사 규칙으로 냅니다.
         </p>
 
         <div className="mt-3 flex gap-2">
@@ -168,7 +169,13 @@ export default function StockSheetImportModal({
                         )}
                       </td>
                       <td className="px-2.5 py-1.5 text-right text-slate-600">{NUM(r.stockAmount)}</td>
-                      <td className="px-2.5 py-1.5 text-slate-600">{r.repayDate ?? '—'}</td>
+                      {/* 장부에 적힌 날인지, 전산이 낸 날인지 구분해 준다 */}
+                      <td className="px-2.5 py-1.5 text-slate-600">
+                        {r.repayDate ?? '—'}
+                        {r.repayDate && !r.repayFromSheet && (
+                          <span className="ml-1 text-[11px] text-indigo-600">규칙</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

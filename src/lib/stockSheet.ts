@@ -7,11 +7,14 @@ import { CAPITAL_COMPANIES, repayRuleOf, suggestRepayDate } from './stockFinance
  * 달마다 조금씩 다르다. 그래서 줄을 통째로 믿지 않고, 각 줄에서 알아볼 수 있는 것만
  * 집어낸다 — 못 읽은 줄은 버리지 않고 왜 못 읽었는지 같이 돌려준다.
  *
- * 읽는 것: 차량번호 · 차명 · 연식 · 제시일 · 재고금액 · 여신사(할부사)
- * 안 읽는 것: NO · 담당자 · 제시금액 · 장부에 적힌 상환일자
- *   - 제시금액은 전산에 둘 자리가 없다(매입가는 매입 관리에서 온다).
- *   - 상환일자는 여신사와 제시일자로 다시 낸다. 장부에는 "09월 14일"처럼 연도가 없는
- *     칸이 많고, 규칙이 바뀌면(KB가 석 달 → 다섯 달) 옛 날짜가 그대로 남기 때문이다.
+ * 읽는 것: 차량번호 · 차명 · 연식 · 제시일 · 재고금액 · 여신사(할부사) · 상환일자
+ * 안 읽는 것: NO · 담당자 · 제시금액 — 제시금액은 전산에 둘 자리가 없다(매입가는 매입 관리에서 온다).
+ *
+ * 상환일자는 장부에 적힌 날을 쓴다. 캐피탈사와 실제로 정한 날이라 규칙으로 낸 날과
+ * 다른 차가 많다(139대 중 100대). 규칙은 새로 잡는 차에 쓰는 것이고, 이미 적어둔
+ * 차까지 다시 계산해 덮으면 갚는 날이 바뀌어 버린다.
+ * 장부에는 "09월 14일"처럼 연도가 없으니, 제시일자를 지나도록 해를 넘겨 맞춘다 —
+ * 갚는 날이 제시한 날보다 앞설 수는 없다. 적힌 날이 없으면 그때만 규칙으로 낸다.
  *
  * 이전일자는 제시일자와 같은 날로 넣는다 — 장부에 따로 적는 칸이 없고, 사무장님이
  * 둘을 같게 맞춰 달라고 하셨다.
@@ -24,6 +27,9 @@ const FULL_DATE = /(20\d{2})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/;
 
 /** "09월 14일" · "10/15연장" — 여신사 칸 뒤에 붙는 날짜 메모 */
 const MONTH_DAY = /^\d{1,2}\s*[월/.\-]\s*\d{1,2}/;
+
+/** 연도 없이 적힌 상환일 — "09월 14일" */
+const MONTH_DAY_ONLY = /^(\d{1,2})\s*월\s*(\d{1,2})\s*일$/;
 
 /** 장부의 제목·합계·머리글 줄 — 차가 아니라서 조용히 넘긴다 */
 const NOISE = /(현황|상환금액|합계|기준|소계|차량번호|담당자|여신사)/;
@@ -41,8 +47,10 @@ export interface StockSheetRow {
   stockCapital: string;
   /** 시트에 적힌 그대로 — 못 알아본 이름을 화면에 보여주려고 남긴다 */
   capitalRaw: string;
-  /** 여신사 규칙으로 낸 상환일자. 모르는 여신사면 null */
+  /** 상환일자 — 장부에 적힌 날. 없으면 여신사 규칙으로 낸다 */
   repayDate: string | null;
+  /** 장부에 적힌 날인가(아니면 규칙으로 낸 것) — 화면에서 구분해 보여준다 */
+  repayFromSheet: boolean;
 }
 
 export interface StockSheetSkip {
@@ -112,6 +120,25 @@ export function parseCsv(text: string): string[][] {
 function moneyOf(cell: string): number {
   const digits = cell.replace(/[^\d]/g, '');
   return digits ? Number(digits) : 0;
+}
+
+/**
+ * 연도 없이 적힌 날("09월 14일")에 해를 붙인다.
+ *
+ * 갚는 날은 제시한 날보다 뒤다. 제시한 해로 먼저 맞춰 보고, 그게 제시일보다 앞서면
+ * 다음 해로 넘긴다 — 1월·2월 칸이 이듬해인 것도 이 규칙으로 저절로 맞는다.
+ */
+export function withYearAfter(monthDay: string, after: string): string | null {
+  const m = MONTH_DAY_ONLY.exec(monthDay.trim());
+  if (!m) return null;
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const year = Number(after.slice(0, 4));
+  if (!year) return null;
+  const same = `${year}-${pad(month)}-${pad(day)}`;
+  return same >= after ? same : `${year + 1}-${pad(month)}-${pad(day)}`;
 }
 
 function dateOf(cell: string): string | null {
@@ -208,6 +235,15 @@ export function parseStockSheet(csv: string): StockSheetParse {
       '';
     const stockCapital = canonicalCapital(capitalRaw);
 
+    /*
+      상환일자 — 장부에 적힌 날이 먼저다.
+
+      여신사 뒤에도 "07월 06일" 같은 칸이 붙어 있어서, 앞에서부터 처음 나오는 것을 쓴다
+      (장부는 상환일자를 여신사 앞에 적는다).
+    */
+    const writtenRepay = trimmed.map(c => withYearAfter(c, offerDate)).find((d): d is string => d !== null);
+    const repayDate = writtenRepay ?? (stockCapital ? suggestRepayDate(stockCapital, offerDate) : null);
+
     rows.push({
       vehicleNumber,
       vehicleModel,
@@ -216,8 +252,8 @@ export function parseStockSheet(csv: string): StockSheetParse {
       stockAmount,
       stockCapital,
       capitalRaw: capitalRaw.trim(),
-      // 이전일자(=제시일자)부터 여신사 규칙대로 센다
-      repayDate: stockCapital ? suggestRepayDate(stockCapital, offerDate) : null,
+      repayDate,
+      repayFromSheet: writtenRepay !== undefined,
     });
     seen.add(vehicleNumber);
   }
