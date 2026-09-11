@@ -465,7 +465,10 @@ export default function PurchaseSettlementTab({ role }: Props) {
                       ].filter(Boolean).join(' · ') || undefined}
                     >
                       {s.locked && <Lock size={10} />}
-                      {SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']}
+                      {/* 본부장을 안 거치는 건은 올라온 순간이 곧 대표 차례다 */}
+                      {s.stage === 'SUBMITTED' && s.chiefRequired === false
+                        ? '대표 승인 대기'
+                        : SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']}
                     </span>
                   </td>
                   <td className="px-3 py-2.5">
@@ -486,8 +489,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
                         </button>
                       )}
                       {/* 내 차례일 때만 승인 버튼이 보인다 */}
-                      {((approverRole === 'CHIEF' && s.stage === 'SUBMITTED') ||
-                        (approverRole === 'CEO' && s.stage === 'CHIEF')) && (
+                      {((approverRole === 'CHIEF' && s.stage === 'SUBMITTED' && s.chiefRequired !== false) ||
+                        (approverRole === 'CEO' &&
+                          (s.stage === 'CHIEF' || (s.stage === 'SUBMITTED' && s.chiefRequired === false)))) && (
                         <button
                           onClick={() => void step(s, 'approve')}
                           className="flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700"

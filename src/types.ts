@@ -475,6 +475,8 @@ export interface PurchaseSettlement {
   stage?: SettlementStage;
   /** 본부장이 찍은 뒤부터는 못 고친다 */
   locked?: boolean;
+  /** 본부장을 거치는 건인가 — 담당자에 따라 대표만 찍는 건이 있다 */
+  chiefRequired?: boolean;
 
   /** 판매수익 — 현금 수수료 + 할부 피 + 보험 피 + 차대금업 − 현금으로 준 구전 */
   saleProfit?: number;

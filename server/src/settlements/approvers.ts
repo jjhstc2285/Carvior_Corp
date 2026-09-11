@@ -14,6 +14,20 @@ export const CHIEF_APPROVER = '안원용';
 /** 2차 — 대표. 여기까지 찍혀야 확정이다. */
 export const CEO_APPROVER = '유진욱';
 
+/**
+ * 본부장을 건너뛰고 대표만 찍는 사람.
+ *
+ * 담당자가 이쪽이면 올리자마자 대표 차례다. 본부장을 거칠 일이 없는 자리가 있다.
+ * 이름으로 못 박는다 — 직급으로 가리면 같은 직급이 하나 더 생겼을 때 같이 새 나간다.
+ */
+export const CEO_ONLY_OWNERS = ['이우주'];
+
+/** 이 정산이 본부장을 거치는가 — 담당자 이름으로 갈린다. */
+export function needsChief(ownerName: string | null | undefined): boolean {
+  const name = (ownerName ?? '').trim();
+  return !CEO_ONLY_OWNERS.some((x) => name.includes(x));
+}
+
 export type ApprovalRole = 'CHIEF' | 'CEO';
 
 export function approvalRoleOf(name: string): ApprovalRole | null {
@@ -30,13 +44,17 @@ export function approvalRoleOf(name: string): ApprovalRole | null {
  */
 export type SettlementStage = 'DRAFT' | 'SUBMITTED' | 'CHIEF' | 'DONE';
 
-export function stageOf(row: {
-  submittedAt: Date | null;
-  chiefApprovedAt: Date | null;
-  ceoApprovedAt: Date | null;
-}): SettlementStage {
+export function stageOf(
+  row: {
+    submittedAt: Date | null;
+    chiefApprovedAt: Date | null;
+    ceoApprovedAt: Date | null;
+  },
+  /** 본부장을 거치는 건인가. 안 거치면 올리자마자 대표 차례다. */
+  withChief = true,
+): SettlementStage {
   if (row.ceoApprovedAt) return 'DONE';
-  if (row.chiefApprovedAt) return 'CHIEF';
+  if (withChief && row.chiefApprovedAt) return 'CHIEF';
   if (row.submittedAt) return 'SUBMITTED';
   return 'DRAFT';
 }
@@ -46,6 +64,8 @@ export function stageOf(row: {
  *
  * 본부장이 찍은 다음부터는 못 고친다. 승인한 뒤에 금액이 바뀌면 무엇을 보고 찍었는지가
  * 남지 않는다. 고쳐야 하면 승인을 먼저 취소한다 — 그러면 다시 받아야 한다는 게 드러난다.
+ *
+ * 본부장을 안 거치는 건은 대표가 찍을 때 잠긴다 — 그 전까지는 고칠 사람이 있어야 한다.
  */
 export function isLocked(stage: SettlementStage): boolean {
   return stage === 'CHIEF' || stage === 'DONE';

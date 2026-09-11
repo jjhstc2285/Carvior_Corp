@@ -18,7 +18,7 @@ import {
   type VehicleCostSummary,
 } from './settlement.calc';
 import { normalizePlate } from '../vehicles/vehicle.rules';
-import { approvalRoleOf, CEO_APPROVER, CHIEF_APPROVER, isLocked, stageOf } from './approvers';
+import { approvalRoleOf, CEO_APPROVER, CHIEF_APPROVER, isLocked, needsChief, stageOf } from './approvers';
 import type { AuthUser } from '../auth/current-user.decorator';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { PushService } from '../push/push.service';
@@ -41,12 +41,16 @@ interface ListParams {
 
 const EMPLOYEE_SELECT = { employee: { select: { id: true, name: true, position: true } } };
 
+/** 승인 차례를 가리려면 담당자 이름이 있어야 한다 — 이름에 따라 본부장을 건너뛴다. */
+const OWNER_NAME = { employee: { select: { name: true } } } as const;
+
 /** 상품화 비용 명세는 화면에 적은 순서대로 보여준다. */
 const PREP_COST_INCLUDE = { prepCosts: { orderBy: { sortOrder: 'asc' } } } satisfies Prisma.PurchaseSettlementInclude;
 
 /** 조회 결과에서 파생값 계산에 필요한 최소 모양 */
 interface PurchaseRow extends SaleFields {
   date: Date;
+  employee?: { name: string } | null;
   transferFee: number;
   submittedAt: Date | null;
   chiefApprovedAt: Date | null;
@@ -418,10 +422,10 @@ export class SettlementsService {
   private async assertEditable(id: string): Promise<void> {
     const row = await this.prisma.purchaseSettlement.findUnique({
       where: { id },
-      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true },
+      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, ...OWNER_NAME },
     });
     if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
-    if (isLocked(stageOf(row))) {
+    if (isLocked(stageOf(row, needsChief(row.employee?.name)))) {
       throw new ForbiddenException('승인된 정산은 고칠 수 없습니다. 승인을 먼저 취소해 주세요.');
     }
   }
@@ -435,17 +439,30 @@ export class SettlementsService {
   async submitPurchase(id: string, user: AuthUser) {
     const row = await this.prisma.purchaseSettlement.findUnique({
       where: { id },
-      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, vehicleNumber: true, vehicleName: true },
+      select: {
+        submittedAt: true,
+        chiefApprovedAt: true,
+        ceoApprovedAt: true,
+        vehicleNumber: true,
+        vehicleName: true,
+        ...OWNER_NAME,
+      },
     });
     if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
-    if (isLocked(stageOf(row))) throw new ForbiddenException('이미 승인된 정산입니다.');
+    const withChief = needsChief(row.employee?.name);
+    if (isLocked(stageOf(row, withChief))) throw new ForbiddenException('이미 승인된 정산입니다.');
 
     const updated = await this.prisma.purchaseSettlement.update({
       where: { id },
       data: { submittedAt: new Date() },
       include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
     });
-    void this.notifyApprover(CHIEF_APPROVER, `${row.vehicleNumber} ${row.vehicleName} 정산이 올라왔습니다.`, user.name);
+    // 본부장을 안 거치는 건은 올리자마자 대표 차례다.
+    void this.notifyApprover(
+      withChief ? CHIEF_APPROVER : CEO_APPROVER,
+      `${row.vehicleNumber} ${row.vehicleName} 정산이 올라왔습니다.`,
+      user.name,
+    );
     return this.withVehicleCost(updated);
   }
 
@@ -461,10 +478,22 @@ export class SettlementsService {
 
     const row = await this.prisma.purchaseSettlement.findUnique({
       where: { id },
-      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, vehicleNumber: true, vehicleName: true },
+      select: {
+        submittedAt: true,
+        chiefApprovedAt: true,
+        ceoApprovedAt: true,
+        vehicleNumber: true,
+        vehicleName: true,
+        ...OWNER_NAME,
+      },
     });
     if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
-    const stage = stageOf(row);
+    const withChief = needsChief(row.employee?.name);
+    const stage = stageOf(row, withChief);
+
+    if (role === 'CHIEF' && !withChief) {
+      throw new ForbiddenException('이 정산은 대표만 승인합니다.');
+    }
 
     if (role === 'CHIEF') {
       if (stage !== 'SUBMITTED') {
@@ -472,9 +501,13 @@ export class SettlementsService {
           stage === 'DRAFT' ? '아직 올라오지 않은 정산입니다.' : '이미 승인한 정산입니다.',
         );
       }
-    } else if (stage !== 'CHIEF') {
+    } else if (stage !== (withChief ? 'CHIEF' : 'SUBMITTED')) {
       throw new ForbiddenException(
-        stage === 'DONE' ? '이미 확정된 정산입니다.' : '본부장 승인이 먼저입니다.',
+        stage === 'DONE'
+          ? '이미 확정된 정산입니다.'
+          : withChief
+            ? '본부장 승인이 먼저입니다.'
+            : '아직 올라오지 않은 정산입니다.',
       );
     }
 
@@ -504,10 +537,10 @@ export class SettlementsService {
 
     const row = await this.prisma.purchaseSettlement.findUnique({
       where: { id },
-      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true },
+      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, ...OWNER_NAME },
     });
     if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
-    const stage = stageOf(row);
+    const stage = stageOf(row, needsChief(row.employee?.name));
 
     if (role === 'CEO') {
       if (stage !== 'DONE') throw new ForbiddenException('취소할 승인이 없습니다.');
@@ -577,6 +610,8 @@ export class SettlementsService {
      * 여기 쓸 값이 아니다. 저장값을 살려두면 그게 계속 덮어씌워진다.
      */
     const transferFee = transferFeeOf(row.purchasePrice);
+    // 담당자에 따라 본부장을 거치는지가 갈린다.
+    const withChief = needsChief(row.employee?.name);
     return {
       ...row,
       transferFee,
@@ -591,8 +626,10 @@ export class SettlementsService {
       submittedAt: row.submittedAt?.toISOString() ?? null,
       chiefApprovedAt: row.chiefApprovedAt?.toISOString() ?? null,
       ceoApprovedAt: row.ceoApprovedAt?.toISOString() ?? null,
-      stage: stageOf(row),
-      locked: isLocked(stageOf(row)),
+      stage: stageOf(row, withChief),
+      locked: isLocked(stageOf(row, withChief)),
+      /** 본부장을 안 거치는 건 — 화면에서 '대표 승인 대기'로 적는다 */
+      chiefRequired: withChief,
       saleProfit: saleProfit(
         row.salePrice,
         purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee),
