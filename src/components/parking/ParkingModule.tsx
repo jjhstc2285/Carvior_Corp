@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlertTriangle, Check, Download, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight, Download, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import ParkingForm from './ParkingForm';
@@ -14,6 +14,9 @@ import { REINSPECT_MONTHS, reinspectLabel } from '../../lib/reinspection';
 
 // 주차 자리는 등록·이동·비우기 모두 현장에서 하는 일이라 권한을 나누지 않는다.
 // 시트 가져오기만 관리자다 — 한 번에 백 대가 넘는 자리를 덮어쓰는 일이라서.
+/** 재검 칸을 접어뒀는지 — 이 브라우저에만 기억한다 */
+const REINSPECT_FOLD_KEY = 'parking-reinspect-fold';
+
 export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
   const { state, deleteParkingVehicle, refresh } = useStore();
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -60,6 +63,29 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
   );
   const overdue = dueReinspect.filter(v => v.reinspect?.level === 'DUE');
 
+  /*
+    접어둘 수 있게 한다 — 스무 대가 넘으면 구역도가 화면 밖으로 밀린다.
+    접어도 몇 대인지는 제목에 남으니 숨는 건 없다.
+    접은 채로 두었는지는 이 브라우저에만 기억한다(다른 사람 화면까지 접히면 안 된다).
+  */
+  const [reinspectOpen, setReinspectOpen] = useState(() => {
+    try {
+      return localStorage.getItem(REINSPECT_FOLD_KEY) !== 'folded';
+    } catch {
+      return true;
+    }
+  });
+  const toggleReinspect = () => {
+    setReinspectOpen(open => {
+      try {
+        localStorage.setItem(REINSPECT_FOLD_KEY, open ? 'folded' : 'open');
+      } catch {
+        // 기억 못 해도 접고 펴는 데는 지장이 없다
+      }
+      return !open;
+    });
+  };
+
   /** 재검 받은 날은 차량 위치 수정 창에서 적는다 — 그 차의 다른 값과 같은 자리에 둔다. */
   const openReinspect = (v: ParkingVehicle) => {
     setEditing(v);
@@ -101,7 +127,11 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
 
       {dueReinspect.length > 0 && (
         <section className="mb-4 rounded-2xl border border-red-200 bg-red-50/60 px-4 py-3.5">
-          <div className="flex flex-wrap items-center gap-2">
+          <button onClick={toggleReinspect} className="flex w-full flex-wrap items-center gap-2 text-left">
+            <ChevronRight
+              size={15}
+              className={`shrink-0 text-red-700 transition-transform ${reinspectOpen ? 'rotate-90' : ''}`}
+            />
             <AlertTriangle size={15} className="text-red-600" />
             <h2 className="text-sm font-bold text-red-800">
               재검이 필요한 차 {overdue.length}대
@@ -114,34 +144,38 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
             <span className="text-[11px] text-red-700/70">
               이전일자로부터 {REINSPECT_MONTHS}개월이 지나면 성능점검을 다시 받아야 합니다 — 차량관리팀
             </span>
-          </div>
-          <ul className="mt-2.5 flex flex-wrap gap-1.5">
-            {dueReinspect.map(v => (
-              <li
-                key={v.id}
-                className={`rounded-lg border px-2 py-1 text-xs ${
-                  v.reinspect?.level === 'DUE'
-                    ? 'border-red-300 bg-white text-red-800'
-                    : 'border-amber-300 bg-white text-amber-800'
-                }`}
-                title={`이전 ${v.transferDate} · ${v.reinspect?.dueOn} 까지`}
-              >
-                <span className="font-mono font-semibold">{v.vehicleNumber}</span>
-                {v.vehicleModel && <span className="ml-1 text-slate-500">{v.vehicleModel}</span>}
-                <span className="ml-1.5 text-slate-400">
-                  {v.lot} {v.zone} {v.slot}
-                </span>
-                <span className="ml-1.5 font-bold">{v.reinspect && reinspectLabel(v.reinspect)}</span>
-                {/* 받고 와서 그 자리에서 적는다 — 적으면 그날부터 다시 넉 달을 센다 */}
-                <button
-                  onClick={() => openReinspect(v)}
-                  className="ml-1.5 rounded-md bg-slate-700 px-1.5 py-0.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+            <span className="ml-auto text-[11px] font-semibold text-red-700/70">{reinspectOpen ? '접기' : '펴기'}</span>
+          </button>
+
+          {reinspectOpen && (
+            <ul className="mt-2.5 flex flex-wrap gap-1.5">
+              {dueReinspect.map(v => (
+                <li
+                  key={v.id}
+                  className={`rounded-lg border px-2 py-1 text-xs ${
+                    v.reinspect?.level === 'DUE'
+                      ? 'border-red-300 bg-white text-red-800'
+                      : 'border-amber-300 bg-white text-amber-800'
+                  }`}
+                  title={`이전 ${v.transferDate} · ${v.reinspect?.dueOn} 까지`}
                 >
-                  재검 완료
-                </button>
-              </li>
-            ))}
-          </ul>
+                  <span className="font-mono font-semibold">{v.vehicleNumber}</span>
+                  {v.vehicleModel && <span className="ml-1 text-slate-500">{v.vehicleModel}</span>}
+                  <span className="ml-1.5 text-slate-400">
+                    {v.lot} {v.zone} {v.slot}
+                  </span>
+                  <span className="ml-1.5 font-bold">{v.reinspect && reinspectLabel(v.reinspect)}</span>
+                  {/* 받고 와서 그 자리에서 적는다 — 적으면 그날부터 다시 넉 달을 센다 */}
+                  <button
+                    onClick={() => openReinspect(v)}
+                    className="ml-1.5 rounded-md bg-slate-700 px-1.5 py-0.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                  >
+                    재검 완료
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
