@@ -27,7 +27,7 @@ export const CAPITAL_COMPANIES = [
 /**
  * 캐피탈사별 상환일.
  *
- * 갚는 날이 회사마다 정해져 있다 — 우리금융은 다섯 달 뒤 8일, KB캐피탈은 석 달 뒤 20일,
+ * 갚는 날이 회사마다 정해져 있다 — 우리금융은 다섯 달 뒤 8일, KB캐피탈은 다섯 달 뒤 20일,
  * 현대캐피탈은 여섯 달 뒤 25일 하는 식이다.
  * BMW만 정해진 날이 없어 넉 달 뒤 같은 날에 갚는다.
  *
@@ -42,9 +42,10 @@ export const REPAY_RULES: { keywords: string[]; label: string; months: number; d
   { keywords: ['메리츠'], label: '메리츠', months: 5, day: 10 },
   { keywords: ['새마을', 'MG', 'mg', '엠지'], label: '새마을엠지', months: 5, day: 14 },
   { keywords: ['하나'], label: '하나캐피탈', months: 5, day: 15 },
-  { keywords: ['KB', 'kb', '케이비', '국민'], label: 'KB캐피탈', months: 3, day: 20 },
+  { keywords: ['KB', 'kb', '케이비', '국민'], label: 'KB캐피탈', months: 5, day: 20 },
   { keywords: ['현대'], label: '현대캐피탈', months: 6, day: 25 },
-  { keywords: ['BMW', 'bmw', '비엠'], label: 'BMW', months: 4, day: null },
+  // 알페라(Alphera)는 BMW 쪽 금융이다 — 장부에 그 이름으로 적혀 온다
+  { keywords: ['BMW', 'bmw', '비엠', '알페라'], label: 'BMW', months: 4, day: null },
 ];
 
 export function repayRuleOf(capital: string) {

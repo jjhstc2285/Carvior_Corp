@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { VehiclesService } from './vehicles.service';
 import {
   CreateVehicleDto,
@@ -6,12 +19,20 @@ import {
   PlateTailQueryDto,
   RegisterIntakeVehicleDto,
   RegisterSoldVehicleDto,
+  StockImportDto,
   UpdateVehicleDto,
   UpdateVehicleExpenseDto,
   VehicleExpenseQueryDto,
   VehicleListQueryDto,
 } from './dto/vehicle.dto';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+import { Roles } from '../auth/roles.decorator';
+
+/**
+ * 재고차량 장부를 CSV로 받는 주소. 시트가 바뀌면 .env 로 갈아끼우거나, 화면에서 주소를 넣는다.
+ * 주차·상담 시트와 같은 문서를 쓰면 gid 만 다르다.
+ */
+const STOCK_SHEET_CSV_URL = process.env.STOCK_SHEET_CSV_URL ?? '';
 
 /**
  * 차량 관리 — 외부 이동 리스트와 주유·배터리 비용.
@@ -72,6 +93,43 @@ export class VehiclesController {
   @Get('search')
   findByTail(@Query() query: PlateTailQueryDto) {
     return this.vehicles.findByTail(query.tail);
+  }
+
+  /**
+   * 재고차량 장부(구글 시트)를 그대로 읽어 온다.
+   *
+   * 브라우저가 직접 구글을 부르면 막히기 때문에(CORS) 서버가 받아서 넘겨준다.
+   * 읽는 건 화면이 한다 — 상환일자를 내는 규칙이 화면에 있어서, 서버가 또 한 벌
+   * 가지고 있으면 둘이 어긋난다.
+   *
+   * 주소는 구글 문서만 받는다. 아무 주소나 받으면 서버가 대신 아무 데나 불러 주는 창구가 된다.
+   */
+  @Roles(Role.ADMIN)
+  @Get('stock-sheet')
+  async stockSheet(@Query('url') url?: string) {
+    const target = (url ?? STOCK_SHEET_CSV_URL).trim();
+    let host = '';
+    try {
+      host = new URL(target).hostname;
+    } catch {
+      throw new BadRequestException('시트 주소를 다시 확인해 주세요.');
+    }
+    if (host !== 'docs.google.com') {
+      throw new BadRequestException('구글 시트 주소만 받습니다.');
+    }
+
+    const res = await fetch(target, { signal: AbortSignal.timeout(60_000) });
+    if (!res.ok) {
+      throw new ServiceUnavailableException('구글 시트를 읽지 못했습니다. 공개 설정(링크가 있는 모든 사용자)을 확인해 주세요.');
+    }
+    return { csv: await res.text() };
+  }
+
+  /** 화면에서 확인한 줄을 그대로 넣는다. */
+  @Roles(Role.ADMIN)
+  @Post('stock-import')
+  importStock(@Body() dto: StockImportDto) {
+    return this.vehicles.importStock(dto.rows);
   }
 
   @Get()

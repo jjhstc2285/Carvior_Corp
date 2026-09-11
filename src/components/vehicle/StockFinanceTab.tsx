@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { Download, Search } from 'lucide-react';
+import { Download, Search, Upload } from 'lucide-react';
 import {
   CAPITAL_COMPANIES,
   MAX_AGE_YEARS,
@@ -18,6 +18,7 @@ import type { ManagedVehicle } from '../../types';
 import type { VehiclesApi } from './useVehicles';
 import UnregisteredSoldPanel from './UnregisteredSoldPanel';
 import UnregisteredIntakePanel from './UnregisteredIntakePanel';
+import StockSheetImportModal from './StockSheetImportModal';
 
 type View = 'candidate' | 'offered' | 'stocked' | 'repay' | 'cash' | 'release' | 'sold';
 
@@ -149,6 +150,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const views = useMemo(() => VIEWS.filter(v => isOfficeManager || !v.officeOnly), [isOfficeManager]);
 
   const [view, setView] = useState<View>(() => (isOfficeManager ? 'candidate' : 'repay'));
+  const [importOpen, setImportOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   const [from, setFrom] = useState('');
@@ -404,6 +406,16 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         >
           <Download size={14} /> 엑셀
         </button>
+
+        {/* 달마다 쌓아온 장부를 손으로 백 대씩 옮겨 적게 두지 않는다 — 사무장만 부른다 */}
+        {isOfficeManager && (
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Upload size={14} /> 장부 가져오기
+          </button>
+        )}
       </div>
 
       {/* 매입했는데 차량 관리에 안 올라간 차 — 그래서 제시 대상에 안 뜬다 */}
@@ -601,6 +613,9 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
           <option key={c} value={c} />
         ))}
       </datalist>
+      {importOpen && (
+        <StockSheetImportModal onClose={() => setImportOpen(false)} onImported={() => void reload()} />
+      )}
     </>
   );
 }

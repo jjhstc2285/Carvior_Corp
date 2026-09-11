@@ -26,6 +26,7 @@ import type {
   CreateVehicleDto,
   CreateVehicleExpenseDto,
   RegisterSoldVehicleDto,
+  StockImportRowDto,
   UpdateVehicleDto,
   UpdateVehicleExpenseDto,
 } from "./dto/vehicle.dto";
@@ -298,6 +299,52 @@ export class VehiclesService {
         },
       })
       .then((row) => this.toView(row));
+  }
+
+  /**
+   * 재고차량 장부를 한 번에 올린다.
+   *
+   * 이미 있는 차는 재고금융 칸만 채운다 — 상품화·주차 같은 값은 이 장부에 없어서
+   * 덮어쓰면 지우는 꼴이 된다. 없는 차는 새로 만든다.
+   *
+   * 이전일자는 제시일자와 같은 날로 넣는다(장부에 따로 적는 칸이 없다).
+   * 여기까지 들어오면 할부사·재고금액·상환일자가 다 차서 곧바로 재고차량이 되고,
+   * 상환일자가 있으니 상환 예정에도 그 달로 잡힌다.
+   */
+  async importStock(rows: StockImportRowDto[]) {
+    let created = 0;
+    let updated = 0;
+
+    for (const row of rows) {
+      const vehicleNumber = this.assertPlate(row.vehicleNumber);
+      const stock = {
+        vehicleModel: row.vehicleModel.trim(),
+        ...(row.modelYear ? { modelYear: row.modelYear.trim() } : {}),
+        offerDate: toDateOnly(row.offerDate),
+        // 제시일자와 같은 날 — 사무장님 장부 기준이다
+        transferDate: toDateOnly(row.offerDate),
+        stockCapital: row.stockCapital.trim(),
+        stockAmount: row.stockAmount,
+        repayDate: toDateOnly(row.repayDate),
+      };
+
+      const existing = await this.prisma.managedVehicle.findUnique({
+        where: { vehicleNumber },
+        select: { id: true },
+      });
+
+      if (existing) {
+        await this.prisma.managedVehicle.update({ where: { id: existing.id }, data: stock });
+        updated += 1;
+      } else {
+        await this.prisma.managedVehicle.create({
+          data: { vehicleNumber, plateTail: plateTailOf(vehicleNumber), ...stock },
+        });
+        created += 1;
+      }
+    }
+
+    return { created, updated, total: rows.length };
   }
 
   async update(id: string, dto: UpdateVehicleDto) {

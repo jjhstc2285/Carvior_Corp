@@ -1,6 +1,7 @@
 import { VehicleBodyType, VehicleExpenseKind, VehicleSaleType, VehicleUsageNote } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -10,6 +11,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { DATE_PATTERN } from '../../common/dto';
 import { PLATE_FORMAT_MESSAGE, PLATE_PATTERN } from '../vehicle.rules';
@@ -49,6 +51,26 @@ export class UpdateVehicleDto {
   @IsOptional() @IsString() @MaxLength(20) stockCapital?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) stockAmount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) adCost?: number; // 광고금액(원)
+}
+
+/**
+ * 재고차량 장부에서 한 줄.
+ *
+ * 시트를 읽고 무엇이 들어갈지 화면에서 확인한 뒤, 확인한 그 값을 그대로 보낸다 —
+ * 서버가 다시 읽으면 화면에서 본 것과 다른 게 들어갈 수 있다.
+ */
+export class StockImportRowDto {
+  @IsString() @Matches(PLATE_PATTERN, { message: PLATE_FORMAT_MESSAGE }) vehicleNumber!: string;
+  @IsString() @IsNotEmpty({ message: '차명을 입력해 주세요.' }) @MaxLength(60) vehicleModel!: string;
+  @IsOptional() @IsString() @MaxLength(10) modelYear?: string;
+  @Matches(DATE_PATTERN, { message: '제시일자는 YYYY-MM-DD 형식이어야 합니다.' }) offerDate!: string;
+  @Matches(DATE_PATTERN, { message: '상환일자는 YYYY-MM-DD 형식이어야 합니다.' }) repayDate!: string;
+  @IsString() @IsNotEmpty({ message: '할부사를 입력해 주세요.' }) @MaxLength(20) stockCapital!: string;
+  @Type(() => Number) @IsInt() @Min(1, { message: '재고금액을 입력해 주세요.' }) stockAmount!: number;
+}
+
+export class StockImportDto {
+  @IsArray() @ValidateNested({ each: true }) @Type(() => StockImportRowDto) rows!: StockImportRowDto[];
 }
 
 /** 매입했는데 차량 관리에 안 올라간 차를 올릴 때 */
