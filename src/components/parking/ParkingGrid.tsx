@@ -163,6 +163,14 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
   const [picking, setPicking] = useState(false);
   /** 찾은 칸 — 화면을 그리로 옮긴다 */
   const foundRef = useRef<HTMLTableCellElement | null>(null);
+  /**
+   * 어느 차 때문에 묶음을 옮겨줬는지.
+   *
+   * 찾은 차가 바뀔 때 한 번만 옮긴다. 이게 없으면 손으로 외부 탭을 눌러도
+   * 검색 결과가 본관에 있는 한 계속 본관으로 되돌아온다 —
+   * 본관에서 외부로 차를 옮길 수가 없었다.
+   */
+  const jumpedTo = useRef<string | null>(null);
 
   /**
    * 찾는 차.
@@ -184,18 +192,30 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
    * 찾은 차가 다른 묶음에 있으면 그 묶음으로 넘어간다.
    *
    * 본관을 보고 있는데 차가 외부에 있으면 아무리 칠해도 안 보인다.
+   * 찾은 차가 바뀔 때 한 번만 옮긴다 — 그 뒤로는 손으로 고른 탭을 그대로 둔다.
    */
   useEffect(() => {
-    if (!found) return;
+    if (!found) {
+      jumpedTo.current = null;
+      return;
+    }
+    if (jumpedTo.current === found.id) return;
+    jumpedTo.current = found.id;
+
     const lot = PARKING_LOTS.find(l => l.lot === found.lot);
-    if (lot && lot.group !== group) setGroup(lot.group);
-  }, [found, group]);
+    if (lot) setGroup(lot.group);
+  }, [found]);
 
   // 찾은 차가 접어둔 주차장에 있으면 펴 준다 — 접힌 채로는 아무리 칠해도 안 보인다.
   useEffect(() => {
     if (!found) return;
     setCollapsed(prev => (prev[found.lot] ? { ...prev, [found.lot]: false } : prev));
   }, [found]);
+
+  // 차를 손에 들면 검색은 볼 일이 끝났다 — 들고 다른 주차장으로 갈 때 방해가 된다.
+  useEffect(() => {
+    if (holding) setQuery('');
+  }, [holding]);
 
   // 칸이 그려진 다음에 옮긴다 — 묶음이 바뀌거나 접힌 게 펴지면 표가 새로 그려진다.
   useEffect(() => {
