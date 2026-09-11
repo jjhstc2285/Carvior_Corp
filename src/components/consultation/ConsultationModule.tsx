@@ -8,12 +8,10 @@ import {
   type ConsultationKind,
   type ConsultationRecord,
   type ConsultationStatus,
-  type ManagedVehicle,
 } from '../../types';
 import ConsultationForm from './ConsultationForm';
 import PriceCheckModal from '../price/PriceCheckModal';
 import CustomerHistoryModal from './CustomerHistoryModal';
-import SellableVehicles from './SellableVehicles';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 
@@ -173,12 +171,6 @@ export default function ConsultationModule({ role, kind }: Props) {
 
   const eventsForDate = (dateStr: string): CalEvent[] => eventIndex.get(dateStr) ?? [];
 
-  // 이미 상담이 등록된 차는 목록에서 흐리게 보여준다(막지는 않는다 — 같은 차에 문의가 여러 번 온다).
-  const consultedNumbers = useMemo(
-    () => new Set(state.consultations.filter(c => c.kind === kind).map(c => c.vehicleNumber)),
-    [state.consultations, kind],
-  );
-
   const staffStats = useMemo(() => {
     if (role !== 'ADMIN') return [];
     return state.employees.map(emp => {
@@ -211,17 +203,6 @@ export default function ConsultationModule({ role, kind }: Props) {
         </button>
         </div>
       </div>
-
-      {kind === 'BROKERAGE' && (
-      <SellableVehicles
-        consultedNumbers={consultedNumbers}
-        onStart={(v: ManagedVehicle) => {
-          setEditing(null);
-          setPreset({ vehicleNumber: v.vehicleNumber, vehicleName: v.vehicleModel });
-          setFormOpen(true);
-        }}
-      />
-      )}
 
       {role === 'ADMIN' && staffStats.length > 0 && (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
