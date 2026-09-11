@@ -22,6 +22,9 @@ const PLATE = /(\d{2,3}[가-힣]\d{4})/;
 /** 2026.04.13 · 2026-04-13 · 2026/4/13 — 연도가 있는 날짜만 받는다 */
 const FULL_DATE = /(20\d{2})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/;
 
+/** "09월 14일" · "10/15연장" — 여신사 칸 뒤에 붙는 날짜 메모 */
+const MONTH_DAY = /^\d{1,2}\s*[월/.\-]\s*\d{1,2}/;
+
 /** 장부의 제목·합계·머리글 줄 — 차가 아니라서 조용히 넘긴다 */
 const NOISE = /(현황|상환금액|합계|기준|소계|차량번호|담당자|여신사)/;
 
@@ -50,6 +53,25 @@ export interface StockSheetSkip {
 export interface StockSheetParse {
   rows: StockSheetRow[];
   skipped: StockSheetSkip[];
+}
+
+/**
+ * 주소창에서 복사한 시트 주소를 CSV 주소로 바꾼다.
+ *
+ * 사람이 건네주는 건 언제나 .../edit?usp=sharing 꼴이다. 그걸 그대로 받으면 HTML이
+ * 오고 한 줄도 못 읽는다. 문서 번호와 탭(gid)만 뽑아 다시 만든다.
+ * 이미 export 주소면 그대로 둔다.
+ */
+export function toCsvUrl(url: string): string {
+  const raw = url.trim();
+  if (!raw) return '';
+  if (raw.includes('/export')) return raw;
+
+  const id = /\/spreadsheets\/d\/([A-Za-z0-9_-]+)/.exec(raw)?.[1];
+  if (!id) return raw;
+  // 탭을 지정하지 않으면 첫 번째 탭을 읽는다
+  const gid = /[#&?]gid=(\d+)/.exec(raw)?.[1];
+  return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
 }
 
 /** 따옴표 있는 CSV — 금액의 쉼표("8,000,000")가 칸을 가르지 않게 한다. */
@@ -170,9 +192,20 @@ export function parseStockSheet(csv: string): StockSheetParse {
     // 연식 — 칸 하나가 네 자리 연도뿐일 때만 본다(금액과 헷갈리지 않게)
     const modelYear = trimmed.find(c => /^(19|20)\d{2}$/.test(c)) ?? '';
 
-    // 여신사 — 장부는 오른쪽 끝에 적으니 뒤에서부터 찾는다
+    /*
+      여신사.
+
+      오른쪽 끝에서 찾되, 아는 이름인 칸을 고른다. 장부에는 여신사 뒤에 "07월 06일",
+      "10/15연장" 같은 칸이 더 붙어 있는 줄이 많아서, 그냥 맨 뒤 글자 칸을 집으면
+      날짜를 여신사로 읽는다.
+      아는 이름이 하나도 없으면 맨 뒤 칸을 그대로 들고 와 화면에 보여준다 —
+      무엇을 못 알아봤는지는 보여야 고칠 수 있다.
+    */
+    const textCells = trimmed.filter(c => /[가-힣A-Za-z]/.test(c) && c !== vehicleModel && !NOISE.test(c));
     const capitalRaw =
-      [...trimmed].reverse().find(c => /[가-힣A-Za-z]/.test(c) && c !== vehicleModel && !FULL_DATE.test(c) && !NOISE.test(c)) ?? '';
+      [...textCells].reverse().find(c => canonicalCapital(c)) ??
+      [...textCells].reverse().find(c => !FULL_DATE.test(c) && !MONTH_DAY.test(c)) ??
+      '';
     const stockCapital = canonicalCapital(capitalRaw);
 
     rows.push({

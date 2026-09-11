@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess } from '../../lib/alert';
-import { isImportable, parseStockSheet, type StockSheetParse } from '../../lib/stockSheet';
+import { isImportable, parseStockSheet, toCsvUrl, type StockSheetParse } from '../../lib/stockSheet';
 
 /**
  * 재고차량 장부(구글 시트) 가져오기.
@@ -40,7 +40,8 @@ export default function StockSheetImportModal({
   const load = async () => {
     setBusy(true);
     try {
-      const { csv } = await api<{ csv: string }>(`/vehicles/stock-sheet?url=${encodeURIComponent(url.trim())}`);
+      // 주소창에서 복사한 .../edit?usp=sharing 을 그대로 넣어도 되게 바꿔서 부른다
+      const { csv } = await api<{ csv: string }>(`/vehicles/stock-sheet?url=${encodeURIComponent(toCsvUrl(url))}`);
       setParsed(parseStockSheet(csv));
       try {
         localStorage.setItem(URL_KEY, url.trim());
@@ -103,7 +104,7 @@ export default function StockSheetImportModal({
           <input
             value={url}
             onChange={e => setUrl(e.target.value)}
-            placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0"
+            placeholder="https://docs.google.com/spreadsheets/d/... (주소창에서 복사한 그대로)"
             className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
           />
           <button
