@@ -176,6 +176,7 @@ export class SettlementsService {
     return rows.map((r) => ({
       ...r,
       date: formatDateOnly(r.date),
+      cashConfirmedAt: r.cashConfirmedAt?.toISOString() ?? null,
       profit: brokerageProfit(r),
     }));
   }
@@ -345,6 +346,28 @@ export class SettlementsService {
       brokeragePlates: rows.slice(0, 5).map((r) => r.vehicleNumber),
       purchasePlates: [...purchasePlates].slice(0, 5),
     };
+  }
+
+  /**
+   * 현금 수수료를 받았는지 대표가 찍는다.
+   *
+   * 적어둔 금액과 손에 들어온 돈이 다를 수 있어 한 건씩 확인한다.
+   * 언제 찍었는지를 같이 남긴다 — 확인 여부만 남기면 나중에 언제 받은 건지 알 수가 없다.
+   *
+   * 대표만 찍는다. 받은 사람이 스스로 '받았다'고 찍으면 확인하는 뜻이 없다.
+   */
+  async confirmCash(id: string, user: AuthUser, confirmed: boolean) {
+    if (approvalRoleOf(user.name) !== 'CEO') {
+      throw new ForbiddenException('현금 수수료 확인은 대표만 할 수 있습니다.');
+    }
+    await this.assert('brokerageSettlement', id);
+
+    const row = await this.prisma.brokerageSettlement.update({
+      where: { id },
+      data: { cashConfirmedAt: confirmed ? new Date() : null },
+      include: EMPLOYEE_SELECT,
+    });
+    return { ...row, date: formatDateOnly(row.date), profit: brokerageProfit(row) };
   }
 
   async removeBrokerage(id: string) {

@@ -521,22 +521,30 @@ model Settlement {
  * 할부 피처럼 12,345원으로 떨어지는 값이 있어 만원으로는 담기지 않는다.
  */
 model BrokerageSettlement {
-  id                 String           @id @default(cuid())
-  date               DateTime         @db.Date
+  id                 String   @id @default(cuid())
+  date               DateTime @db.Date
   vehicleNumber      String
   vehicleName        String
-  totalSaleAmount    Int              @default(0) // 총 진행 판매금액
-  ownerDeposit       Int              @default(0) // 실차주입금
-  transferFee        Int              @default(0) // 이전비
-  transferFeeBalance Int              @default(0) // 이전비 잔액
-  cashCommission     Int              @default(0) // 현금 수수료
-  installmentFee     Int              @default(0) // 할부 피
-  insuranceFee       Int              @default(0) // 보험 피
-  etcCost            Int              @default(0) // 기타비용
-  settlementAmount   Int              @default(0) // 정산받을금액
-  employeeId         String
-  status             SettlementStatus @default(IN_PROGRESS)
-  memo               String           @db.Text
+  totalSaleAmount    Int      @default(0) // 총 진행 판매금액
+  ownerDeposit       Int      @default(0) // 실차주입금
+  transferFee        Int      @default(0) // 이전비
+  transferFeeBalance Int      @default(0) // 이전비 잔액
+  cashCommission     Int      @default(0) // 현금 수수료
+
+  /**
+   * 현금 수수료를 대표가 실제로 받았는지.
+   * 적어둔 금액과 손에 들어온 돈이 다를 수 있어 대표가 한 건씩 확인한다.
+   * 언제 확인했는지를 같이 남긴다 — 확인만 남기면 나중에 언제 받은 건지 알 수가 없다.
+   * 확인한 사람은 대표 한 명이라 따로 두지 않는다.
+   */
+  cashConfirmedAt  DateTime?
+  installmentFee   Int              @default(0) // 할부 피
+  insuranceFee     Int              @default(0) // 보험 피
+  etcCost          Int              @default(0) // 기타비용
+  settlementAmount Int              @default(0) // 정산받을금액
+  employeeId       String
+  status           SettlementStatus @default(IN_PROGRESS)
+  memo             String           @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

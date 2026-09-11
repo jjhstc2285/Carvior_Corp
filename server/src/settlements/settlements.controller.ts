@@ -82,6 +82,16 @@ export class SettlementsController {
     return this.settlements.findBrokerage({ q, status, month, employeeId: this.ownScope(user, employeeId) });
   }
 
+  /** 현금 수수료를 받았는지 대표가 찍는다 — 찍은 때가 같이 남는다. */
+  @Post('brokerage/:id/cash-confirm')
+  confirmCash(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { confirmed?: boolean },
+  ) {
+    return this.settlements.confirmCash(id, user, dto.confirmed !== false);
+  }
+
   @Post('brokerage')
   createBrokerage(@Body() dto: CreateBrokerageDto) {
     return this.settlements.createBrokerage(dto);

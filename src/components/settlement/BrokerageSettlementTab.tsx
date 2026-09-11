@@ -6,7 +6,8 @@ import { useStore } from '../../store';
 import { brokerageProfit, SETTLEMENT_STATUS_LABEL, type BrokerageSettlement, type SettlementStatus } from '../../types';
 import BrokerageSettlementForm from './BrokerageSettlementForm';
 import PendingSettlementVehicles from './PendingSettlementVehicles';
-import { confirmDanger } from '../../lib/alert';
+import { alertError, confirmDanger } from '../../lib/alert';
+import { api, ApiError } from '../../lib/api';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -16,7 +17,7 @@ interface Props {
 const NUM = (n: number) => n.toLocaleString();
 
 export default function BrokerageSettlementTab({ role }: Props) {
-  const { state, deleteBrokerageSettlement } = useStore();
+  const { state, deleteBrokerageSettlement, refresh } = useStore();
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [query, setQuery] = useState('');
@@ -31,6 +32,31 @@ export default function BrokerageSettlementTab({ role }: Props) {
    * 매입 정산과 달리 남이 채워줄 빈칸도 없다.
    */
   const seesAll = role !== 'EMPLOYEE';
+
+  /**
+   * 현금 수수료를 받았는지는 대표만 찍는다.
+   *
+   * 받은 사람이 스스로 '받았다'고 찍으면 확인하는 뜻이 없다.
+   * 이름으로 가린다 — 서버(settlements/approvers.ts)와 같은 기준이고, 서버가 다시 본다.
+   */
+  const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
+  const isCeo = me?.name === '유진욱';
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const toggleCash = async (s: BrokerageSettlement) => {
+    setBusyId(s.id);
+    try {
+      await api(`/settlements/brokerage/${s.id}/cash-confirm`, {
+        method: 'POST',
+        body: { confirmed: !s.cashConfirmedAt },
+      });
+      await refresh();
+    } catch (e) {
+      void alertError('바꾸지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setBusyId(null);
+    }
+  };
   const scoped = seesAll
     ? state.brokerageSettlements
     : state.brokerageSettlements.filter(s => s.employeeId === state.currentEmployeeId);
@@ -62,6 +88,8 @@ export default function BrokerageSettlementTab({ role }: Props) {
       이전비: s.transferFee,
       '이전비 잔액': s.transferFeeBalance,
       '현금 수수료': s.cashCommission,
+      '현금 확인': s.cashConfirmedAt ? '확인' : '미확인',
+      '확인 시점': s.cashConfirmedAt ? dayjs(s.cashConfirmedAt).format('YYYY-MM-DD HH:mm') : '',
       '할부 피': s.installmentFee,
       '보험 피': s.insuranceFee,
       차대금업: s.etcCost,
@@ -154,6 +182,12 @@ export default function BrokerageSettlementTab({ role }: Props) {
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">이전비</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">이전비 잔액</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">현금 수수료</th>
+                <th
+                  className="whitespace-nowrap px-3 py-2.5 text-center font-medium"
+                  title="대표가 현금 수수료를 실제로 받았는지 — 눌러서 바꿉니다"
+                >
+                  현금 확인
+                </th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">할부 피</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">보험 피</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">차대금업</th>
@@ -165,7 +199,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={17} className="px-5 py-10 text-center text-sm text-slate-400">알선 정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={18} className="px-5 py-10 text-center text-sm text-slate-400">알선 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => {
                 const profit = brokerageProfit(s);
@@ -181,6 +215,36 @@ export default function BrokerageSettlementTab({ role }: Props) {
                     <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.transferFee)}</td>
                     <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.transferFeeBalance)}</td>
                     <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.cashCommission)}</td>
+                    {/*
+                      적어둔 금액과 손에 들어온 돈이 다를 수 있어 대표가 한 건씩 찍는다.
+                      찍은 때를 같이 보여준다 — 확인 여부만 남기면 언제 받은 건지 알 수가 없다.
+                      대표가 아니면 눌리지 않는다. 받은 사람이 스스로 찍으면 확인하는 뜻이 없다.
+                    */}
+                    <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                      <button
+                        disabled={!isCeo || busyId === s.id}
+                        onClick={() => void toggleCash(s)}
+                        title={
+                          s.cashConfirmedAt
+                            ? `${dayjs(s.cashConfirmedAt).format('M월 D일 HH:mm')} 확인`
+                            : isCeo
+                              ? '누르면 확인으로 바꿉니다'
+                              : '대표만 확인할 수 있습니다'
+                        }
+                        className={`rounded-full border px-2 py-0.5 text-[11px] font-bold disabled:cursor-default ${
+                          s.cashConfirmedAt
+                            ? 'border-blue-300 bg-blue-50 text-blue-700'
+                            : 'border-red-300 bg-red-50 text-red-600'
+                        } ${isCeo ? 'hover:brightness-95' : ''}`}
+                      >
+                        {s.cashConfirmedAt ? '확인' : '미확인'}
+                      </button>
+                      {s.cashConfirmedAt && (
+                        <span className="mt-0.5 block text-[10px] text-slate-400">
+                          {dayjs(s.cashConfirmedAt).format('M/D HH:mm')}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.installmentFee)}</td>
                     <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.insuranceFee)}</td>
                     <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.etcCost)}</td>

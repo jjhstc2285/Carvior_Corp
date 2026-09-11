@@ -293,6 +293,8 @@ export interface BrokerageSettlement {
   transferFee: number; // 이전비
   transferFeeBalance: number; // 이전비 잔액
   cashCommission: number; // 현금 수수료
+  /** 대표가 현금 수수료를 받았다고 찍은 때. 안 찍었으면 null */
+  cashConfirmedAt?: string | null;
   installmentFee: number; // 할부 피
   insuranceFee: number; // 보험 피
   etcCost: number; // 차대금업 (DB 칸 이름은 그대로 둔다 — 지난 자료가 들어 있다)
