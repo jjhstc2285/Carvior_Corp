@@ -5,7 +5,7 @@ import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
 import { useAuth } from '../../authStore';
 import { useStore } from '../../store';
-import { photoList } from './ContractPhotos';
+import { ContractPhotoThumb } from './ContractPhotos';
 import {
   SETTLEMENT_STAGE_CLASS,
   SETTLEMENT_STAGE_LABEL,
@@ -102,27 +102,9 @@ export default function SettlementApprovalInbox() {
               <span className="text-xs text-slate-400">{dayjs(s.submittedAt).format('M/D HH:mm')} 올림</span>
             )}
 
-            {/*
-              계약서 사진 — 눌러서 원본을 새 창으로 본다.
-              이게 있어야 종이를 들고 오갈 일이 없다. 없으면 없다고 적어 준다.
-            */}
-            {photoList(s.contractPhotos).length > 0 ? (
-              <span className="flex items-center gap-1">
-                {photoList(s.contractPhotos).slice(0, 3).map(url => (
-                  <a key={url} href={url} target="_blank" rel="noreferrer">
-                    <img
-                      src={url}
-                      alt="계약서"
-                      className="size-9 rounded border border-slate-200 object-cover hover:brightness-95"
-                    />
-                  </a>
-                ))}
-                {photoList(s.contractPhotos).length > 3 && (
-                  <span className="text-[11px] text-slate-400">
-                    +{photoList(s.contractPhotos).length - 3}
-                  </span>
-                )}
-              </span>
+            {/* 계약서 사진 — 눌러서 크게 본다. 없으면 없다고 적어 준다 */}
+            {s.contractPhotos ? (
+              <ContractPhotoThumb value={s.contractPhotos} />
             ) : (
               <span className="text-[11px] text-amber-700">계약서 사진 없음</span>
             )}

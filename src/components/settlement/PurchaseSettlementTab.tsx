@@ -24,6 +24,7 @@ import {
 } from '../../types';
 import PurchaseSettlementForm from './PurchaseSettlementForm';
 import PendingPurchaseDrafts from './PendingPurchaseDrafts';
+import { ContractPhotoThumb } from './ContractPhotos';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
 
@@ -417,6 +418,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   판매수익
                 </th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">담당자</th>
+                <th className="whitespace-nowrap px-3 py-2.5 text-center font-medium">계약서</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">결재</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">상태</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">관리</th>
@@ -424,7 +426,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={23} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={24} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => (
                 <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -456,6 +458,14 @@ export default function PurchaseSettlementTab({ role }: Props) {
                   <td className="px-3 py-2.5 text-right text-slate-600">{s.salePrice > 0 ? MAN(s.salePrice) : '—'}</td>
                   <td className="px-3 py-2.5 text-right font-semibold text-emerald-700">{MAN(profitOf(s))}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{employeeOf(s.employeeId)?.name}</td>
+                  {/* 눌러서 크게 본다 — 결재하는 쪽이 표에서 바로 확인한다 */}
+                  <td className="px-3 py-2.5 text-center">
+                    {s.contractPhotos ? (
+                      <ContractPhotoThumb value={s.contractPhotos} size={32} />
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2.5">
                     <span
                       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${SETTLEMENT_STAGE_CLASS[s.stage ?? 'DRAFT']}`}
