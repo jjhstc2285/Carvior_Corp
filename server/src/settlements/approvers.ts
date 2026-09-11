@@ -18,14 +18,26 @@ export const CEO_APPROVER = '유진욱';
  * 본부장을 건너뛰고 대표만 찍는 사람.
  *
  * 담당자가 이쪽이면 올리자마자 대표 차례다. 본부장을 거칠 일이 없는 자리가 있다.
+ * 성을 뺀 이름으로 적어둔다 — '진후'라고 두면 '박진후'도 '김진후'도 걸리지만,
+ * 같은 이름이 둘 있는 회사가 아니라 그게 오히려 안전하다(성을 다르게 적어도 걸린다).
  * 이름으로 못 박는다 — 직급으로 가리면 같은 직급이 하나 더 생겼을 때 같이 새 나간다.
  */
-export const CEO_ONLY_OWNERS = ['이우주'];
+export const CEO_ONLY_OWNERS = ['이우주', '진후'];
 
 /** 이 정산이 본부장을 거치는가 — 담당자 이름으로 갈린다. */
 export function needsChief(ownerName: string | null | undefined): boolean {
   const name = (ownerName ?? '').trim();
   return !CEO_ONLY_OWNERS.some((x) => name.includes(x));
+}
+
+/**
+ * 현금 수수료 확인을 찍을 수 있는가 — 대표, 그리고 테스트 계정.
+ *
+ * 테스트 계정을 넣는 이유는 대표가 자리를 비웠을 때 흐름이 멈추면 안 되기 때문이다.
+ * 받은 사람이 스스로 찍는 것만 막으면 된다.
+ */
+export function canConfirmCash(user: { name: string; position: string }): boolean {
+  return user.name.trim() === CEO_APPROVER || user.position.includes('테스트');
 }
 
 export type ApprovalRole = 'CHIEF' | 'CEO';

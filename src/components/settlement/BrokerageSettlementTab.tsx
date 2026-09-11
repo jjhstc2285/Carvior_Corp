@@ -40,7 +40,8 @@ export default function BrokerageSettlementTab({ role }: Props) {
    * 이름으로 가린다 — 서버(settlements/approvers.ts)와 같은 기준이고, 서버가 다시 본다.
    */
   const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
-  const isCeo = me?.name === '유진욱';
+  // 대표가 자리를 비웠을 때 흐름이 멈추면 안 돼서 테스트 계정도 찍을 수 있다.
+  const isCeo = me?.name === '유진욱' || (me?.position ?? '').includes('테스트');
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const toggleCash = async (s: BrokerageSettlement) => {

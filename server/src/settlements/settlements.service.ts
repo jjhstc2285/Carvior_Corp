@@ -18,7 +18,15 @@ import {
   type VehicleCostSummary,
 } from './settlement.calc';
 import { normalizePlate } from '../vehicles/vehicle.rules';
-import { approvalRoleOf, CEO_APPROVER, CHIEF_APPROVER, isLocked, needsChief, stageOf } from './approvers';
+import {
+  approvalRoleOf,
+  canConfirmCash,
+  CEO_APPROVER,
+  CHIEF_APPROVER,
+  isLocked,
+  needsChief,
+  stageOf,
+} from './approvers';
 import type { AuthUser } from '../auth/current-user.decorator';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { PushService } from '../push/push.service';
@@ -349,6 +357,25 @@ export class SettlementsService {
   }
 
   /**
+   * 승인을 기다리는 매입 정산 — 관리자 대시보드의 승인함에 띄운다.
+   *
+   * 정산 화면은 달로 걸러 보는 곳이라, 지난 달에 올라온 건이 눈에 안 띈다.
+   * 결재할 게 있으면 대시보드에서 바로 보이게 따로 모아 준다.
+   *
+   * 담당자 이름에 따라 본부장을 건너뛰는 건이 있어 단계는 여기서 다시 낸다.
+   */
+  async pendingPurchase() {
+    const rows = await this.prisma.purchaseSettlement.findMany({
+      where: { submittedAt: { not: null }, ceoApprovedAt: null },
+      include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
+      orderBy: { submittedAt: 'asc' },
+    });
+
+    const costs = await this.vehicleCostsByPlate(rows.map((r) => r.vehicleNumber));
+    return rows.map((r) => this.toPurchaseView(r, costs.get(normalizePlate(r.vehicleNumber))));
+  }
+
+  /**
    * 현금 수수료를 받았는지 대표가 찍는다.
    *
    * 적어둔 금액과 손에 들어온 돈이 다를 수 있어 한 건씩 확인한다.
@@ -357,7 +384,7 @@ export class SettlementsService {
    * 대표만 찍는다. 받은 사람이 스스로 '받았다'고 찍으면 확인하는 뜻이 없다.
    */
   async confirmCash(id: string, user: AuthUser, confirmed: boolean) {
-    if (approvalRoleOf(user.name) !== 'CEO') {
+    if (!canConfirmCash(user)) {
       throw new ForbiddenException('현금 수수료 확인은 대표만 할 수 있습니다.');
     }
     await this.assert('brokerageSettlement', id);

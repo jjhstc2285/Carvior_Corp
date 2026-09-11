@@ -3,6 +3,7 @@ import ApprovalInbox from './ApprovalInbox';
 import SignupApprovals from './SignupApprovals';
 import AttendanceRequestInbox from './AttendanceRequestInbox';
 import StatusBar from './StatusBar';
+import SettlementApprovalInbox from './settlement/SettlementApprovalInbox';
 import MonthlyDashboard from './MonthlyDashboard';
 import IpWhitelistSettings from './IpWhitelistSettings';
 import AttendanceDeviceSettings from './AttendanceDeviceSettings';
@@ -19,6 +20,8 @@ export default function AdminView() {
       <div className="space-y-6">
         {/* 오늘 누가 무엇을 하는지 — 승인함보다 먼저 보는 값이다 */}
         <StatusBar />
+        {/* 결재를 기다리는 정산 — 찾으러 들어가야 하는 결재는 밀린다 */}
+        <SettlementApprovalInbox />
         <AttendanceRequestInbox />
         {/* 가입 승인은 대기 건이 있을 때만 나타난다 — 없으면 자리를 차지하지 않는다 */}
         <SignupApprovals />

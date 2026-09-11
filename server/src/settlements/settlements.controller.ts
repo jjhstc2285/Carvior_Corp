@@ -164,6 +164,12 @@ export class SettlementsController {
     return this.settlements.syncAllFromBrokerage();
   }
 
+  /** 승인을 기다리는 매입 정산 — 관리자 대시보드의 승인함에서 쓴다. */
+  @Get('purchase/pending')
+  pendingPurchase() {
+    return this.settlements.pendingPurchase();
+  }
+
   /** 계약팀이 다 채워 올린다 — 여기서부터 본부장이 볼 차례다. */
   @Post('purchase/:id/submit')
   submitPurchase(@Param('id') id: string, @CurrentUser() user: AuthUser) {
