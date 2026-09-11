@@ -14,6 +14,7 @@ import PriceCheckModal from '../price/PriceCheckModal';
 import CustomerHistoryModal from './CustomerHistoryModal';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
+import { conversionOf, isOfKind } from '../../lib/consultationStats';
 
 /**
  * 카톡으로 주고받던 양식 그대로 만들어 클립보드에 넣는다.
@@ -82,6 +83,9 @@ const STATUS_COLOR: Record<ConsultationStatus, string> = {
 type StatusView = 'open' | 'all' | ConsultationStatus;
 
 /** 한 번에 그리는 줄 수. 넘으면 '더 보기'로 늘린다 — 천 줄을 한꺼번에 그리면 멈춘다. */
+/** 상담은 알선팀이 맡는다 — 전환율은 이 팀만 센다 */
+const CONSULTATION_TEAM = '알선팀';
+
 const PAGE_SIZE = 100;
 
 export default function ConsultationModule({ role, kind }: Props) {
@@ -100,7 +104,7 @@ export default function ConsultationModule({ role, kind }: Props) {
 
   // 직급과 상관없이 전체 상담을 본다 — 상담을 받은 사람과 뒤를 이어받는 사람이 다르다.
   // 내 것만 보고 싶으면 담당자에서 고른다.
-  const ofKind = useMemo(() => state.consultations.filter(c => c.kind === kind), [state.consultations, kind]);
+  const ofKind = useMemo(() => state.consultations.filter(c => isOfKind(c, kind)), [state.consultations, kind]);
 
   /** 종결함에 몇 건이 들어 있는지 — 버튼에 붙여 보여준다. */
   const closedCount = useMemo(() => ofKind.filter(c => c.status === 'CLOSED').length, [ofKind]);
@@ -171,21 +175,33 @@ export default function ConsultationModule({ role, kind }: Props) {
 
   const eventsForDate = (dateStr: string): CalEvent[] => eventIndex.get(dateStr) ?? [];
 
+  /**
+   * 담당자별 전환율.
+   *
+   * 상담을 맡는 건 알선팀이다. 다른 팀 사람이 어쩌다 한 건 적어두면 1/1 = 100%로
+   * 맨 앞에 뜨는데, 그건 실적이 아니라 잡음이다 — 알선팀만 센다.
+   *
+   * 세는 규칙은 lib/consultationStats.ts 한 곳에 있다:
+   * 계약 = 계약 + 판매완료 · 보류는 계약이 아니고 · 종결은 모수에서 뺀다.
+   */
   const staffStats = useMemo(() => {
     if (role !== 'ADMIN') return [];
-    return state.employees.map(emp => {
-      const own = state.consultations.filter(c => c.kind === kind && c.employeeId === emp.id);
-      const contracted = own.filter(c => c.status === 'CONTRACTED').length;
-      const rate = own.length > 0 ? Math.round((contracted / own.length) * 100) : 0;
-      return { emp, total: own.length, contracted, rate };
-    }).filter(s => s.total > 0);
-  }, [state.consultations, state.employees, role, kind]);
+    return state.employees
+      .filter(emp => emp.department === CONSULTATION_TEAM)
+      .map(emp => ({ emp, ...conversionOf(ofKind.filter(c => c.employeeId === emp.id)) }))
+      .filter(s => s.total > 0 || s.closed > 0)
+      .sort((a, b) => b.rate - a.rate || b.total - a.total);
+  }, [ofKind, state.employees, role]);
 
   return (
     <>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-slate-500">
           받은 카톡 양식 그대로 등록합니다. <b>전체 상담이 다 보입니다</b> — 손님번호를 누르면 그 손님의 지난 상담이 모여 나옵니다.
+          {/* 알선으로 골라놓고 내용에 수출이라 적는 일이 많아, 어디로 가는지 미리 알려준다 */}
+          {kind === 'BROKERAGE'
+            ? ' 상담 내용에 "수출"이 들어가면 수출 상담으로 모입니다.'
+            : ' 알선으로 적었어도 내용에 "수출"이 있으면 여기로 모입니다.'}
         </p>
         <div className="flex items-center gap-2">
         <button
@@ -206,13 +222,26 @@ export default function ConsultationModule({ role, kind }: Props) {
 
       {role === 'ADMIN' && staffStats.length > 0 && (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="mb-3 text-xs font-bold text-slate-500">담당자별 상담 → 계약 전환율</p>
+          <div className="mb-3 flex flex-wrap items-baseline gap-2">
+            <p className="text-xs font-bold text-slate-500">담당자별 상담 → 계약 전환율</p>
+            <p className="text-[11px] text-slate-400">
+              {CONSULTATION_TEAM} · 계약 = 계약 + 판매완료 · 계약보류는 계약으로 안 세고 · 상담종결은 아예 빼고 셉니다
+            </p>
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {staffStats.map(({ emp, total, contracted, rate }) => (
+            {staffStats.map(({ emp, total, contracted, onHold, closed, rate }) => (
               <div key={emp.id} className="rounded-xl bg-slate-50 px-3 py-2.5">
                 <p className="text-xs font-medium text-slate-500">{emp.name}</p>
                 <p className="mt-1 text-lg font-bold text-slate-800">{rate}<span className="text-xs font-medium text-slate-400">%</span></p>
                 <p className="text-[11px] text-slate-400">{contracted}/{total}건 계약</p>
+                {/* 보류·종결은 왜 숫자가 그런지 설명해 주는 값이라 같이 둔다 */}
+                {(onHold > 0 || closed > 0) && (
+                  <p className="mt-0.5 text-[11px] text-slate-400">
+                    {onHold > 0 && <span className="text-amber-700">계약보류 {onHold}건</span>}
+                    {onHold > 0 && closed > 0 && ' · '}
+                    {closed > 0 && <span>상담종결 {closed}건 제외</span>}
+                  </p>
+                )}
               </div>
             ))}
           </div>

@@ -18,6 +18,9 @@ import type { CreateConsultationDto, UpdateConsultationDto } from './dto/consult
  */
 const RELEASE_TEAMS = ['광고팀', '차량관리팀'];
 
+/** 상담은 알선팀이 맡는다 — 전환율은 이 팀만 센다(프론트 ConsultationModule 과 같다). */
+const CONSULTATION_TEAM = '알선팀';
+
 @Injectable()
 export class ConsultationsService {
   private readonly logger = new Logger(ConsultationsService.name);
@@ -297,36 +300,53 @@ export class ConsultationsService {
     await this.prisma.consultation.delete({ where: { id } });
   }
 
-  /** 담당자별 상담 → 계약 전환율 */
+  /**
+   * 담당자별 상담 → 계약 전환율.
+   *
+   * 세는 규칙은 화면(src/lib/consultationStats.ts)과 같아야 한다 — 같은 화면에 두 숫자가
+   * 나오면 어느 쪽이 맞는지 알 수 없게 된다.
+   *   · 계약  = 계약 + 판매완료 (판매완료는 계약이 된 뒤 출고까지 끝난 것이다)
+   *   · 보류  = 계약이 미뤄진 것뿐 — 계약으로 안 세고 모수에는 남긴다
+   *   · 종결  = 상담이 끝난 것 — 모수에서 뺀다. 넣으면 지난 상담을 정리할수록 숫자가
+   *            떨어져서, 정리를 안 하는 쪽이 좋아 보인다
+   *
+   * 상담은 알선팀이 맡는다. 다른 팀 사람이 어쩌다 한 건 적어두면 1/1 = 100%로 뜨는데
+   * 그건 실적이 아니라 잡음이라 세지 않는다.
+   */
   async conversionStats() {
     const grouped = await this.prisma.consultation.groupBy({
       by: ['employeeId', 'status'],
       _count: { _all: true },
     });
 
-    const byEmployee = new Map<string, { total: number; contracted: number }>();
+    const employees = await this.prisma.employee.findMany({
+      where: { department: CONSULTATION_TEAM },
+      select: { id: true, name: true },
+    });
+    const names = new Map(employees.map((e) => [e.id, e.name]));
+
+    const byEmployee = new Map<string, { total: number; contracted: number; onHold: number; closed: number }>();
     for (const g of grouped) {
-      const entry = byEmployee.get(g.employeeId) ?? { total: 0, contracted: 0 };
-      entry.total += g._count._all;
-      if (g.status === ConsultationStatus.CONTRACTED) entry.contracted += g._count._all;
+      if (!names.has(g.employeeId)) continue;
+      const entry = byEmployee.get(g.employeeId) ?? { total: 0, contracted: 0, onHold: 0, closed: 0 };
+      const n = g._count._all;
+
+      if (g.status === ConsultationStatus.CLOSED) {
+        entry.closed += n;
+      } else {
+        entry.total += n;
+        if (g.status === ConsultationStatus.CONTRACTED || g.status === ConsultationStatus.SOLD) entry.contracted += n;
+        if (g.status === ConsultationStatus.ON_HOLD) entry.onHold += n;
+      }
       byEmployee.set(g.employeeId, entry);
     }
 
-    const employees = await this.prisma.employee.findMany({
-      where: { id: { in: [...byEmployee.keys()] } },
-      select: { id: true, name: true },
-    });
-
-    return employees.map((e) => {
-      const { total, contracted } = byEmployee.get(e.id)!;
-      return {
-        employeeId: e.id,
-        name: e.name,
-        total,
-        contracted,
-        rate: total > 0 ? Math.round((contracted / total) * 100) : 0,
-      };
-    });
+    return [...byEmployee].map(([employeeId, s]) => ({
+      employeeId,
+      name: names.get(employeeId)!,
+      ...s,
+      rate: s.total > 0 ? Math.round((s.contracted / s.total) * 100) : 0,
+    }));
   }
 
   /** 있는지 보고 고치기 전 상태를 돌려준다 — 판매완료로 '바뀌는' 순간을 가리는 데 쓴다. */
