@@ -1,0 +1,3 @@
+-- 이전한 지 넉 달이 지난 차는 재검을 다시 받아야 한다. 차량관리팀에 알리는 종류를 하나 늘린다.
+ALTER TABLE `Notification`
+  MODIFY COLUMN `type` ENUM('MISSING', 'CORRECTION_REQUEST', 'ATTENDANCE_REQUEST', 'MILEAGE_GAP', 'DEALER_FEE', 'APPROVAL', 'AD_QUOTA', 'RELEASE_PENDING', 'REINSPECTION') NOT NULL;

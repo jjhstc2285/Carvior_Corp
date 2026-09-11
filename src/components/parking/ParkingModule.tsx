@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Download, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Download, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import ParkingForm from './ParkingForm';
@@ -10,6 +10,7 @@ import MoveSuggestions from './MoveSuggestions';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { PARKING_LOTS } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
+import { REINSPECT_MONTHS, reinspectLabel } from '../../lib/reinspection';
 
 // 주차 자리는 등록·이동·비우기 모두 현장에서 하는 일이라 권한을 나누지 않는다.
 // 시트 가져오기만 관리자다 — 한 번에 백 대가 넘는 자리를 덮어쓰는 일이라서.
@@ -40,6 +41,24 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
     .filter(v => statusFilter === 'all' || v.status === statusFilter)
     .filter(v => !query.trim() || v.vehicleNumber.includes(query.trim()) || v.vehicleModel.includes(query.trim()))
     .sort((a, b) => rankOf(a.lot) - rankOf(b.lot) || a.lot.localeCompare(b.lot) || a.zone.localeCompare(b.zone));
+
+  /**
+   * 재검이 필요한 차.
+   *
+   * 이전한 지 넉 달이 지나면 성능점검을 다시 받아야 하는데, 주차장에 세워둔 차는
+   * 그 날짜가 지나는 줄 모르고 그냥 서 있는다. 구역도에서 한 칸씩 찾아보게 두지 않고
+   * 화면 맨 위에 모아 둔다 — 지난 지 오래된 차가 맨 앞이다.
+   *
+   * 이전일자는 차량관리에 적은 값이고, 서버가 차량번호로 짝지어 붙여 준다.
+   */
+  const dueReinspect = useMemo(
+    () =>
+      state.parkingVehicles
+        .filter(v => v.reinspect)
+        .sort((a, b) => (a.reinspect?.daysLeft ?? 0) - (b.reinspect?.daysLeft ?? 0)),
+    [state.parkingVehicles],
+  );
+  const overdue = dueReinspect.filter(v => v.reinspect?.level === 'DUE');
 
   const handleCellClick = (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => {
     // 차를 대고 자리를 적는 건 현장에서 하는 일이라 직원도 빈 칸을 누를 수 있다.
@@ -72,6 +91,45 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
           </button>
         </div>
       </div>
+
+      {dueReinspect.length > 0 && (
+        <section className="mb-4 rounded-2xl border border-red-200 bg-red-50/60 px-4 py-3.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600" />
+            <h2 className="text-sm font-bold text-red-800">
+              재검이 필요한 차 {overdue.length}대
+              {dueReinspect.length > overdue.length && (
+                <span className="ml-1.5 font-medium text-amber-700">
+                  (곧 지나는 차 {dueReinspect.length - overdue.length}대 포함)
+                </span>
+              )}
+            </h2>
+            <span className="text-[11px] text-red-700/70">
+              이전일자로부터 {REINSPECT_MONTHS}개월이 지나면 성능점검을 다시 받아야 합니다 — 차량관리팀
+            </span>
+          </div>
+          <ul className="mt-2.5 flex flex-wrap gap-1.5">
+            {dueReinspect.map(v => (
+              <li
+                key={v.id}
+                className={`rounded-lg border px-2 py-1 text-xs ${
+                  v.reinspect?.level === 'DUE'
+                    ? 'border-red-300 bg-white text-red-800'
+                    : 'border-amber-300 bg-white text-amber-800'
+                }`}
+                title={`이전 ${v.transferDate} · ${v.reinspect?.dueOn} 까지`}
+              >
+                <span className="font-mono font-semibold">{v.vehicleNumber}</span>
+                {v.vehicleModel && <span className="ml-1 text-slate-500">{v.vehicleModel}</span>}
+                <span className="ml-1.5 text-slate-400">
+                  {v.lot} {v.zone} {v.slot}
+                </span>
+                <span className="ml-1.5 font-bold">{v.reinspect && reinspectLabel(v.reinspect)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg bg-slate-100 p-0.5 text-sm">
@@ -126,6 +184,7 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
                 <th className="px-5 py-2.5 font-medium">위치</th>
                 <th className="px-5 py-2.5 font-medium">차량번호</th>
                 <th className="px-5 py-2.5 font-medium">차량명</th>
+                <th className="px-5 py-2.5 font-medium">재검</th>
                 <th className="px-5 py-2.5 font-medium">담당자</th>
                 <th className="px-5 py-2.5 font-medium">상태</th>
                 <th className="px-5 py-2.5 font-medium">최근 수정</th>
@@ -134,7 +193,7 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">조건에 맞는 차량이 없습니다.</td></tr>
+                <tr><td colSpan={10} className="px-5 py-10 text-center text-sm text-slate-400">조건에 맞는 차량이 없습니다.</td></tr>
               )}
               {filtered.map(v => (
                 <tr key={v.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -143,6 +202,21 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
                   <td className="px-5 py-2.5 text-slate-500">{v.slot}</td>
                   <td className="px-5 py-2.5 font-mono font-medium text-slate-700">{v.vehicleNumber}</td>
                   <td className="px-5 py-2.5 text-slate-600">{v.vehicleModel}</td>
+                  {/* 이전일자를 안 적은 차는 셀 기준이 없어 아무 말도 안 한다 */}
+                  <td className="whitespace-nowrap px-5 py-2.5">
+                    {v.reinspect ? (
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                          v.reinspect.level === 'DUE' ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-800'
+                        }`}
+                        title={`이전 ${v.transferDate} · ${v.reinspect.dueOn} 까지`}
+                      >
+                        {reinspectLabel(v.reinspect)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-300">{v.transferDate ?? '이전일자 없음'}</span>
+                    )}
+                  </td>
                   <td className="px-5 py-2.5 text-slate-500">{employeeOf(v.employeeId)?.name ?? '-'}</td>
                   <td className="px-5 py-2.5">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${PARKING_STATUS_STYLE[v.status].pill}`}>

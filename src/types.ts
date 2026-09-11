@@ -97,6 +97,8 @@ export interface CorrectionRequest {
   reviewNote: string | null;
 }
 
+import type { Reinspection } from './lib/reinspection';
+
 export type NotificationType =
   | 'MISSING'
   | 'CORRECTION_REQUEST'
@@ -105,7 +107,8 @@ export type NotificationType =
   | 'DEALER_FEE'
   | 'APPROVAL'
   | 'AD_QUOTA'
-  | 'RELEASE_PENDING';
+  | 'RELEASE_PENDING'
+  | 'REINSPECTION';
 
 /**
  * 광고 계약.
@@ -746,6 +749,12 @@ export interface ParkingVehicle {
   employeeId: string; // 담당자
   memo: string;
   updatedAt: string;
+
+  // ── 서버 파생값 ── (차량관리의 이전일자를 차량번호로 짝지어 붙여 준다)
+  /** 이전일자 — 차량관리에 없는 번호면 null */
+  transferDate?: string | null;
+  /** 재검 시기. 아직 멀었으면 null */
+  reinspect?: Reinspection | null;
 }
 
 // 매물 사진 게시판 — 사이트에 올릴 차량 정보와 사진을 올려두고 전 직원이 같이 보는 용도

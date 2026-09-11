@@ -12,6 +12,7 @@ import {
 } from '@dnd-kit/core';
 import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
+import { reinspectLabel } from '../../lib/reinspection';
 import { ChevronRight, Move, Search } from 'lucide-react';
 import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
@@ -94,7 +95,10 @@ function ParkingCell({
               : vehicle
                 ? PARKING_STATUS_STYLE[vehicle.status].cell
                 : 'bg-white hover:bg-slate-50'
-        } ${isDragging ? 'opacity-30' : ''} ${vehicle ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        } ${isDragging ? 'opacity-30' : ''} ${vehicle ? 'cursor-grab active:cursor-grabbing' : ''} ${
+          /* 넉 달 지난 차는 구역도에서 멀리서도 보여야 한다 */
+          vehicle?.reinspect?.level === 'DUE' ? 'ring-2 ring-inset ring-red-500' : ''
+        }`}
       >
         {vehicle ? (
           <>
@@ -109,6 +113,20 @@ function ParkingCell({
               칸이 좁아 한 줄로 묶으면 번호에 묻히니 줄을 나눈다.
               길면 잘라 보여주고 전체는 마우스를 올려 본다.
             */}
+            {/*
+              재검은 번호 바로 밑에 둔다. 차명·메모보다 먼저 눈에 들어와야 하는 말이다 —
+              넉 달 지난 차는 팔기 전에 성능점검을 다시 받아야 한다.
+            */}
+            {vehicle.reinspect && (
+              <span
+                className={`w-full truncate rounded px-1 text-[10px] font-bold leading-tight ${
+                  vehicle.reinspect.level === 'DUE' ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+                title={`이전 ${vehicle.transferDate} · ${vehicle.reinspect.dueOn} 까지`}
+              >
+                {reinspectLabel(vehicle.reinspect)}
+              </span>
+            )}
             {vehicle.vehicleModel && (
               <span className="w-full truncate text-[10px] leading-tight opacity-80" title={vehicle.vehicleModel}>
                 {vehicle.vehicleModel}

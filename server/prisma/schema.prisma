@@ -340,6 +340,7 @@ enum NotificationType {
   APPROVAL // 결재 문서가 올라오거나 처리됐다
   AD_QUOTA // 광고 약정 대수가 남았는데 기간이 얼마 안 남았다
   RELEASE_PENDING // 상담이 판매완료로 찍혔다 — 광고 내리고 출고 준비를 해야 한다
+  REINSPECTION // 이전한 지 넉 달이 지났다 — 재검을 다시 받아야 한다
 }
 
 /**

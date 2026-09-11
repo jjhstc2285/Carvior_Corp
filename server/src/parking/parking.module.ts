@@ -4,21 +4,30 @@ import {
   Delete,
   Get,
   HttpCode,
+  Logger,
   Module,
+  OnModuleDestroy,
+  OnModuleInit,
   Param,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { ParkingStatus, Prisma, Role } from '@prisma/client';
+import { NotificationType, ParkingStatus, Prisma, Role } from '@prisma/client';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { collectPlates, parseParkingSheet, type ParsedSpot, type SkippedCell } from './sheet-import';
-import { plateTailOf } from '../vehicles/vehicle.rules';
+import { normalizePlate, plateTailOf } from '../vehicles/vehicle.rules';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
+import { formatDateOnlyOrNull, todayKst } from '../common/date.util';
+import { reinspectionOf, reinspectLabel, type Reinspection } from './reinspection';
+import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
+import { RealtimeModule } from '../realtime/realtime.module';
+import { PushModule } from '../push/push.module';
+import { PushService } from '../push/push.service';
 
 // ── DTO ──────────────────────────────
 
@@ -53,6 +62,9 @@ export class UpdateParkingDto {
 
 const EMPLOYEE_SELECT = { employee: { select: { id: true, name: true } } };
 
+/** 재검은 차량관리팀이 맡는다 — 여기와 관리자에게 알린다. */
+const VEHICLE_TEAM = '차량관리팀';
+
 /** 시트를 CSV로 받는 주소 — 시트가 바뀌면 .env 로 갈아끼운다. */
 const DEFAULT_SHEET_CSV =
   'https://docs.google.com/spreadsheets/d/1SmBh_Grnd5yBiwY4jOxkRjz0P1GK2GilNgiSc8j3EIk/export?format=csv&gid=1762776087';
@@ -70,9 +82,13 @@ export interface SheetPreview {
 
 @Injectable()
 export class ParkingService {
+  private readonly logger = new Logger(ParkingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly realtime: RealtimeGateway,
+    private readonly push: PushService,
   ) {}
 
   // ── 구글 시트 한 번 가져오기 ──────────────────────────────
@@ -186,7 +202,7 @@ export class ParkingService {
     return res.text();
   }
 
-  findAll(params: { q?: string; lot?: string; status?: ParkingStatus }) {
+  async findAll(params: { q?: string; lot?: string; status?: ParkingStatus }) {
     const where: Prisma.ParkingVehicleWhereInput = {
       ...(params.lot ? { lot: params.lot } : {}),
       ...(params.status ? { status: params.status } : {}),
@@ -194,11 +210,104 @@ export class ParkingService {
         ? { OR: [{ vehicleNumber: { contains: params.q } }, { vehicleModel: { contains: params.q } }] }
         : {}),
     };
-    return this.prisma.parkingVehicle.findMany({
+    const rows = await this.prisma.parkingVehicle.findMany({
       where,
       include: EMPLOYEE_SELECT,
       orderBy: [{ lot: 'asc' }, { zone: 'asc' }, { slot: 'asc' }],
     });
+    return this.withReinspection(rows);
+  }
+
+  /**
+   * 서 있는 차마다 이전일자와 재검 시기를 붙여 준다.
+   *
+   * 이전일자는 차량관리에 있는 값이다. 주차장에 따로 적게 하면 두 곳이 어긋나고,
+   * 어느 쪽이 맞는지 알 수 없게 된다 — 저장하지 않고 볼 때마다 붙인다.
+   */
+  private async withReinspection<T extends { vehicleNumber: string }>(rows: T[]) {
+    if (rows.length === 0) return rows.map((r) => ({ ...r, transferDate: null, reinspect: null }));
+
+    const vehicles = await this.prisma.managedVehicle.findMany({
+      where: { vehicleNumber: { in: rows.map((r) => r.vehicleNumber) } },
+      select: { vehicleNumber: true, transferDate: true },
+    });
+    // 띄어쓰기가 섞여 들어온 번호가 남아 있어 양쪽을 같은 모양으로 맞춰 짝짓는다.
+    const transferOf = new Map(
+      vehicles.map((v) => [normalizePlate(v.vehicleNumber), formatDateOnlyOrNull(v.transferDate)]),
+    );
+
+    const today = todayKst();
+    return rows.map((r) => {
+      const transferDate = transferOf.get(normalizePlate(r.vehicleNumber)) ?? null;
+      return { ...r, transferDate, reinspect: reinspectionOf(transferDate, today) };
+    });
+  }
+
+  /**
+   * 넉 달이 지난(또는 곧 지나는) 차를 모아 준다 — 알림에 쓴다.
+   *
+   * 지난 지 오래된 차부터 앞에 놓는다. 여러 대가 한꺼번에 뜰 때 급한 것이 뒤에
+   * 묻히면 알림이 있으나 마나가 된다.
+   */
+  async dueReinspections(): Promise<
+    { vehicleNumber: string; vehicleModel: string; lot: string; zone: string; slot: string; transferDate: string | null; reinspect: Reinspection }[]
+  > {
+    const rows = await this.prisma.parkingVehicle.findMany({
+      select: { vehicleNumber: true, vehicleModel: true, lot: true, zone: true, slot: true },
+      orderBy: [{ lot: 'asc' }, { zone: 'asc' }, { slot: 'asc' }],
+    });
+    const withDates = await this.withReinspection(rows);
+    return withDates
+      .filter((r): r is (typeof withDates)[number] & { reinspect: Reinspection } => r.reinspect !== null)
+      .sort((a, b) => a.reinspect.daysLeft - b.reinspect.daysLeft);
+  }
+
+  /**
+   * 재검이 필요한 차를 차량관리팀에 알린다.
+   *
+   * 하루에 한 번, 한 장으로 묶어 보낸다 — 차마다 따로 울리면 열 대만 돼도 도배가 되고,
+   * 그러면 아무도 안 본다.
+   */
+  async notifyReinspection(today: string): Promise<{ count: number }> {
+    const due = (await this.dueReinspections()).filter((r) => r.reinspect.level === 'DUE');
+    if (due.length === 0) return { count: 0 };
+
+    const watchers = await this.prisma.employee.findMany({
+      where: { active: true, OR: [{ department: VEHICLE_TEAM }, { role: Role.ADMIN }] },
+      select: { id: true },
+    });
+    if (watchers.length === 0) return { count: 0 };
+    const ids = watchers.map((w) => w.id);
+
+    const lines = due.map(
+      (r) =>
+        `${r.vehicleNumber} ${r.vehicleModel} (${r.lot} ${r.zone} ${r.slot} · 이전 ${r.transferDate} · ${reinspectLabel(r.reinspect)})`.replace(
+          /\s+/g,
+          ' ',
+        ),
+    );
+    const message = `재검 필요 ${due.length}대 — ${lines.join(' / ')}`;
+
+    await this.prisma.notification.createMany({
+      data: ids.map((employeeId) => ({
+        type: NotificationType.REINSPECTION,
+        message,
+        employeeId,
+        date: new Date(`${today}T00:00:00.000Z`),
+      })),
+    });
+    this.realtime.toEmployees(ids, REALTIME_EVENT.notification, {
+      type: NotificationType.REINSPECTION,
+      message,
+      date: today,
+    });
+    void this.push.sendToEmployees(ids, {
+      title: `재검이 필요한 차 ${due.length}대`,
+      body: lines.slice(0, 2).join(' / ') + (lines.length > 2 ? ' 외' : ''),
+    });
+
+    this.logger.log(`재검 알림: ${due.length}대`);
+    return { count: due.length };
   }
 
   /**
@@ -380,8 +489,62 @@ export class ParkingController {
   }
 }
 
+// ── 매일 확인 ──────────────────────────────
+
+/**
+ * 아침에 한 번, 재검이 필요한 차를 차량관리팀에 알린다.
+ *
+ * 30분마다 깨어나 보낼 시간인지만 본다 — 정각에 맞추면 서버가 잠깐 내려갔을 때
+ * 그날을 통째로 놓친다.
+ */
+@Injectable()
+export class ReinspectionReminderService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(ReinspectionReminderService.name);
+  private timer: NodeJS.Timeout | null = null;
+  private ranOn = '';
+
+  constructor(
+    private readonly parking: ParkingService,
+    private readonly config: ConfigService,
+  ) {}
+
+  onModuleInit(): void {
+    const hour = Number(this.config.get<string>('REINSPECT_REMINDER_HOUR', '9'));
+    if (!Number.isFinite(hour) || hour < 0) {
+      this.logger.log('REINSPECT_REMINDER_HOUR 가 꺼져 있어 재검 알림을 보내지 않습니다.');
+      return;
+    }
+    this.timer = setInterval(() => void this.tick(hour), 30 * 60 * 1000);
+    this.timer.unref?.();
+    this.logger.log(`재검 확인 매일 ${hour}시`);
+  }
+
+  onModuleDestroy(): void {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  private async tick(hour: number): Promise<void> {
+    const today = todayKst();
+    if (this.ranOn === today) return;
+
+    const kstHour = Number(
+      new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: '2-digit', hour12: false }).format(new Date()),
+    );
+    if (kstHour < hour) return;
+
+    this.ranOn = today;
+    try {
+      await this.parking.notifyReinspection(today);
+    } catch (e) {
+      // 실패해도 다음 날 다시 본다 — 알림 하나 때문에 서버가 죽으면 안 된다.
+      this.logger.error(`재검 알림 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+}
+
 @Module({
+  imports: [RealtimeModule, PushModule],
   controllers: [ParkingController],
-  providers: [ParkingService],
+  providers: [ParkingService, ReinspectionReminderService],
 })
 export class ParkingModule {}
