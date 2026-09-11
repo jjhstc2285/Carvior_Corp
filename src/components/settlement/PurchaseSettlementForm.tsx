@@ -22,6 +22,7 @@ import {
 import { api } from '../../lib/api';
 import { moneyToNumber, percentLabel, withCommas } from '../../lib/money';
 import PrepCostEditor, { type PrepCostRow } from './PrepCostEditor';
+import ContractPhotos from './ContractPhotos';
 import { CalcRow, DateField, EmployeeField, MoneyField, StatusField, TextField } from './fields';
 
 interface Props {
@@ -65,6 +66,8 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const [settlementAmount, setSettlementAmount] = useState(editing ? String(editing.settlementAmount) : '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
+  /** 계약서 사진 — 줄바꿈으로 이어 담은 경로 */
+  const [contractPhotos, setContractPhotos] = useState(editing?.contractPhotos ?? '');
   const [memo, setMemo] = useState(editing?.memo ?? '');
   const [error, setError] = useState<string | null>(null);
 
@@ -108,6 +111,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
       vehicleNumber: vehicleNumber.trim(),
       ...nums,
       brokerFeePayout,
+      contractPhotos,
       prepCosts,
       // 비워두면 매입+상품화총비용을 그대로 정산금액으로 잡는다
       settlementAmount: settlementAmount === '' ? grandTotal : moneyToNumber(settlementAmount),
@@ -154,6 +158,10 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
 
         <div className="mt-4">
           <PrepCostEditor rows={prepRows} onChange={setPrepRows} vendors={vendors} />
+        </div>
+
+        <div className="mt-4">
+          <ContractPhotos value={contractPhotos} onChange={setContractPhotos} />
         </div>
 
         {/* 판 값. 산 값과 한 화면에 있어야 그 차에서 얼마가 남았는지가 보인다. */}

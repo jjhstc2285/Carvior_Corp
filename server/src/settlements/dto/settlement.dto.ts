@@ -104,6 +104,8 @@ export class CreatePurchaseDto {
   @IsOptional() @Money() purchasePrice?: number;
   @IsOptional() @Money() brokerFee?: number;
   @IsOptional() @IsEnum(BrokerFeePayout) brokerFeePayout?: BrokerFeePayout;
+  /** 계약서 사진 경로 — 줄바꿈으로 이어 담는다 */
+  @IsOptional() @IsString() contractPhotos?: string;
   @IsOptional() @Money() salePrice?: number;
   @IsOptional() @Money() cashCommission?: number;
   @IsOptional() @Money() installmentFee?: number;

@@ -1,4 +1,17 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
 import { Role, SettlementStatus } from '@prisma/client';
 import { SettlementsService } from './settlements.service';
 import {
@@ -9,7 +22,21 @@ import {
   UpdatePurchaseDto,
   UpdateSettlementDto,
 } from './dto/settlement.dto';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { existsSync, mkdirSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+
+/** 계약서 사진을 두는 곳. 매물 사진과 같은 자리 아래에 둔다. */
+const CONTRACT_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'settlements');
+/** 앞장·뒷장·특약까지 — 넉넉히 열어둔다 */
+const PHOTO_MAX = 10;
+const MAX_PHOTO_SIZE = 8 * 1024 * 1024;
+const ALLOWED_PHOTO = /^image\/(jpeg|png|webp|heic|heif)$/;
+
+if (!existsSync(CONTRACT_DIR)) mkdirSync(CONTRACT_DIR, { recursive: true });
 
 /** 계약팀은 남의 정산도 본다 — 빈칸을 채우는 게 그 팀 일이다. */
 const CONTRACT_TEAM = '계약팀';
@@ -162,6 +189,34 @@ export class SettlementsController {
   syncFromBrokerage(@CurrentUser() user: AuthUser) {
     assertOfficeManager(user);
     return this.settlements.syncAllFromBrokerage();
+  }
+
+  /**
+   * 계약서 사진 올리기 — 정산을 저장하기 전에 먼저 올리고 경로를 받아 함께 보낸다.
+   *
+   * 원본 파일명은 안 쓴다. 한글 이름이 깨지고 경로에 넣기 위험한 글자가 섞여 들어온다.
+   */
+  @Post('purchase/contract-photos')
+  @UseInterceptors(
+    FilesInterceptor('files', PHOTO_MAX, {
+      storage: diskStorage({
+        destination: CONTRACT_DIR,
+        filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
+      }),
+      limits: { fileSize: MAX_PHOTO_SIZE, files: PHOTO_MAX },
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_PHOTO.test(file.mimetype)) {
+          cb(new BadRequestException('이미지 파일만 올릴 수 있습니다.'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadContractPhotos(@UploadedFiles() files: Express.Multer.File[]) {
+    if (!files?.length) throw new BadRequestException('올릴 사진이 없습니다.');
+    // Apache가 /uploads 를 정적으로 내주므로 이 경로가 곧 보이는 주소가 된다.
+    return { urls: files.map((f) => `/uploads/settlements/${f.filename}`) };
   }
 
   /** 승인을 기다리는 매입 정산 — 관리자 대시보드의 승인함에서 쓴다. */

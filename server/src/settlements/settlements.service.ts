@@ -707,6 +707,7 @@ export class SettlementsService {
         purchasePrice,
         brokerFee: dto.brokerFee ?? 0,
         ...(dto.brokerFeePayout ? { brokerFeePayout: dto.brokerFeePayout } : {}),
+        contractPhotos: dto.contractPhotos ?? '',
         salePrice: dto.salePrice ?? 0,
         cashCommission: dto.cashCommission ?? 0,
         installmentFee: dto.installmentFee ?? 0,

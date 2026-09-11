@@ -439,6 +439,8 @@ export interface PurchaseSettlement {
   brokerFee: number; // 구전 — 상품화가 아니라 별도 항목
   /** 구전 지급방식 — 현금으로 준 것만 판매수익에서 뺀다 */
   brokerFeePayout: BrokerFeePayout;
+  /** 계약서 사진 경로 — 줄바꿈으로 이어 담는다. 결재하는 쪽에서 화면으로 본다 */
+  contractPhotos?: string;
   prepCosts: PurchasePrepCost[]; // 상품화 비용 명세
 
   // ── 판매 쪽 — 상담이 판매완료로 끝나면 채운다 ──
