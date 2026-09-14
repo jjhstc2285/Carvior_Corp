@@ -16,11 +16,16 @@ import { alertError } from '../../lib/alert';
  *
  * 장부에 적힌 담당자 이름을 같이 보여준다. 카비어에 적힌 사람과 장부에 적힌 사람이
  * 다를 수 있어서, 누구 번호인지 모르고 걸면 엉뚱한 사람에게 간다.
+ *
+ * 같은 사람이 "기아비제이조윤식" / "기아 비제이 조윤식"처럼 여러 꼴로 접수돼 오므로
+ * 띄어쓰기·직함을 걷어내 한 줄로 묶는다. 합친 건 이름 옆에 +N 으로 알린다.
  */
 
 interface Ranking {
   rows: {
     name: string;
+    /** 같은 사람인데 다르게 적혀 온 이름들 — 합쳐서 셌다는 표시 */
+    aliases: string[];
     count: number;
     completed: number;
     lastAt: string | null;
@@ -48,6 +53,7 @@ export default function DealerRankingModal({ onClose }: { onClose: () => void })
       판매: r.count,
       거래완료: r.completed,
       '최근 판매': r.lastAt ?? '',
+      '합친 이름': r.aliases.join(', '),
       '장부 업체명': r.ledger?.dealerName ?? '',
       담당자: r.ledger?.managerName ?? '',
       연락처: r.ledger?.managerPhone ?? '',
@@ -129,7 +135,18 @@ export default function DealerRankingModal({ onClose }: { onClose: () => void })
                   {rows.map((r, i) => (
                     <tr key={r.name} className="border-t border-slate-50">
                       <td className="px-2.5 py-1.5 font-bold text-slate-400">{i + 1}</td>
-                      <td className="px-2.5 py-1.5 font-semibold text-slate-700">{r.name}</td>
+                      <td className="px-2.5 py-1.5 font-semibold text-slate-700">
+                        {r.name}
+                        {/* 띄어쓰기·직함이 달라 여러 꼴로 접수된 건 합쳐서 센다 — 합친 걸 모르면 숫자를 못 믿는다 */}
+                        {r.aliases.length > 0 && (
+                          <span
+                            className="ml-1 cursor-help rounded bg-slate-100 px-1 text-[10px] font-medium text-slate-500"
+                            title={`같은 사람으로 합쳤습니다: ${r.aliases.join(', ')}`}
+                          >
+                            +{r.aliases.length}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-2.5 py-1.5 text-right text-slate-700">
                         {r.count}
                         {/* 접수만 되고 거래로 안 간 건이 있어 둘을 갈라 보여준다 */}

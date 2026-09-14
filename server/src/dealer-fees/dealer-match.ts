@@ -73,6 +73,27 @@ export function normalizeDealer(name: string): string {
     .toLowerCase();
 }
 
+/**
+ * 같은 딜러로 묶는 열쇠.
+ *
+ * 카비어에는 같은 사람이 여러 꼴로 적혀 온다 —
+ *   "기아비제이조윤식" / "기아 비제이 조윤식", "포드 윤종원 과장님" / "포드 윤종원과장"
+ * 이름 글자를 그대로 세면 한 사람이 두 줄로 갈려 판매 건수가 쪼개진다.
+ * 띄어쓰기·대소문자에 더해 직함·꼬리말까지 걷어낸 것을 열쇠로 쓴다.
+ *
+ * 걷어내고 나면 아무것도 안 남는 이름(직함만 적힌 것)은 원래 꼴을 그대로 쓴다 —
+ * 빈 열쇠로 묶으면 서로 다른 사람이 한 줄이 된다.
+ */
+export function dealerKey(name: string): string {
+  const base = normalizeDealer(name);
+  // 긴 말부터 지운다 — '상조회'를 먼저 지우면 '상조회장'에서 '장'이 남는다
+  let key = base;
+  for (const noise of [...NOISE].sort((a, b) => b.length - a.length)) {
+    key = key.split(noise).join('');
+  }
+  return key || base;
+}
+
 /** 이름에 들어 있는 브랜드. 없으면 null — 브랜드를 안 적은 이름도 있다. */
 export function brandOf(name: string): string | null {
   const n = normalizeDealer(name);

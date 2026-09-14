@@ -33,7 +33,7 @@ import {
 import { DealerFeeMethod, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CarviorModule, CarviorService } from '../carvior/carvior.module';
-import { bestMatch } from './dealer-match';
+import { bestMatch, dealerKey } from './dealer-match';
 import { formatDateOnly, formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager, LEDGER_VIEWER_WHERE } from '../auth/office-manager';
@@ -407,6 +407,8 @@ export class DealerFeesService {
   async dealerRanking(): Promise<{
     rows: {
       name: string;
+      /** 같은 사람인데 다르게 적혀 온 이름들 */
+      aliases: string[];
       count: number;
       completed: number;
       lastAt: string | null;
@@ -425,24 +427,38 @@ export class DealerFeesService {
       }),
     ]);
 
-    const byName = new Map<string, { count: number; completed: number; lastAt: string | null }>();
+    /*
+      같은 사람이 여러 꼴로 적혀 온다 — "기아비제이조윤식" / "기아 비제이 조윤식".
+      글자 그대로 세면 한 사람이 두 줄로 갈려 판매 건수가 쪼개진다(133건에 7쌍 있었다).
+      띄어쓰기·직함을 걷어낸 열쇠로 묶고, 화면에는 제일 자주 적힌 꼴을 보여준다.
+    */
+    const byKey = new Map<
+      string,
+      { count: number; completed: number; lastAt: string | null; spellings: Map<string, number> }
+    >();
     for (const c of contracts) {
       const name = (c.dealerName ?? '').trim();
       if (!name) continue;
-      const row = byName.get(name) ?? { count: 0, completed: 0, lastAt: null };
+      const key = dealerKey(name);
+      const row = byKey.get(key) ?? { count: 0, completed: 0, lastAt: null, spellings: new Map() };
       row.count += 1;
       // 매입가가 적힌 건이 실제로 거래가 끝난 건이다.
       if ((c.purchasePrice ?? 0) > 0) row.completed += 1;
       const at = c.createdAt ? formatDateOnly(new Date(c.createdAt)) : null;
       if (at && (!row.lastAt || at > row.lastAt)) row.lastAt = at;
-      byName.set(name, row);
+      row.spellings.set(name, (row.spellings.get(name) ?? 0) + 1);
+      byKey.set(key, row);
     }
 
-    const rows = [...byName]
-      .map(([name, v]) => {
+    const rows = [...byKey.values()]
+      .map(({ spellings, ...v }) => {
+        // 제일 자주 적힌 꼴. 같은 횟수면 자세히 적힌(긴) 쪽이 알아보기 쉽다
+        const name = [...spellings].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0][0];
         const hit = bestMatch(name, dealers);
         return {
           name,
+          // 다른 꼴로도 적혀 왔으면 몇 가지였는지 알려준다 — 묶은 걸 모르면 숫자를 못 믿는다
+          aliases: spellings.size > 1 ? [...spellings.keys()].filter((x) => x !== name) : [],
           ...v,
           ledger: hit
             ? {
