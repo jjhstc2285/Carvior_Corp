@@ -8,6 +8,8 @@ export interface CalEvent {
   sublabel: string;
   colorClass: string; // 예: 'bg-indigo-50 text-indigo-700'
   dotClass: string; // 예: 'bg-indigo-400'
+  /** 누르면 할 일 — 없으면 눌리지 않는다(달력 칸 선택만 된다) */
+  onSelect?: () => void;
 }
 
 interface Props {
@@ -57,24 +59,47 @@ export default function EventCalendar({ month, onMonthChange, eventsForDate, onS
           const shown = dayEvents.slice(0, 3);
           const overflow = dayEvents.length - shown.length;
           return (
-            <button
+            /*
+              칸 안에 누를 수 있는 칩이 들어가서 칸 자체는 div 로 둔다 —
+              버튼 안에 버튼을 넣으면 브라우저가 제멋대로 처리한다.
+            */
+            <div
               key={dateStr}
+              role="button"
+              tabIndex={0}
               onClick={() => { setSelectedDate(dateStr); onSelectDate?.(dateStr); }}
-              className={`min-h-20 rounded-lg border p-1.5 text-left text-xs transition-colors sm:min-h-24 ${
+              onKeyDown={ev => {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                  ev.preventDefault();
+                  setSelectedDate(dateStr);
+                  onSelectDate?.(dateStr);
+                }
+              }}
+              className={`min-h-20 cursor-pointer rounded-lg border p-1.5 text-left text-xs transition-colors sm:min-h-24 ${
                 inMonth ? 'border-slate-100 bg-white hover:bg-slate-50' : 'border-transparent bg-transparent text-slate-300'
               } ${d.isSame(today, 'day') ? 'ring-2 ring-indigo-400' : ''} ${selectedDate === dateStr ? 'border-indigo-300 bg-indigo-50/40' : ''}`}
             >
               <span className={inMonth ? 'text-slate-600' : 'text-slate-300'}>{d.date()}</span>
               <div className="mt-1 space-y-0.5">
                 {shown.map(e => (
-                  <div key={e.id} className={`flex items-center gap-1 truncate rounded px-1 py-0.5 ${e.colorClass}`}>
+                  <button
+                    key={e.id}
+                    type="button"
+                    disabled={!e.onSelect}
+                    // 칩을 눌렀을 때 칸까지 같이 눌리면 아래 목록이 덩달아 열린다
+                    onClick={ev => { ev.stopPropagation(); e.onSelect?.(); }}
+                    title={`${e.label} · ${e.sublabel}`}
+                    className={`flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left ${e.colorClass} ${
+                      e.onSelect ? 'hover:brightness-95' : ''
+                    }`}
+                  >
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.dotClass}`} />
                     <span className="truncate">{e.label}</span>
-                  </div>
+                  </button>
                 ))}
                 {overflow > 0 && <p className="px-1 text-[10px] text-slate-400">+{overflow} more</p>}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -87,9 +112,16 @@ export default function EventCalendar({ month, onMonthChange, eventsForDate, onS
           ) : (
             <ul className="divide-y divide-slate-100">
               {selectedEvents.map(e => (
-                <li key={e.id} className="flex items-center gap-2 py-2 text-sm">
-                  <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ${e.colorClass}`}>{e.sublabel}</span>
-                  <span className="font-medium text-slate-700">{e.label}</span>
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    disabled={!e.onSelect}
+                    onClick={() => e.onSelect?.()}
+                    className={`flex w-full items-center gap-2 py-2 text-left text-sm ${e.onSelect ? 'hover:bg-slate-100' : ''}`}
+                  >
+                    <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ${e.colorClass}`}>{e.sublabel}</span>
+                    <span className="font-medium text-slate-700">{e.label}</span>
+                  </button>
                 </li>
               ))}
             </ul>

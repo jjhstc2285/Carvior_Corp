@@ -12,6 +12,7 @@ import {
 import ConsultationForm from './ConsultationForm';
 import PriceCheckModal from '../price/PriceCheckModal';
 import CustomerHistoryModal from './CustomerHistoryModal';
+import ConsultationDetailModal from './ConsultationDetailModal';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { conversionOf, isOfKind } from '../../lib/consultationStats';
@@ -99,6 +100,8 @@ export default function ConsultationModule({ role, kind }: Props) {
   const [preset, setPreset] = useState<{ vehicleNumber: string; vehicleName: string } | undefined>();
   const [editing, setEditing] = useState<ConsultationRecord | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<string | null>(null);
+  /** 달력에서 차를 누르면 뜨는 상세 */
+  const [detail, setDetail] = useState<ConsultationRecord | null>(null);
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [calMonth, setCalMonth] = useState(() => dayjs().startOf('month'));
 
@@ -144,30 +147,27 @@ export default function ConsultationModule({ role, kind }: Props) {
       else index.set(date, [event]);
     };
 
+    /*
+      달력에는 방문 일정이 적힌 건만 올린다.
+
+      예전에는 상담 등록일과 후속연락일까지 다 올려서 하루에 칩이 열 개씩 쌓였고,
+      정작 '그날 손님이 오는 차'가 그 속에 묻혔다. 달력은 나가서 맞이할 준비를 하려고
+      보는 것이라 방문만 남긴다 — 나머지는 목록에서 본다.
+
+      끝난 상담을 뺄지는 위 목록 필터를 따라간다(기본이 '종결 제외'다).
+    */
     filtered.forEach(c => {
+      if (!c.visitDate) return;
       // 달력 칸은 좁아서 한 줄만 보인다 — 차명이 있으면 그게 제일 알아보기 쉽고,
       // 없으면 차량번호, 그것도 비면 손님번호로 내려간다.
       const label = c.vehicleName || c.vehicleNumber || c.customerPhone || c.customerName;
-      push(c.date, {
-        id: `consult-${c.id}`,
-        label,
-        sublabel: CONSULTATION_STATUS_LABEL[c.status],
-        colorClass: STATUS_COLOR[c.status].replace(/ ring-\S+/, ''),
-        dotClass: c.status === 'CONTRACTED' ? 'bg-emerald-400' : c.status === 'ON_HOLD' ? 'bg-amber-400' : c.status === 'CLOSED' ? 'bg-gray-400' : 'bg-blue-400',
-      });
       push(c.visitDate, {
         id: `visit-${c.id}`,
-        label: `${label} 방문${c.visitTime ? ` ${c.visitTime}` : ''}`,
-        sublabel: '방문 예정',
+        label: `${label}${c.visitTime ? ` ${c.visitTime}` : ''}`,
+        sublabel: `방문 · ${CONSULTATION_STATUS_LABEL[c.status]}`,
         colorClass: 'bg-indigo-50 text-indigo-700',
         dotClass: 'bg-indigo-400',
-      });
-      push(c.nextContactDate, {
-        id: `followup-${c.id}`,
-        label: `${label} 후속연락`,
-        sublabel: '후속연락 예정',
-        colorClass: 'bg-amber-50 text-amber-700',
-        dotClass: 'bg-amber-400',
+        onSelect: () => setDetail(c),
       });
     });
     return index;
@@ -410,6 +410,19 @@ export default function ConsultationModule({ role, kind }: Props) {
       {formOpen && (
         <ConsultationForm kind={kind} editing={editing} defaultEmployeeId={state.currentEmployeeId} preset={preset} onClose={() => setFormOpen(false)} />
       )}
+      {detail && (
+        <ConsultationDetailModal
+          consultation={detail}
+          onEdit={() => {
+            setEditing(detail);
+            setPreset(undefined);
+            setDetail(null);
+            setFormOpen(true);
+          }}
+          onClose={() => setDetail(null)}
+        />
+      )}
+
       {priceOpen !== null && <PriceCheckModal defaultQuery={priceOpen} onClose={() => setPriceOpen(null)} />}
       {historyCustomer && (
         <CustomerHistoryModal customerName={historyCustomer} onClose={() => setHistoryCustomer(null)} />
