@@ -8,7 +8,9 @@ import {
   SETTLEMENT_STAGE_CLASS,
   SETTLEMENT_STAGE_LABEL,
   SETTLEMENT_STATUS_LABEL,
+  CONSULTATION_KIND_LABEL,
   type BrokerageSettlement,
+  type ConsultationKind,
   type SettlementStatus,
 } from '../../types';
 import { ContractPhotoThumb } from './ContractPhotos';
@@ -19,12 +21,15 @@ import { api, ApiError } from '../../lib/api';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
+  /** 알선 / 수출 — 표를 나눠 본다. 적는 칸과 계산은 같다 */
+  kind: ConsultationKind;
 }
 
 // 시트지 컬럼 순서 그대로 — 표/엑셀 양쪽에서 같은 순서를 쓴다
 const NUM = (n: number) => n.toLocaleString();
 
-export default function BrokerageSettlementTab({ role }: Props) {
+export default function BrokerageSettlementTab({ role, kind }: Props) {
+  const kindLabel = CONSULTATION_KIND_LABEL[kind];
   const { state, deleteBrokerageSettlement, refresh } = useStore();
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
   const [employeeFilter, setEmployeeFilter] = useState('all');
@@ -87,9 +92,13 @@ export default function BrokerageSettlementTab({ role }: Props) {
       setBusyId(null);
     }
   };
-  const scoped = seesAll
-    ? state.brokerageSettlements
-    : state.brokerageSettlements.filter(s => s.employeeId === state.currentEmployeeId);
+  /*
+    이 표에 놓을 것만 고른다.
+
+    kind 가 없던 시절에 적은 건이 있어서, 안 적힌 건은 알선으로 본다 — 그때는 알선뿐이었다.
+  */
+  const ofKind = state.brokerageSettlements.filter(s => (s.kind ?? 'BROKERAGE') === kind);
+  const scoped = seesAll ? ofKind : ofKind.filter(s => s.employeeId === state.currentEmployeeId);
 
   const filtered = scoped
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
@@ -132,13 +141,14 @@ export default function BrokerageSettlementTab({ role }: Props) {
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '알선정산');
-    XLSX.writeFile(wb, `알선정산_${dayjs().format('YYYYMMDD')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, `${kindLabel}정산`);
+    XLSX.writeFile(wb, `${kindLabel}정산_${dayjs().format('YYYYMMDD')}.xlsx`);
   };
 
   return (
     <>
       <PendingSettlementVehicles
+        kind={kind}
         onStart={c => {
           setEditing(null);
           setPreset({
@@ -194,7 +204,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
           </button>
           <button onClick={() => { setEditing(null); setPreset(undefined); setFormOpen(true); }}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700">
-            <Plus size={14} /> 알선 정산 추가
+            <Plus size={14} /> {kindLabel} 정산 추가
           </button>
         </div>
       </div>
@@ -232,7 +242,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={20} className="px-5 py-10 text-center text-sm text-slate-400">알선 정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={20} className="px-5 py-10 text-center text-sm text-slate-400">{kindLabel} 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => {
                 const profit = brokerageProfit(s);
@@ -358,7 +368,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
                         </button>
                         <button
                           disabled={s.locked}
-                          onClick={() => void confirmDanger('알선 정산 내역을 삭제할까요?').then(ok => { if (ok) void deleteBrokerageSettlement(s.id); })}
+                          onClick={() => void confirmDanger(`${kindLabel} 정산 내역을 삭제할까요?`).then(ok => { if (ok) void deleteBrokerageSettlement(s.id); })}
                           className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
                           title={s.locked ? '승인된 정산은 지울 수 없습니다' : '삭제'}
                         >
@@ -375,7 +385,7 @@ export default function BrokerageSettlementTab({ role }: Props) {
       </div>
 
       {formOpen && (
-        <BrokerageSettlementForm editing={editing} defaultEmployeeId={state.currentEmployeeId} preset={preset} onClose={() => setFormOpen(false)} />
+        <BrokerageSettlementForm kind={kind} editing={editing} defaultEmployeeId={state.currentEmployeeId} preset={preset} onClose={() => setFormOpen(false)} />
       )}
     </>
   );

@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { NotificationType, Prisma, SettlementStatus, VehicleExpenseKind } from '@prisma/client';
+import { ConsultationKind, NotificationType, Prisma, SettlementStatus, VehicleExpenseKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, monthRange, toDateOnly, todayKst } from '../common/date.util';
 import {
@@ -252,6 +252,7 @@ export class SettlementsService {
         status: dto.status ?? SettlementStatus.IN_PROGRESS,
         memo: dto.memo ?? '',
         contractPhotos: dto.contractPhotos ?? '',
+        kind: dto.kind ?? ConsultationKind.BROKERAGE,
       },
       include: EMPLOYEE_SELECT,
     });

@@ -522,15 +522,23 @@ model Settlement {
  * 할부 피처럼 12,345원으로 떨어지는 값이 있어 만원으로는 담기지 않는다.
  */
 model BrokerageSettlement {
-  id                 String   @id @default(cuid())
-  date               DateTime @db.Date
+  id   String   @id @default(cuid())
+  date DateTime @db.Date
+
+  /**
+   * 알선인가 수출인가.
+   * 적는 칸도 계산도 같아서 표를 나누지 않고 한 칸으로 가른다. 상담에서 넘어올 때
+   * 그쪽 종류를 그대로 물려받는다 — 상담 종류를 쓰는 것은 같은 구분이기 때문이다.
+   */
+  kind ConsultationKind @default(BROKERAGE)
+
   vehicleNumber      String
   vehicleName        String
-  totalSaleAmount    Int      @default(0) // 총 진행 판매금액
-  ownerDeposit       Int      @default(0) // 실차주입금
-  transferFee        Int      @default(0) // 이전비
-  transferFeeBalance Int      @default(0) // 이전비 잔액
-  cashCommission     Int      @default(0) // 현금 수수료
+  totalSaleAmount    Int    @default(0) // 총 진행 판매금액
+  ownerDeposit       Int    @default(0) // 실차주입금
+  transferFee        Int    @default(0) // 이전비
+  transferFeeBalance Int    @default(0) // 이전비 잔액
+  cashCommission     Int    @default(0) // 현금 수수료
 
   /**
    * 현금 수수료를 대표가 실제로 받았는지.
@@ -623,6 +631,7 @@ model PurchaseSettlement {
   // 단계는 저장하지 않고 찍힌 날짜로 낸다 — 단계와 날짜를 둘 다 두면 어긋난다.
   // 승인한 사람은 그때의 이름을 박아 남긴다. 나중에 사람이 바뀌어도 누가 찍었는지는 그대로다.
   /**
+   * /**
    * /**
    * /**
    * /*

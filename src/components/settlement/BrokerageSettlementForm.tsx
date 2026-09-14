@@ -6,13 +6,17 @@ import {
   brokerageProfit,
   brokerageSettlementAmount,
   brokerageSettlementRate,
+  CONSULTATION_KIND_LABEL,
   type BrokerageSettlement,
+  type ConsultationKind,
   type SettlementStatus,
 } from '../../types';
 import { CalcRow, DateField, EmployeeField, MoneyField, StatusField, TextField } from './fields';
 import ContractPhotos from './ContractPhotos';
 
 interface Props {
+  /** 어느 표에서 열었는가 — 새로 적는 건 이 종류로 들어간다 */
+  kind: ConsultationKind;
   editing: BrokerageSettlement | null;
   defaultEmployeeId: string;
   /** 판매완료된 상담에서 넘어올 때 — 차량과 입금액을 미리 채운다 */
@@ -20,7 +24,8 @@ interface Props {
   onClose: () => void;
 }
 
-export default function BrokerageSettlementForm({ editing, defaultEmployeeId, preset, onClose }: Props) {
+export default function BrokerageSettlementForm({ kind, editing, defaultEmployeeId, preset, onClose }: Props) {
+  const kindLabel = CONSULTATION_KIND_LABEL[editing?.kind ?? kind];
   const { state, upsertBrokerageSettlement } = useStore();
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? preset?.vehicleNumber ?? '');
@@ -75,6 +80,8 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
       status,
       memo: memo.trim(),
       contractPhotos,
+      // 고칠 때는 원래 종류를 그대로 둔다 — 표를 옮기는 건 다른 일이다
+      kind: editing?.kind ?? kind,
     });
     onClose();
   };
@@ -83,7 +90,7 @@ export default function BrokerageSettlementForm({ editing, defaultEmployeeId, pr
     <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-6" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">{editing ? '알선 정산 수정' : '알선 정산 추가'}</h3>
+          <h3 className="text-base font-bold text-slate-800">{editing ? `${kindLabel} 정산 수정` : `${kindLabel} 정산 추가`}</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>

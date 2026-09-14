@@ -12,7 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BrokerFeePayout, PrepCostKind, SettlementStatus } from '@prisma/client';
+import { BrokerFeePayout, ConsultationKind, PrepCostKind, SettlementStatus } from '@prisma/client';
 import { DATE_PATTERN } from '../../common/dto';
 
 /** 금액 필드 공통 — 정수, 음수 불가. 단위는 정산 종류마다 다르다(매입 정산만 '원', 나머지는 만원). */
@@ -49,6 +49,8 @@ export class UpdateSettlementDto {
 
 export class CreateBrokerageDto {
   @Matches(DATE_PATTERN) date!: string;
+  /** 알선 / 수출 — 안 보내면 알선이다 */
+  @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
   @IsString() @IsNotEmpty({ message: '차량번호를 입력해 주세요.' }) @MaxLength(30) vehicleNumber!: string;
   @IsString() @IsNotEmpty({ message: '차량명을 입력해 주세요.' }) @MaxLength(60) vehicleName!: string;
   @IsOptional() @Money() totalSaleAmount?: number;
@@ -69,6 +71,7 @@ export class CreateBrokerageDto {
 
 export class UpdateBrokerageDto {
   @IsOptional() @Matches(DATE_PATTERN) date?: string;
+  @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
   @IsOptional() @IsString() @MaxLength(30) vehicleNumber?: string;
   @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
   @IsOptional() @Money() totalSaleAmount?: number;

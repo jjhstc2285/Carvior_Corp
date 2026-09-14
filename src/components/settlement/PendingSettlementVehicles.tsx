@@ -1,9 +1,12 @@
 import { useMemo } from 'react';
 import { ReceiptText } from 'lucide-react';
 import { useStore } from '../../store';
-import { CONSULTATION_KIND_LABEL, type ConsultationRecord } from '../../types';
+import { CONSULTATION_KIND_LABEL, type ConsultationKind, type ConsultationRecord } from '../../types';
+import { isOfKind } from '../../lib/consultationStats';
 
 interface Props {
+  /** 이 종류의 상담만 — 알선 정산 표에는 알선 건만 올라온다 */
+  kind: ConsultationKind;
   onStart: (consultation: ConsultationRecord) => void;
 }
 
@@ -15,18 +18,19 @@ interface Props {
  *
  * 이미 알선 정산이 잡힌 차량번호는 빠진다 — 남은 것만 보여야 "무엇이 밀렸는지"가 된다.
  *
- * 알선과 수출이 같이 뜬다. 정산 양식이 하나뿐이라 나눌 곳이 없고, 어느 쪽에서 온
- * 건인지는 알아야 해서 종류를 붙여 보여준다.
+ * 알선 표에는 알선 건만, 수출 표에는 수출 건만 뜬다. 그래도 종류를 붙여 보여준다 —
+ * 상담 내용에 '수출'이라 적혀 이쪽으로 넘어온 건이 있어서, 왜 여기 있는지가 보여야 한다.
  */
-export default function PendingSettlementVehicles({ onStart }: Props) {
+export default function PendingSettlementVehicles({ kind, onStart }: Props) {
   const { state } = useStore();
 
   const pending = useMemo(() => {
     const settled = new Set(state.brokerageSettlements.map(s => s.vehicleNumber));
     return state.consultations
-      .filter(c => c.status === 'SOLD' && !settled.has(c.vehicleNumber))
+      // 내용에 '수출'이라 적힌 건은 수출로 본다 — 상담 목록에서 가르는 것과 같은 규칙이다
+      .filter(c => isOfKind(c, kind) && c.status === 'SOLD' && !settled.has(c.vehicleNumber))
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [state.consultations, state.brokerageSettlements]);
+  }, [state.consultations, state.brokerageSettlements, kind]);
 
   if (pending.length === 0) return null;
 

@@ -289,6 +289,8 @@ export function netProfit(r: Pick<SettlementRecord, 'purchaseCost' | 'prepCost' 
 export interface BrokerageSettlement {
   id: string;
   date: string; // 일자 YYYY-MM-DD
+  /** 알선 / 수출 — 상담에서 넘어올 때 그쪽 종류를 물려받는다 */
+  kind: ConsultationKind;
   vehicleNumber: string;
   vehicleName: string;
   totalSaleAmount: number; // 총 진행 판매금액
