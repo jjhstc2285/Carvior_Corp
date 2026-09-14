@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { ClipboardPaste, Download, Plus, Trash2 } from 'lucide-react';
+import { ClipboardPaste, Download, Plus, Trash2, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
@@ -25,6 +25,8 @@ export default function DealerFeeModule() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
+  /** '판매·매입 없는 곳'만 보고 있는가 */
+  const [idleOnly, setIdleOnly] = useState(false);
   /** 이 장부를 볼 수 있는 사람 — "누가 보는지"를 화면에서 확인한다 */
   const [viewers, setViewers] = useState<{ id: string; name: string; position: string }[]>([]);
   /**
@@ -128,8 +130,17 @@ export default function DealerFeeModule() {
   const idleTotal = idleAccounts.reduce((sum, r) => sum + r.monthlyFee, 0);
   const autoCount = filtered.filter(r => r.active && r.method === 'AUTO').length;
 
+  /*
+    '판매·매입 없는 곳' 칸을 누르면 그 곳들만 본다.
+
+    끊을지 말지는 업체명·회비·담당자를 봐야 정하는데, 숫자만 보고는 어디인지 알 수가 없어
+    표에서 한 줄씩 찾아야 했다. 눌러서 그 목록만 남긴다.
+    합계 숫자는 그대로 둔다 — 걸러 놓고도 몇 곳인지는 계속 보여야 한다.
+  */
+  const shown = idleOnly ? idleAccounts : filtered;
+
   const handleExport = () => {
-    const data = filtered.map(r => ({
+    const data = shown.map(r => ({
       업체명: r.dealerName,
       담당자: r.managerName,
       담당연락처: r.managerPhone,
@@ -218,8 +229,16 @@ export default function DealerFeeModule() {
           </p>
           <p className="text-[11px] text-slate-400">거래중인 곳만 셉니다</p>
         </div>
-        {/* 끊으면 바로 굳는 돈이라 합계 옆에 크게 둔다 */}
-        <div className={`rounded-2xl border px-4 py-3.5 ${idleAccounts.length > 0 ? 'border-red-200 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+        {/* 끊으면 바로 굳는 돈이라 합계 옆에 크게 둔다. 누르면 그 곳들만 남는다 */}
+        <button
+          type="button"
+          disabled={idleAccounts.length === 0}
+          onClick={() => setIdleOnly(v => !v)}
+          title={idleAccounts.length > 0 ? '누르면 이 곳들만 표에 남깁니다' : undefined}
+          className={`rounded-2xl border px-4 py-3.5 text-left transition-colors ${
+            idleAccounts.length > 0 ? 'border-red-200 bg-red-50/50 hover:bg-red-50' : 'border-slate-200 bg-white'
+          } ${idleOnly ? 'ring-2 ring-red-400' : ''}`}
+        >
           <p className={`text-xs font-medium ${idleAccounts.length > 0 ? 'text-red-700/80' : 'text-slate-400'}`}>
             판매·매입 없는 곳
           </p>
@@ -228,7 +247,12 @@ export default function DealerFeeModule() {
             <span className="ml-1 text-sm font-medium text-slate-400">곳</span>
           </p>
           <p className="text-[11px] text-slate-500">매달 {idleTotal.toLocaleString()}원 나갑니다</p>
-        </div>
+          {idleAccounts.length > 0 && (
+            <p className="mt-0.5 text-[11px] font-semibold text-red-700">
+              {idleOnly ? '눌러서 전체 보기' : '눌러서 어디인지 보기'}
+            </p>
+          )}
+        </button>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">거래중</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">
@@ -262,7 +286,15 @@ export default function DealerFeeModule() {
           />
           거래 끝난 곳도 보기
         </label>
-        <span className="ml-auto text-xs text-slate-400">{loading ? '불러오는 중…' : `${filtered.length}곳`}</span>
+        {idleOnly && (
+          <button
+            onClick={() => setIdleOnly(false)}
+            className="flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+          >
+            판매·매입 없는 곳만 보는 중 <X size={12} />
+          </button>
+        )}
+        <span className="ml-auto text-xs text-slate-400">{loading ? '불러오는 중…' : `${shown.length}곳`}</span>
       </div>
 
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{error}</p>}
@@ -301,14 +333,14 @@ export default function DealerFeeModule() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 && (
+              {shown.length === 0 && (
                 <tr>
                   <td colSpan={17} className="px-5 py-10 text-center text-sm text-slate-400">
-                    {loading ? '불러오는 중…' : '등록된 영업소가 없습니다.'}
+                    {loading ? '불러오는 중…' : idleOnly ? '판매·매입 없는 곳이 없습니다.' : '등록된 영업소가 없습니다.'}
                   </td>
                 </tr>
               )}
-              {filtered.map(r => (
+              {shown.map(r => (
                 <tr
                   key={r.id}
                   className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/60 ${r.active ? '' : 'bg-slate-50/60 text-slate-400'}`}
