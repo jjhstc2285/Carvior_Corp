@@ -4,6 +4,7 @@ import { useStore } from '../../store';
 import {
   CONSULTATION_KIND_LABEL,
   CONSULTATION_STATUS_LABEL,
+  PAY_METHOD_LABEL,
   type ConsultationRecord,
 } from '../../types';
 import { effectiveKind } from '../../lib/consultationStats';
@@ -88,6 +89,21 @@ export default function ConsultationDetailModal({
             {c.nextContactDate ? dayjs(c.nextContactDate).format('M월 D일 (ddd)') : <span className="text-slate-400">없음</span>}
           </Row>
           {c.depositAmount > 0 && <Row label="입금액">{c.depositAmount.toLocaleString()}만원</Row>}
+          <Row label="결제">
+            {c.payMethod === 'INSTALLMENT' ? (
+              <span>
+                <span className="font-semibold text-indigo-700">할부</span>
+                {c.installmentCapital && <span className="ml-1.5">{c.installmentCapital}</span>}
+                {(c.installmentAmount ?? 0) > 0 && (
+                  <span className="ml-1.5 text-slate-500">{(c.installmentAmount ?? 0).toLocaleString()}원</span>
+                )}
+              </span>
+            ) : (
+              <span className={c.payMethod === 'CASH' ? '' : 'text-slate-400'}>
+                {PAY_METHOD_LABEL[c.payMethod ?? 'UNKNOWN']}
+              </span>
+            )}
+          </Row>
           <Row label="내용">
             {/* 카톡에서 옮겨 적은 글이라 줄바꿈이 뜻을 가진다 — 그대로 둔다 */}
             {c.content ? (

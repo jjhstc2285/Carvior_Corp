@@ -73,6 +73,15 @@ export class ConsultationsController {
     return this.consultations.importFromSheet(user, await fetchSheetCsv(), false);
   }
 
+  /**
+   * 캐피탈사별로 이번 달에 깔아 준 할부 — 재고금융 약정을 얼마나 채웠는지 센다.
+   * 전 직원이 본다. 어느 할부를 밀지는 파는 사람이 정한다.
+   */
+  @Get('stats/capital-installments')
+  capitalInstallments(@Query('months') months?: string) {
+    return this.consultations.capitalInstallments(Number(months) || 1);
+  }
+
   @Roles(Role.ADMIN)
   @Get('stats/conversion')
   stats() {

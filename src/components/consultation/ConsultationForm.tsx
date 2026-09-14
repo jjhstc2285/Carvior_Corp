@@ -7,10 +7,13 @@ import {
   CONSULTATION_KIND_LABEL,
   CONSULTATION_PLATFORMS_BY_KIND,
   CONSULTATION_STATUS_LABEL,
+  PAY_METHOD_LABEL,
   type ConsultationKind,
   type ConsultationRecord,
   type ConsultationStatus,
+  type PayMethod,
 } from '../../types';
+import { CAPITAL_COMPANIES } from '../../lib/stockFinance';
 
 interface Props {
   /** 알선인지 수출인지 — 열린 탭이 정한다 */
@@ -34,6 +37,12 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const [time, setTime] = useState(editing?.time ?? dayjs().format('HH:mm'));
   const [content, setContent] = useState(editing?.content ?? '');
   const [depositAmount, setDepositAmount] = useState(editing ? String(editing.depositAmount || '') : '');
+  /* 재고금융을 쓴 캐피탈에 할부를 얼마나 깔았는지 — 약정을 채웠는지 세는 값이다 */
+  const [payMethod, setPayMethod] = useState<PayMethod>(editing?.payMethod ?? 'UNKNOWN');
+  const [installmentCapital, setInstallmentCapital] = useState(editing?.installmentCapital ?? '');
+  const [installmentAmount, setInstallmentAmount] = useState(
+    editing?.installmentAmount ? String(editing.installmentAmount) : '',
+  );
   const [visitDate, setVisitDate] = useState(editing?.visitDate ?? '');
   const [visitTime, setVisitTime] = useState(editing?.visitTime ?? '');
   const [nextContactDate, setNextContactDate] = useState(editing?.nextContactDate ?? '');
@@ -63,7 +72,10 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
       visitDate: visitDate || null,
       visitTime: visitTime.trim(),
       nextContactDate: nextContactDate || null,
-      
+      payMethod,
+      // 현금이면 할부 칸은 안 보낸다 — 서버도 같은 기준으로 비운다
+      installmentCapital: payMethod === 'INSTALLMENT' ? installmentCapital : '',
+      installmentAmount: payMethod === 'INSTALLMENT' ? Number(installmentAmount.replace(/[^\d]/g, '')) || 0 : 0,
     });
     onClose();
   };
@@ -167,6 +179,61 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
                 className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
               />
             </div>
+          )}
+
+          {/*
+            현금인지 할부인지.
+
+            재고금융을 쓴 캐피탈에는 그 회사 할부를 얼마 이상 깔아 줘야 하는 약정이 있다.
+            여기 적어야 상담 화면 위 [재고금융 할부 의무] 에 실적으로 잡힌다.
+          */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">결제 구분</label>
+            <select
+              value={payMethod}
+              onChange={e => setPayMethod(e.target.value as PayMethod)}
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+            >
+              {(Object.entries(PAY_METHOD_LABEL) as [PayMethod, string][]).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {payMethod === 'INSTALLMENT' ? (
+            <>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">할부사</label>
+                <select
+                  value={installmentCapital}
+                  onChange={e => setInstallmentCapital(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+                >
+                  <option value="">선택</option>
+                  {CAPITAL_COMPANIES.map(c => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="mb-1 block text-xs font-semibold text-slate-500">할부 금액 (원)</label>
+                <input
+                  value={installmentAmount ? Number(installmentAmount).toLocaleString() : ''}
+                  onChange={e => setInstallmentAmount(e.target.value.replace(/[^\d]/g, ''))}
+                  inputMode="numeric"
+                  placeholder="30000000"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  이 금액이 그 캐피탈 약정에 채워집니다 — 상담 화면 맨 위에서 남은 금액을 봅니다.
+                </p>
+              </div>
+            </>
+          ) : (
+            <div />
           )}
 
           {/* 카톡 양식에 "오후 3시~4시 방문"처럼 적혀 온다. 시각은 적힌 그대로 받는다. */}

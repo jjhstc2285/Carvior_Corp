@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConsultationKind, ConsultationStatus, NotificationType, Prisma } from '@prisma/client';
+import { ConsultationKind, ConsultationStatus, NotificationType, PayMethod, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { PushService } from '../push/push.service';
@@ -20,6 +20,28 @@ const RELEASE_TEAMS = ['광고팀', '차량관리팀'];
 
 /** 상담은 알선팀이 맡는다 — 전환율은 이 팀만 센다(프론트 ConsultationModule 과 같다). */
 const CONSULTATION_TEAM = '알선팀';
+
+/**
+ * 결제 구분을 저장할 모양으로.
+ *
+ * 현금이거나 안 정한 건은 할부 칸을 비운다 — 할부로 골랐다가 현금으로 되돌렸을 때
+ * 캐피탈 이름이 남아 있으면 약정 집계가 부푼다.
+ */
+function payFieldsOf(dto: {
+  payMethod?: PayMethod;
+  installmentCapital?: string;
+  installmentAmount?: number;
+}) {
+  const payMethod = dto.payMethod ?? PayMethod.UNKNOWN;
+  if (payMethod !== PayMethod.INSTALLMENT) {
+    return { payMethod, installmentCapital: '', installmentAmount: 0 };
+  }
+  return {
+    payMethod,
+    installmentCapital: dto.installmentCapital?.trim() ?? '',
+    installmentAmount: dto.installmentAmount ?? 0,
+  };
+}
 
 @Injectable()
 export class ConsultationsService {
@@ -172,6 +194,7 @@ export class ConsultationsService {
         visitTime: dto.visitTime?.trim() ?? '',
         depositAmount: dto.depositAmount ?? 0,
         nextContactDate: toDateOnlyOrNull(dto.nextContactDate),
+        ...payFieldsOf(dto),
       },
       include: this.include,
     });
@@ -206,6 +229,7 @@ export class ConsultationsService {
         ...(dto.nextContactDate !== undefined
           ? { nextContactDate: toDateOnlyOrNull(dto.nextContactDate) }
           : {}),
+        ...(dto.payMethod !== undefined ? payFieldsOf(dto) : {}),
       },
       include: this.include,
     });
@@ -298,6 +322,46 @@ export class ConsultationsService {
   async remove(id: string) {
     await this.assertExists(id);
     await this.prisma.consultation.delete({ where: { id } });
+  }
+
+  /**
+   * 이번 달에 캐피탈사별로 깔아 준 할부.
+   *
+   * 재고금융을 쓴 캐피탈에는 그 회사 할부를 얼마 이상 써 줘야 하는 약정이 있다.
+   * 얼마나 채웠는지는 상담에 적은 할부 내역으로 센다 — 알선·수출을 합쳐 본다.
+   * 약정은 회사 대 회사라 어느 쪽에서 판 건인지로 갈리지 않는다.
+   *
+   * 종결된 상담은 뺀다 — 그건 안 팔린 건이라 깔린 할부가 없다.
+   * 언제 깔았는지는 상담 일자로 본다.
+   */
+  async capitalInstallments(months: number) {
+    const span = Math.min(Math.max(Math.trunc(months) || 1, 1), 12);
+    const [y, m] = todayKst().split('-').map(Number);
+    const from = new Date(Date.UTC(y, m - span, 1));
+    const to = new Date(Date.UTC(y, m, 1));
+
+    const grouped = await this.prisma.consultation.groupBy({
+      by: ['installmentCapital'],
+      where: {
+        date: { gte: from, lt: to },
+        payMethod: PayMethod.INSTALLMENT,
+        installmentCapital: { not: '' },
+        status: { not: ConsultationStatus.CLOSED },
+      },
+      _sum: { installmentAmount: true },
+      _count: { _all: true },
+    });
+
+    return {
+      from: formatDateOnly(from),
+      to: formatDateOnly(new Date(to.getTime() - 86_400_000)),
+      months: span,
+      done: grouped.map((g) => ({
+        capital: g.installmentCapital,
+        amount: g._sum.installmentAmount ?? 0,
+        count: g._count._all,
+      })),
+    };
   }
 
   /**

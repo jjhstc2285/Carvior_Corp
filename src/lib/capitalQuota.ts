@@ -30,6 +30,10 @@ export const FIXED_QUOTA: Record<string, number> = {
 export const QUOTA_RATE = 0.1;
 
 export interface CapitalQuota {
+  /** 그 달에 실제로 깔아 준 할부(원) */
+  done: number;
+  /** 아직 채워야 하는 금액(원). 다 채웠으면 0 */
+  left: number;
   /** 전산에서 쓰는 캐피탈사 이름 */
   capital: string;
   /** 그 기간에 쓴 재고금융(원) */
@@ -67,7 +71,10 @@ export function quotaOf(capital: string, used: number): { quota: number; fixed: 
  * 정해진 금액이 있는 곳은 그 달에 안 썼어도 목록에 남긴다 — 약정은 계속 살아 있고,
  * '이번 달에 BMW를 안 썼다'는 것도 봐야 하는 사실이다.
  */
-export function capitalQuotas(usage: { capital: string; used: number; count: number }[]): CapitalQuota[] {
+export function capitalQuotas(
+  usage: { capital: string; used: number; count: number }[],
+  done: { capital: string; amount: number }[] = [],
+): CapitalQuota[] {
   const byName = new Map<string, { used: number; count: number }>();
   for (const u of usage) {
     const name = canonicalCapital(u.capital);
@@ -79,8 +86,21 @@ export function capitalQuotas(usage: { capital: string; used: number; count: num
     if (!byName.has(name)) byName.set(name, { used: 0, count: 0 });
   }
 
+  // 재고금융을 안 쓴 곳에 할부를 깔았을 수도 있다 — 그것도 보여준다(의무는 0이다)
+  const doneBy = new Map<string, number>();
+  for (const d of done) {
+    const name = canonicalCapital(d.capital);
+    if (!name) continue;
+    doneBy.set(name, (doneBy.get(name) ?? 0) + d.amount);
+    if (!byName.has(name)) byName.set(name, { used: 0, count: 0 });
+  }
+
   return [...byName]
-    .map(([capital, { used, count }]) => ({ capital, used, count, ...quotaOf(capital, used) }))
-    // 깔아 줘야 하는 금액이 큰 곳부터 — 그게 먼저 챙길 일이다
-    .sort((a, b) => b.quota - a.quota || b.used - a.used);
+    .map(([capital, { used, count }]) => {
+      const { quota, fixed } = quotaOf(capital, used);
+      const doneAmount = doneBy.get(capital) ?? 0;
+      return { capital, used, count, quota, fixed, done: doneAmount, left: Math.max(0, quota - doneAmount) };
+    })
+    // 아직 채워야 하는 금액이 큰 곳부터 — 그게 먼저 챙길 일이다
+    .sort((a, b) => b.left - a.left || b.quota - a.quota || b.used - a.used);
 }

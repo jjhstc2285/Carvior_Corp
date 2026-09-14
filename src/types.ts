@@ -704,6 +704,15 @@ export const CONSULTATION_PLATFORMS_BY_KIND: Record<ConsultationKind, readonly s
   EXPORT: ['카비어', '딜러', '직거래', '기타'],
 };
 
+/** 손님이 차값을 어떻게 치렀는가 */
+export type PayMethod = 'UNKNOWN' | 'CASH' | 'INSTALLMENT';
+
+export const PAY_METHOD_LABEL: Record<PayMethod, string> = {
+  UNKNOWN: '미정',
+  CASH: '현금',
+  INSTALLMENT: '할부',
+};
+
 export interface ConsultationRecord {
   id: string;
   kind: ConsultationKind;
@@ -725,6 +734,17 @@ export interface ConsultationRecord {
   /** 출고 시 입금액(만원) — 카톡방에 올리는 "입금1000만원"이 이 값이다 */
   depositAmount: number;
   nextContactDate: string | null; // 다음 연락 예정일
+
+  /**
+   * 현금인가 할부인가.
+   *
+   * 할부면 어느 캐피탈로 얼마를 깔았는지 같이 적는다 — 재고금융을 쓴 캐피탈에
+   * 약정만큼 채웠는지 세는 값이다. 지난 상담은 안 적혀 있어 '미정'이다.
+   */
+  payMethod?: PayMethod;
+  installmentCapital?: string;
+  installmentAmount?: number; // 원
+
   files: { id: string; fileName: string; url: string }[];
   createdAt: string;
 }

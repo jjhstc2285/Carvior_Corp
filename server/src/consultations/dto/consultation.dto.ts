@@ -1,9 +1,21 @@
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ConsultationKind, ConsultationStatus } from '@prisma/client';
+import { ConsultationKind, ConsultationStatus, PayMethod } from '@prisma/client';
 import { DATE_PATTERN, TIME_PATTERN } from '../../common/dto';
 
-export class CreateConsultationDto {
+/**
+ * 결제 구분 — 할부면 어느 캐피탈로 얼마를 깔았는지 같이 적는다.
+ *
+ * 재고금융을 쓴 캐피탈에 약정만큼 채웠는지 세는 값이다.
+ * 등록·수정이 같은 칸을 받으므로 한 곳에 두고 물려준다.
+ */
+class PayFields {
+  @IsOptional() @IsEnum(PayMethod) payMethod?: PayMethod;
+  @IsOptional() @IsString() @MaxLength(20) installmentCapital?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) installmentAmount?: number;
+}
+
+export class CreateConsultationDto extends PayFields {
   /** 알선 / 수출 — 안 주면 알선이다(예전 요청과 호환) */
   @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
 
@@ -58,7 +70,7 @@ export class CreateConsultationDto {
   nextContactDate?: string | null;
 }
 
-export class UpdateConsultationDto {
+export class UpdateConsultationDto extends PayFields {
   @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
   @IsOptional() @IsString() @MaxLength(30) platform?: string;
   @IsOptional() @IsString() @MaxLength(30) vehicleNumber?: string;
