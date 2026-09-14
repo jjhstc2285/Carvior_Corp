@@ -10,8 +10,9 @@ import { capitalQuotas, QUOTA_MONTHS, QUOTA_RATE, type CapitalQuota } from '../.
  * 파는 사람이 손님 앞에서 어느 할부를 밀지 정해야 하므로 상담 화면 맨 위에 둔다 —
  * 재고금융 화면까지 들어가서 확인할 겨를이 없다.
  *
- * 실적(어느 캐피탈로 팔았는지)은 아직 전산에 안 적는다. 지금은 얼마를 깔아야 하는지만
- * 보여준다 — 적는 칸부터 만들어두면 아무도 안 채운 빈 표가 남는다.
+ * 어느 캐피탈로 팔았는지는 알선·수출 상담 내용에 적는다. 전산에 칸을 따로 두지 않는다 —
+ * 아무도 안 채우는 빈 칸이 되기 쉽고, 지금은 적을 실적도 없다.
+ * 여기서는 이번 달에 얼마를 깔아야 하는지만 보여준다.
  */
 
 interface Usage {
@@ -53,8 +54,8 @@ export default function CapitalQuotaPanel() {
         <Landmark size={15} className="self-center text-slate-500" />
         <h2 className="text-sm font-bold text-slate-800">재고금융 할부 의무</h2>
         <span className="text-[11px] text-slate-400">
-          {data.from.slice(0, 7).replace('-', '.')} ~ {data.to.slice(0, 7).replace('-', '.')} ({data.months}개월) 제시 기준 ·
-          BMW·우리캐피탈은 고정, 나머지는 쓴 금액의 {Math.round(QUOTA_RATE * 100)}%
+          {data.from.slice(0, 7).replace('-', '.')} 제시 기준 · BMW·우리캐피탈은 고정, 나머지는 그 달 재고 총액의{' '}
+          {Math.round(QUOTA_RATE * 100)}% · 어느 캐피탈로 팔았는지는 상담 내용에 적어 주세요
         </span>
         <span className="ml-auto text-sm font-bold text-slate-800">
           합계 {moneyLabel(total)}
@@ -76,7 +77,7 @@ export default function CapitalQuotaPanel() {
               <span className="ml-0.5 text-[11px] font-normal text-slate-400">원</span>
             </p>
             <p className="text-[11px] text-slate-400">
-              {r.used > 0 ? `${r.count}대 · ${moneyLabel(r.used)}원 씀` : '이 기간에 안 씀'}
+              {r.used > 0 ? `${r.count}대 · ${moneyLabel(r.used)}원 씀` : '이번 달 안 씀'}
             </p>
           </div>
         ))}
