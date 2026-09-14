@@ -132,6 +132,15 @@ export class VehiclesController {
     return this.vehicles.importStock(dto.rows);
   }
 
+  /**
+   * 캐피탈사별 재고금융 사용액 — 할부를 얼마나 깔아 줘야 하는지 세는 데 쓴다.
+   * 전 직원이 본다. 어느 할부를 밀지는 파는 사람이 정한다.
+   */
+  @Get('capital-usage')
+  capitalUsage(@Query('months') months?: string) {
+    return this.vehicles.capitalUsage(Number(months) || 3);
+  }
+
   @Get()
   findAll(@Query() query: VehicleListQueryDto) {
     return this.vehicles.findAll(query);

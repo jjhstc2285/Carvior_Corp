@@ -347,6 +347,42 @@ export class VehiclesService {
     return { created, updated, total: rows.length };
   }
 
+  /**
+   * 캐피탈사별로 그동안 쓴 재고금융.
+   *
+   * 재고금융을 쓰면 그 회사 할부를 얼마 이상 깔아 줘야 하는 약정이 있다. 얼마를 썼는지
+   * 알아야 얼마를 깔아야 하는지가 나온다 — 의무액을 내는 규칙은 화면에 있다.
+   *
+   * 언제 썼는지는 제시일자로 본다. 캐피탈에 넣은 날이 곧 그 돈을 쓴 날이다.
+   */
+  async capitalUsage(months: number) {
+    const span = Math.min(Math.max(Math.trunc(months) || 3, 1), 12);
+    const today = todayKst();
+    const [y, m] = today.split('-').map(Number);
+    // 이번 달을 포함해 span 달 — 7·8·9월처럼 묶어 본다
+    const from = new Date(Date.UTC(y, m - span, 1));
+    const to = new Date(Date.UTC(y, m, 1));
+
+    const grouped = await this.prisma.managedVehicle.groupBy({
+      by: ['stockCapital'],
+      where: { offerDate: { gte: from, lt: to }, stockAmount: { gt: 0 }, stockCapital: { not: '' } },
+      _sum: { stockAmount: true },
+      _count: { _all: true },
+    });
+
+    return {
+      from: formatDateOnly(from),
+      // 마지막 날을 보여줘야 "어디까지 센 것인가"가 분명하다
+      to: formatDateOnly(new Date(to.getTime() - 86_400_000)),
+      months: span,
+      usage: grouped.map((g) => ({
+        capital: g.stockCapital,
+        used: g._sum.stockAmount ?? 0,
+        count: g._count._all,
+      })),
+    };
+  }
+
   async update(id: string, dto: UpdateVehicleDto) {
     const current = await this.findOne(id);
 
