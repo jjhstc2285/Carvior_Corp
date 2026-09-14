@@ -314,6 +314,8 @@ export default function DealerFeeModule() {
           <table className="w-full whitespace-nowrap text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
+                {/* 지우는 건 제일 앞에 둔다 — 칸이 스물 가까이 돼서 옆으로 끝까지 밀어야 나왔다 */}
+                <th className="px-3 py-3" />
                 <th className="px-3 py-3 font-medium">업체명</th>
                 <th className="px-3 py-3 font-medium">담당자</th>
                 <th className="px-3 py-3 font-medium">담당연락처</th>
@@ -339,7 +341,6 @@ export default function DealerFeeModule() {
                 <th className="px-3 py-3 font-medium">비고</th>
                 <th className="px-3 py-3 font-medium">메모</th>
                 <th className="px-3 py-3 text-center font-medium">거래중</th>
-                <th className="px-3 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -355,6 +356,15 @@ export default function DealerFeeModule() {
                   key={r.id}
                   className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/60 ${r.active ? '' : 'bg-slate-50/60 text-slate-400'}`}
                 >
+                  <td className="px-3 py-2.5">
+                    <button
+                      onClick={() => void removeRow(r)}
+                      className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                      aria-label="삭제"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                   <td className="px-3 py-2.5">{text(r, 'dealerName', 'w-40', '업체명')}</td>
                   <td className="px-3 py-2.5">{text(r, 'managerName', 'w-20')}</td>
                   <td className="px-3 py-2.5">{text(r, 'managerPhone', 'w-32', '010-')}</td>
@@ -457,15 +467,6 @@ export default function DealerFeeModule() {
                       className="size-4 accent-indigo-600"
                       aria-label="거래중"
                     />
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <button
-                      onClick={() => void removeRow(r)}
-                      className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
-                      aria-label="삭제"
-                    >
-                      <Trash2 size={14} />
-                    </button>
                   </td>
                 </tr>
               ))}
