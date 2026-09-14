@@ -142,7 +142,8 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
               )}
             </h2>
             <span className="text-[11px] text-red-700/70">
-              이전일자로부터 {REINSPECT_MONTHS}개월이 지나면 성능점검을 다시 받아야 합니다 — 차량관리팀
+              이전일자로부터 {REINSPECT_MONTHS}개월이 지나면 성능점검을 다시 받아야 합니다 — 차량관리팀 ·
+              지하 2층(B2F)에 둔 차는 세지 않습니다
             </span>
             <span className="ml-auto text-[11px] font-semibold text-red-700/70">{reinspectOpen ? '접기' : '펴기'}</span>
           </button>

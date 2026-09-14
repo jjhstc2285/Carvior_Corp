@@ -14,6 +14,20 @@
  * 서버 server/src/parking/reinspection.ts 와 같은 내용이다 — 고칠 땐 양쪽을 같이 본다.
  */
 
+/**
+ * 재검을 안 세는 주차장.
+ *
+ * 지하 2층에 둔 차는 재검 대상에서 뺀다 — 사무장님 요청이다.
+ * 주차장 이름 앞자리로 가린다(B2F-B08 처럼 층이 앞에 붙는다).
+ */
+export const REINSPECT_EXEMPT_LOTS = ['B2F'];
+
+export function isReinspectExemptLot(lot?: string | null): boolean {
+  const name = (lot ?? '').trim().toUpperCase();
+  if (!name) return false;
+  return REINSPECT_EXEMPT_LOTS.some((prefix) => name.startsWith(prefix));
+}
+
 /** 이전일자로부터 몇 달 */
 export const REINSPECT_MONTHS = 4;
 /** 며칠 전부터 미리 알릴지 */

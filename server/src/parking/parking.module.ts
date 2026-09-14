@@ -24,7 +24,13 @@ import { normalizePlate, plateTailOf } from '../vehicles/vehicle.rules';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { formatDateOnlyOrNull, toDateOnly, todayKst } from '../common/date.util';
-import { reinspectBaseOf, reinspectionOf, reinspectLabel, type Reinspection } from './reinspection';
+import {
+  isReinspectExemptLot,
+  reinspectBaseOf,
+  reinspectionOf,
+  reinspectLabel,
+  type Reinspection,
+} from './reinspection';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { PushModule } from '../push/push.module';
@@ -231,7 +237,7 @@ export class ParkingService {
    * 이전일자는 차량관리에 있는 값이다. 주차장에 따로 적게 하면 두 곳이 어긋나고,
    * 어느 쪽이 맞는지 알 수 없게 된다 — 저장하지 않고 볼 때마다 붙인다.
    */
-  private async withReinspection<T extends { vehicleNumber: string }>(rows: T[]) {
+  private async withReinspection<T extends { vehicleNumber: string; lot?: string }>(rows: T[]) {
     if (rows.length === 0) {
       return rows.map((r) => ({ ...r, transferDate: null, lastInspectedOn: null, reinspect: null }));
     }
@@ -254,8 +260,10 @@ export class ParkingService {
     const today = todayKst();
     return rows.map((r) => {
       const dates = dateOf.get(normalizePlate(r.vehicleNumber)) ?? { transferDate: null, lastInspectedOn: null };
+      // 지하 2층에 둔 차는 재검을 안 센다. 날짜는 그대로 붙여 준다 — 언제 이전했는지는 봐야 한다.
+      const reinspect = isReinspectExemptLot(r.lot) ? null : reinspectionOf(reinspectBaseOf(dates), today);
       // 재검을 받았으면 그날부터 다시 넉 달을 센다
-      return { ...r, ...dates, reinspect: reinspectionOf(reinspectBaseOf(dates), today) };
+      return { ...r, ...dates, reinspect };
     });
   }
 
