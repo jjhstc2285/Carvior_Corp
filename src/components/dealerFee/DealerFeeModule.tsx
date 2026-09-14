@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { ClipboardPaste, Download, Plus, Trash2, X } from 'lucide-react';
+import { ClipboardPaste, Download, Plus, Trash2, Trophy, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import DealerRankingModal from './DealerRankingModal';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { DEALER_FEE_METHOD_LABEL, type DealerFeeAccount, type DealerFeeMethod } from '../../types';
@@ -27,6 +28,7 @@ export default function DealerFeeModule() {
   const [pasteOpen, setPasteOpen] = useState(false);
   /** '판매·매입 없는 곳'만 보고 있는가 */
   const [idleOnly, setIdleOnly] = useState(false);
+  const [rankingOpen, setRankingOpen] = useState(false);
   /** 이 장부를 볼 수 있는 사람 — "누가 보는지"를 화면에서 확인한다 */
   const [viewers, setViewers] = useState<{ id: string; name: string; position: string }[]>([]);
   /**
@@ -198,6 +200,14 @@ export default function DealerFeeModule() {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/* 안 파는 곳만큼 잘 파는 곳도 봐야 회비를 어디에 낼지 정할 수 있다 */}
+          <button
+            onClick={() => setRankingOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            title="판매를 많이 해 준 딜러를 순위로 봅니다"
+          >
+            <Trophy size={15} /> 판매 순위
+          </button>
           <button
             onClick={handleExport}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -489,6 +499,8 @@ export default function DealerFeeModule() {
           </div>
         </div>
       )}
+
+      {rankingOpen && <DealerRankingModal onClose={() => setRankingOpen(false)} />}
 
       {pasteOpen && <DealerFeePasteModal onClose={() => setPasteOpen(false)} onImported={() => void load()} />}
     </div>

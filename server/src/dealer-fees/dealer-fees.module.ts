@@ -390,6 +390,76 @@ export class DealerFeesService {
     return { byDealer, unmatched };
   }
 
+
+  /**
+   * 판매를 많이 해 준 딜러 순위.
+   *
+   * 상조회비를 어디에 계속 낼지 정하려면 '안 파는 곳'만큼 '잘 파는 곳'도 봐야 한다.
+   * 카비어에 접수된 이름 그대로 세고, 많이 판 순서로 준다.
+   *
+   * 연락처는 카비어가 안 준다 — 파트너 API가 내주는 칸은 차량·계약 쪽뿐이고
+   * 딜러는 이름 한 줄이 전부다(2026-09 확인). 그래서 우리 장부에 있는 담당연락처를
+   * 이름으로 짝지어 붙인다. 장부에 없는 곳은 연락처가 빈다 — 새로 적어 두면 채워진다.
+   *
+   * 장부의 담당자 이름을 같이 준다. 카비어에 적힌 사람과 장부에 적힌 사람이 다를 수
+   * 있어서, 누구 번호인지 모르고 걸면 엉뚱한 사람에게 간다.
+   */
+  async dealerRanking(): Promise<{
+    rows: {
+      name: string;
+      count: number;
+      completed: number;
+      lastAt: string | null;
+      ledger: { id: string; dealerName: string; managerName: string; managerPhone: string; monthlyFee: number } | null;
+    }[];
+    /** 연락처가 없는 곳 수 — 장부에 없거나 번호를 안 적어둔 곳 */
+    missingPhone: number;
+  }> {
+    const [contracts, dealers] = await Promise.all([
+      this.carvior.findContracts().catch((e: Error) => {
+        this.logger.warn(`카비어에서 판매 건수를 못 가져왔습니다: ${e.message}`);
+        return [] as Awaited<ReturnType<CarviorService['findContracts']>>;
+      }),
+      this.prisma.dealerFeeAccount.findMany({
+        select: { id: true, dealerName: true, managerName: true, managerPhone: true, monthlyFee: true },
+      }),
+    ]);
+
+    const byName = new Map<string, { count: number; completed: number; lastAt: string | null }>();
+    for (const c of contracts) {
+      const name = (c.dealerName ?? '').trim();
+      if (!name) continue;
+      const row = byName.get(name) ?? { count: 0, completed: 0, lastAt: null };
+      row.count += 1;
+      // 매입가가 적힌 건이 실제로 거래가 끝난 건이다.
+      if ((c.purchasePrice ?? 0) > 0) row.completed += 1;
+      const at = c.createdAt ? formatDateOnly(new Date(c.createdAt)) : null;
+      if (at && (!row.lastAt || at > row.lastAt)) row.lastAt = at;
+      byName.set(name, row);
+    }
+
+    const rows = [...byName]
+      .map(([name, v]) => {
+        const hit = bestMatch(name, dealers);
+        return {
+          name,
+          ...v,
+          ledger: hit
+            ? {
+                id: hit.id,
+                dealerName: hit.dealerName,
+                managerName: hit.managerName,
+                managerPhone: hit.managerPhone,
+                monthlyFee: hit.monthlyFee,
+              }
+            : null,
+        };
+      })
+      .sort((a, b) => b.count - a.count || b.completed - a.completed || a.name.localeCompare(b.name));
+
+    return { rows, missingPhone: rows.filter((r) => !r.ledger?.managerPhone).length };
+  }
+
   /** 지금 이 장부를 볼 수 있는 사람 — 화면에서 "누가 보는지"를 확인한다 */
   async viewers() {
     return this.prisma.employee.findMany({
@@ -547,6 +617,16 @@ export class DealerFeesController {
   activity(@CurrentUser() user: AuthUser) {
     assertOfficeManager(user);
     return this.dealerFees.activity();
+  }
+
+  /**
+   * 판매를 많이 해 준 딜러 순위 — 이름·건수·연락처.
+   * 회비를 어디에 계속 낼지 정하는 자리라 장부와 같은 사람만 본다.
+   */
+  @Get('ranking')
+  ranking(@CurrentUser() user: AuthUser) {
+    assertOfficeManager(user);
+    return this.dealerFees.dealerRanking();
   }
 
   /** 지금 이 장부를 볼 수 있는 사람 — 화면에서 확인용 */
