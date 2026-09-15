@@ -1,4 +1,4 @@
-import { Building2, CalendarClock, Car, Contact, Handshake, Landmark, Megaphone, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Sparkles, Stamp, X } from 'lucide-react';
+import { Building2, CalendarClock, Car, Contact, Handshake, Home, Landmark, Megaphone, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Sparkles, Stamp, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 
 interface Props {
@@ -10,6 +10,8 @@ interface Props {
   chatUnread?: number;
   /** 이 사람이 볼 수 없는 메뉴는 아예 안 그린다 */
   canSeeLedger: boolean;
+  /** 대표인가 — 부동산 메뉴를 가린다 */
+  isCeo?: boolean;
 }
 
 const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[] = [
@@ -25,6 +27,7 @@ const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[]
   { key: 'stockFinance', label: '재고금융 (제시)', icon: Landmark },
   { key: 'dealerFee', label: '신차영업소 상조회비', icon: Building2 },
   { key: 'vendor', label: '거래처 대장', icon: Contact },
+  { key: 'property', label: '부동산 정보', icon: Home },
   { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
   { key: 'chat', label: '메시지', icon: MessageSquare },
 ];
@@ -36,10 +39,16 @@ export default function Sidebar({
   onMobileClose,
   chatUnread = 0,
   canSeeLedger,
+  isCeo = false,
 }: Props) {
   // 상조회비 대장은 사무장과 관리자만 본다.
   const officeOnly: ModuleKey[] = ['dealerFee'];
-  const navItems = NAV_ITEMS.filter(item => !officeOnly.includes(item.key) || canSeeLedger);
+  const navItems = NAV_ITEMS.filter(
+    item =>
+      (!officeOnly.includes(item.key) || canSeeLedger) &&
+      // 부동산은 대표만 — 메뉴에서부터 안 보인다
+      (item.key !== 'property' || isCeo),
+  );
   const content = (
     <>
       <div className="flex items-center justify-between px-4 py-4">

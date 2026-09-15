@@ -11,5 +11,6 @@ export type ModuleKey =
   | 'stockFinance'
   | 'dealerFee'
   | 'vendor'
+  | 'property'
   | 'cleaning'
   | 'chat';

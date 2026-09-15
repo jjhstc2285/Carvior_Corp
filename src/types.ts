@@ -747,6 +747,33 @@ export const VENDOR_CATEGORIES = [
   '기타',
 ] as const;
 
+/** 부동산 용도 — 자주 쓰는 것을 미리 골라둔다 */
+export const PROPERTY_USAGES = ['사무실', '주차장', '창고', '전시장', '기타'] as const;
+
+/**
+ * 부동산 — 사무실·주차장·창고로 쓰는 자리. 대표만 본다.
+ * 보증금·월세는 원 단위다.
+ */
+export interface Property {
+  id: string;
+  name: string;
+  usage: string;
+  address: string;
+  ownerName: string; // 임대인
+  ownerPhone: string;
+  deposit: number; // 보증금(원)
+  monthlyRent: number; // 월세(원)
+  /** 월세 내는 날(1~31). 0이면 정해진 날이 없다 */
+  payDay: number;
+  startOn: string | null;
+  endOn: string | null;
+  memo: string;
+  /** 계약이 끝났으면 내린다 — 지우지 않는다(지난 계약도 기록이다) */
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Vendor {
   id: string;
   category: string;

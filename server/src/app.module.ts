@@ -10,6 +10,7 @@ import { ConsultationsModule } from './consultations/consultations.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { ParkingModule } from './parking/parking.module';
 import { VendorsModule } from './vendors/vendors.module';
+import { PropertiesModule } from './properties/properties.module';
 import { WorkLogsModule } from './work-logs/work-logs.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
 import { RealtimeModule } from './realtime/realtime.module';
@@ -36,6 +37,7 @@ import { RolesGuard } from './auth/roles.guard';
     SettlementsModule,
     ParkingModule,
     VendorsModule,
+    PropertiesModule,
     WorkLogsModule,
     VehiclesModule,
     RealtimeModule,

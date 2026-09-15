@@ -2,6 +2,12 @@ import { useCallback, useState } from 'react';
 import { StoreProvider } from './store';
 import { AuthProvider, useAuth } from './authStore';
 import { canSeeLedger } from './lib/permissions';
+
+/**
+ * 부동산을 보는 사람 — 대표 한 명이다.
+ * 서버(properties.module.ts)도 같은 이름으로 다시 본다. 고칠 땐 양쪽을 같이 본다.
+ */
+const CEO_NAME = '유진욱';
 import { useStore } from './store';
 import { useAutoAwayStatus } from './hooks/useAutoAwayStatus';
 import { api } from './lib/api';
@@ -28,6 +34,7 @@ import { useChatUnread } from './components/chat/useChat';
 import RealtimeToasts from './components/RealtimeToasts';
 import LoginPage from './components/auth/LoginPage';
 import VendorModule from './components/vendor/VendorModule';
+import PropertyModule from './components/property/PropertyModule';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
   attendance: '출퇴근 관리',
@@ -41,6 +48,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   purchaseIntake: '매입 관리',
   stockFinance: '재고금융 (제시)',
   vendor: '거래처 대장',
+  property: '부동산 정보',
   dealerFee: '신차영업소 상조회비',
   cleaning: '청소 관리 대장',
   chat: '메시지',
@@ -56,6 +64,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'purchaseIntake') return <PurchaseIntakeModule />;
   if (module === 'stockFinance') return <StockFinanceModule />;
   if (module === 'vendor') return <VendorModule role={role} />;
+  if (module === 'property') return <PropertyModule />;
   if (module === 'dealerFee') return <DealerFeeModule />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
@@ -95,7 +104,10 @@ function AuthedApp({ role }: { role: Role }) {
 
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
   const officeOnly: ModuleKey[] = ['dealerFee'];
-  const shownModule: ModuleKey = officeOnly.includes(module) && !seeLedger ? 'attendance' : module;
+  // 부동산은 대표만. 이름으로 가린다(서버도 같은 이름으로 다시 본다)
+  const isCeo = user?.name?.trim() === CEO_NAME;
+  const blocked = (officeOnly.includes(module) && !seeLedger) || (module === 'property' && !isCeo);
+  const shownModule: ModuleKey = blocked ? 'attendance' : module;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -106,6 +118,7 @@ function AuthedApp({ role }: { role: Role }) {
         onMobileClose={() => setMobileNavOpen(false)}
         chatUnread={chatUnread}
         canSeeLedger={seeLedger}
+        isCeo={isCeo}
       />
       <div className="min-w-0 flex-1">
         <TopBar
