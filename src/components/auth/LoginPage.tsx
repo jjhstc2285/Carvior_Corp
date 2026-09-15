@@ -84,6 +84,26 @@ export default function LoginPage() {
             비밀번호를 잊으셨다면 관리자에게 문의해 주세요. 카카오·네이버 로그인은 준비 중입니다.
           </p>
         )}
+
+        {/*
+          사업자 정보. 로그인 화면은 밖에서도 열리는 자리라 여기에 둔다.
+          대표번호는 눌러서 바로 걸리게 한다 — 휴대폰으로 열어보고 전화하는 일이 대부분이다.
+        */}
+        <footer className="mt-8 border-t border-slate-200 pt-4 text-center text-[11px] leading-relaxed text-slate-400">
+          <p className="font-semibold text-slate-500">애니원모터스</p>
+          <p className="mt-1">
+            대표자 : 장은경
+            <span className="mx-1.5 text-slate-300">|</span>
+            사업자등록번호 : 690-21-01020
+          </p>
+          <p className="mt-0.5">
+            대표번호 :{' '}
+            <a href="tel:0313049700" className="underline hover:text-slate-600">
+              031-304-9700
+            </a>
+          </p>
+          <p className="mt-2 text-slate-300">© {new Date().getFullYear()} ANYONE MOTORS</p>
+        </footer>
       </div>
     </div>
   );
