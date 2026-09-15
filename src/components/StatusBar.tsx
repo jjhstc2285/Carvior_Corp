@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { X } from 'lucide-react';
+import { Phone, X } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { useStore } from '../store';
 import { alertError } from '../lib/alert';
 import { IDLE_AWAY_MINUTES } from '../hooks/useAutoAwayStatus';
 import type { Employee } from '../types';
 import EmployeeAvatar from './EmployeeAvatar';
+import { Popover } from 'antd';
 
 /**
  * 오늘 누가 무엇을 하고 있는지 — 전 직원을 한 장에 본다.
@@ -55,19 +56,49 @@ function isStale(at: string | null | undefined): boolean {
 }
 
 /**
- * 마우스를 올렸을 때 뜨는 말 — 이름·직급·번호.
+ * 눌렀을 때 펼쳐지는 쪽지 — 이름·직급·번호.
  *
- * 번호가 둘인 분이 있어 다 보여준다. 안 적힌 분은 적어 달라고 적어 둔다 —
- * 빈 자리를 그냥 두면 번호가 원래 없는 건지 안 적은 건지 알 수 없다.
+ * 번호가 둘인 분이 있어 다 보여준다. 누르면 바로 걸린다.
+ * 안 적힌 분은 어디서 적는지까지 적어 둔다 — 빈 자리를 그냥 두면 번호가 원래 없는 건지
+ * 안 적은 건지 알 수 없다.
  */
-function phoneHint(e: { name: string; position: string; phones?: string[] }): string {
-  const head = `${e.name} ${e.position}`;
-  const phones = e.phones ?? [];
-  const lines = phones.length > 0 ? phones : ['번호 없음 (직원 관리에서 적어주세요)'];
-  return [head, ...lines].join('\n');
-}
+function PersonCard({ employee }: { employee: Employee }) {
+  const phones = employee.phones ?? [];
+  return (
+    <div className="min-w-44">
+      <p className="flex items-center gap-2 border-b border-slate-100 pb-2">
+        <EmployeeAvatar name={employee.name} size={28} />
+        <span>
+          <span className="block text-sm font-bold text-slate-800">{employee.name}</span>
+          <span className="block text-[11px] text-slate-400">{employee.position}</span>
+        </span>
+      </p>
 
+      {phones.length > 0 ? (
+        <ul className="mt-2 space-y-1">
+          {phones.map(p => (
+            <li key={p}>
+              <a
+                href={`tel:${p.replace(/[^\d+]/g, '')}`}
+                className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 font-mono text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+              >
+                <Phone size={13} /> {p}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs text-slate-400">
+          번호가 없습니다
+          <span className="mt-0.5 block text-[11px]">관리자 → 직원 관리에서 적을 수 있습니다</span>
+        </p>
+      )}
+    </div>
+  );
+}
 export default function StatusBar() {
+  /** 지금 펼쳐둔 사람. 하나만 연다 — 여러 개가 떠 있으면 어느 게 누구 건지 헷갈린다 */
+  const [openId, setOpenId] = useState<string | null>(null);
   const { state, refresh } = useStore();
   const [open, setOpen] = useState(false);
   const [emoji, setEmoji] = useState('💬');
@@ -225,41 +256,42 @@ export default function StatusBar() {
 
               <ul className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                 {group.people.map(e => (
-                  <li
-                    key={e.id}
-                    className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs ${
-                      e.id === state.currentEmployeeId ? 'border-indigo-300 bg-indigo-50' : group.chip
-                    }`}
-                  >
-                    {/* 열 몇 명이 한 줄로 늘어서 있어 이름만으로는 눈이 안 잡힌다 */}
-                    <EmployeeAvatar name={e.name} size={22} title={phoneHint(e)} />
+                  <li key={e.id}>
                     {/*
-                      눌러서 바로 건다.
-                      근무 현황은 "지금 누구한테 연락해야 하나"를 보는 자리다 — 번호를 찾으러
-                      직원 관리로 들어갔다 오지 않게 한다. 번호가 없으면 그냥 이름만 보인다.
+                      눌러서 열고, 다시 눌러 닫는다.
+
+                      브라우저가 띄우는 풍선말은 마우스를 조금만 움직여도 사라져서 번호를
+                      다 읽기 전에 없어진다. 눌러서 여는 쪽으로 바꾼다 — 휴대폰에서는
+                      아예 풍선말이 안 떴다.
                     */}
-                    {e.phones?.[0] ? (
-                      <a
-                        href={`tel:${e.phones[0].replace(/[^\d+]/g, '')}`}
-                        title={phoneHint(e)}
-                        className="font-semibold text-slate-800 hover:text-indigo-700 hover:underline"
+                    <Popover
+                      trigger="click"
+                      open={openId === e.id}
+                      onOpenChange={next => setOpenId(next ? e.id : null)}
+                      content={<PersonCard employee={e} />}
+                    >
+                      <button
+                        type="button"
+                        className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs ${
+                          e.id === state.currentEmployeeId ? 'border-indigo-300 bg-indigo-50' : group.chip
+                        } ${openId === e.id ? 'ring-2 ring-indigo-300' : ''}`}
                       >
-                        {e.name}
-                      </a>
-                    ) : (
-                      <span className="font-semibold text-slate-800" title={phoneHint(e)}>
-                        {e.name}
-                      </span>
-                    )}
-                    <span className="text-slate-400">{e.position}</span>
-                    {label(e) && (
-                      <span className={isStale(e.statusAt) ? 'text-slate-300' : 'text-slate-600'}>
-                        · {label(e)}
-                        {e.statusAt && (
-                          <span className="ml-1 text-[10px] text-slate-300">{dayjs(e.statusAt).format('HH:mm')}</span>
+                        {/* 열 몇 명이 한 줄로 늘어서 있어 이름만으로는 눈이 안 잡힌다 */}
+                        <EmployeeAvatar name={e.name} size={22} />
+                        <span className="font-semibold text-slate-800">{e.name}</span>
+                        <span className="text-slate-400">{e.position}</span>
+                        {label(e) && (
+                          <span className={isStale(e.statusAt) ? 'text-slate-300' : 'text-slate-600'}>
+                            · {label(e)}
+                            {e.statusAt && (
+                              <span className="ml-1 text-[10px] text-slate-300">
+                                {dayjs(e.statusAt).format('HH:mm')}
+                              </span>
+                            )}
+                          </span>
                         )}
-                      </span>
-                    )}
+                      </button>
+                    </Popover>
                   </li>
                 ))}
               </ul>
