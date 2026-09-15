@@ -4,6 +4,7 @@ import { useAuth } from '../../authStore';
 import { loginWithPassword } from '../../lib/auth';
 import { ApiError } from '../../lib/api';
 import SignupForm from './SignupForm';
+import SocialLinks from './SocialLinks';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -90,7 +91,8 @@ export default function LoginPage() {
           대표번호는 눌러서 바로 걸리게 한다 — 휴대폰으로 열어보고 전화하는 일이 대부분이다.
         */}
         <footer className="mt-8 border-t border-slate-200 pt-4 text-center text-[11px] leading-relaxed text-slate-400">
-          <p className="font-semibold text-slate-500">애니원모터스</p>
+          <SocialLinks />
+          <p className="mt-3 font-semibold text-slate-500">애니원모터스</p>
           <p className="mt-1">
             대표자 : 장은경
             <span className="mx-1.5 text-slate-300">|</span>
