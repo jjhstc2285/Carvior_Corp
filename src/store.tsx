@@ -17,7 +17,6 @@ import type {
   ParkingVehicle,
   PurchaseSettlement,
   SettlementRecord,
-  VehiclePost,
 } from './types';
 
 const EMPTY_STATE: AppState = {
@@ -33,7 +32,6 @@ const EMPTY_STATE: AppState = {
   consultations: [],
   parkingVehicles: [],
   attendanceRequests: [],
-  vehiclePosts: [],
 };
 
 type Upsert<T, K extends string> = Omit<T, 'id' | K> & { id?: string };
@@ -84,16 +82,6 @@ interface Store {
   /** 구역도에서 끌어다 놓기 — 빈 칸이면 이동, 차가 있으면 맞바꿈 */
   moveParkingVehicle: (id: string, to: { lot: string; zone: string; slot: string }) => Promise<void>;
 
-  upsertVehiclePost: (record: {
-    id?: string;
-    site: string;
-    vehicleNumber: string;
-    vehicleModel: string;
-    customerPhone: string;
-    content: string;
-    photos: string[];
-  }) => Promise<void>;
-  deleteVehiclePost: (id: string) => Promise<void>;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -151,7 +139,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         purchaseSettlements,
         consultations,
         parkingVehicles,
-        vehiclePosts,
         ipWhitelist,
       ] = await Promise.all([
         api<Employee[]>('/employees'),
@@ -164,7 +151,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         api<PurchaseSettlement[]>('/settlements/purchase'),
         api<ConsultationRecord[]>('/consultations'),
         api<ParkingVehicle[]>('/parking'),
-        api<VehiclePost[]>('/vehicle-posts'),
         isAdmin ? api<{ ip: string }[]>('/attendance/ip-whitelist') : Promise.resolve([]),
       ]);
 
@@ -182,7 +168,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         purchaseSettlements: purchaseSettlements.map(flatten),
         consultations: consultations.map(flatten),
         parkingVehicles: parkingVehicles.map(flatten),
-        vehiclePosts: vehiclePosts.map(flatten),
         ipWhitelist: ipWhitelist.map((w) => w.ip),
         currentEmployeeId: user.id,
       });
@@ -332,13 +317,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       moveParkingVehicle: (id, to) =>
         run(() => api('/parking/move', { method: 'POST', body: { id, ...to } }), reloadParking),
 
-      upsertVehiclePost: ({ id, ...body }) =>
-        run(() =>
-          id
-            ? api(`/vehicle-posts/${id}`, { method: 'PATCH', body })
-            : api('/vehicle-posts', { method: 'POST', body }),
-        ),
-      deleteVehiclePost: (id) => run(() => api(`/vehicle-posts/${id}`, { method: 'DELETE' })),
     };
   }, [state, loading, error, month, load]);
 

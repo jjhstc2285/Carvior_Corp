@@ -9,7 +9,6 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { ConsultationsModule } from './consultations/consultations.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { ParkingModule } from './parking/parking.module';
-import { VehiclePostsModule } from './vehicle-posts/vehicle-posts.module';
 import { WorkLogsModule } from './work-logs/work-logs.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
 import { RealtimeModule } from './realtime/realtime.module';
@@ -35,7 +34,6 @@ import { RolesGuard } from './auth/roles.guard';
     ConsultationsModule,
     SettlementsModule,
     ParkingModule,
-    VehiclePostsModule,
     WorkLogsModule,
     VehiclesModule,
     RealtimeModule,

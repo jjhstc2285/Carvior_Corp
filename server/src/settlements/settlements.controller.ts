@@ -29,7 +29,7 @@ import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 
-/** 계약서 사진을 두는 곳. 매물 사진과 같은 자리 아래에 둔다. */
+/** 계약서 사진을 두는 곳. 올리는 파일은 전부 uploads 아래에 종류별로 나눠 둔다. */
 const CONTRACT_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'settlements');
 /** 앞장·뒷장·특약까지 — 넉넉히 열어둔다 */
 const PHOTO_MAX = 10;

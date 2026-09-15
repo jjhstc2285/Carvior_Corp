@@ -15,7 +15,6 @@ import AdminView from './components/AdminView';
 import SettlementModule from './components/settlement/SettlementModule';
 import ConsultationHub from './components/consultation/ConsultationHub';
 import ParkingModule from './components/parking/ParkingModule';
-import VehiclePostModule from './components/vehiclePost/VehiclePostModule';
 import WorkLogModule from './components/workLog/WorkLogModule';
 import VehicleModule from './components/vehicle/VehicleModule';
 import ChatModule from './components/chat/ChatModule';
@@ -37,7 +36,6 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   settlement: '정산 관리',
   parking: '주차장 관리',
   vehicle: '차량 관리',
-  vehiclePost: '매물 사진 등록',
   ad: '광고 관리',
   purchaseIntake: '매입 관리',
   stockFinance: '재고금융 (제시)',
@@ -58,7 +56,6 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'dealerFee') return <DealerFeeModule />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
-  if (module === 'vehiclePost') return <VehiclePostModule role={role} />;
   if (module === 'ad') return <AdModule role={role} />;
   return <ParkingModule isAdmin={role === 'ADMIN'} />;
 }

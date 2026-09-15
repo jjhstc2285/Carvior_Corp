@@ -6,7 +6,6 @@ export type ModuleKey =
   | 'settlement'
   | 'parking'
   | 'vehicle'
-  | 'vehiclePost'
   | 'ad'
   | 'purchaseIntake'
   | 'stockFinance'

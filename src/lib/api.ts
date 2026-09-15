@@ -191,9 +191,3 @@ function extractCode(data: unknown): string | null {
   return typeof code === 'string' ? code : null;
 }
 
-export async function uploadPhotos(files: File[]): Promise<string[]> {
-  const form = new FormData();
-  files.forEach((f) => form.append('files', f));
-  const res = await api<{ urls: string[] }>('/vehicle-posts/photos', { method: 'POST', formData: form });
-  return res.urls;
-}

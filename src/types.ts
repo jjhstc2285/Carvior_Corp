@@ -807,23 +807,11 @@ export interface ParkingVehicle {
   reinspect?: Reinspection | null;
 }
 
-// 매물 사진 게시판 — 사이트에 올릴 차량 정보와 사진을 올려두고 전 직원이 같이 보는 용도
+/**
+ * 매물을 올리는 사이트 — 광고 계약에서 플랫폼을 고를 때 쓴다.
+ * (매물 사진 등록 화면에서 쓰던 목록이다. 그 화면은 없앴지만 이 목록은 광고 관리가 쓴다)
+ */
 export const VEHICLE_POST_SITES = ['엔카', 'KB차차차', '보배드림', '차란차', '당근마켓', '기타'] as const;
-
-export const VEHICLE_POST_PHOTO_MAX = 5;
-
-export interface VehiclePost {
-  id: string;
-  site: string; // 사이트 (엔카/KB차차차 등)
-  vehicleNumber: string; // 차량번호
-  vehicleModel: string; // 차명
-  customerPhone: string; // 손님번호
-  content: string; // 내용
-  photos: { id: string; url: string }[]; // 서버에 올린 사진 경로
-  employeeId: string; // 등록자
-  createdAt: string;
-  updatedAt: string;
-}
 
 // 작업일지 — 날짜별 할 일 한 줄이 한 레코드. 화면에서는 주간 플래너로 모아 본다.
 export interface WorkLog {
@@ -987,7 +975,6 @@ export interface AppState {
   consultations: ConsultationRecord[];
   parkingVehicles: ParkingVehicle[];
   attendanceRequests: AttendanceRequest[];
-  vehiclePosts: VehiclePost[];
 }
 
 // ─────────────────────────────────────────────
