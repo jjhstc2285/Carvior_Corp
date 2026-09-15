@@ -33,7 +33,7 @@ import {
 import { DealerFeeMethod, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CarviorModule, CarviorService } from '../carvior/carvior.module';
-import { bestMatch, dealerKey } from './dealer-match';
+import { bestMatch, brandOf, dealerKey } from './dealer-match';
 import { formatDateOnly, formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager, LEDGER_VIEWER_WHERE } from '../auth/office-manager';
@@ -485,8 +485,15 @@ export class DealerFeesService {
     });
   }
 
-  private toView<T extends { startedOn: Date | null }>(row: T) {
-    return { ...row, startedOn: formatDateOnlyOrNull(row.startedOn) };
+  /**
+   * 화면이 쓰는 모양으로.
+   *
+   * 제조사는 업체명에서 그때그때 뽑는다 — 따로 적게 하면 '비엠더블유 인천'을 적어놓고
+   * 제조사 칸은 안 고르는 일이 생기고, 그러면 두 값이 어긋난다.
+   * 못 알아본 곳은 null — 화면에서 '기타'로 묶는다.
+   */
+  private toView<T extends { startedOn: Date | null; dealerName: string }>(row: T) {
+    return { ...row, startedOn: formatDateOnlyOrNull(row.startedOn), brand: brandOf(row.dealerName) };
   }
 }
 

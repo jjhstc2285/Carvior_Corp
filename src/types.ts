@@ -243,7 +243,33 @@ export interface DealerFeeAccount {
   active: boolean; // 거래중
   createdAt: string;
   updatedAt: string;
+
+  /**
+   * 업체명에서 뽑은 제조사 — 서버가 볼 때마다 낸다(따로 적게 하면 업체명과 어긋난다).
+   * 못 알아본 곳은 null. 화면에서 '기타'로 묶는다.
+   */
+  brand?: string | null;
 }
+
+/** 제조사 이름 — 서버 dealer-match.ts 의 key 와 짝이다. 보여주기용이라 여기만 고치면 된다. */
+export const DEALER_BRAND_LABEL: Record<string, string> = {
+  hyundai: '현대',
+  kia: '기아',
+  renault: '르노삼성',
+  byd: 'BYD',
+  bmw: 'BMW',
+  benz: '벤츠',
+  audi: '아우디',
+  vw: '폭스바겐',
+  porsche: '포르쉐',
+  volvo: '볼보',
+  toyota: '토요타',
+  lexus: '렉서스',
+  ford: '포드',
+  jeep: '지프',
+  cadillac: '캐딜락',
+  landrover: '랜드로버',
+};
 
 export interface AppNotification {
   id: string;

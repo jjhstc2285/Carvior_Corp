@@ -6,7 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import DealerRankingModal from './DealerRankingModal';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
-import { DEALER_FEE_METHOD_LABEL, type DealerFeeAccount, type DealerFeeMethod } from '../../types';
+import { DEALER_BRAND_LABEL, DEALER_FEE_METHOD_LABEL, type DealerFeeAccount, type DealerFeeMethod } from '../../types';
 import DealerFeePasteModal from './DealerFeePasteModal';
 
 /**
@@ -29,6 +29,8 @@ export default function DealerFeeModule() {
   /** '판매·매입 없는 곳'만 보고 있는가 */
   const [idleOnly, setIdleOnly] = useState(false);
   const [rankingOpen, setRankingOpen] = useState(false);
+  /** 제조사로 걸러 보기 — null 이면 전체 */
+  const [brandFilter, setBrandFilter] = useState<string | null>(null);
   /** 이 장부를 볼 수 있는 사람 — "누가 보는지"를 화면에서 확인한다 */
   const [viewers, setViewers] = useState<{ id: string; name: string; position: string }[]>([]);
   /**
@@ -139,7 +141,37 @@ export default function DealerFeeModule() {
     표에서 한 줄씩 찾아야 했다. 눌러서 그 목록만 남긴다.
     합계 숫자는 그대로 둔다 — 걸러 놓고도 몇 곳인지는 계속 보여야 한다.
   */
-  const shown = idleOnly ? idleAccounts : filtered;
+  /*
+    제조사별로 묶어 본다.
+
+    회비를 어디에 내고 있는지는 결국 '어느 제조사에 얼마'다. 업체명만 늘어놓으면
+    현대가 몇 곳인지 세려고 표를 훑어야 한다. 제조사를 눌러 그 곳들만 볼 수 있게 한다.
+
+    제조사는 업체명에서 서버가 뽑아 준다. 못 알아본 곳은 '기타'로 묶는다 —
+    빼버리면 회비가 나가는데 어디에도 안 세이는 곳이 생긴다.
+  */
+  const ETC = '__etc__';
+  const brands = useMemo(() => {
+    const by = new Map<string, { count: number; fee: number; idle: number }>();
+    for (const r of active) {
+      const key = r.brand ?? ETC;
+      const prev = by.get(key) ?? { count: 0, fee: 0, idle: 0 };
+      by.set(key, {
+        count: prev.count + 1,
+        fee: prev.fee + r.monthlyFee,
+        idle: prev.idle + (r.monthlyFee > 0 && idle(r.id) ? 1 : 0),
+      });
+    }
+    return [...by]
+      .map(([brand, v]) => ({ brand, ...v }))
+      // 곳이 많은 제조사부터. '기타'는 정체를 모르는 묶음이라 맨 뒤에 둔다
+      .sort((a, b) => (a.brand === ETC ? 1 : b.brand === ETC ? -1 : 0) || b.count - a.count || b.fee - a.fee);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, activity]);
+
+  const shown = (idleOnly ? idleAccounts : filtered).filter(
+    r => !brandFilter || (r.brand ?? ETC) === brandFilter,
+  );
 
   const handleExport = () => {
     const data = shown.map(r => ({
@@ -296,6 +328,14 @@ export default function DealerFeeModule() {
           />
           거래 끝난 곳도 보기
         </label>
+        {brandFilter && (
+          <button
+            onClick={() => setBrandFilter(null)}
+            className="flex items-center gap-1 rounded-full border border-indigo-300 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+          >
+            {brandFilter === ETC ? '기타' : (DEALER_BRAND_LABEL[brandFilter] ?? brandFilter)}만 보는 중 <X size={12} />
+          </button>
+        )}
         {idleOnly && (
           <button
             onClick={() => setIdleOnly(false)}
@@ -309,6 +349,39 @@ export default function DealerFeeModule() {
 
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{error}</p>}
 
+      {/* 제조사별로 몇 곳에 얼마가 나가는지. 누르면 그 제조사만 표에 남는다 */}
+      {brands.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setBrandFilter(null)}
+            className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              brandFilter === null
+                ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            전체 <span className="ml-1 font-bold">{active.length}</span>
+          </button>
+          {brands.map(b => (
+            <button
+              key={b.brand}
+              onClick={() => setBrandFilter(v => (v === b.brand ? null : b.brand))}
+              title={`매달 ${b.fee.toLocaleString()}원${b.idle > 0 ? ` · 판매·매입 없는 곳 ${b.idle}곳` : ''}`}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                brandFilter === b.brand
+                  ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <span className="font-semibold">{b.brand === ETC ? '기타' : (DEALER_BRAND_LABEL[b.brand] ?? b.brand)}</span>
+              <span className="font-bold text-indigo-600">{b.count}</span>
+              {/* 회비만 나가는 곳이 몇인지 — 끊을 데를 제조사 단위로 먼저 본다 */}
+              {b.idle > 0 && <span className="font-bold text-red-500">{b.idle}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full whitespace-nowrap text-sm">
@@ -316,6 +389,7 @@ export default function DealerFeeModule() {
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
                 {/* 지우는 건 제일 앞에 둔다 — 칸이 스물 가까이 돼서 옆으로 끝까지 밀어야 나왔다 */}
                 <th className="px-3 py-3" />
+                <th className="px-3 py-3 font-medium">제조사</th>
                 <th className="px-3 py-3 font-medium">업체명</th>
                 <th className="px-3 py-3 font-medium">담당자</th>
                 <th className="px-3 py-3 font-medium">담당연락처</th>
@@ -346,7 +420,7 @@ export default function DealerFeeModule() {
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={17} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={18} className="px-5 py-10 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : idleOnly ? '판매·매입 없는 곳이 없습니다.' : '등록된 영업소가 없습니다.'}
                   </td>
                 </tr>
@@ -364,6 +438,10 @@ export default function DealerFeeModule() {
                     >
                       <Trash2 size={14} />
                     </button>
+                  </td>
+                  {/* 업체명에서 뽑는 값이라 고칠 수 없다 — 업체명을 고치면 따라 바뀐다 */}
+                  <td className="whitespace-nowrap px-3 py-2.5 text-xs text-slate-500">
+                    {r.brand ? (DEALER_BRAND_LABEL[r.brand] ?? r.brand) : <span className="text-slate-300">기타</span>}
                   </td>
                   <td className="px-3 py-2.5">{text(r, 'dealerName', 'w-40', '업체명')}</td>
                   <td className="px-3 py-2.5">{text(r, 'managerName', 'w-20')}</td>
