@@ -9,7 +9,7 @@ import { PROPERTY_USAGES, type Property } from '../../types';
 /**
  * 부동산 정보.
  *
- * 사무실·주차장·창고로 쓰는 자리를 한곳에 모은다. 대표만 본다 —
+ * 사무실·주차장·창고로 쓰는 자리를 한곳에 모은다. 대표와 관리자만 본다 —
  * 보증금·월세·임대인 연락처가 들어 있어 전 직원이 볼 값이 아니다.
  *
  * 월세 내는 날과 계약 끝나는 날을 같이 둔다. 둘 다 놓치면 돈이 드는 일이라
@@ -40,7 +40,7 @@ export default function PropertyModule() {
       setRows(await api<Property[]>(`/properties?includeInactive=${includeInactive}`));
       setDenied(false);
     } catch (e) {
-      // 대표가 아니면 서버가 막는다 — 화면에서도 같은 말을 해준다
+      // 볼 수 없는 계정이면 서버가 막는다 — 화면에서도 같은 말을 해준다
       if (e instanceof ApiError && e.status === 403) setDenied(true);
       else void alertError('불러오지 못했습니다', e instanceof ApiError ? e.message : '');
     } finally {
@@ -108,7 +108,7 @@ export default function PropertyModule() {
   if (denied) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <p className="text-sm text-slate-500">부동산 정보는 대표님만 볼 수 있습니다.</p>
+        <p className="text-sm text-slate-500">부동산 정보는 대표님과 관리자만 볼 수 있습니다.</p>
       </div>
     );
   }
@@ -119,7 +119,7 @@ export default function PropertyModule() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">부동산 정보</h1>
           <p className="mt-1 text-sm text-slate-500">
-            사무실 · 주차장 · 창고로 쓰는 자리를 모아둡니다. <b>대표님만 보이는 화면</b>입니다.
+            사무실 · 주차장 · 창고로 쓰는 자리를 모아둡니다. <b>대표님과 관리자만 보이는 화면</b>입니다.
           </p>
         </div>
         <button

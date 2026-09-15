@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { formatDateOnlyOrNull, toDateOnlyOrNull } from '../common/date.util';
@@ -23,16 +24,21 @@ import { CEO_APPROVER } from '../settlements/approvers';
 /**
  * 부동산 — 사무실·주차장·창고로 쓰는 자리.
  *
- * 대표만 본다. 보증금·월세·임대인 연락처가 들어 있어 전 직원이 볼 값이 아니다.
+ * 대표와 관리자만 본다. 보증금·월세·임대인 연락처가 들어 있어 전 직원이 볼 값이 아니다.
  *
- * 이름으로 가린다. 직책으로 가리면 나중에 '대표이사'가 하나 더 생겼을 때 그 사람도
+ * 대표는 이름으로 가린다. 직책으로 가리면 나중에 '대표이사'가 하나 더 생겼을 때 그 사람도
  * 같이 보게 된다 — 결재하는 사람을 이름으로 못 박아둔 것과 같은 이유다.
  */
 
-/** 대표 말고는 못 본다. 테스트 계정도 여기는 안 열어준다 — 남의 계약 조건이다. */
+/**
+ * 대표이거나 관리자여야 본다.
+ *
+ * 관리자를 열어둔 건 지금 대표 계정 하나로는 대신 적어 넣을 사람이 없어서다.
+ * 대표만 보게 좁히려면 이 함수에서 role 조건만 빼면 된다.
+ */
 function assertCeo(user: AuthUser): void {
-  if (user.name.trim() !== CEO_APPROVER) {
-    throw new ForbiddenException('부동산 정보는 대표만 볼 수 있습니다.');
+  if (user.name.trim() !== CEO_APPROVER && user.role !== Role.ADMIN) {
+    throw new ForbiddenException('부동산 정보는 대표와 관리자만 볼 수 있습니다.');
   }
 }
 
