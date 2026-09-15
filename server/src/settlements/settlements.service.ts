@@ -296,12 +296,22 @@ export class SettlementsService {
    * 차량번호는 손으로 적는 값이라 띄어쓰기가 섞여 들어온다 — 정리한 꼴로도 찾는다.
    * 같은 차를 두 번 사고팔았으면 최근 매입 건에 넣는다.
    */
+  /**
+   * 알선 정산에 적은 판매금액을 매입 정산의 차량판매가로 옮긴다.
+   *
+   * 실차주입금이 먼저다 — 실제로 들어온 돈이 그쪽이다.
+   * 안 적혀 있으면 총 진행 판매금액을 쓴다. 출고는 했는데 입금 확인을 아직 못 적은
+   * 건이 많은데, 그때마다 차량판매가가 비어 매입 관리의 매도금액이 0으로 남았다.
+   * 나중에 실차주입금을 적으면 그 값으로 덮인다.
+   */
   private async syncFromBrokerage(row: {
     vehicleNumber: string;
     ownerDeposit: number;
+    totalSaleAmount: number;
     date: Date;
   }): Promise<'updated' | 'already' | 'noMatch'> {
-    if (row.ownerDeposit <= 0) return 'already';
+    const amount = row.ownerDeposit > 0 ? row.ownerDeposit : row.totalSaleAmount;
+    if (amount <= 0) return 'already';
 
     try {
       const plates = [...new Set([row.vehicleNumber, normalizePlate(row.vehicleNumber)])].filter(Boolean);
@@ -321,7 +331,7 @@ export class SettlementsService {
        */
       // 0으로 덮어써서 이미 적어둔 값을 지우지 않는다 — 안 적은 칸은 그대로 둔다.
       const data = {
-        ...(target.salePrice !== row.ownerDeposit ? { salePrice: row.ownerDeposit } : {}),
+        ...(target.salePrice !== amount ? { salePrice: amount } : {}),
         ...(formatDateOnly(target.date) !== formatDateOnly(row.date) ? { date: row.date } : {}),
       };
       if (Object.keys(data).length === 0) return 'already';
@@ -347,7 +357,7 @@ export class SettlementsService {
    */
   async syncAllFromBrokerage() {
     const rows = await this.prisma.brokerageSettlement.findMany({
-      select: { vehicleNumber: true, ownerDeposit: true, date: true },
+      select: { vehicleNumber: true, ownerDeposit: true, totalSaleAmount: true, date: true },
       orderBy: { date: 'asc' },
     });
 
@@ -369,7 +379,7 @@ export class SettlementsService {
      * 판매금액을 안 적은 건지, 차량번호가 매입 정산과 안 겹치는 건지 —
      * 셋은 고칠 방법이 완전히 다르다.
      */
-    const withAmount = rows.filter((r) => r.ownerDeposit > 0).length;
+    const withAmount = rows.filter((r) => r.ownerDeposit > 0 || r.totalSaleAmount > 0).length;
     const purchasePlates = new Set(
       (await this.prisma.purchaseSettlement.findMany({ select: { vehicleNumber: true } })).map((p) =>
         normalizePlate(p.vehicleNumber),

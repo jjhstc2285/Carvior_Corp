@@ -104,6 +104,7 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
           <EmployeeField label="담당자" value={employeeId} onChange={setEmployeeId} employees={state.employees} />
 
           <MoneyField label="총 진행 판매금액" value={totalSaleAmount} onChange={setTotalSaleAmount} required />
+          {/* 비워두면 총 진행 판매금액이 매입 정산의 차량판매가로 넘어간다 */}
           <MoneyField label="실차주입금" value={ownerDeposit} onChange={setOwnerDeposit} />
           <MoneyField label="이전비" value={transferFee} onChange={setTransferFee} />
           <MoneyField label="이전비 잔액" value={transferFeeBalance} onChange={setTransferFeeBalance} />
