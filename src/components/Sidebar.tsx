@@ -1,4 +1,4 @@
-import { Building2, CalendarClock, Megaphone, Stamp, Car, Landmark, Handshake, Sparkles, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, X } from 'lucide-react';
+import { Building2, CalendarClock, Car, Contact, Handshake, Landmark, Megaphone, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Sparkles, Stamp, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 
 interface Props {
@@ -24,6 +24,7 @@ const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[]
   { key: 'purchaseIntake', label: '매입 관리', icon: Handshake },
   { key: 'stockFinance', label: '재고금융 (제시)', icon: Landmark },
   { key: 'dealerFee', label: '신차영업소 상조회비', icon: Building2 },
+  { key: 'vendor', label: '거래처 대장', icon: Contact },
   { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
   { key: 'chat', label: '메시지', icon: MessageSquare },
 ];

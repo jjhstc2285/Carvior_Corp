@@ -54,6 +54,19 @@ function isStale(at: string | null | undefined): boolean {
   return !at || dayjs().diff(dayjs(at), 'hour') >= 4;
 }
 
+/**
+ * 마우스를 올렸을 때 뜨는 말 — 이름·직급·번호.
+ *
+ * 번호가 둘인 분이 있어 다 보여준다. 안 적힌 분은 적어 달라고 적어 둔다 —
+ * 빈 자리를 그냥 두면 번호가 원래 없는 건지 안 적은 건지 알 수 없다.
+ */
+function phoneHint(e: { name: string; position: string; phones?: string[] }): string {
+  const head = `${e.name} ${e.position}`;
+  const phones = e.phones ?? [];
+  const lines = phones.length > 0 ? phones : ['번호 없음 (직원 관리에서 적어주세요)'];
+  return [head, ...lines].join('\n');
+}
+
 export default function StatusBar() {
   const { state, refresh } = useStore();
   const [open, setOpen] = useState(false);
@@ -219,8 +232,25 @@ export default function StatusBar() {
                     }`}
                   >
                     {/* 열 몇 명이 한 줄로 늘어서 있어 이름만으로는 눈이 안 잡힌다 */}
-                    <EmployeeAvatar name={e.name} size={22} title={`${e.name} ${e.position}`} />
-                    <span className="font-semibold text-slate-800">{e.name}</span>
+                    <EmployeeAvatar name={e.name} size={22} title={phoneHint(e)} />
+                    {/*
+                      눌러서 바로 건다.
+                      근무 현황은 "지금 누구한테 연락해야 하나"를 보는 자리다 — 번호를 찾으러
+                      직원 관리로 들어갔다 오지 않게 한다. 번호가 없으면 그냥 이름만 보인다.
+                    */}
+                    {e.phones?.[0] ? (
+                      <a
+                        href={`tel:${e.phones[0].replace(/[^\d+]/g, '')}`}
+                        title={phoneHint(e)}
+                        className="font-semibold text-slate-800 hover:text-indigo-700 hover:underline"
+                      >
+                        {e.name}
+                      </a>
+                    ) : (
+                      <span className="font-semibold text-slate-800" title={phoneHint(e)}>
+                        {e.name}
+                      </span>
+                    )}
                     <span className="text-slate-400">{e.position}</span>
                     {label(e) && (
                       <span className={isStale(e.statusAt) ? 'text-slate-300' : 'text-slate-600'}>

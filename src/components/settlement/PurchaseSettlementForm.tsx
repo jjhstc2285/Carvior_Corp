@@ -3,21 +3,22 @@ import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
 import {
+  ACQUISITION_TAX_RATE,
   BROKER_FEE_PAYOUTS,
   BROKER_FEE_PAYOUT_LABEL,
+  EXTRA_FEE_RATE,
+  SALE_TAX_RATE,
   acquisitionTax,
-  ACQUISITION_TAX_RATE,
   dealerTransferFee,
   extraTransferFee,
-  EXTRA_FEE_RATE,
   purchaseGrandTotal,
-  transferFeeOf,
   purchasePrepTotal,
   saleProfit,
-  SALE_TAX_RATE,
+  transferFeeOf,
   type BrokerFeePayout,
   type PurchaseSettlement,
   type SettlementStatus,
+  type Vendor,
 } from '../../types';
 import { api } from '../../lib/api';
 import { moneyToNumber, percentLabel, withCommas } from '../../lib/money';
@@ -63,6 +64,8 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   );
   // 업체·카테고리 자동완성 목록 — 지금까지 쓴 이름을 서버에서 받아온다.
   const [vendors, setVendors] = useState<Record<string, string[]>>({});
+  /* 거래처 대장 — 늘 쓰는 업체를 눌러 넣고 번호를 바로 본다 */
+  const [contacts, setContacts] = useState<Vendor[]>([]);
   const [settlementAmount, setSettlementAmount] = useState(editing ? String(editing.settlementAmount) : '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
@@ -72,6 +75,10 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    void api<Vendor[]>('/vendors')
+      .then(setContacts)
+      // 대장을 못 불러와도 비용은 적어야 한다 — 추천만 안 뜬다
+      .catch(() => {});
     void api<Record<string, string[]>>('/settlements/purchase/vendors')
       .then(setVendors)
       .catch(() => {
@@ -157,7 +164,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         </div>
 
         <div className="mt-4">
-          <PrepCostEditor rows={prepRows} onChange={setPrepRows} vendors={vendors} />
+          <PrepCostEditor rows={prepRows} onChange={setPrepRows} vendors={vendors} contacts={contacts} />
         </div>
 
         <div className="mt-4">

@@ -730,6 +730,38 @@ export const CONSULTATION_PLATFORMS_BY_KIND: Record<ConsultationKind, readonly s
   EXPORT: ['카비어', '딜러', '직거래', '기타'],
 };
 
+/**
+ * 거래처 분류 — 자주 쓰는 것을 미리 골라둔다.
+ * 목록에 없는 것도 표에 들어 있으면 같이 고를 수 있다(분류는 글자로 저장한다).
+ * 앞의 다섯은 매입 정산의 상품화 비용 항목과 짝이다.
+ */
+export const VENDOR_CATEGORIES = [
+  '광택·세차',
+  '판금·덴트',
+  '성능',
+  '탁송',
+  '공업사',
+  '배터리',
+  '할부사',
+  '보험',
+  '기타',
+] as const;
+
+export interface Vendor {
+  id: string;
+  category: string;
+  name: string;
+  phone: string;
+  /** 번호가 둘인 곳 */
+  phone2: string;
+  manager: string;
+  memo: string;
+  /** 거래 끊으면 내린다 — 지우지 않는다(지난 비용 명세가 이 이름을 가리킨다) */
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** 손님이 차값을 어떻게 치렀는가 */
 export type PayMethod = 'UNKNOWN' | 'CASH' | 'INSTALLMENT';
 

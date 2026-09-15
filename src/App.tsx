@@ -27,6 +27,7 @@ import AdModule from './components/ad/AdModule';
 import { useChatUnread } from './components/chat/useChat';
 import RealtimeToasts from './components/RealtimeToasts';
 import LoginPage from './components/auth/LoginPage';
+import VendorModule from './components/vendor/VendorModule';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
   attendance: '출퇴근 관리',
@@ -39,6 +40,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   ad: '광고 관리',
   purchaseIntake: '매입 관리',
   stockFinance: '재고금융 (제시)',
+  vendor: '거래처 대장',
   dealerFee: '신차영업소 상조회비',
   cleaning: '청소 관리 대장',
   chat: '메시지',
@@ -53,6 +55,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'cleaning') return <CleaningModule role={role} />;
   if (module === 'purchaseIntake') return <PurchaseIntakeModule />;
   if (module === 'stockFinance') return <StockFinanceModule />;
+  if (module === 'vendor') return <VendorModule role={role} />;
   if (module === 'dealerFee') return <DealerFeeModule />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;

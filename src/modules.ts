@@ -10,5 +10,6 @@ export type ModuleKey =
   | 'purchaseIntake'
   | 'stockFinance'
   | 'dealerFee'
+  | 'vendor'
   | 'cleaning'
   | 'chat';

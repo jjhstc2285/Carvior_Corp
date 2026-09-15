@@ -1,12 +1,7 @@
 import { Phone, Plus, Trash2 } from 'lucide-react';
 import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
-import { findPrepVendor, vendorsOfKind } from '../../lib/prepVendors';
-import {
-  PREP_COST_KINDS,
-  PREP_COST_LABEL,
-  PREP_COST_VENDOR_HINT,
-  type PrepCostKind,
-} from '../../types';
+import { findVendorByName, vendorsOfKind } from '../../lib/prepVendors';
+import { PREP_COST_KINDS, PREP_COST_LABEL, PREP_COST_VENDOR_HINT, type PrepCostKind, type Vendor } from '../../types';
 
 /** 편집 중에는 금액을 문자열로 들고 있는다("35000"). 저장할 때 숫자로 바꾼다. */
 export interface PrepCostRow {
@@ -21,6 +16,8 @@ interface Props {
   onChange: (rows: PrepCostRow[]) => void;
   /** 항목별로 지금까지 쓴 업체·카테고리 이름 — 자동완성에 쓴다 */
   vendors: Record<string, string[]>;
+  /** 거래처 대장 — 늘 쓰는 업체를 눌러 넣고 번호를 본다 */
+  contacts: Vendor[];
 }
 
 const INPUT = 'rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400';
@@ -34,7 +31,7 @@ const INPUT = 'rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-no
  *
  * 업체명은 자유 입력이다. 한 번 쓴 이름은 다음부터 추천 목록에 뜬다(자동완성).
  */
-export default function PrepCostEditor({ rows, onChange, vendors }: Props) {
+export default function PrepCostEditor({ rows, onChange, vendors, contacts }: Props) {
   const rowsOf = (kind: PrepCostKind) =>
     rows.map((row, index) => ({ row, index })).filter(({ row }) => row.kind === kind);
 
@@ -113,14 +110,14 @@ export default function PrepCostEditor({ rows, onChange, vendors }: Props) {
                           className={`${INPUT} min-w-0 flex-1`}
                         />
                         {/* 적어 넣은 이름이 등록된 업체면 번호를 바로 보여준다 */}
-                        {findPrepVendor(row.vendor) && (
+                        {findVendorByName(contacts, row.vendor)?.phone && (
                           <a
-                            href={`tel:${findPrepVendor(row.vendor)!.phone.replace(/[^\d+]/g, '')}`}
-                            title={findPrepVendor(row.vendor)!.memo}
+                            href={`tel:${findVendorByName(contacts, row.vendor)!.phone.replace(/[^\d+]/g, '')}`}
+                            title={findVendorByName(contacts, row.vendor)!.memo}
                             className="flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-1 font-mono text-[11px] font-semibold text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
                           >
                             <Phone size={10} />
-                            {findPrepVendor(row.vendor)!.phone}
+                            {findVendorByName(contacts, row.vendor)!.phone}
                           </a>
                         )}
                       </span>
@@ -154,9 +151,9 @@ export default function PrepCostEditor({ rows, onChange, vendors }: Props) {
                 늘 쓰는 업체는 눌러서 넣는다. 번호를 같이 보여주는 이유는 적다가
                 "이거 얼마였지" 하고 물어볼 일이 생기기 때문이다 — 카톡을 뒤져 올라가지 않게.
               */}
-              {vendorsOfKind(kind).length > 0 && (
+              {vendorsOfKind(contacts, kind).length > 0 && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                  {vendorsOfKind(kind).map(v => (
+                  {vendorsOfKind(contacts, kind).map(v => (
                     <span
                       key={v.name}
                       className="flex items-center overflow-hidden rounded-md border border-slate-200 text-[11px]"
@@ -169,12 +166,14 @@ export default function PrepCostEditor({ rows, onChange, vendors }: Props) {
                       >
                         {v.name}
                       </button>
-                      <a
-                        href={`tel:${v.phone.replace(/[^\d+]/g, '')}`}
-                        className="border-l border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"
-                      >
-                        {v.phone}
-                      </a>
+                      {v.phone && (
+                        <a
+                          href={`tel:${v.phone.replace(/[^\d+]/g, '')}`}
+                          className="border-l border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"
+                        >
+                          {v.phone}
+                        </a>
+                      )}
                     </span>
                   ))}
                 </div>
@@ -182,7 +181,7 @@ export default function PrepCostEditor({ rows, onChange, vendors }: Props) {
 
               {/* 한 번 쓴 이름은 다음부터 여기서 추천된다 */}
               <datalist id={`prep-vendors-${kind}`}>
-                {[...new Set([...vendorsOfKind(kind).map(v => v.name), ...(vendors[kind] ?? [])])].map(name => (
+                {[...new Set([...vendorsOfKind(contacts, kind).map(v => v.name), ...(vendors[kind] ?? [])])].map(name => (
                   <option key={name} value={name} />
                 ))}
               </datalist>
