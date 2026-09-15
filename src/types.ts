@@ -126,6 +126,32 @@ export interface AdPosting {
   memo: string;
 }
 
+/** 월별 광고비 채널 — 자주 쓰는 이름. 치다 보면 '114우선문의'와 '114 우선문의'로 갈려서 골라 넣게 한다 */
+export const AD_SPEND_CHANNELS = [
+  '구글 애즈',
+  '114 우선문의',
+  '스마트로그',
+  '인스타그램',
+  '네이버 파워링크',
+  '채널웍스',
+  '알바천국',
+] as const;
+
+export const AD_SPEND_STATUSES = ['신규', '유지', '중지', '종료'] as const;
+
+/** 월별 광고비 — 엔카·차차차 약정 외 광고에 그 달 쓴 돈(원) */
+export interface AdSpend {
+  id: string;
+  month: string; // YYYY-MM
+  channel: string;
+  amount: number;
+  status: string;
+  owner: string;
+  memo: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AdContract {
   id: string;
   platform: string;

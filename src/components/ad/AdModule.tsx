@@ -6,6 +6,7 @@ import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { VEHICLE_POST_SITES, type AdContract, type Role } from '../../types';
 import VehicleAdCostPanel from './VehicleAdCostPanel';
+import AdSpendPanel from './AdSpendPanel';
 
 /**
  * 광고 관리.
@@ -133,6 +134,9 @@ export default function AdModule({ role }: { role: Role }) {
           )}
         </div>
       </div>
+
+      {/* 약정 계약 말고, 달마다 얼마를 썼는지만 남기는 광고 */}
+      <AdSpendPanel />
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">

@@ -26,6 +26,7 @@ import { PushService } from '../push/push.service';
 import { PushModule } from '../push/push.module';
 import { normalizePlate } from '../vehicles/vehicle.rules';
 import { CarviorModule, CarviorService } from '../carvior/carvior.module';
+import { AdSpendController, AdSpendService } from './ad-spend';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -470,7 +471,7 @@ export class AdsController {
 
 @Module({
   imports: [RealtimeModule, PushModule, CarviorModule],
-  controllers: [AdsController],
-  providers: [AdsService, AdReminderService],
+  controllers: [AdsController, AdSpendController],
+  providers: [AdsService, AdReminderService, AdSpendService],
 })
 export class AdsModule {}
