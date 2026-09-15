@@ -18,6 +18,7 @@ import BrokerageSettlementForm from './BrokerageSettlementForm';
 import PendingSettlementVehicles from './PendingSettlementVehicles';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
+import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -35,6 +36,8 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
+  /** 기본은 표다 — 매일 쓰는 건 표고, 달력은 가끔 펼쳐 본다 */
+  const [view, setView] = useState<SettlementView>('list');
   const [editing, setEditing] = useState<BrokerageSettlement | null>(null);
   const [preset, setPreset] = useState<{ vehicleNumber: string; vehicleName: string; totalSaleAmount: number; employeeId: string } | undefined>();
 
@@ -199,6 +202,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           </select>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <SettlementViewToggle view={view} onChange={setView} />
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download size={14} /> 엑셀 다운로드
           </button>
@@ -209,6 +213,18 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
         </div>
       </div>
 
+      {view === 'calendar' ? (
+        <SettlementCalendar
+          items={filtered.map(s => ({
+            id: s.id,
+            date: s.date,
+            label: s.vehicleName || s.vehicleNumber,
+            sublabel: `${SETTLEMENT_STATUS_LABEL[s.status]} · 정산 ${NUM(s.settlementAmount)}원`,
+            tone: s.locked ? 'locked' : s.status === 'COMPLETED' ? 'done' : 'progress',
+            onSelect: s.locked ? undefined : () => { setEditing(s); setPreset(undefined); setFormOpen(true); },
+          }))}
+        />
+      ) : (
       <div className="rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1180px] text-sm">
@@ -383,6 +399,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           </table>
         </div>
       </div>
+      )}
 
       {formOpen && (
         <BrokerageSettlementForm kind={kind} editing={editing} defaultEmployeeId={state.currentEmployeeId} preset={preset} onClose={() => setFormOpen(false)} />

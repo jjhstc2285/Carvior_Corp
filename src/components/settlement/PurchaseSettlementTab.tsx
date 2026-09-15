@@ -27,6 +27,7 @@ import PendingPurchaseDrafts from './PendingPurchaseDrafts';
 import { ContractPhotoThumb } from './ContractPhotos';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
+import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -50,6 +51,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
+  /** 기본은 표다 — 매일 쓰는 건 표고, 달력은 가끔 펼쳐 본다 */
+  const [view, setView] = useState<SettlementView>('list');
   const [editing, setEditing] = useState<PurchaseSettlement | null>(null);
 
   /**
@@ -372,6 +375,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
               {dayjs(month).format('M월')} 정산 비우기
             </button>
           )}
+          <SettlementViewToggle view={view} onChange={setView} />
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download size={14} /> 엑셀 다운로드
           </button>
@@ -382,6 +386,21 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
       </div>
 
+      {view === 'calendar' ? (
+        <SettlementCalendar
+          // 위에서 고른 달과 같이 움직인다 — 달력만 딴 달을 보고 있으면 숫자가 안 맞는다
+          month={dayjs(`${month}-01`)}
+          onMonthChange={d => { setAllMonths(false); setMonth(d.format('YYYY-MM')); }}
+          items={filtered.map(s => ({
+            id: s.id,
+            date: s.date,
+            label: s.vehicleName || s.vehicleNumber,
+            sublabel: `${SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']} · 합계 ${NUM(totalWonOf(s))}원`,
+            tone: s.locked ? 'locked' : s.status === 'COMPLETED' ? 'done' : 'progress',
+            onSelect: s.locked ? undefined : () => { setEditing(s); setFormOpen(true); },
+          }))}
+        />
+      ) : (
       <div className="rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1520px] text-sm">
@@ -544,6 +563,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
           </table>
         </div>
       </div>
+      )}
 
       {formOpen && (
         <PurchaseSettlementForm editing={editing} defaultEmployeeId={state.currentEmployeeId} onClose={() => setFormOpen(false)} />

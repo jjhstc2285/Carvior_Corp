@@ -7,6 +7,7 @@ import { canSeeAllSettlements } from '../../lib/permissions';
 import { netProfit, SETTLEMENT_STATUS_LABEL, type SettlementRecord, type SettlementStatus } from '../../types';
 import SettlementForm from './SettlementForm';
 import { confirmDanger } from '../../lib/alert';
+import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
@@ -17,6 +18,8 @@ export default function BasicSettlementTab({ role }: Props) {
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [formOpen, setFormOpen] = useState(false);
+  /** 기본은 표다 — 매일 쓰는 건 표고, 달력은 가끔 펼쳐 본다 */
+  const [view, setView] = useState<SettlementView>('list');
   const [editing, setEditing] = useState<SettlementRecord | null>(null);
 
   /** 계약팀은 남의 정산도 본다 — 빈칸을 채우는 게 그 팀 일이다. */
@@ -96,6 +99,7 @@ export default function BasicSettlementTab({ role }: Props) {
           </select>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <SettlementViewToggle view={view} onChange={setView} />
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download size={14} /> 엑셀 다운로드
           </button>
@@ -108,6 +112,19 @@ export default function BasicSettlementTab({ role }: Props) {
         </div>
       </div>
 
+      {view === 'calendar' ? (
+        <SettlementCalendar
+          items={filtered.map(s => ({
+            id: s.id,
+            date: s.date,
+            label: s.vehicleInfo,
+            sublabel: `${SETTLEMENT_STATUS_LABEL[s.status]} · 순이익 ${netProfit(s).toLocaleString()}만원`,
+            tone: s.status === 'COMPLETED' ? 'done' : 'progress',
+            // 간편 정산은 관리자만 고친다 — 표와 같은 기준
+            onSelect: role === 'ADMIN' ? () => { setEditing(s); setFormOpen(true); } : undefined,
+          }))}
+        />
+      ) : (
       <div className="rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -161,6 +178,7 @@ export default function BasicSettlementTab({ role }: Props) {
           </table>
         </div>
       </div>
+      )}
 
       {formOpen && (
         <SettlementForm editing={editing} defaultEmployeeId={state.currentEmployeeId} onClose={() => setFormOpen(false)} />
