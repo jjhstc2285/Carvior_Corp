@@ -98,6 +98,7 @@ export default function LoginPage() {
             <span className="mx-1.5 text-slate-300">|</span>
             사업자등록번호 : 690-21-01020
           </p>
+          <p className="mt-0.5">사업장소재지 : 경기도 수원시 권선구 평동로79번길 45, 519호 (평동)</p>
           <p className="mt-0.5">
             대표번호 :{' '}
             <a href="tel:0313049700" className="underline hover:text-slate-600">
