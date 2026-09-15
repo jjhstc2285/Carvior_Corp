@@ -6,6 +6,7 @@ import { useStore } from '../store';
 import { alertError } from '../lib/alert';
 import { IDLE_AWAY_MINUTES } from '../hooks/useAutoAwayStatus';
 import type { Employee } from '../types';
+import EmployeeAvatar from './EmployeeAvatar';
 
 /**
  * 오늘 누가 무엇을 하고 있는지 — 전 직원을 한 장에 본다.
@@ -213,10 +214,12 @@ export default function StatusBar() {
                 {group.people.map(e => (
                   <li
                     key={e.id}
-                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs ${
+                    className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs ${
                       e.id === state.currentEmployeeId ? 'border-indigo-300 bg-indigo-50' : group.chip
                     }`}
                   >
+                    {/* 열 몇 명이 한 줄로 늘어서 있어 이름만으로는 눈이 안 잡힌다 */}
+                    <EmployeeAvatar name={e.name} size={22} title={`${e.name} ${e.position}`} />
                     <span className="font-semibold text-slate-800">{e.name}</span>
                     <span className="text-slate-400">{e.position}</span>
                     {label(e) && (

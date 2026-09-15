@@ -4,6 +4,7 @@ import { api, ApiError } from '../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../lib/alert';
 import { useStore } from '../store';
 import { DEPARTMENTS, type Employee } from '../types';
+import EmployeeAvatar from './EmployeeAvatar';
 
 /**
  * 직원 관리 — 퇴사 처리와 복직.
@@ -71,6 +72,34 @@ export default function EmployeeSettings() {
     }
   };
 
+  /**
+   * 휴대번호 저장.
+   *
+   * 두 개인 분이 있어 쉼표로 여러 개를 받는다(본부장님·강예원 매니저님). 적힌 순서대로
+   * 저장되고, 앞에 적은 번호가 대표 번호가 된다.
+   * 칸을 벗어날 때만 저장한다 — 한 글자 칠 때마다 보내면 번호를 지우는 도중에도 저장된다.
+   */
+  const savePhones = async (employee: Employee, text: string) => {
+    const phones = text
+      .split(',')
+      .map(p => p.trim())
+      .filter(Boolean);
+    if (phones.join(',') === employee.phones.join(',')) return;
+
+    setBusyId(employee.id);
+    try {
+      await api(`/employees/${employee.id}`, { method: 'PATCH', body: { phones } });
+      await load();
+      // 연락망을 보는 다른 화면도 같이 받아둔다
+      await refresh();
+    } catch (e) {
+      void alertError('번호를 저장하지 못했습니다', e instanceof ApiError ? e.message : '');
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const confirmLeave = async (employee: Employee) => {
     const ok = await confirmDanger(
       `${employee.name}님을 퇴사 처리할까요?`,
@@ -104,6 +133,7 @@ export default function EmployeeSettings() {
                 <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
                   <th className="px-3 py-2 font-medium">이름</th>
                   <th className="px-3 py-2 font-medium">직급</th>
+                  <th className="px-3 py-2 font-medium">휴대번호</th>
                   <th className="px-3 py-2 font-medium">팀</th>
                   <th className="px-3 py-2 font-medium">권한</th>
                   <th className="px-3 py-2 text-right font-medium">관리</th>
@@ -116,12 +146,27 @@ export default function EmployeeSettings() {
                     className={`border-b border-slate-50 last:border-0 ${e.active ? '' : 'bg-slate-50/60 text-slate-400'}`}
                   >
                     <td className="px-3 py-2 font-medium">
-                      {e.name}
-                      {!e.active && (
-                        <span className="ml-1.5 rounded bg-slate-200 px-1 text-[10px] font-bold text-slate-500">퇴사</span>
-                      )}
+                      <span className="flex items-center gap-2">
+                        <EmployeeAvatar name={e.name} size={26} />
+                        <span className={e.active ? '' : 'opacity-60'}>{e.name}</span>
+                        {!e.active && (
+                          <span className="rounded bg-slate-200 px-1 text-[10px] font-bold text-slate-500">퇴사</span>
+                        )}
+                      </span>
                     </td>
                     <td className="px-3 py-2">{e.position}</td>
+                    {/* 번호가 두 개인 분이 있어 쉼표로 받는다 */}
+                    <td className="px-3 py-2">
+                      <input
+                        defaultValue={e.phones.join(', ')}
+                        onBlur={ev => void savePhones(e, ev.target.value)}
+                        disabled={busyId === e.id}
+                        placeholder="010-0000-0000"
+                        className={`w-48 rounded-lg border px-1.5 py-1 font-mono text-xs outline-none focus:border-indigo-400 disabled:opacity-50 ${
+                          e.phones.length > 0 ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
+                        }`}
+                      />
+                    </td>
                     {/* 작업일지가 이 값으로 팀을 가른다 — 비어 있으면 본인 것만 보인다 */}
                     <td className="px-3 py-2">
                       <select
@@ -165,6 +210,9 @@ export default function EmployeeSettings() {
           </div>
 
           <p className="mt-2 text-[11px] text-slate-400">
+            <b>휴대번호</b>는 칸을 벗어나면 저장됩니다. 번호가 두 개면 쉼표로 나눠 적으세요 —
+            앞에 적은 번호가 대표 번호가 됩니다.
+            <br />
             <b>팀</b>은 작업일지를 나눠 보는 기준입니다 — 같은 팀끼리 서로의 일지가 보이고, 팀이 없으면 본인 것만 보입니다.
             <br />
             퇴사 처리해도 <b>기록은 지워지지 않습니다</b> — 출퇴근·정산·상담이 그 사람을 가리키고 있어서
