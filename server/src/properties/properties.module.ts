@@ -18,7 +18,7 @@ import { Type } from 'class-transformer';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
-import { formatDateOnlyOrNull, toDateOnlyOrNull } from '../common/date.util';
+import { formatDateOnlyOrNull, toDateOnlyOrNull, todayKst } from '../common/date.util';
 import { CEO_APPROVER } from '../settlements/approvers';
 
 /**
@@ -238,6 +238,52 @@ export class LeaseService {
     await this.prisma.leaseContract.delete({ where: { id } });
   }
 
+  /**
+   * 연장 — 지금 계약서를 그대로 베껴 다음 기간짜리 새 장을 만든다.
+   *
+   * 연장은 조건이 그대로인 채 기간만 미는 일이 대부분이다. 처음부터 다시 치게 두지 않고
+   * 베껴서 기간만 밀어 준 뒤, 바뀐 것(월세를 올렸다든지)만 고치게 한다.
+   *
+   * 지난 장은 지우지 않는다 — 언제 얼마로 몇 년을 살았는지가 기록이다.
+   * 부동산 쪽 계약 기간도 새 기간으로 맞춘다. 그게 '지금 계약'이라 만료 알림이 그걸 본다.
+   */
+  async renew(id: string, months: number) {
+    const src = await this.prisma.leaseContract.findUnique({ where: { id } });
+    if (!src) throw new NotFoundException('계약서를 찾을 수 없습니다.');
+
+    const span = Math.min(Math.max(Math.trunc(months) || 12, 1), 120);
+    // 새 기간은 지난 계약이 끝난 다음 날부터. 끝나는 날을 안 적었으면 오늘부터 센다.
+    const base = src.endOn ?? new Date(`${todayKst()}T00:00:00.000Z`);
+    const startOn = new Date(base.getTime() + (src.endOn ? 86_400_000 : 0));
+    const endOn = new Date(
+      Date.UTC(startOn.getUTCFullYear(), startOn.getUTCMonth() + span, startOn.getUTCDate() - 1),
+    );
+
+    const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = src;
+    const row = await this.prisma.leaseContract.create({
+      data: {
+        ...rest,
+        startOn,
+        endOn,
+        handoverOn: null,
+        writtenOn: new Date(`${todayKst()}T00:00:00.000Z`),
+        // 계약금·중도금·잔금은 처음 들어갈 때 오간 돈이다. 연장에는 안 따라간다.
+        downPayment: 0,
+        interimPayment: 0,
+        interimOn: null,
+        balance: 0,
+        balanceOn: null,
+      },
+    });
+
+    await this.prisma.property.update({
+      where: { id: src.propertyId },
+      data: { startOn, endOn, active: true },
+    });
+
+    return this.toView(row);
+  }
+
   /** 안 보낸 칸은 건드리지 않는다 — 한 칸씩 고치는 화면이다. */
   private dataOf(dto: UpsertLeaseDto) {
     const out: Record<string, unknown> = {};
@@ -321,6 +367,17 @@ export class PropertiesController {
   async removeLease(@CurrentUser() user: AuthUser, @Param('leaseId') leaseId: string) {
     assertCeo(user);
     await this.leases.remove(leaseId);
+  }
+
+  /** 연장 — 지금 계약서를 베껴 다음 기간짜리 새 장을 만든다(부동산 기간도 같이 민다). */
+  @Post('leases/:leaseId/renew')
+  renewLease(
+    @CurrentUser() user: AuthUser,
+    @Param('leaseId') leaseId: string,
+    @Body() dto: { months?: number },
+  ) {
+    assertCeo(user);
+    return this.leases.renew(leaseId, Number(dto?.months) || 12);
   }
 }
 

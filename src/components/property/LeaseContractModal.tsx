@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { FileText, Loader2, Plus, Printer, Trash2, X } from 'lucide-react';
+import { CalendarPlus, FileText, Loader2, Plus, Printer, Trash2, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
@@ -40,7 +40,16 @@ function Field({
   );
 }
 
-export default function LeaseContractModal({ property, onClose }: { property: Property; onClose: () => void }) {
+export default function LeaseContractModal({
+  property,
+  onClose,
+  onRenewed,
+}: {
+  property: Property;
+  onClose: () => void;
+  /** 연장하면 부동산 쪽 기간도 바뀐다 — 뒤에 있는 표를 다시 받아야 한다 */
+  onRenewed?: () => void;
+}) {
   const [rows, setRows] = useState<LeaseContract[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,6 +99,30 @@ export default function LeaseContractModal({ property, onClose }: { property: Pr
       await load();
     } catch (e) {
       void alertError('만들지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
+  /**
+   * 연장 — 지금 장을 베껴 다음 기간짜리 새 장을 만든다.
+   *
+   * 조건이 그대로인 채 기간만 미는 일이 대부분이라 처음부터 다시 치게 두지 않는다.
+   * 지난 장은 그대로 남는다 — 언제 얼마로 몇 년을 살았는지가 기록이다.
+   */
+  const renew = async (months: number) => {
+    if (!current) return;
+    setSaving(true);
+    try {
+      const made = await api<LeaseContract>(`/properties/leases/${current.id}/renew`, {
+        method: 'POST',
+        body: { months },
+      });
+      setCurrentId(made.id);
+      await load();
+      onRenewed?.();
+    } catch (e) {
+      void alertError('연장하지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -341,7 +374,23 @@ export default function LeaseContractModal({ property, onClose }: { property: Pr
           ) : (
             <span />
           )}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {current && (
+              <>
+                <span className="text-[11px] text-slate-400">연장</span>
+                {[12, 24].map(m => (
+                  <button
+                    key={m}
+                    onClick={() => void renew(m)}
+                    disabled={saving}
+                    title={`지금 계약서를 베껴 ${m / 12}년짜리 새 계약서를 만듭니다. 부동산 계약 기간도 같이 밀립니다`}
+                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <CalendarPlus size={13} /> {m / 12}년
+                  </button>
+                ))}
+              </>
+            )}
             <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
               닫기
             </button>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { FileText, Phone, Plus, Trash2 } from 'lucide-react';
+import { AlarmClock, FileText, Phone, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
@@ -112,6 +112,18 @@ export default function PropertyModule() {
     };
   }, [rows]);
 
+  /**
+   * 곧 끝나거나 이미 지난 계약.
+   *
+   * 표 안에서 색만 칠해두면 아래로 스크롤해야 보인다. 놓치면 돈이 드는 일이라
+   * 맨 위에 따로 올리고, 거기서 바로 임대인에게 걸고 연장 계약서까지 만들게 한다.
+   */
+  const expiring = rows
+    .filter(r => r.active)
+    .map(r => ({ row: r, left: daysLeft(r.endOn) }))
+    .filter((x): x is { row: Property; left: number } => x.left !== null && x.left <= 90)
+    .sort((a, b) => a.left - b.left);
+
   if (denied) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
@@ -136,6 +148,56 @@ export default function PropertyModule() {
           <Plus size={15} /> 부동산 추가
         </button>
       </div>
+
+      {expiring.length > 0 && (
+        <section className="mb-4 rounded-2xl border border-red-200 bg-red-50/60 px-4 py-3.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <AlarmClock size={15} className="text-red-600" />
+            <h2 className="text-sm font-bold text-red-800">곧 끝나는 계약 {expiring.length}건</h2>
+            <span className="text-[11px] text-red-700/70">
+              연장하려면 임대인에게 먼저 연락하고, [계약서]에서 연장 계약서를 만드세요
+            </span>
+          </div>
+          <ul className="mt-2.5 space-y-1.5">
+            {expiring.map(({ row, left }) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs"
+              >
+                <span className="font-bold text-slate-800">{row.name}</span>
+                <span className="text-slate-400">{row.usage}</span>
+                <span className={`rounded-full px-1.5 py-0.5 font-bold ${left < 0 ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                  {left < 0 ? `만료 ${-left}일 지남` : `${left}일 남음`}
+                </span>
+                <span className="text-slate-500">{row.endOn} 만료</span>
+                {row.monthlyRent > 0 && (
+                  <span className="text-slate-400">월세 {row.monthlyRent.toLocaleString()}원</span>
+                )}
+
+                <span className="ml-auto flex items-center gap-1.5">
+                  {row.ownerPhone ? (
+                    // 연장은 전화 한 통으로 시작한다 — 번호를 찾으러 표를 뒤지지 않게
+                    <a
+                      href={`tel:${row.ownerPhone.replace(/[^\d+]/g, '')}`}
+                      className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 font-semibold text-indigo-700 hover:bg-indigo-50"
+                    >
+                      <Phone size={11} /> {row.ownerName || '임대인'} {row.ownerPhone}
+                    </a>
+                  ) : (
+                    <span className="text-slate-400">임대인 번호 없음</span>
+                  )}
+                  <button
+                    onClick={() => setContractFor(row)}
+                    className="flex items-center gap-1 rounded-md bg-slate-700 px-2 py-1 font-semibold text-white hover:bg-slate-800"
+                  >
+                    <FileText size={11} /> 계약서
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
@@ -223,7 +285,13 @@ export default function PropertyModule() {
                   <tr
                     key={r.id}
                     className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/60 ${
-                      r.active ? '' : 'bg-slate-50/60 text-slate-400'
+                      !r.active
+                        ? 'bg-slate-50/60 text-slate-400'
+                        : left !== null && left < 0
+                          ? 'bg-red-50/70'
+                          : left !== null && left <= 90
+                            ? 'bg-amber-50/60'
+                            : ''
                     }`}
                   >
                     <td className="px-3 py-2.5">
@@ -386,7 +454,13 @@ export default function PropertyModule() {
         </div>
       </div>
 
-      {contractFor && <LeaseContractModal property={contractFor} onClose={() => setContractFor(null)} />}
+      {contractFor && (
+        <LeaseContractModal
+          property={contractFor}
+          onClose={() => setContractFor(null)}
+          onRenewed={() => void load()}
+        />
+      )}
 
       <p className="mt-2 text-[11px] text-slate-400">
         칸을 고치고 <b>칸 밖을 누르면 바로 저장</b>됩니다. 계약이 끝난 자리는 지우지 말고{' '}
