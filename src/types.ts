@@ -855,6 +855,9 @@ export interface PropertyCost {
   propertyId: string;
   kind: string;
   amount: number; // 원(부가세 포함)
+  /** 대당 단가 · 대수 — 둘 다 적으면 금액은 곱한 값으로 서버가 낸다 */
+  unitPrice: number;
+  units: number;
   payDay: number; // 내는 날. 0이면 정해진 날 없음
   method: string; // 자동이체 / 직접이체
   payee: string; // 받는 곳

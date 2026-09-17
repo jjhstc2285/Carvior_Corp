@@ -412,6 +412,9 @@ export class LeaseService {
 export class UpsertCostDto {
   @IsOptional() @IsString() @MaxLength(20) kind?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) amount?: number;
+  /** 대당 단가 · 대수 — 둘 다 적으면 금액은 곱해서 낸다 */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) unitPrice?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) units?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(31) payDay?: number;
   @IsOptional() @IsString() @MaxLength(10) method?: string;
   @IsOptional() @IsString() @MaxLength(60) payee?: string;
@@ -448,10 +451,21 @@ export class PropertyCostService {
     await this.prisma.propertyCost.delete({ where: { id } });
   }
 
+  /**
+   * 단가와 대수를 둘 다 적었으면 금액은 곱해서 낸다.
+   *
+   * 사람이 곱해 적게 두면 대수를 고치고 금액을 안 고치는 일이 생긴다 — 그러면 합계가
+   * 조용히 틀린다. 한쪽만 적었으면 적어둔 금액을 그대로 쓴다.
+   */
   private dataOf(dto: UpsertCostDto) {
+    const computed =
+      (dto.unitPrice ?? 0) > 0 && (dto.units ?? 0) > 0 ? (dto.unitPrice ?? 0) * (dto.units ?? 0) : null;
+
     return {
       ...(dto.kind !== undefined ? { kind: dto.kind.trim() } : {}),
-      ...(dto.amount !== undefined ? { amount: dto.amount } : {}),
+      ...(dto.unitPrice !== undefined ? { unitPrice: dto.unitPrice } : {}),
+      ...(dto.units !== undefined ? { units: dto.units } : {}),
+      ...(computed !== null ? { amount: computed } : dto.amount !== undefined ? { amount: dto.amount } : {}),
       ...(dto.payDay !== undefined ? { payDay: dto.payDay } : {}),
       ...(dto.method !== undefined ? { method: dto.method.trim() } : {}),
       ...(dto.payee !== undefined ? { payee: dto.payee.trim() } : {}),

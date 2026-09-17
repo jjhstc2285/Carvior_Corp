@@ -681,6 +681,7 @@ model PurchaseSettlement {
    * /**
    * /**
    * /**
+   * /**
    * /*
    * 계약서 사진.
    * 지금은 실물 계약서를 들고 본부장·대표에게 가서 결재를 받는다. 올릴 때 사진을 같이
@@ -802,16 +803,24 @@ model Property {
  * 달마다 조금씩 오르내리는 건(전기·수도) 대표값 하나만 적어 둔다. 러프하게 보는 자리다.
  */
 model PropertyCost {
-  id         String  @id @default(cuid())
+  id         String @id @default(cuid())
   propertyId String
-  kind       String  @default("관리비") @db.VarChar(20) // 월세 / 관리비 / 주차 임대료 / 전기·수도 / 기타
-  amount     Int     @default(0) // 한 달에 나가는 돈(원, 부가세 포함)
-  payDay     Int     @default(0) // 내는 날(1~31). 0이면 정해진 날이 없다
-  method     String  @default("직접이체") @db.VarChar(10) // 자동이체 / 직접이체
-  payee      String  @default("") @db.VarChar(60) // 받는 곳 — 예금주·관리단
-  account    String  @default("") @db.VarChar(60) // 은행·계좌
-  memo       String  @default("") @db.VarChar(255)
-  active     Boolean @default(true) // 끊기면 내린다(지우지 않는다 — 지난 달 비용이다)
+  kind       String @default("관리비") @db.VarChar(20) // 월세 / 관리비 / 주차 임대료 / 전기·수도 / 기타
+  amount     Int    @default(0) // 한 달에 나가는 돈(원, 부가세 포함)
+
+  /**
+   * 대당 단가와 대수 — 주차 임대료처럼 대수가 오르내리는 것.
+   * 50대가 들어올 수도 100대가 들어올 수도 있어서 금액만 적어두면 매달 다시 센다.
+   * 둘 다 적으면 금액(amount)은 단가 × 대수로 서버가 낸다. 안 적으면 금액을 그냥 쓴다.
+   */
+  unitPrice Int     @default(0)
+  units     Int     @default(0)
+  payDay    Int     @default(0) // 내는 날(1~31). 0이면 정해진 날이 없다
+  method    String  @default("직접이체") @db.VarChar(10) // 자동이체 / 직접이체
+  payee     String  @default("") @db.VarChar(60) // 받는 곳 — 예금주·관리단
+  account   String  @default("") @db.VarChar(60) // 은행·계좌
+  memo      String  @default("") @db.VarChar(255)
+  active    Boolean @default(true) // 끊기면 내린다(지우지 않는다 — 지난 달 비용이다)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

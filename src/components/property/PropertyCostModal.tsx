@@ -150,6 +150,8 @@ export default function PropertyCostModal({
               <tr>
                 <th className="px-3 py-2" />
                 <th className="px-3 py-2 font-medium">항목</th>
+                <th className="px-3 py-2 text-right font-medium">대당 단가</th>
+                <th className="px-3 py-2 text-right font-medium">대수</th>
                 <th className="px-3 py-2 text-right font-medium">한 달 금액(원)</th>
                 <th className="px-3 py-2 text-center font-medium">내는 날</th>
                 <th className="px-3 py-2 font-medium">이체</th>
@@ -162,7 +164,7 @@ export default function PropertyCostModal({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={11} className="px-5 py-8 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '위의 [+ 월세] [+ 관리비] [+ 주차 임대료]를 눌러 추가하세요.'}
                   </td>
                 </tr>
@@ -193,16 +195,46 @@ export default function PropertyCostModal({
                       ))}
                     </select>
                   </td>
+                  {/* 대수가 오르내리는 건 단가·대수로 둔다 — 대수만 고치면 금액이 따라간다 */}
                   <td className="px-3 py-2">
                     <input
+                      defaultValue={withCommas(String(r.unitPrice || ''))}
+                      onBlur={e => {
+                        const next = Number(digitsOnly(e.target.value)) || 0;
+                        if (next !== r.unitPrice) void patch(r, { unitPrice: next });
+                      }}
+                      disabled={busyId === r.id}
+                      inputMode="numeric"
+                      placeholder="195,000"
+                      className={`${INPUT} w-24 text-right`}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      defaultValue={r.units || ''}
+                      onBlur={e => {
+                        const next = Number(digitsOnly(e.target.value)) || 0;
+                        if (next !== r.units) void patch(r, { units: next });
+                      }}
+                      disabled={busyId === r.id}
+                      inputMode="numeric"
+                      placeholder="74"
+                      className={`${INPUT} w-16 text-right`}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      // 단가·대수를 적어두면 그 곱이 금액이라 여기는 못 고친다
+                      key={`${r.id}-amount-${r.amount}`}
                       defaultValue={withCommas(String(r.amount || ''))}
                       onBlur={e => {
                         const next = Number(digitsOnly(e.target.value)) || 0;
                         if (next !== r.amount) void patch(r, { amount: next });
                       }}
-                      disabled={busyId === r.id}
+                      disabled={busyId === r.id || (r.unitPrice > 0 && r.units > 0)}
                       inputMode="numeric"
-                      className={`${INPUT} w-32 text-right`}
+                      title={r.unitPrice > 0 && r.units > 0 ? '단가 × 대수로 자동 계산됩니다' : undefined}
+                      className={`${INPUT} w-32 text-right ${r.unitPrice > 0 && r.units > 0 ? 'bg-slate-50 font-semibold' : ''}`}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -276,7 +308,12 @@ export default function PropertyCostModal({
         </div>
 
         <p className="mt-2 text-[11px] text-slate-400">
-          전기·수도처럼 달마다 오르내리는 건 <b>대표값 하나만</b> 적어 두세요 — 러프하게 보는 자리입니다.
+          <b>러프하게</b> 잡으세요. 전기량에 따라 관리비가 오르내리니 113만이면 <b>120만</b>처럼 넉넉히
+          올려 적는 편이 낫습니다 — 모자라게 잡는 것보다 남게 잡는 쪽이 안전합니다.
+          <br />
+          주차 임대료처럼 <b>대수가 바뀌는 것</b>은 <b>대당 단가</b>와 <b>대수</b>를 적어 두세요.
+          50대가 들어오든 100대가 들어오든 <b>대수만 고치면</b> 금액이 따라갑니다(금액 칸은 자동).
+          <br />
           더 안 나가는 돈은 지우지 말고 <b>나감 체크를 풀어</b> 주세요.
         </p>
 
