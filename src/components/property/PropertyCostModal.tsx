@@ -145,7 +145,7 @@ export default function PropertyCostModal({
         </div>
 
         <div className="mt-3 max-h-[55vh] overflow-auto rounded-xl border border-slate-200">
-          <table className="w-full min-w-[860px] text-sm">
+          <table className="w-full min-w-[1180px] text-sm">
             <thead className="sticky top-0 bg-slate-50 text-left text-xs text-slate-500">
               <tr>
                 <th className="px-3 py-2" />
