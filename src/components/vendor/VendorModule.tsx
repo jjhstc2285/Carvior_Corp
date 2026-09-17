@@ -17,8 +17,12 @@ import EmployeeAvatar from '../EmployeeAvatar';
  * 한 칸씩 고치면 바로 저장된다. 따로 [저장]을 누르게 하면 고쳐놓고 안 누르는 일이 생긴다.
  */
 
+/*
+  칸마다 너비를 따로 준다 — 여기에 w-full 을 같이 넣으면 둘이 부딪쳐서, 칸이 눌려
+  한 글자도 안 보이게 찌그러진다(무엇이 이기는지는 Tailwind 가 만든 차례를 탄다).
+*/
 const INPUT =
-  'w-full rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-400 disabled:opacity-50';
+  'rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-400 disabled:opacity-50';
 
 export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
   const canEdit = role === 'ADMIN';
@@ -174,7 +178,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[1040px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
                 {canEdit && <th className="px-3 py-3" />}
