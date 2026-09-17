@@ -841,6 +841,30 @@ export interface LeaseContract {
  */
 export const PROPERTY_SIDES = ['임차', '임대'] as const;
 
+/** 자리에 달마다 나가는 돈의 종류 */
+export const PROPERTY_COST_KINDS = ['월세', '관리비', '주차 임대료', '전기·수도', '보험료', '기타'] as const;
+export const PROPERTY_COST_METHODS = ['자동이체', '직접이체'] as const;
+
+/**
+ * 자리마다 달마다 나가는 돈.
+ * 금액은 부가세까지 더한 '실제로 빠져나가는 돈'으로 적는다 — 통장에서 나간 돈과 맞춰야
+ * 매달 다시 계산하지 않는다.
+ */
+export interface PropertyCost {
+  id: string;
+  propertyId: string;
+  kind: string;
+  amount: number; // 원(부가세 포함)
+  payDay: number; // 내는 날. 0이면 정해진 날 없음
+  method: string; // 자동이체 / 직접이체
+  payee: string; // 받는 곳
+  account: string; // 은행·계좌
+  memo: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** 부동산 용도 — 자주 쓰는 것을 미리 골라둔다 */
 export const PROPERTY_USAGES = ['사무실', '주차장', '창고', '전시장', '기타'] as const;
 
@@ -853,6 +877,8 @@ export interface Property {
   name: string;
   /** 임차 = 우리가 빌려 쓴다(돈이 나간다) · 임대 = 우리가 빌려준다(돈이 들어온다) */
   side: string;
+  /** 그 자리에 달마다 나가는 돈 합계(원) — 서버가 볼 때마다 더해서 내준다 */
+  monthlyCost?: number;
   usage: string;
   address: string;
   ownerName: string; // 임대인

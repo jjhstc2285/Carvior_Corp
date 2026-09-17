@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlarmClock, FileText, Phone, Plus, Trash2 } from 'lucide-react';
+import { AlarmClock, Coins, FileText, Phone, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { PROPERTY_SIDES, PROPERTY_USAGES, type Property } from '../../types';
 import LeaseContractModal from './LeaseContractModal';
+import PropertyCostModal from './PropertyCostModal';
 
 /**
  * 부동산 정보.
@@ -42,6 +43,8 @@ export default function PropertyModule() {
   const [contractFor, setContractFor] = useState<Property | null>(null);
   /** 빌려 쓰는 자리만 / 빌려준 자리만 보기 */
   const [sideFilter, setSideFilter] = useState<string>('all');
+  /** 달마다 나가는 돈을 펼쳐 둔 자리 */
+  const [costFor, setCostFor] = useState<Property | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,6 +116,8 @@ export default function PropertyModule() {
       rent: out.reduce((sum, r) => sum + r.monthlyRent, 0),
       rentIn: income.reduce((sum, r) => sum + r.monthlyRent, 0),
       deposit: out.reduce((sum, r) => sum + r.deposit, 0),
+      // 월세만 보면 실제로 나가는 돈보다 한참 적다 — 관리비·주차 임대료까지 더해야 한 달 고정비다
+      fixed: out.reduce((sum, r) => sum + r.monthlyRent + (r.monthlyCost ?? 0), 0),
       depositIn: income.reduce((sum, r) => sum + r.deposit, 0),
       // 석 달 안에 끝나는 계약 — 미리 알아야 옮기든 연장하든 한다
       soon: live.filter(r => {
@@ -223,6 +228,12 @@ export default function PropertyModule() {
             {totals.rent.toLocaleString()}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
+          {/* 관리비까지 더한 값이 실제로 통장에서 빠지는 돈이다 */}
+          {totals.fixed > totals.rent && (
+            <p className="text-[11px] font-semibold text-indigo-700">
+              관리비 등 포함 {totals.fixed.toLocaleString()}원
+            </p>
+          )}
           {totals.rentIn > 0 && (
             <p className="text-[11px] font-semibold text-emerald-700">
               받는 월세 {totals.rentIn.toLocaleString()}원
@@ -293,7 +304,7 @@ export default function PropertyModule() {
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
                 <th className="px-3 py-3" />
                 <th className="px-3 py-3 font-medium">이름</th>
-                <th className="px-3 py-3 font-medium">계약서</th>
+                <th className="px-3 py-3 font-medium">계약서 · 비용</th>
                 <th className="px-3 py-3 font-medium">우리 위치</th>
                 <th className="px-3 py-3 font-medium">용도</th>
                 <th className="px-3 py-3 font-medium">주소</th>
@@ -351,14 +362,28 @@ export default function PropertyModule() {
                         className={`${INPUT} w-36`}
                       />
                     </td>
-                    {/* 양식을 손으로 채워 인쇄하던 걸 여기서 쓴다 */}
+                    {/* 양식을 손으로 채워 인쇄하던 것과, 달마다 나가는 돈 */}
                     <td className="whitespace-nowrap px-3 py-2.5">
-                      <button
-                        onClick={() => setContractFor(r)}
-                        className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                      >
-                        <FileText size={12} /> 계약서
-                      </button>
+                      <span className="flex items-center gap-1">
+                        <button
+                          onClick={() => setContractFor(r)}
+                          className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                        >
+                          <FileText size={12} /> 계약서
+                        </button>
+                        <button
+                          onClick={() => setCostFor(r)}
+                          title="달마다 나가는 돈 — 월세·관리비·주차 임대료"
+                          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold ${
+                            (r.monthlyCost ?? 0) > 0
+                              ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                              : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Coins size={12} />
+                          {(r.monthlyCost ?? 0) > 0 ? `${Math.round((r.monthlyCost ?? 0) / 10000).toLocaleString()}만` : '비용'}
+                        </button>
+                      </span>
                     </td>
                     <td className="px-3 py-2.5">
                       <select
@@ -508,6 +533,10 @@ export default function PropertyModule() {
         </div>
       </div>
 
+      {costFor && (
+        <PropertyCostModal property={costFor} onClose={() => setCostFor(null)} onChanged={() => void load()} />
+      )}
+
       {contractFor && (
         <LeaseContractModal
           property={contractFor}
@@ -521,6 +550,9 @@ export default function PropertyModule() {
         <b>계약중 체크를 풀어</b> 주세요 — 지난 계약도 기록입니다.
         <br />
         만료가 <b>3개월 안</b>으로 들어오면 노란색, <b>지났으면</b> 빨간색으로 표시됩니다.
+        <br />
+        <b>비용</b> 단추에 월세·관리비·주차 임대료를 적어두면 <b>한 달에 고정으로 나가는 돈</b>이
+        위 합계에 잡힙니다. 단추에 적힌 숫자가 그 자리의 한 달 비용(만원)입니다.
         <br />
         <b>우리 위치</b>를 <b>임대(빌려줌)</b>로 두면 그 자리의 보증금·월세는 <b>받는 돈</b>으로 셉니다.
         계약서를 만들 때도 우리가 임대인 자리에 들어가고, 상대가 임차인이 됩니다.

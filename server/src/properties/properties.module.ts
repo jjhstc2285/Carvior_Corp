@@ -92,7 +92,19 @@ export class PropertiesService {
       // 계약이 먼저 끝나는 자리가 위로. 만료가 안 적힌 건 뒤에 둔다.
       orderBy: [{ active: 'desc' }, { endOn: 'asc' }, { name: 'asc' }],
     });
-    return rows.map((r) => this.toView(r));
+
+    /*
+      그 자리에 달마다 나가는 돈을 같이 내준다.
+      저장하지 않고 볼 때마다 더한다 — 따로 적어두면 비용을 고쳤을 때 합계만 옛 값으로 남는다.
+    */
+    const costs = await this.prisma.propertyCost.groupBy({
+      by: ['propertyId'],
+      where: { active: true },
+      _sum: { amount: true },
+    });
+    const byProperty = new Map(costs.map((c) => [c.propertyId, c._sum.amount ?? 0]));
+
+    return rows.map((r) => ({ ...this.toView(r), monthlyCost: byProperty.get(r.id) ?? 0 }));
   }
 
   async create(dto: UpsertPropertyDto) {
@@ -338,11 +350,71 @@ export class LeaseService {
   }
 }
 
+/** 자리에 달린 비용 한 줄 */
+export class UpsertCostDto {
+  @IsOptional() @IsString() @MaxLength(20) kind?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) amount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(31) payDay?: number;
+  @IsOptional() @IsString() @MaxLength(10) method?: string;
+  @IsOptional() @IsString() @MaxLength(60) payee?: string;
+  @IsOptional() @IsString() @MaxLength(60) account?: string;
+  @IsOptional() @IsString() @MaxLength(255) memo?: string;
+  @IsOptional() @IsBoolean() active?: boolean;
+}
+
+@Injectable()
+export class PropertyCostService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  findByProperty(propertyId: string) {
+    // 큰 돈부터 — 어디에 제일 많이 나가는지가 먼저 보여야 한다
+    return this.prisma.propertyCost.findMany({
+      where: { propertyId },
+      orderBy: [{ active: 'desc' }, { amount: 'desc' }],
+    });
+  }
+
+  async create(propertyId: string, dto: UpsertCostDto) {
+    const property = await this.prisma.property.findUnique({ where: { id: propertyId }, select: { id: true } });
+    if (!property) throw new NotFoundException('부동산 정보를 찾을 수 없습니다.');
+    return this.prisma.propertyCost.create({ data: { propertyId, ...this.dataOf(dto) } });
+  }
+
+  async update(id: string, dto: UpsertCostDto) {
+    await this.assertExists(id);
+    return this.prisma.propertyCost.update({ where: { id }, data: this.dataOf(dto) });
+  }
+
+  async remove(id: string) {
+    await this.assertExists(id);
+    await this.prisma.propertyCost.delete({ where: { id } });
+  }
+
+  private dataOf(dto: UpsertCostDto) {
+    return {
+      ...(dto.kind !== undefined ? { kind: dto.kind.trim() } : {}),
+      ...(dto.amount !== undefined ? { amount: dto.amount } : {}),
+      ...(dto.payDay !== undefined ? { payDay: dto.payDay } : {}),
+      ...(dto.method !== undefined ? { method: dto.method.trim() } : {}),
+      ...(dto.payee !== undefined ? { payee: dto.payee.trim() } : {}),
+      ...(dto.account !== undefined ? { account: dto.account.trim() } : {}),
+      ...(dto.memo !== undefined ? { memo: dto.memo.trim() } : {}),
+      ...(dto.active !== undefined ? { active: dto.active } : {}),
+    };
+  }
+
+  private async assertExists(id: string) {
+    const row = await this.prisma.propertyCost.findUnique({ where: { id }, select: { id: true } });
+    if (!row) throw new NotFoundException('비용 내역을 찾을 수 없습니다.');
+  }
+}
+
 @Controller('properties')
 export class PropertiesController {
   constructor(
     private readonly properties: PropertiesService,
     private readonly leases: LeaseService,
+    private readonly costs: PropertyCostService,
   ) {}
 
   @Get()
@@ -371,6 +443,33 @@ export class PropertiesController {
   }
 
   // ── 계약서 ── 부동산과 같은 사람만 본다(계약 조건이 그대로 들어 있다)
+
+  // ── 달마다 나가는 돈 ──
+
+  @Get(':id/costs')
+  findCosts(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    assertCeo(user);
+    return this.costs.findByProperty(id);
+  }
+
+  @Post(':id/costs')
+  createCost(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpsertCostDto) {
+    assertCeo(user);
+    return this.costs.create(id, dto);
+  }
+
+  @Patch('costs/:costId')
+  updateCost(@CurrentUser() user: AuthUser, @Param('costId') costId: string, @Body() dto: UpsertCostDto) {
+    assertCeo(user);
+    return this.costs.update(costId, dto);
+  }
+
+  @Delete('costs/:costId')
+  @HttpCode(204)
+  async removeCost(@CurrentUser() user: AuthUser, @Param('costId') costId: string) {
+    assertCeo(user);
+    await this.costs.remove(costId);
+  }
 
   @Get(':id/leases')
   findLeases(@CurrentUser() user: AuthUser, @Param('id') id: string) {
@@ -411,6 +510,6 @@ export class PropertiesController {
 
 @Module({
   controllers: [PropertiesController],
-  providers: [PropertiesService, LeaseService],
+  providers: [PropertiesService, LeaseService, PropertyCostService],
 })
 export class PropertiesModule {}
