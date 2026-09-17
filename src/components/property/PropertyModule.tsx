@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlarmClock, Coins, FileText, Phone, Plus, Trash2 } from 'lucide-react';
-import { api, ApiError } from '../../lib/api';
+import { AlarmClock, Coins, FileText, Lock, Phone, Plus, Trash2 } from 'lucide-react';
+import { api, ApiError, getPropertyPass, setPropertyPass } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { PROPERTY_SIDES, PROPERTY_USAGES, type Property } from '../../types';
@@ -39,6 +39,11 @@ export default function PropertyModule() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
+  /** 번호를 아직 안 넣었거나, 통행증이 시간 지나 막힌 상태 */
+  const [locked, setLocked] = useState(() => !getPropertyPass());
+  const [code, setCode] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
   /** 계약서를 펼쳐 둔 부동산 */
   const [contractFor, setContractFor] = useState<Property | null>(null);
   /** 빌려 쓰는 자리만 / 빌려준 자리만 보기 */
@@ -47,18 +52,47 @@ export default function PropertyModule() {
   const [costFor, setCostFor] = useState<Property | null>(null);
 
   const load = useCallback(async () => {
+    if (!getPropertyPass()) {
+      setLocked(true);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       setRows(await api<Property[]>(`/properties?includeInactive=${includeInactive}`));
       setDenied(false);
+      setLocked(false);
     } catch (e) {
-      // 볼 수 없는 계정이면 서버가 막는다 — 화면에서도 같은 말을 해준다
-      if (e instanceof ApiError && e.status === 403) setDenied(true);
-      else void alertError('불러오지 못했습니다', e instanceof ApiError ? e.message : '');
+      // 통행증이 시간 지나 막힌 것과, 아예 볼 수 없는 계정을 갈라 본다
+      if (e instanceof ApiError && e.code === 'PROPERTY_LOCKED') {
+        setPropertyPass(null);
+        setLocked(true);
+      } else if (e instanceof ApiError && e.status === 403) {
+        setDenied(true);
+      } else {
+        void alertError('불러오지 못했습니다', e instanceof ApiError ? e.message : '');
+      }
     } finally {
       setLoading(false);
     }
   }, [includeInactive]);
+
+  /** 번호를 넣어 통행증을 받는다 — 맞는지는 서버가 본다 */
+  const unlock = async () => {
+    setUnlocking(true);
+    setCodeError(null);
+    try {
+      const res = await api<{ pass: string }>('/properties/unlock', { method: 'POST', body: { code } });
+      setPropertyPass(res.pass);
+      setCode('');
+      setLocked(false);
+      await load();
+    } catch (e) {
+      setCodeError(e instanceof ApiError ? e.message : '열지 못했습니다.');
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -139,10 +173,45 @@ export default function PropertyModule() {
     .filter((x): x is { row: Property; left: number } => x.left !== null && x.left <= 90)
     .sort((a, b) => a.left - b.left);
 
+  if (locked && !denied) {
+    return (
+      <div className="mx-auto max-w-sm px-4 py-16">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+          <Lock size={22} className="mx-auto text-slate-400" />
+          <h1 className="mt-2 text-base font-bold text-slate-800">부동산 정보</h1>
+          <p className="mt-1 text-xs text-slate-500">
+            대외비 화면입니다. 로그인과 별개로 <b>번호</b>를 한 번 더 넣어야 열립니다.
+          </p>
+          <input
+            type="password"
+            inputMode="numeric"
+            value={code}
+            onChange={e => setCode(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && void unlock()}
+            placeholder="번호"
+            autoFocus
+            className="mt-4 w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-lg tracking-widest outline-none focus:border-indigo-400"
+          />
+          {codeError && <p className="mt-2 text-xs text-red-500">{codeError}</p>}
+          <button
+            onClick={() => void unlock()}
+            disabled={unlocking || !code.trim()}
+            className="mt-3 w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {unlocking ? '확인 중…' : '열기'}
+          </button>
+          <p className="mt-3 text-[11px] text-slate-400">
+            창을 닫으면 다시 번호를 넣어야 합니다. 자리를 비울 때 화면이 열린 채로 남지 않게 하려는 것입니다.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (denied) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <p className="text-sm text-slate-500">부동산 정보는 대표님과 관리자만 볼 수 있습니다.</p>
+        <p className="text-sm text-slate-500">부동산 정보는 정해진 분만 볼 수 있습니다.</p>
       </div>
     );
   }
@@ -153,7 +222,7 @@ export default function PropertyModule() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">부동산 정보</h1>
           <p className="mt-1 text-sm text-slate-500">
-            사무실 · 주차장 · 창고로 쓰는 자리를 모아둡니다. <b>대표님과 관리자만 보이는 화면</b>입니다.
+            사무실 · 주차장 · 창고로 쓰는 자리를 모아둡니다. <b>대외비</b> — 정해진 분만 번호를 넣고 봅니다.
           </p>
         </div>
         <button

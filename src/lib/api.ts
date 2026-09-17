@@ -136,9 +136,43 @@ interface RequestOptions {
   skipAuthRedirect?: boolean;
 }
 
+/**
+ * 부동산 통행증.
+ *
+ * 부동산은 보증금·월세·임대인 연락처가 들어 있어 대외비다. 로그인과 별개로 번호를 한 번 더
+ * 받는데, 그 번호는 서버에만 둔다 — 화면에 박으면 소스에 그대로 드러난다.
+ * 번호가 맞으면 서버가 짧게 쓰는 통행증을 내주고, 그걸 이 탭에서만 들고 다닌다.
+ *
+ * 창을 닫으면 사라진다(sessionStorage) — 남의 자리에서 열어두고 간 화면이 계속 열려 있으면
+ * 번호를 다시 받는 뜻이 없다.
+ */
+const PROPERTY_PASS_KEY = 'property-pass';
+
+export function getPropertyPass(): string | null {
+  try {
+    return sessionStorage.getItem(PROPERTY_PASS_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setPropertyPass(pass: string | null) {
+  try {
+    if (pass) sessionStorage.setItem(PROPERTY_PASS_KEY, pass);
+    else sessionStorage.removeItem(PROPERTY_PASS_KEY);
+  } catch {
+    // 못 적어도 이번 화면에서는 쓸 수 있다 — 다음에 다시 번호를 받는다
+  }
+}
+
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  // 부동산 쪽은 통행증을 같이 보낸다. 화면마다 챙기면 한 군데는 꼭 빠뜨린다
+  if (path.startsWith('/properties')) {
+    const pass = getPropertyPass();
+    if (pass) headers['X-Property-Pass'] = pass;
+  }
   if (device) headers['X-Device-Token'] = device.token;
   if (fingerprint) headers['X-Device-Fingerprint'] = fingerprint;
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';

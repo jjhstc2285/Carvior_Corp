@@ -4,6 +4,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Headers,
   HttpCode,
   Injectable,
   Module,
@@ -15,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Role } from '@prisma/client';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { formatDateOnlyOrNull, toDateOnlyOrNull, todayKst } from '../common/date.util';
@@ -31,21 +32,59 @@ import { CEO_APPROVER } from '../settlements/approvers';
  */
 
 /**
- * 대표 말고 이 화면을 여는 사람 — 이름으로 못 박는다.
+ * 이 화면을 여는 사람 — 대표와 사무장 한 명. 이름으로 못 박는다.
  *
  * 직책으로 가리면 나중에 사무장이 한 명 더 들어왔을 때 그 사람도 계약 조건을 같이 보게 된다.
+ * 관리자라고 다 열어주지도 않는다 — 대외비라 보는 사람 수를 세어 둬야 한다.
  * 프론트 App.tsx 에도 같은 이름이 있다 — 고칠 땐 양쪽을 같이 본다.
  */
 const PROPERTY_VIEWERS = [CEO_APPROVER, '김수하'];
 
+/** 손볼 일이 있을 때를 위한 테스트 계정 한 자리 — 직책에 '테스트'가 든 계정이다. */
+function isTestAccount(user: AuthUser): boolean {
+  return user.position.includes('테스트');
+}
+
+function canOpenProperty(user: AuthUser): boolean {
+  return PROPERTY_VIEWERS.includes(user.name.trim()) || isTestAccount(user);
+}
+
+/** 통행증은 여덟 시간만 산다 — 하루 일과가 끝나면 다시 받는다 */
+const PASS_HOURS = 8;
+
+/** 통행증 = 만료시각 + 그 사람에게만 맞는 서명. 서버만 만들 수 있다 */
+function makePass(user: AuthUser): string {
+  const exp = Date.now() + PASS_HOURS * 3600_000;
+  const sign = createHmac('sha256', process.env.JWT_SECRET ?? '').update(`${user.id}.${exp}`).digest('hex');
+  return `${exp}.${sign}`;
+}
+
+function verifyPass(user: AuthUser, pass?: string): boolean {
+  const [expText, sign] = (pass ?? '').split('.');
+  const exp = Number(expText);
+  if (!exp || !sign || Date.now() > exp) return false;
+
+  const want = createHmac('sha256', process.env.JWT_SECRET ?? '').update(`${user.id}.${exp}`).digest('hex');
+  const a = Buffer.from(sign);
+  const b = Buffer.from(want);
+  // 길이가 다르면 맞춰 보지 않는다 — timingSafeEqual 은 길이가 다르면 던진다
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 /**
- * 대표·지정된 사람·관리자여야 본다.
+ * 볼 수 있는 사람인가, 그리고 번호를 넣고 들어왔는가.
  *
- * 관리자를 열어둔 건 대표 계정 하나로는 대신 적어 넣을 사람이 없어서다.
+ * 로그인만으로는 안 연다. 보증금·월세·임대인 연락처가 들어 있어, 자리를 비운 사이 열린
+ * 화면이 그대로 보이면 안 되기 때문에 탭에 들어올 때 번호를 한 번 더 받는다.
+ * 번호는 서버(.env)에만 둔다 — 화면에 박으면 소스에 그대로 드러난다.
  */
-function assertCeo(user: AuthUser): void {
-  if (!PROPERTY_VIEWERS.includes(user.name.trim()) && user.role !== Role.ADMIN) {
-    throw new ForbiddenException('부동산 정보는 대표와 관리자만 볼 수 있습니다.');
+function assertCeo(user: AuthUser, pass?: string): void {
+  if (!canOpenProperty(user)) {
+    throw new ForbiddenException('부동산 정보는 정해진 분만 볼 수 있습니다.');
+  }
+  if (!verifyPass(user, pass)) {
+    // 화면이 '번호 다시 받기'와 '아예 못 봄'을 갈라 볼 수 있게 표를 붙인다
+    throw new ForbiddenException({ message: '번호를 다시 넣어 주세요.', code: 'PROPERTY_LOCKED' });
   }
 }
 
@@ -417,28 +456,58 @@ export class PropertiesController {
     private readonly costs: PropertyCostService,
   ) {}
 
+  /**
+   * 번호를 넣어 통행증을 받는다.
+   *
+   * 번호는 서버 .env(PROPERTY_ACCESS_CODE)에만 있다. 안 넣어두면 아무도 못 연다 —
+   * 대외비 화면이 번호 없이 열리는 것보다 낫다.
+   */
+  @Post('unlock')
+  unlock(@CurrentUser() user: AuthUser, @Body() dto: { code?: string }) {
+    if (!canOpenProperty(user)) {
+      throw new ForbiddenException('부동산 정보는 정해진 분만 볼 수 있습니다.');
+    }
+    const code = (process.env.PROPERTY_ACCESS_CODE ?? '').trim();
+    if (!code) {
+      throw new ForbiddenException('부동산 잠금 번호가 서버에 설정되지 않았습니다. 관리자에게 문의해 주세요.');
+    }
+    if ((dto?.code ?? '').trim() !== code) {
+      throw new ForbiddenException('번호가 맞지 않습니다.');
+    }
+    return { pass: makePass(user) };
+  }
+
   @Get()
-  findAll(@CurrentUser() user: AuthUser, @Query('includeInactive') includeInactive?: string) {
-    assertCeo(user);
+  findAll(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass?: string,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    assertCeo(user, pass);
     return this.properties.findAll(includeInactive === 'true');
   }
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() dto: UpsertPropertyDto) {
-    assertCeo(user);
+  create(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Body() dto: UpsertPropertyDto) {
+    assertCeo(user, pass);
     return this.properties.create(dto);
   }
 
   @Patch(':id')
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdatePropertyDto) {
-    assertCeo(user);
+  update(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
+    @Param('id') id: string,
+    @Body() dto: UpdatePropertyDto,
+  ) {
+    assertCeo(user, pass);
     return this.properties.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    assertCeo(user);
+  async remove(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Param('id') id: string) {
+    assertCeo(user, pass);
     await this.properties.remove(id);
   }
 
@@ -447,52 +516,80 @@ export class PropertiesController {
   // ── 달마다 나가는 돈 ──
 
   @Get(':id/costs')
-  findCosts(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    assertCeo(user);
+  findCosts(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Param('id') id: string) {
+    assertCeo(user, pass);
     return this.costs.findByProperty(id);
   }
 
   @Post(':id/costs')
-  createCost(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpsertCostDto) {
-    assertCeo(user);
+  createCost(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
+    @Param('id') id: string,
+    @Body() dto: UpsertCostDto,
+  ) {
+    assertCeo(user, pass);
     return this.costs.create(id, dto);
   }
 
   @Patch('costs/:costId')
-  updateCost(@CurrentUser() user: AuthUser, @Param('costId') costId: string, @Body() dto: UpsertCostDto) {
-    assertCeo(user);
+  updateCost(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
+    @Param('costId') costId: string,
+    @Body() dto: UpsertCostDto,
+  ) {
+    assertCeo(user, pass);
     return this.costs.update(costId, dto);
   }
 
   @Delete('costs/:costId')
   @HttpCode(204)
-  async removeCost(@CurrentUser() user: AuthUser, @Param('costId') costId: string) {
-    assertCeo(user);
+  async removeCost(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
+    @Param('costId') costId: string,
+  ) {
+    assertCeo(user, pass);
     await this.costs.remove(costId);
   }
 
   @Get(':id/leases')
-  findLeases(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    assertCeo(user);
+  findLeases(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Param('id') id: string) {
+    assertCeo(user, pass);
     return this.leases.findByProperty(id);
   }
 
   @Post(':id/leases')
-  createLease(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpsertLeaseDto) {
-    assertCeo(user);
+  createLease(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
+    @Param('id') id: string,
+    @Body() dto: UpsertLeaseDto,
+  ) {
+    assertCeo(user, pass);
     return this.leases.create(id, dto);
   }
 
   @Patch('leases/:leaseId')
-  updateLease(@CurrentUser() user: AuthUser, @Param('leaseId') leaseId: string, @Body() dto: UpsertLeaseDto) {
-    assertCeo(user);
+  updateLease(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
+    @Param('leaseId') leaseId: string,
+    @Body() dto: UpsertLeaseDto,
+  ) {
+    assertCeo(user, pass);
     return this.leases.update(leaseId, dto);
   }
 
   @Delete('leases/:leaseId')
   @HttpCode(204)
-  async removeLease(@CurrentUser() user: AuthUser, @Param('leaseId') leaseId: string) {
-    assertCeo(user);
+  async removeLease(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
+    @Param('leaseId') leaseId: string,
+  ) {
+    assertCeo(user, pass);
     await this.leases.remove(leaseId);
   }
 
@@ -500,10 +597,11 @@ export class PropertiesController {
   @Post('leases/:leaseId/renew')
   renewLease(
     @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
     @Param('leaseId') leaseId: string,
     @Body() dto: { months?: number },
   ) {
-    assertCeo(user);
+    assertCeo(user, pass);
     return this.leases.renew(leaseId, Number(dto?.months) || 12);
   }
 }

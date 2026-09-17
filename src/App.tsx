@@ -105,7 +105,9 @@ function AuthedApp({ role }: { role: Role }) {
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
   const officeOnly: ModuleKey[] = ['dealerFee'];
   // 부동산은 대표와 관리자만 본다(서버도 같은 기준으로 다시 본다)
-  const isCeo = PROPERTY_VIEWERS.includes(user?.name?.trim() ?? '') || role === 'ADMIN';
+  // 대외비라 관리자라고 다 열어주지 않는다 — 서버도 같은 기준으로 보고 번호까지 한 번 더 받는다
+  const isCeo =
+    PROPERTY_VIEWERS.includes(user?.name?.trim() ?? '') || (user?.position ?? '').includes('테스트');
   const blocked = (officeOnly.includes(module) && !seeLedger) || (module === 'property' && !isCeo);
   const shownModule: ModuleKey = blocked ? 'attendance' : module;
 

@@ -41,8 +41,14 @@ export async function fillLeaseContractPdf(c: LeaseContract): Promise<Uint8Array
 
   const pdf = await PDFDocument.load(templateBytes);
   pdf.registerFontkit(fontkit);
-  // 쓰는 글자만 골라 담는다 — 통째로 담으면 파일이 2MB 늘어난다
-  const font = await pdf.embedFont(fontBytes, { subset: true });
+  /*
+    글꼴을 통째로 심는다.
+
+    쓰는 글자만 골라 담으면(subset) 파일은 작아지는데, 한글 글립이 빠진 채로 담겨서
+    뷰어가 네모 상자만 그린다 — 글자는 들어 있는데 눈에는 하나도 안 보인다.
+    파일이 100KB → 800KB로 늘지만, 안 보이는 계약서보다는 낫다.
+  */
+  const font = await pdf.embedFont(fontBytes, { subset: false });
   const page = pdf.getPage(0);
 
   /** 한 칸에 글자를 놓는다. 비어 있으면 아무것도 안 그린다(손으로 적을 자리로 남는다) */
