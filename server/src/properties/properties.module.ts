@@ -54,9 +54,14 @@ function viewerNames(): string[] {
   return fromEnv.length > 0 ? fromEnv : DEFAULT_VIEWERS;
 }
 
-/** 손볼 일이 있을 때를 위한 테스트 계정 한 자리 — 직책에 '테스트'가 든 계정이다. */
+/**
+ * 손볼 일이 있을 때를 위한 테스트 계정 한 자리.
+ *
+ * 이름이든 직책이든 '테스트'가 들어가면 그 계정으로 본다 — 테스트 계정인데 직책이
+ * '대표'로 적혀 있는 경우가 있어, 직책만 보면 정작 손볼 사람이 못 들어간다.
+ */
 function isTestAccount(user: AuthUser): boolean {
-  return user.position.includes('테스트');
+  return `${user.name} ${user.position}`.includes('테스트');
 }
 
 function canOpenProperty(user: AuthUser): boolean {
