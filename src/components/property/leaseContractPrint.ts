@@ -108,10 +108,14 @@ export function leaseContractHtml(c: LeaseContract): string {
   @media print { .noprint { display: none; } }
   .noprint { margin: 4mm 0; text-align: center; }
   .noprint button { padding: 6px 18px; font-size: 13px; cursor: pointer; }
+  .noprint .hint { margin: 2mm 0 0; font-size: 11px; color: #555; }
 </style>
 </head>
 <body>
-  <div class="noprint"><button onclick="window.print()">인쇄하기</button></div>
+  <div class="noprint">
+    <button onclick="window.print()">인쇄 / PDF로 저장</button>
+    <p class="hint">파일로 남기려면 인쇄 창에서 <b>대상(프린터)</b>을 <b>"PDF로 저장"</b>으로 고르세요.</p>
+  </div>
 
   <h1>${title}</h1>
   <p class="checks">

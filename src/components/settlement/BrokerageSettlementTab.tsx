@@ -19,12 +19,16 @@ import PendingSettlementVehicles from './PendingSettlementVehicles';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
+import EmployeeAvatar from '../EmployeeAvatar';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
   /** 알선 / 수출 — 표를 나눠 본다. 적는 칸과 계산은 같다 */
   kind: ConsultationKind;
 }
+
+/** 알선·수출을 맡는 팀 — 담당자 칩에 이 팀을 먼저 띄운다 */
+const BROKERAGE_TEAM = '알선팀';
 
 // 시트지 컬럼 순서 그대로 — 표/엑셀 양쪽에서 같은 순서를 쓴다
 const NUM = (n: number) => n.toLocaleString();
@@ -111,6 +115,28 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
 
+  /**
+   * 담당자 칩.
+   *
+   * 알선·수출은 알선팀이 맡는다. 이름을 목록에서 골라 고르게 하면 누가 있는지 펼쳐 봐야
+   * 알고, 각자 몇 건인지는 아예 안 보인다. 오늘 근무 현황처럼 얼굴을 늘어놓고 눌러서 고른다.
+   *
+   * 알선팀에 더해, 이 표에 정산이 들어 있는 사람은 팀이 달라도 같이 띄운다 —
+   * 팀을 옮겼거나 팀이 안 적힌 사람의 정산이 조용히 안 보이면 안 된다.
+   */
+  const owners = useMemo(() => {
+    const counted = new Map<string, { count: number; amount: number }>();
+    for (const s of ofKind) {
+      const prev = counted.get(s.employeeId) ?? { count: 0, amount: 0 };
+      counted.set(s.employeeId, { count: prev.count + 1, amount: prev.amount + s.settlementAmount });
+    }
+    return state.employees
+      .filter(e => e.active !== false && (e.department === BROKERAGE_TEAM || counted.has(e.id)))
+      .map(e => ({ employee: e, ...(counted.get(e.id) ?? { count: 0, amount: 0 }) }))
+      // 많이 한 사람부터. 한 건도 없는 사람은 뒤로 — 고를 일이 드물다
+      .sort((a, b) => b.count - a.count || a.employee.name.localeCompare(b.employee.name));
+  }, [ofKind, state.employees]);
+
   const totals = useMemo(() => ({
     count: filtered.length,
 
@@ -184,6 +210,39 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
         </div>
       </div>
 
+      {/* 남의 것까지 보는 사람에게만 쓸모가 있다 — 자기 것만 보이면 고를 게 없다 */}
+      {seesAll && owners.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setEmployeeFilter('all')}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              employeeFilter === 'all'
+                ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            전체 <span className="ml-0.5 font-bold">{ofKind.length}</span>
+          </button>
+          {owners.map(({ employee, count, amount }) => (
+            <button
+              key={employee.id}
+              onClick={() => setEmployeeFilter(v => (v === employee.id ? 'all' : employee.id))}
+              title={`${employee.name} ${employee.position} · ${count}건 · 정산 ${NUM(amount)}원`}
+              className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs transition-colors ${
+                employeeFilter === employee.id
+                  ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              } ${count === 0 ? 'opacity-50' : ''}`}
+            >
+              <EmployeeAvatar name={employee.name} size={22} />
+              <span className="font-semibold text-slate-800">{employee.name}</span>
+              <span className="text-slate-400">{employee.position}</span>
+              <span className="font-bold text-indigo-600">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="차량번호·차량명 검색"
           className="w-52 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
@@ -193,14 +252,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           <option value="IN_PROGRESS">진행중</option>
           <option value="COMPLETED">정산완료</option>
         </select>
-        {/* 남의 것까지 보는 사람에게만 쓸모가 있다 — 자기 것만 보이면 고를 게 없다 */}
-        {seesAll && (
-          <select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-            <option value="all">전체 담당자</option>
-            {state.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-        )}
+
         <div className="ml-auto flex items-center gap-2">
           <SettlementViewToggle view={view} onChange={setView} />
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
