@@ -1,13 +1,25 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StoreProvider } from './store';
 import { AuthProvider, useAuth } from './authStore';
 import { canSeeLedger } from './lib/permissions';
 
 /**
- * 부동산을 보는 사람 — 이름으로 못 박는다. 여기에 관리자를 더한다.
- * 서버(properties.module.ts)도 같은 이름으로 다시 본다. 고칠 땐 양쪽을 같이 본다.
+ * 부동산을 볼 수 있는지는 서버에 묻는다.
+ *
+ * 대외비라 보는 사람을 몇으로 못 박아 두는데(대표 · 사무장 · 테스트 계정), 그 목록을
+ * 화면도 들고 있으면 사람이 바뀔 때 양쪽을 고쳐야 한다 — 한쪽만 고치면 메뉴는 보이는데
+ * 안 열리거나, 열리는데 메뉴가 없다.
  */
-const PROPERTY_VIEWERS = ['유진욱', '김수하'];
+function usePropertyAccess(): boolean {
+  const [canOpen, setCanOpen] = useState(false);
+  useEffect(() => {
+    void api<{ canOpen: boolean }>('/properties/access')
+      .then(r => setCanOpen(r.canOpen))
+      // 못 물어보면 안 보여준다 — 대외비는 막히는 쪽이 안전하다
+      .catch(() => setCanOpen(false));
+  }, []);
+  return canOpen;
+}
 import { useStore } from './store';
 import { useAutoAwayStatus } from './hooks/useAutoAwayStatus';
 import { api } from './lib/api';
@@ -75,6 +87,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
 function AuthedApp({ role }: { role: Role }) {
   const { user } = useAuth();
   const seeLedger = canSeeLedger(user);
+  const isCeo = usePropertyAccess();
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
@@ -104,10 +117,7 @@ function AuthedApp({ role }: { role: Role }) {
 
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
   const officeOnly: ModuleKey[] = ['dealerFee'];
-  // 부동산은 대표와 관리자만 본다(서버도 같은 기준으로 다시 본다)
-  // 대외비라 관리자라고 다 열어주지 않는다 — 서버도 같은 기준으로 보고 번호까지 한 번 더 받는다
-  const isCeo =
-    PROPERTY_VIEWERS.includes(user?.name?.trim() ?? '') || (user?.position ?? '').includes('테스트');
+  // 누가 보는지는 서버가 정한다 — 대표 · 사무장 · 테스트 계정
   const blocked = (officeOnly.includes(module) && !seeLedger) || (module === 'property' && !isCeo);
   const shownModule: ModuleKey = blocked ? 'attendance' : module;
 

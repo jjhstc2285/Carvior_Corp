@@ -38,7 +38,21 @@ import { CEO_APPROVER } from '../settlements/approvers';
  * 관리자라고 다 열어주지도 않는다 — 대외비라 보는 사람 수를 세어 둬야 한다.
  * 프론트 App.tsx 에도 같은 이름이 있다 — 고칠 땐 양쪽을 같이 본다.
  */
-const PROPERTY_VIEWERS = [CEO_APPROVER, '김수하'];
+const DEFAULT_VIEWERS = [CEO_APPROVER, '김수하'];
+
+/**
+ * 볼 사람 이름.
+ *
+ * 사람이 바뀔 때마다 코드를 고치고 배포할 수는 없다. 서버 .env 의 PROPERTY_VIEWERS 에
+ * 쉼표로 적으면 그 사람들로 바뀐다(안 적으면 위 기본값).
+ */
+function viewerNames(): string[] {
+  const fromEnv = (process.env.PROPERTY_VIEWERS ?? '')
+    .split(',')
+    .map((n) => n.trim())
+    .filter(Boolean);
+  return fromEnv.length > 0 ? fromEnv : DEFAULT_VIEWERS;
+}
 
 /** 손볼 일이 있을 때를 위한 테스트 계정 한 자리 — 직책에 '테스트'가 든 계정이다. */
 function isTestAccount(user: AuthUser): boolean {
@@ -46,7 +60,7 @@ function isTestAccount(user: AuthUser): boolean {
 }
 
 function canOpenProperty(user: AuthUser): boolean {
-  return PROPERTY_VIEWERS.includes(user.name.trim()) || isTestAccount(user);
+  return viewerNames().includes(user.name.trim()) || isTestAccount(user);
 }
 
 /** 통행증은 여덟 시간만 산다 — 하루 일과가 끝나면 다시 받는다 */
@@ -455,6 +469,17 @@ export class PropertiesController {
     private readonly leases: LeaseService,
     private readonly costs: PropertyCostService,
   ) {}
+
+  /**
+   * 이 계정이 부동산을 볼 수 있는가 — 메뉴를 띄울지 화면이 묻는다.
+   *
+   * 이름 목록은 서버에만 있다. 화면이 같은 목록을 들고 있으면 사람이 바뀔 때마다
+   * 양쪽을 고쳐야 하고, 한쪽만 고치면 메뉴는 보이는데 안 열리는 꼴이 된다.
+   */
+  @Get('access')
+  access(@CurrentUser() user: AuthUser) {
+    return { canOpen: canOpenProperty(user) };
+  }
 
   /**
    * 번호를 넣어 통행증을 받는다.
