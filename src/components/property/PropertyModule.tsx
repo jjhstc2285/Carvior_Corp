@@ -4,7 +4,7 @@ import { AlarmClock, FileText, Phone, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
-import { PROPERTY_USAGES, type Property } from '../../types';
+import { PROPERTY_SIDES, PROPERTY_USAGES, type Property } from '../../types';
 import LeaseContractModal from './LeaseContractModal';
 
 /**
@@ -40,6 +40,8 @@ export default function PropertyModule() {
   const [denied, setDenied] = useState(false);
   /** 계약서를 펼쳐 둔 부동산 */
   const [contractFor, setContractFor] = useState<Property | null>(null);
+  /** 빌려 쓰는 자리만 / 빌려준 자리만 보기 */
+  const [sideFilter, setSideFilter] = useState<string>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,7 +76,10 @@ export default function PropertyModule() {
 
   const addRow = async () => {
     try {
-      await api('/properties', { method: 'POST', body: { name: '새 부동산', usage: PROPERTY_USAGES[0] } });
+      await api('/properties', {
+        method: 'POST',
+        body: { name: '새 부동산', usage: PROPERTY_USAGES[0], side: sideFilter === 'all' ? '임차' : sideFilter },
+      });
       await load();
     } catch (e) {
       void alertError('추가하지 못했습니다', e instanceof ApiError ? e.message : '');
@@ -100,10 +105,15 @@ export default function PropertyModule() {
 
   const totals = useMemo(() => {
     const live = rows.filter(r => r.active);
+    // 빌려 쓰는 자리는 나가는 돈, 빌려준 자리는 들어오는 돈이다. 섞어 더하면 뜻이 없다
+    const out = live.filter(r => r.side !== '임대');
+    const income = live.filter(r => r.side === '임대');
     return {
       count: live.length,
-      rent: live.reduce((sum, r) => sum + r.monthlyRent, 0),
-      deposit: live.reduce((sum, r) => sum + r.deposit, 0),
+      rent: out.reduce((sum, r) => sum + r.monthlyRent, 0),
+      rentIn: income.reduce((sum, r) => sum + r.monthlyRent, 0),
+      deposit: out.reduce((sum, r) => sum + r.deposit, 0),
+      depositIn: income.reduce((sum, r) => sum + r.deposit, 0),
       // 석 달 안에 끝나는 계약 — 미리 알아야 옮기든 연장하든 한다
       soon: live.filter(r => {
         const d = daysLeft(r.endOn);
@@ -208,18 +218,28 @@ export default function PropertyModule() {
           </p>
         </div>
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">
-          <p className="text-xs font-medium text-indigo-700/80">매달 월세</p>
+          <p className="text-xs font-medium text-indigo-700/80">매달 나가는 월세</p>
           <p className="mt-1 text-2xl font-bold text-indigo-700">
             {totals.rent.toLocaleString()}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
+          {totals.rentIn > 0 && (
+            <p className="text-[11px] font-semibold text-emerald-700">
+              받는 월세 {totals.rentIn.toLocaleString()}원
+            </p>
+          )}
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">묶인 보증금</p>
+          <p className="text-xs font-medium text-slate-400">맡긴 보증금</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">
             {totals.deposit.toLocaleString()}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
+          {totals.depositIn > 0 && (
+            <p className="text-[11px] font-semibold text-emerald-700">
+              받은 보증금 {totals.depositIn.toLocaleString()}원
+            </p>
+          )}
         </div>
         {/* 계약 끝나는 걸 놓치면 옮길 자리를 못 구한다 */}
         <div
@@ -237,7 +257,23 @@ export default function PropertyModule() {
         </div>
       </div>
 
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {/* 빌려 쓰는 자리와 빌려준 자리는 보는 눈이 다르다 — 갈라 볼 수 있게 한다 */}
+        <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs">
+          {[['all', '전체'], ...PROPERTY_SIDES.map(s => [s, s === '임차' ? '빌려 쓰는 자리' : '빌려준 자리'])].map(
+            ([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setSideFilter(key)}
+                className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+                  sideFilter === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {label}
+              </button>
+            ),
+          )}
+        </div>
         <label className="flex items-center gap-1.5 text-sm text-slate-500">
           <input
             type="checkbox"
@@ -258,9 +294,10 @@ export default function PropertyModule() {
                 <th className="px-3 py-3" />
                 <th className="px-3 py-3 font-medium">이름</th>
                 <th className="px-3 py-3 font-medium">계약서</th>
+                <th className="px-3 py-3 font-medium">우리 위치</th>
                 <th className="px-3 py-3 font-medium">용도</th>
                 <th className="px-3 py-3 font-medium">주소</th>
-                <th className="px-3 py-3 font-medium">임대인</th>
+                <th className="px-3 py-3 font-medium">상대방</th>
                 <th className="px-3 py-3 font-medium">연락처</th>
                 <th className="px-3 py-3 text-right font-medium">보증금</th>
                 <th className="px-3 py-3 text-right font-medium">월세</th>
@@ -274,12 +311,14 @@ export default function PropertyModule() {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={15} className="px-5 py-10 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '등록된 부동산이 없습니다.'}
                   </td>
                 </tr>
               )}
-              {rows.map(r => {
+              {rows
+                .filter(r => sideFilter === 'all' || (r.side || '임차') === sideFilter)
+                .map(r => {
                 const left = daysLeft(r.endOn);
                 return (
                   <tr
@@ -323,6 +362,20 @@ export default function PropertyModule() {
                     </td>
                     <td className="px-3 py-2.5">
                       <select
+                        value={r.side}
+                        onChange={e => void patch(r, { side: e.target.value })}
+                        disabled={busyId === r.id}
+                        className={`${INPUT} w-24 ${r.side === '임대' ? 'font-bold text-emerald-700' : ''}`}
+                      >
+                        {[...new Set([...PROPERTY_SIDES, r.side].filter(Boolean))].map(s => (
+                          <option key={s} value={s}>
+                            {s === '임차' ? '임차(빌림)' : s === '임대' ? '임대(빌려줌)' : s}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <select
                         value={r.usage}
                         onChange={e => void patch(r, { usage: e.target.value })}
                         disabled={busyId === r.id}
@@ -348,6 +401,7 @@ export default function PropertyModule() {
                         defaultValue={r.ownerName}
                         onBlur={e => e.target.value !== r.ownerName && void patch(r, { ownerName: e.target.value })}
                         disabled={busyId === r.id}
+                        placeholder={r.side === '임대' ? '임차인' : '임대인'}
                         className={`${INPUT} w-24`}
                       />
                     </td>
@@ -467,6 +521,9 @@ export default function PropertyModule() {
         <b>계약중 체크를 풀어</b> 주세요 — 지난 계약도 기록입니다.
         <br />
         만료가 <b>3개월 안</b>으로 들어오면 노란색, <b>지났으면</b> 빨간색으로 표시됩니다.
+        <br />
+        <b>우리 위치</b>를 <b>임대(빌려줌)</b>로 두면 그 자리의 보증금·월세는 <b>받는 돈</b>으로 셉니다.
+        계약서를 만들 때도 우리가 임대인 자리에 들어가고, 상대가 임차인이 됩니다.
       </p>
     </div>
   );

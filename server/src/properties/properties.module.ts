@@ -51,8 +51,20 @@ function assertCeo(user: AuthUser): void {
 
 const DATE = /^(\d{4}-\d{2}-\d{2})?$/;
 
+/**
+ * 우리 회사 — 계약서를 만들 때 우리 쪽 칸을 미리 채운다.
+ * 로그인 화면 아래 적어둔 사업자 정보와 같은 값이다.
+ */
+const COMPANY = {
+  name: '애니원모터스',
+  address: '경기도 수원시 권선구 평동로79번길 45, 519호 (평동)',
+  phone: '031-304-9700',
+};
+
 export class UpsertPropertyDto {
   @IsString() @IsNotEmpty({ message: '이름을 입력해 주세요.' }) @MaxLength(60) name!: string;
+  /** 임차(빌려 쓴다) / 임대(빌려준다) */
+  @IsOptional() @IsString() @MaxLength(10) side?: string;
   @IsOptional() @IsString() @MaxLength(20) usage?: string;
   @IsOptional() @IsString() @MaxLength(191) address?: string;
   @IsOptional() @IsString() @MaxLength(30) ownerName?: string;
@@ -106,6 +118,7 @@ export class PropertiesService {
   private dataOf(dto: UpdatePropertyDto) {
     return {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+      ...(dto.side !== undefined ? { side: dto.side.trim() } : {}),
       ...(dto.usage !== undefined ? { usage: dto.usage.trim() } : {}),
       ...(dto.address !== undefined ? { address: dto.address.trim() } : {}),
       ...(dto.ownerName !== undefined ? { ownerName: dto.ownerName.trim() } : {}),
@@ -209,6 +222,17 @@ export class LeaseService {
     const property = await this.prisma.property.findUnique({ where: { id: propertyId } });
     if (!property) throw new NotFoundException('부동산 정보를 찾을 수 없습니다.');
 
+    /*
+      우리가 빌려준 자리(임대)면 우리가 임대인이고, 상대가 임차인이다.
+      빌려 쓰는 자리(임차)면 반대다. 자리를 바꿔 넣지 않으면 계약서에 우리 이름이
+      임차인 칸에 들어간 채로 인쇄된다.
+    */
+    const weAreLessor = property.side === '임대';
+    const us = { name: COMPANY.name, address: COMPANY.address, phone: COMPANY.phone };
+    const other = { name: property.ownerName, address: '', phone: property.ownerPhone };
+    const lessorSide = weAreLessor ? us : other;
+    const lesseeSide = weAreLessor ? other : us;
+
     const row = await this.prisma.leaseContract.create({
       data: {
         propertyId,
@@ -218,8 +242,12 @@ export class LeaseService {
         payDay: property.payDay,
         startOn: property.startOn,
         endOn: property.endOn,
-        lessorName: property.ownerName,
-        lessorPhone: property.ownerPhone,
+        lessorName: lessorSide.name,
+        lessorAddress: lessorSide.address,
+        lessorPhone: lessorSide.phone,
+        lesseeName: lesseeSide.name,
+        lesseeAddress: lesseeSide.address,
+        lesseePhone: lesseeSide.phone,
         special: '',
         ...this.dataOf(dto),
       },

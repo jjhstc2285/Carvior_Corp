@@ -835,6 +835,12 @@ export interface LeaseContract {
   updatedAt: string;
 }
 
+/**
+ * 우리가 어느 쪽인가 — 빌려 쓰는 자리인지, 빌려준 자리인지.
+ * 월세·보증금이 나가는 돈인지 들어오는 돈인지가 여기서 갈린다.
+ */
+export const PROPERTY_SIDES = ['임차', '임대'] as const;
+
 /** 부동산 용도 — 자주 쓰는 것을 미리 골라둔다 */
 export const PROPERTY_USAGES = ['사무실', '주차장', '창고', '전시장', '기타'] as const;
 
@@ -845,6 +851,8 @@ export const PROPERTY_USAGES = ['사무실', '주차장', '창고', '전시장',
 export interface Property {
   id: string;
   name: string;
+  /** 임차 = 우리가 빌려 쓴다(돈이 나간다) · 임대 = 우리가 빌려준다(돈이 들어온다) */
+  side: string;
   usage: string;
   address: string;
   ownerName: string; // 임대인
