@@ -31,13 +31,20 @@ import { CEO_APPROVER } from '../settlements/approvers';
  */
 
 /**
- * 대표이거나 관리자여야 본다.
+ * 대표 말고 이 화면을 여는 사람 — 이름으로 못 박는다.
  *
- * 관리자를 열어둔 건 지금 대표 계정 하나로는 대신 적어 넣을 사람이 없어서다.
- * 대표만 보게 좁히려면 이 함수에서 role 조건만 빼면 된다.
+ * 직책으로 가리면 나중에 사무장이 한 명 더 들어왔을 때 그 사람도 계약 조건을 같이 보게 된다.
+ * 프론트 App.tsx 에도 같은 이름이 있다 — 고칠 땐 양쪽을 같이 본다.
+ */
+const PROPERTY_VIEWERS = [CEO_APPROVER, '김수하'];
+
+/**
+ * 대표·지정된 사람·관리자여야 본다.
+ *
+ * 관리자를 열어둔 건 대표 계정 하나로는 대신 적어 넣을 사람이 없어서다.
  */
 function assertCeo(user: AuthUser): void {
-  if (user.name.trim() !== CEO_APPROVER && user.role !== Role.ADMIN) {
+  if (!PROPERTY_VIEWERS.includes(user.name.trim()) && user.role !== Role.ADMIN) {
     throw new ForbiddenException('부동산 정보는 대표와 관리자만 볼 수 있습니다.');
   }
 }
@@ -123,9 +130,146 @@ export class PropertiesService {
   }
 }
 
+/**
+ * 계약서 한 장.
+ *
+ * 값을 받는 대로 담는다 — 면적·지목처럼 등기부에서 옮겨 적는 값은 숫자로만 안 떨어져서
+ * 글자로 둔다("132.23", "3층 중 일부").
+ */
+export class UpsertLeaseDto {
+  @IsOptional() @IsString() @MaxLength(10) kind?: string;
+  @IsOptional() @IsString() @MaxLength(10) rentType?: string;
+
+  @IsOptional() @IsString() @MaxLength(191) address?: string;
+  @IsOptional() @IsString() @MaxLength(30) landCategory?: string;
+  @IsOptional() @IsString() @MaxLength(30) landArea?: string;
+  @IsOptional() @IsString() @MaxLength(60) buildingStructure?: string;
+  @IsOptional() @IsString() @MaxLength(30) buildingArea?: string;
+  @IsOptional() @IsString() @MaxLength(60) leasedPart?: string;
+  @IsOptional() @IsString() @MaxLength(30) leasedArea?: string;
+
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) deposit?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) downPayment?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) interimPayment?: number;
+  @IsOptional() @Matches(DATE) interimOn?: string | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) balance?: number;
+  @IsOptional() @Matches(DATE) balanceOn?: string | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) monthlyRent?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(31) payDay?: number;
+
+  @IsOptional() @Matches(DATE) handoverOn?: string | null;
+  @IsOptional() @Matches(DATE) startOn?: string | null;
+  @IsOptional() @Matches(DATE) endOn?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(10) brokerageRate?: string;
+  @IsOptional() @IsString() special?: string;
+  @IsOptional() @Matches(DATE) writtenOn?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(30) lessorName?: string;
+  @IsOptional() @IsString() @MaxLength(191) lessorAddress?: string;
+  @IsOptional() @IsString() @MaxLength(30) lessorPhone?: string;
+  @IsOptional() @IsString() @MaxLength(30) lessorAgent?: string;
+  @IsOptional() @IsString() @MaxLength(30) lessorAgentPhone?: string;
+
+  @IsOptional() @IsString() @MaxLength(30) lesseeName?: string;
+  @IsOptional() @IsString() @MaxLength(191) lesseeAddress?: string;
+  @IsOptional() @IsString() @MaxLength(30) lesseePhone?: string;
+  @IsOptional() @IsString() @MaxLength(30) lesseeAgent?: string;
+  @IsOptional() @IsString() @MaxLength(30) lesseeAgentPhone?: string;
+
+  @IsOptional() @IsString() @MaxLength(60) brokerOffice?: string;
+  @IsOptional() @IsString() @MaxLength(191) brokerAddress?: string;
+  @IsOptional() @IsString() @MaxLength(30) brokerName?: string;
+  @IsOptional() @IsString() @MaxLength(30) brokerRegNo?: string;
+  @IsOptional() @IsString() @MaxLength(30) brokerPhone?: string;
+}
+
+/** 계약서에서 날짜로 오가는 칸 — 담을 땐 Date, 내줄 땐 YYYY-MM-DD */
+const LEASE_DATES = ['interimOn', 'balanceOn', 'handoverOn', 'startOn', 'endOn', 'writtenOn'] as const;
+
+@Injectable()
+export class LeaseService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async findByProperty(propertyId: string) {
+    const rows = await this.prisma.leaseContract.findMany({
+      where: { propertyId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((r) => this.toView(r));
+  }
+
+  /**
+   * 계약서를 새로 만든다.
+   *
+   * 부동산에 적어둔 값(소재지·보증금·월세·기간)을 밑그림으로 깔아준다 — 같은 값을
+   * 두 번 치게 두지 않는다. 계약서에서 고쳐도 부동산 쪽은 안 건드린다.
+   */
+  async create(propertyId: string, dto: UpsertLeaseDto) {
+    const property = await this.prisma.property.findUnique({ where: { id: propertyId } });
+    if (!property) throw new NotFoundException('부동산 정보를 찾을 수 없습니다.');
+
+    const row = await this.prisma.leaseContract.create({
+      data: {
+        propertyId,
+        address: property.address,
+        deposit: property.deposit,
+        monthlyRent: property.monthlyRent,
+        payDay: property.payDay,
+        startOn: property.startOn,
+        endOn: property.endOn,
+        lessorName: property.ownerName,
+        lessorPhone: property.ownerPhone,
+        special: '',
+        ...this.dataOf(dto),
+      },
+    });
+    return this.toView(row);
+  }
+
+  async update(id: string, dto: UpsertLeaseDto) {
+    await this.assertExists(id);
+    const row = await this.prisma.leaseContract.update({ where: { id }, data: this.dataOf(dto) });
+    return this.toView(row);
+  }
+
+  async remove(id: string) {
+    await this.assertExists(id);
+    await this.prisma.leaseContract.delete({ where: { id } });
+  }
+
+  /** 안 보낸 칸은 건드리지 않는다 — 한 칸씩 고치는 화면이다. */
+  private dataOf(dto: UpsertLeaseDto) {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(dto)) {
+      if (value === undefined) continue;
+      if ((LEASE_DATES as readonly string[]).includes(key)) {
+        out[key] = toDateOnlyOrNull(value as string | null);
+      } else {
+        out[key] = typeof value === 'string' ? value.trim() : value;
+      }
+    }
+    return out;
+  }
+
+  private toView<T extends Record<string, unknown>>(row: T) {
+    const out: Record<string, unknown> = { ...row };
+    for (const key of LEASE_DATES) out[key] = formatDateOnlyOrNull(row[key] as Date | null);
+    return out;
+  }
+
+  private async assertExists(id: string) {
+    const row = await this.prisma.leaseContract.findUnique({ where: { id }, select: { id: true } });
+    if (!row) throw new NotFoundException('계약서를 찾을 수 없습니다.');
+  }
+}
+
 @Controller('properties')
 export class PropertiesController {
-  constructor(private readonly properties: PropertiesService) {}
+  constructor(
+    private readonly properties: PropertiesService,
+    private readonly leases: LeaseService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query('includeInactive') includeInactive?: string) {
@@ -151,10 +295,37 @@ export class PropertiesController {
     assertCeo(user);
     await this.properties.remove(id);
   }
+
+  // ── 계약서 ── 부동산과 같은 사람만 본다(계약 조건이 그대로 들어 있다)
+
+  @Get(':id/leases')
+  findLeases(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    assertCeo(user);
+    return this.leases.findByProperty(id);
+  }
+
+  @Post(':id/leases')
+  createLease(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpsertLeaseDto) {
+    assertCeo(user);
+    return this.leases.create(id, dto);
+  }
+
+  @Patch('leases/:leaseId')
+  updateLease(@CurrentUser() user: AuthUser, @Param('leaseId') leaseId: string, @Body() dto: UpsertLeaseDto) {
+    assertCeo(user);
+    return this.leases.update(leaseId, dto);
+  }
+
+  @Delete('leases/:leaseId')
+  @HttpCode(204)
+  async removeLease(@CurrentUser() user: AuthUser, @Param('leaseId') leaseId: string) {
+    assertCeo(user);
+    await this.leases.remove(leaseId);
+  }
 }
 
 @Module({
   controllers: [PropertiesController],
-  providers: [PropertiesService],
+  providers: [PropertiesService, LeaseService],
 })
 export class PropertiesModule {}

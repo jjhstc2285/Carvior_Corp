@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Phone, Plus, Trash2 } from 'lucide-react';
+import { FileText, Phone, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { PROPERTY_USAGES, type Property } from '../../types';
+import LeaseContractModal from './LeaseContractModal';
 
 /**
  * 부동산 정보.
@@ -33,6 +34,8 @@ export default function PropertyModule() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
+  /** 계약서를 펼쳐 둔 부동산 */
+  const [contractFor, setContractFor] = useState<Property | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -188,6 +191,7 @@ export default function PropertyModule() {
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
                 <th className="px-3 py-3" />
                 <th className="px-3 py-3 font-medium">이름</th>
+                <th className="px-3 py-3 font-medium">계약서</th>
                 <th className="px-3 py-3 font-medium">용도</th>
                 <th className="px-3 py-3 font-medium">주소</th>
                 <th className="px-3 py-3 font-medium">임대인</th>
@@ -204,7 +208,7 @@ export default function PropertyModule() {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={14} className="px-5 py-10 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '등록된 부동산이 없습니다.'}
                   </td>
                 </tr>
@@ -235,6 +239,15 @@ export default function PropertyModule() {
                         disabled={busyId === r.id}
                         className={`${INPUT} w-36`}
                       />
+                    </td>
+                    {/* 양식을 손으로 채워 인쇄하던 걸 여기서 쓴다 */}
+                    <td className="whitespace-nowrap px-3 py-2.5">
+                      <button
+                        onClick={() => setContractFor(r)}
+                        className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        <FileText size={12} /> 계약서
+                      </button>
                     </td>
                     <td className="px-3 py-2.5">
                       <select
@@ -368,6 +381,8 @@ export default function PropertyModule() {
           </table>
         </div>
       </div>
+
+      {contractFor && <LeaseContractModal property={contractFor} onClose={() => setContractFor(null)} />}
 
       <p className="mt-2 text-[11px] text-slate-400">
         칸을 고치고 <b>칸 밖을 누르면 바로 저장</b>됩니다. 계약이 끝난 자리는 지우지 말고{' '}

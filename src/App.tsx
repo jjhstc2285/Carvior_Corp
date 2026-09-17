@@ -4,10 +4,10 @@ import { AuthProvider, useAuth } from './authStore';
 import { canSeeLedger } from './lib/permissions';
 
 /**
- * 부동산을 보는 사람 — 대표와 관리자.
- * 서버(properties.module.ts)도 같은 기준으로 다시 본다. 고칠 땐 양쪽을 같이 본다.
+ * 부동산을 보는 사람 — 이름으로 못 박는다. 여기에 관리자를 더한다.
+ * 서버(properties.module.ts)도 같은 이름으로 다시 본다. 고칠 땐 양쪽을 같이 본다.
  */
-const CEO_NAME = '유진욱';
+const PROPERTY_VIEWERS = ['유진욱', '김수하'];
 import { useStore } from './store';
 import { useAutoAwayStatus } from './hooks/useAutoAwayStatus';
 import { api } from './lib/api';
@@ -105,7 +105,7 @@ function AuthedApp({ role }: { role: Role }) {
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
   const officeOnly: ModuleKey[] = ['dealerFee'];
   // 부동산은 대표와 관리자만 본다(서버도 같은 기준으로 다시 본다)
-  const isCeo = user?.name?.trim() === CEO_NAME || role === 'ADMIN';
+  const isCeo = PROPERTY_VIEWERS.includes(user?.name?.trim() ?? '') || role === 'ADMIN';
   const blocked = (officeOnly.includes(module) && !seeLedger) || (module === 'property' && !isCeo);
   const shownModule: ModuleKey = blocked ? 'attendance' : module;
 

@@ -773,6 +773,68 @@ export const VENDOR_CATEGORIES = [
   '기타',
 ] as const;
 
+export const LEASE_KINDS = ['전대차', '임대차'] as const;
+export const LEASE_RENT_TYPES = ['월세', '전세'] as const;
+
+/**
+ * 부동산 임대차·전대차 계약서 한 장.
+ *
+ * 금액은 원. 면적·지목처럼 등기부에서 옮겨 적는 값은 숫자로만 안 떨어져서 글자로 둔다.
+ * 주민등록번호·법인등록번호는 담지 않는다 — 인쇄물에 손으로 적는다.
+ */
+export interface LeaseContract {
+  id: string;
+  propertyId: string;
+  kind: string; // 전대차 / 임대차
+  rentType: string; // 월세 / 전세
+
+  address: string;
+  landCategory: string;
+  landArea: string;
+  buildingStructure: string;
+  buildingArea: string;
+  leasedPart: string;
+  leasedArea: string;
+
+  deposit: number;
+  downPayment: number;
+  interimPayment: number;
+  interimOn: string | null;
+  balance: number;
+  balanceOn: string | null;
+  monthlyRent: number;
+  payDay: number;
+
+  handoverOn: string | null;
+  startOn: string | null;
+  endOn: string | null;
+
+  brokerageRate: string;
+  special: string;
+  writtenOn: string | null;
+
+  lessorName: string;
+  lessorAddress: string;
+  lessorPhone: string;
+  lessorAgent: string;
+  lessorAgentPhone: string;
+
+  lesseeName: string;
+  lesseeAddress: string;
+  lesseePhone: string;
+  lesseeAgent: string;
+  lesseeAgentPhone: string;
+
+  brokerOffice: string;
+  brokerAddress: string;
+  brokerName: string;
+  brokerRegNo: string;
+  brokerPhone: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** 부동산 용도 — 자주 쓰는 것을 미리 골라둔다 */
 export const PROPERTY_USAGES = ['사무실', '주차장', '창고', '전시장', '기타'] as const;
 
