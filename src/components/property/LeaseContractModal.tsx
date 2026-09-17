@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { CalendarPlus, FileText, Loader2, Plus, Printer, Trash2, X } from 'lucide-react';
+import { CalendarPlus, Eye, FileDown, FileText, Loader2, Plus, Printer, Trash2, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { LEASE_KINDS, LEASE_RENT_TYPES, type LeaseContract, type Property } from '../../types';
 import { leaseContractHtml } from './leaseContractPrint';
+import { downloadPdf, fillLeaseContractPdf, openPdf } from './leaseContractPdf';
 
 /**
  * 부동산 임대차·전대차 계약서.
@@ -54,6 +55,7 @@ export default function LeaseContractModal({
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -140,6 +142,26 @@ export default function LeaseContractModal({
   };
 
   /**
+   * 원본 양식 PDF.
+   *
+   * 사무장님이 쓰던 한글 양식을 PDF로 깔고 빈칸에 값만 얹는다 — 우리가 다시 그린
+   * 서식이 아니라 쓰던 종이 그대로라, 받아 보는 쪽이 다시 확인할 일이 없다.
+   */
+  const makePdf = async (mode: 'open' | 'download') => {
+    if (!current) return;
+    setPdfBusy(true);
+    try {
+      const bytes = await fillLeaseContractPdf(current);
+      if (mode === 'open') openPdf(bytes);
+      else downloadPdf(bytes, `${property.name}_${current.kind}계약서_${current.writtenOn ?? dayjs().format('YYYY-MM-DD')}.pdf`);
+    } catch (e) {
+      void alertError('PDF를 만들지 못했습니다', e instanceof Error ? e.message : '');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
+  /**
    * 인쇄.
    *
    * 화면 CSS와 싸우지 않게 새 창에 계약서만 그려서 인쇄한다 — 화면에 맞춘 여백·색이
@@ -204,7 +226,7 @@ export default function LeaseContractModal({
               <FileText size={16} className="text-indigo-600" /> 부동산 계약서 — {property.name}
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              적은 대로 인쇄됩니다. 주민등록번호·도장은 인쇄물에 손으로 적고 찍으세요.
+              적은 대로 <b>원본 양식 PDF</b>에 채워집니다. 주민등록번호·도장은 출력한 뒤 손으로 적고 찍으세요.
             </p>
           </div>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -394,12 +416,27 @@ export default function LeaseContractModal({
             <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
               닫기
             </button>
+            {/* 우리가 다시 그린 서식 — 원본이 안 열릴 때를 위해 남겨 둔다 */}
             <button
               onClick={print}
               disabled={!current}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Printer size={15} /> 간이 인쇄
+            </button>
+            <button
+              onClick={() => void makePdf('open')}
+              disabled={!current || pdfBusy}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Eye size={15} />} 양식 PDF 보기
+            </button>
+            <button
+              onClick={() => void makePdf('download')}
+              disabled={!current || pdfBusy}
               className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
             >
-              <Printer size={15} /> 인쇄
+              {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />} PDF 받기
             </button>
           </div>
         </div>
