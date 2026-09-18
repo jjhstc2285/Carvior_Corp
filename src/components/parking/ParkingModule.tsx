@@ -28,6 +28,13 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
   const [editing, setEditing] = useState<ParkingVehicle | null>(null);
   const [presetPosition, setPresetPosition] = useState<{ lot: string; zone: string; slot: string } | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  /*
+    매도한 차는 목록에서 내린다.
+
+    차가 나갔는데 자리에 남아 있으면 그 칸이 찬 것으로 보인다 — 다음 차를 어디 세울지
+    고를 때 그만큼 자리가 없는 셈이 된다. 기록은 지우지 않고 가려만 둔다.
+  */
+  const [showSold, setShowSold] = useState(false);
 
   // 배치도와 같은 순서로 늘어놓는다 — 화면마다 순서가 다르면 같은 주차장을 매번 다시 찾게 된다.
   const lotOrder = useMemo(() => new Map(PARKING_LOTS.map((l, i) => [l.lot, i])), []);
@@ -40,7 +47,10 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
   );
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
 
+  const soldCount = state.parkingVehicles.filter(v => v.soldDate).length;
+
   const filtered = state.parkingVehicles
+    .filter(v => showSold || !v.soldDate)
     .filter(v => lotFilter === 'all' || v.lot === lotFilter)
     .filter(v => statusFilter === 'all' || v.status === statusFilter)
     .filter(v => !query.trim() || v.vehicleNumber.includes(query.trim()) || v.vehicleModel.includes(query.trim()))
@@ -58,6 +68,8 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
   const dueReinspect = useMemo(
     () =>
       state.parkingVehicles
+        // 판 차는 재검받을 이유가 없다
+        .filter(v => !v.soldDate)
         .filter(v => v.reinspect)
         .sort((a, b) => (a.reinspect?.daysLeft ?? 0) - (b.reinspect?.daysLeft ?? 0)),
     [state.parkingVehicles],
@@ -196,6 +208,18 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
             <List size={14} /> 리스트
           </button>
         </div>
+        {/* 나간 차를 다시 봐야 할 때가 있다 — 지우지 않고 가려만 둔 것이라 되돌려 볼 수 있다 */}
+        {soldCount > 0 && (
+          <label className="flex items-center gap-1.5 text-sm text-slate-500">
+            <input
+              type="checkbox"
+              checked={showSold}
+              onChange={e => setShowSold(e.target.checked)}
+              className="size-4 accent-indigo-600"
+            />
+            매도한 차도 보기 {soldCount}대
+          </label>
+        )}
         {view === 'list' && (
           <>
             <input
@@ -225,7 +249,11 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
       <KeyDispatchPanel />
 
       {view === 'grid' ? (
-        <ParkingGrid onCellClick={handleCellClick} onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)} />
+        <ParkingGrid
+          showSold={showSold}
+          onCellClick={handleCellClick}
+          onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)}
+        />
       ) : (
       <div className="rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">

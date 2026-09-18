@@ -18,6 +18,13 @@ import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup } from '../../
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
 interface Props {
+  /**
+   * 매도한 차도 보일지.
+   *
+   * 차가 나갔는데 칸에 남아 있으면 그 자리가 찬 것으로 보인다 — 다음 차를 어디 세울지
+   * 고를 때 없는 자리를 빼고 세는 셈이 된다. 기본은 가린다.
+   */
+  showSold?: boolean;
   onCellClick: (lot: string, zone: string, slot: string, existing: ParkingVehicle | null) => void;
   /** 끌어다 놓기 실패를 화면에 알린다 */
   onMoveError: (message: string) => void;
@@ -153,7 +160,7 @@ function ParkingCell({
 // 차를 끌어다 다른 칸에 놓으면 자리를 옮긴다. 그 칸에 차가 있으면 서로 자리를 바꾼다.
 // 실제 이동은 서버가 한 트랜잭션으로 처리한다 — 화면에서 두 번 나눠 부르면
 // 중간에 끊겼을 때 두 차가 같은 칸에 있거나 한 대가 사라진다.
-export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
+export default function ParkingGrid({ onCellClick, onMoveError, showSold = false }: Props) {
   const { state, moveParkingVehicle } = useStore();
   const [dragging, setDragging] = useState<ParkingVehicle | null>(null);
   // 주차장이 열 곳이 넘어 다 펼치면 표가 너무 길다 — 본관/외부로 나눠 본다.
@@ -200,7 +207,7 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
     const q = query.replace(/\s+/g, '');
     if (q.length < 2) return null;
     return (
-      state.parkingVehicles.find(
+      state.parkingVehicles.filter(v => showSold || !v.soldDate).find(
         v => v.vehicleNumber.replace(/\s+/g, '').includes(q) || v.vehicleModel.includes(q),
       ) ?? null
     );
@@ -256,7 +263,9 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
   );
 
   const vehicleAt = (pos: CellPos) =>
-    state.parkingVehicles.find(v => v.lot === pos.lot && v.zone === pos.zone && v.slot === pos.slot) ?? null;
+    state.parkingVehicles.find(
+      v => v.lot === pos.lot && v.zone === pos.zone && v.slot === pos.slot && (showSold || !v.soldDate),
+    ) ?? null;
 
   /**
    * 칸을 눌렀을 때.
@@ -413,7 +422,7 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
             >
               {g}
               <span className="ml-1 text-xs text-slate-400">
-                {state.parkingVehicles.filter(v => PARKING_LOTS.some(l => l.group === g && l.lot === v.lot)).length}
+                {state.parkingVehicles.filter(v => (showSold || !v.soldDate) && PARKING_LOTS.some(l => l.group === g && l.lot === v.lot)).length}
               </span>
             </button>
           ))}
@@ -425,7 +434,7 @@ export default function ParkingGrid({ onCellClick, onMoveError }: Props) {
           // 본관은 앞/뒤 두 대씩 겹쳐 대서 묶음 이름을 세로로 합쳐 보여준다.
           // 외부는 그냥 줄이 늘어서 있을 뿐이라 줄 이름을 그대로 적는다.
           const grouped = slots.length === 4 && slots[0] === '앞1';
-          const parked = state.parkingVehicles.filter(v => v.lot === lot).length;
+          const parked = state.parkingVehicles.filter(v => v.lot === lot && (showSold || !v.soldDate)).length;
           const isCollapsed = collapsed[lot] ?? false;
           return (
           <div key={lot} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">

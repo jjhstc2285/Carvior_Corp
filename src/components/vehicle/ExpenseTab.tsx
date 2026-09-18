@@ -8,6 +8,7 @@ import {
   VEHICLE_EXPENSE_MEMO_KINDS,
   VEHICLE_EXPENSE_MEMO_PLACEHOLDER,
   VEHICLE_USAGE_NOTE_LABEL,
+  type ManagedVehicle,
   type VehicleExpenseKind,
   type VehicleExpenseLog,
   type VehicleUsageNote,
@@ -57,14 +58,25 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
   const [month, setMonth] = useState('');
 
   // 뒤 4자리가 다 찍혔을 때만 찾는다. 이미 받아둔 목록에서 고르므로 입력 즉시 반응한다.
-  const matches = useMemo(
+  const found = useMemo(
     () => (tail.length === 4 ? vehicles.filter(v => v.plateTail === tail) : []),
     [tail, vehicles],
   );
 
+  /*
+    판 차는 후보에서 뺀다.
+
+    판매완료로 찍힌 차에 기름을 넣을 일은 없다. 4자리가 겹칠 때 판 차가 같이 떠서
+    엉뚱한 차에 비용이 붙는 일을 막는다 — 지난 기록은 그대로 남는다.
+  */
+  const isSold = (v: ManagedVehicle) => !!v.soldDate || !!v.releasePending;
+  const matches = useMemo(() => found.filter(v => !isSold(v)), [found]);
+  /** 4자리는 맞는데 판 차뿐일 때 — 왜 안 나오는지 알려준다 */
+  const soldOnly = found.length > 0 && matches.length === 0 ? found[0] : null;
+
   // 한 대뿐이면 그대로 쓰고, 여러 대면 선택박스에서 고른 차를 쓴다.
   const picked = matches.length === 1 ? matches[0] : (matches.find(v => v.id === selectedId) ?? null);
-  const notFound = tail.length === 4 && matches.length === 0;
+  const notFound = tail.length === 4 && found.length === 0;
 
   const changeTail = (value: string) => {
     setTail(value.replace(/\D/g, '').slice(0, 4));
@@ -217,6 +229,13 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
 
         {(notFound || formError) && (
           <p className="mt-2 text-xs font-medium text-red-500">{formError ?? PLATE_MESSAGE.notFound}</p>
+        )}
+        {/* 4자리는 맞는데 판 차뿐이다 — 왜 안 뜨는지 알려주지 않으면 번호를 다시 친다 */}
+        {soldOnly && !formError && (
+          <p className="mt-2 text-xs font-medium text-slate-500">
+            <b className="font-mono text-slate-700">{soldOnly.vehicleNumber}</b> {soldOnly.vehicleModel} 은(는){' '}
+            {soldOnly.soldDate ? `${soldOnly.soldDate} 매도` : '판매완료'}된 차라 비용을 적을 수 없습니다.
+          </p>
         )}
         {picked && !formError && (
           <p className="mt-2 text-xs text-slate-500">

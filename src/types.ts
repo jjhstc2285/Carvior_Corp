@@ -1007,6 +1007,8 @@ export const PARKING_STATUS_LABEL: Record<ParkingStatus, string> = {
 
 export interface ParkingVehicle {
   id: string;
+  /** 매도일자 — 적혀 있으면 차가 나간 것이라 주차장 화면에서 내린다 */
+  soldDate?: string | null;
   lot: string; // 주차장 (예: B4F-B05)
   zone: string; // 구역 (예: 9구역)
   slot: string; // 위치 (예: 앞 / 뒤)

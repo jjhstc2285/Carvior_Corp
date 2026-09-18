@@ -239,12 +239,13 @@ export class ParkingService {
    */
   private async withReinspection<T extends { vehicleNumber: string; lot?: string }>(rows: T[]) {
     if (rows.length === 0) {
-      return rows.map((r) => ({ ...r, transferDate: null, lastInspectedOn: null, reinspect: null }));
+      return rows.map((r) => ({ ...r, transferDate: null, lastInspectedOn: null, soldDate: null, reinspect: null }));
     }
 
     const vehicles = await this.prisma.managedVehicle.findMany({
       where: { vehicleNumber: { in: rows.map((r) => r.vehicleNumber) } },
-      select: { vehicleNumber: true, transferDate: true, lastInspectedOn: true },
+      // 매도일자도 같이 본다 — 나간 차는 주차장 화면에서 내린다
+      select: { vehicleNumber: true, transferDate: true, lastInspectedOn: true, soldDate: true },
     });
     // 띄어쓰기가 섞여 들어온 번호가 남아 있어 양쪽을 같은 모양으로 맞춰 짝짓는다.
     const dateOf = new Map(
@@ -253,13 +254,18 @@ export class ParkingService {
         {
           transferDate: formatDateOnlyOrNull(v.transferDate),
           lastInspectedOn: formatDateOnlyOrNull(v.lastInspectedOn),
+          soldDate: formatDateOnlyOrNull(v.soldDate),
         },
       ]),
     );
 
     const today = todayKst();
     return rows.map((r) => {
-      const dates = dateOf.get(normalizePlate(r.vehicleNumber)) ?? { transferDate: null, lastInspectedOn: null };
+      const dates = dateOf.get(normalizePlate(r.vehicleNumber)) ?? {
+        transferDate: null,
+        lastInspectedOn: null,
+        soldDate: null,
+      };
       // 지하 2층에 둔 차는 재검을 안 센다. 날짜는 그대로 붙여 준다 — 언제 이전했는지는 봐야 한다.
       const reinspect = isReinspectExemptLot(r.lot) ? null : reinspectionOf(reinspectBaseOf(dates), today);
       // 재검을 받았으면 그날부터 다시 넉 달을 센다
@@ -317,6 +323,8 @@ export class ParkingService {
     });
     const withDates = await this.withReinspection(rows);
     return withDates
+      // 판 차는 재검받을 이유가 없다 — 알림에도 안 넣는다
+      .filter((r) => !r.soldDate)
       .filter((r): r is (typeof withDates)[number] & { reinspect: Reinspection } => r.reinspect !== null)
       .sort((a, b) => a.reinspect.daysLeft - b.reinspect.daysLeft);
   }
