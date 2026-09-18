@@ -62,21 +62,21 @@ export default function ClockCard() {
   const record = state.records.find(r => r.employeeId === employee.id && r.date === today);
 
   /*
-    관리자와 사무장은 자리·네트워크를 안 따진다.
+    IP 안내는 관리자에게 띄우지 않는다.
 
-    밖에서 일하는 시간이 길어서 — 현장에 나갔다가 바로 퇴근하거나, 사무실에 들르기 전에
-    다른 데부터 간다 — 사무실 WiFi 에서만 찍게 하면 찍을 방법이 없다. 서버도 같은 사람을
-    풀어 주므로(attendance.service PLACE_EXEMPT_POSITIONS) 여기서 막을 이유가 없다.
+    허용 IP 목록은 관리자만 받아 간다 — 다른 사람 화면에는 애초에 빈 목록이라 이 안내가
+    뜨지 않는다. 그래서 여기서 가릴 건 관리자 한 경우뿐이고, 누가 실제로 찍을 수 있는지는
+    서버가 정한다. 화면이 들고 판단하면 목록을 들고 있는 사람에게만 다르게 보인다.
   */
-  const placeExempt = employee.role === 'ADMIN' || (employee.position ?? '').includes('사무장');
+  const isAdmin = employee.role === 'ADMIN';
 
-  const whitelistEnabled = state.ipWhitelist.length > 0 && !placeExempt;
+  const whitelistEnabled = state.ipWhitelist.length > 0 && !isAdmin;
   const ipAllowed = !whitelistEnabled || (!!ip && state.ipWhitelist.includes(ip));
 
   const clockedIn = !!record?.clockIn;
   const clockedOut = !!record?.clockOut;
 
-  const canClockIn = !clockedIn && (placeExempt || (!ipLoading && ipAllowed));
+  const canClockIn = !clockedIn && (isAdmin || (!ipLoading && ipAllowed));
   const canClockOut = clockedIn && !clockedOut;
 
   const nowMin = toMinutes(dayjs().format('HH:mm'));
