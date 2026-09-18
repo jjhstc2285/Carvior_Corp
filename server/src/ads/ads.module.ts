@@ -39,8 +39,10 @@ export class CreateAdContractDto {
   @IsString() @IsNotEmpty({ message: '플랫폼을 입력해 주세요.' }) @MaxLength(30) platform!: string;
   @IsOptional() @IsString() @MaxLength(60) productName?: string;
 
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) monthlyFee?: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) monthlyQuota?: number;
+  /** 대당 금액 — 22만원 상품이면 220000 */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) unitFee?: number;
+  @IsOptional() @IsString() @MaxLength(4) quotaCycle?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) quotaCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) months?: number;
 
   @Matches(DATE_PATTERN, { message: '시작일은 YYYY-MM-DD 형식이어야 합니다.' }) startOn!: string;
@@ -61,8 +63,12 @@ export class AddPostingDto {
 
 // ── Service ──────────────────────────────
 
-/** 계약 끝이 이만큼 남았을 때부터 못 쓴 대수를 알린다 */
-const WARN_DAYS = 7;
+/**
+ * 약정 주기 마감이 이만큼 남았을 때부터 모자란 대수를 알린다.
+ *
+ * 분기에 90대짜리 약정은 일주일 전에 알려 봐야 손쓸 수가 없다 — 2주는 줘야 한다.
+ */
+const WARN_DAYS = 14;
 
 @Injectable()
 export class AdsService {
@@ -92,13 +98,14 @@ export class AdsService {
   }
 
   async create(dto: CreateAdContractDto) {
-    const months = dto.months ?? 1;
+    const months = dto.months ?? 12;
     const row = await this.prisma.adContract.create({
       data: {
         platform: dto.platform.trim(),
         productName: dto.productName?.trim() ?? '',
-        monthlyFee: dto.monthlyFee ?? 0,
-        monthlyQuota: dto.monthlyQuota ?? 0,
+        unitFee: dto.unitFee ?? 0,
+        quotaCycle: dto.quotaCycle?.trim() || '분기',
+        quotaCount: dto.quotaCount ?? 0,
         months,
         startOn: toDateOnly(dto.startOn),
         endOn: this.endOf(dto.startOn, months),
@@ -123,8 +130,9 @@ export class AdsService {
       data: {
         ...(dto.platform !== undefined ? { platform: dto.platform.trim() } : {}),
         ...(dto.productName !== undefined ? { productName: dto.productName.trim() } : {}),
-        ...(dto.monthlyFee !== undefined ? { monthlyFee: dto.monthlyFee } : {}),
-        ...(dto.monthlyQuota !== undefined ? { monthlyQuota: dto.monthlyQuota } : {}),
+        ...(dto.unitFee !== undefined ? { unitFee: dto.unitFee } : {}),
+        ...(dto.quotaCycle !== undefined ? { quotaCycle: dto.quotaCycle.trim() } : {}),
+        ...(dto.quotaCount !== undefined ? { quotaCount: dto.quotaCount } : {}),
         ...(dto.note !== undefined ? { note: dto.note.trim() } : {}),
         ...(dto.active !== undefined ? { active: dto.active } : {}),
         ...(dto.startOn !== undefined || dto.months !== undefined
@@ -175,17 +183,73 @@ export class AdsService {
   }
 
   /**
+   * 계약 기간을 약정 주기로 끊는다.
+   *
+   * 분기 약정은 달력 분기로 센다 — "1~4분기별 90대"는 1~3월, 4~6월… 을 말한다.
+   * 계약 시작이 분기 중간이어도 그 분기 하나로 본다. 약정이 없는 상품은 달로 끊어
+   * 돈만 센다 — 대수는 안 따져도 얼마 나갔는지는 봐야 한다.
+   */
+  private periodsOf(
+    quotaCycle: string,
+    quotaCount: number,
+    unitFee: number,
+    startOn: string,
+    endOn: string,
+    postings: { postedOn: string }[],
+  ) {
+    const byQuarter = quotaCycle === '분기';
+    const step = byQuarter ? 3 : 1;
+
+    let year = Number(startOn.slice(0, 4));
+    // 분기면 그 분기의 첫 달로 내린다 — 5월 시작이면 4월부터가 2분기다
+    let month = byQuarter ? Math.floor((Number(startOn.slice(5, 7)) - 1) / 3) * 3 + 1 : Number(startOn.slice(5, 7));
+
+    const out: { label: string; from: string; to: string; quota: number; count: number; fee: number; shortfall: number }[] = [];
+    // 10년치를 넘기면 어딘가 잘못된 것이다 — 무한히 돌지 않게 막는다
+    for (let guard = 0; guard < 120; guard += 1) {
+      const from = `${year}-${String(month).padStart(2, '0')}-01`;
+      if (from > endOn) break;
+
+      let nextYear = year;
+      let nextMonth = month + step;
+      if (nextMonth > 12) {
+        nextYear += 1;
+        nextMonth -= 12;
+      }
+      const to = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+
+      const count = postings.filter((x) => x.postedOn >= from && x.postedOn < to).length;
+      const quota = quotaCycle === '없음' ? 0 : quotaCount;
+      out.push({
+        label: byQuarter ? `${year}년 ${Math.floor((month - 1) / 3) + 1}분기` : `${year}년 ${month}월`,
+        from,
+        to,
+        quota,
+        count,
+        /** 대당 금액 × 찍은 대수 — 정액이 아니라 쓴 만큼 나간다 */
+        fee: unitFee * count,
+        shortfall: quota > 0 ? Math.max(0, quota - count) : 0,
+      });
+
+      year = nextYear;
+      month = nextMonth;
+    }
+    return out;
+  }
+
+  /**
    * 계약 한 건의 진행 상황.
    *
-   * 남은 대수만 보여주면 '아직 여유 있네' 하고 넘어간다. 남은 기간으로 나눠
-   * '하루에 몇 대를 올려야 하는지'까지 알려줘야 움직인다.
+   * 남은 대수만 보여주면 '아직 여유 있네' 하고 넘어간다. 주기 마감까지 남은 날로 나눠
+   * '하루에 몇 대를 찍어야 하는지'까지 알려줘야 움직인다.
    */
   private toView(row: {
     id: string;
     platform: string;
     productName: string;
-    monthlyFee: number;
-    monthlyQuota: number;
+    unitFee: number;
+    quotaCycle: string;
+    quotaCount: number;
     months: number;
     startOn: Date;
     endOn: Date;
@@ -194,57 +258,48 @@ export class AdsService {
     postings?: { id: string; vehicleNumber: string; postedOn: Date; auto: boolean; memo: string }[];
   }) {
     const postings = (row.postings ?? []).map((p) => ({ ...p, postedOn: formatDateOnly(p.postedOn) }));
+    const startOn = formatDateOnly(row.startOn);
+    const endOn = formatDateOnly(row.endOn);
+    const today = todayKst();
 
-    const totalQuota = row.monthlyQuota * row.months;
+    const periods = this.periodsOf(row.quotaCycle, row.quotaCount, row.unitFee, startOn, endOn, postings);
+
     const used = postings.length;
-    const today = new Date(`${todayKst()}T00:00:00.000Z`);
-    const daysLeft = Math.max(0, Math.ceil((row.endOn.getTime() - today.getTime()) / 86_400_000));
-
-    const remaining = Math.max(0, totalQuota - used);
-    // 계약이 끝났으면 남은 대수가 곧 날아간 돈이다.
-    const wastedFee = daysLeft === 0 && totalQuota > 0
-      ? Math.round((row.monthlyFee * row.months * remaining) / totalQuota)
-      : 0;
+    const daysLeft = Math.max(0, Math.ceil((row.endOn.getTime() - new Date(`${today}T00:00:00.000Z`).getTime()) / 86_400_000));
 
     /*
-     * 월별로 접는다 — "9월에 몇 건 하고 광고비 얼마 썼나"가 실제로 보는 단위다.
-     * 계약이 달 중간에 시작해도 시작일 기준으로 한 달씩 끊는다(9/15 시작이면 9/15~10/14).
-     */
-    const monthly = Array.from({ length: row.months }, (_, i) => {
-      const from = new Date(row.startOn);
-      from.setUTCMonth(from.getUTCMonth() + i);
-      const to = new Date(row.startOn);
-      to.setUTCMonth(to.getUTCMonth() + i + 1);
-
-      const fromStr = formatDateOnly(from);
-      const toStr = formatDateOnly(to);
-      const count = postings.filter((p) => p.postedOn >= fromStr && p.postedOn < toStr).length;
-
-      return {
-        label: `${from.getUTCFullYear()}년 ${from.getUTCMonth() + 1}월`,
-        from: fromStr,
-        quota: row.monthlyQuota,
-        count,
-        fee: row.monthlyFee,
-        /** 그 달에 못 쓴 건수만큼의 광고비 */
-        wasted: row.monthlyQuota > 0 ? Math.round((row.monthlyFee * Math.max(0, row.monthlyQuota - count)) / row.monthlyQuota) : 0,
-      };
-    });
+      지금이 어느 주기인가 — 이번 분기에 몇 대 남았는지가 실제로 보는 값이다.
+      계약이 끝났거나 아직 시작 안 했으면 없다.
+    */
+    const cur = periods.find((x) => x.from <= today && today < x.to && startOn <= today && today <= endOn) ?? null;
+    const curEnd = cur ? new Date(`${cur.to}T00:00:00.000Z`).getTime() : 0;
+    // 주기 마감과 계약 마감 중 먼저 오는 쪽까지가 남은 날이다
+    const curDaysLeft = cur
+      ? Math.max(0, Math.min(Math.ceil((curEnd - new Date(`${today}T00:00:00.000Z`).getTime()) / 86_400_000), daysLeft))
+      : 0;
 
     return {
       ...row,
-      startOn: formatDateOnly(row.startOn),
-      endOn: formatDateOnly(row.endOn),
+      startOn,
+      endOn,
       postings,
-      monthly,
-      totalQuota,
+      periods,
       used,
-      remaining,
       daysLeft,
-      /** 남은 기간에 하루 몇 대를 올려야 다 쓰는지 */
-      perDayNeeded: daysLeft > 0 ? Math.ceil(remaining / daysLeft) : remaining,
-      totalFee: row.monthlyFee * row.months,
-      wastedFee,
+      /** 지금까지 실제로 나간 돈 — 대당 금액 × 찍은 대수 */
+      totalFee: row.unitFee * used,
+      current: cur
+        ? {
+            label: cur.label,
+            quota: cur.quota,
+            count: cur.count,
+            fee: cur.fee,
+            remaining: cur.shortfall,
+            daysLeft: curDaysLeft,
+            /** 남은 날에 하루 몇 대를 찍어야 약정을 채우는지 */
+            perDayNeeded: curDaysLeft > 0 ? Math.ceil(cur.shortfall / curDaysLeft) : cur.shortfall,
+          }
+        : null,
     };
   }
 
@@ -256,7 +311,8 @@ export class AdsService {
    */
   async notifyShortfall(today: string): Promise<{ count: number }> {
     const contracts = await this.findAll(false);
-    const due = contracts.filter((c) => c.remaining > 0 && c.daysLeft <= WARN_DAYS);
+    // 이번 주기(분기)가 얼마 안 남았는데 약정 대수가 모자란 것
+    const due = contracts.filter((c) => c.current && c.current.remaining > 0 && c.current.daysLeft <= WARN_DAYS);
     if (due.length === 0) return { count: 0 };
 
     const watchers = await this.prisma.employee.findMany({
@@ -266,12 +322,11 @@ export class AdsService {
     if (watchers.length === 0) return { count: 0 };
     const ids = watchers.map((w) => w.id);
 
-    const lines = due.map(
-      (c) =>
-        `${c.platform} ${c.productName || ''} ${c.used}/${c.totalQuota}대 — ${c.remaining}대 남음 (${c.daysLeft}일 남음, 하루 ${c.perDayNeeded}대)`.replace(
-          /\s+/g,
-          ' ',
-        ),
+    const lines = due.map((c) =>
+      `${c.platform} ${c.productName || ''} ${c.current?.label} ${c.current?.count}/${c.current?.quota}대 — ${c.current?.remaining}대 남음 (${c.current?.daysLeft}일 남음, 하루 ${c.current?.perDayNeeded}대)`.replace(
+        /\s+/g,
+        ' ',
+      ),
     );
     const message = `광고 약정 소진 확인 — ${lines.join(' / ')}`;
 

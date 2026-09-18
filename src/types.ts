@@ -113,8 +113,8 @@ export type NotificationType =
 /**
  * 광고 계약.
  *
- * 광고 상품은 '월 몇 대'로 팔린다 — 22만원짜리가 월 30대, 3개월이면 90대다.
- * 약정 대수를 다 못 쓰면 그만큼 돈이 날아간다.
+ * 광고 상품은 '대당 얼마'로 팔린다 — 22만원 상품은 한 대 찍을 때마다 22만원이다.
+ * 22만원 상품에는 분기마다 90대를 찍어야 하는 약정이 붙고, 10만원 상품은 대수 제약이 없다.
  * 금액은 원 단위다(22만원처럼 만원으로 안 떨어지는 경우가 있다).
  */
 export interface AdPosting {
@@ -139,7 +139,6 @@ export const AD_SPEND_CHANNELS = [
 
 export const AD_SPEND_STATUSES = ['신규', '유지', '중지', '종료'] as const;
 
-/** 월별 광고비 — 엔카·차차차 약정 외 광고에 그 달 쓴 돈(원) */
 /** 광고 운영 현황 메모 — 대행사 주차별 보고처럼 여러 줄짜리 글 */
 export interface AdReport {
   id: string;
@@ -152,6 +151,7 @@ export interface AdReport {
   updatedAt: string;
 }
 
+/** 월별 광고비 — 엔카·차차차 약정 외 광고에 그 달 쓴 돈(원) */
 export interface AdSpend {
   id: string;
   month: string; // YYYY-MM
@@ -168,35 +168,43 @@ export interface AdContract {
   id: string;
   platform: string;
   productName: string;
-  monthlyFee: number; // 원
-  monthlyQuota: number; // 월 약정 대수
+  /** 대당 금액(원) — 22만원 상품이면 220,000. 찍은 대수만큼 나간다 */
+  unitFee: number;
+  /** 약정 주기 — 분기 / 월 / 없음(대수 제약 없는 상품) */
+  quotaCycle: '분기' | '월' | '없음';
+  /** 그 주기에 찍어야 하는 대수 — 분기 90 */
+  quotaCount: number;
   months: number;
   startOn: string;
   endOn: string;
   note: string;
   active: boolean;
   postings: AdPosting[];
-  /** 월별 집계 — "9월에 몇 건 하고 광고비 얼마 썼나" */
-  monthly: {
-    label: string; // "2026년 9월"
+
+  // ── 서버가 계산해 내려주는 값 (저장하지 않는다) ──
+  /** 주기별 집계 — 분기 약정이면 달력 분기로 끊는다 */
+  periods: {
+    label: string; // "2026년 3분기"
     from: string;
+    to: string; // 다음 주기 첫날 (이 날은 안 들어간다)
+    quota: number; // 0이면 대수 제약 없음
+    count: number;
+    fee: number; // 대당 금액 × 찍은 대수
+    shortfall: number; // 모자란 대수
+  }[];
+  used: number; // 계약 전체로 찍은 대수
+  daysLeft: number; // 계약 마감까지
+  totalFee: number; // 대당 금액 × 찍은 대수
+  /** 오늘이 들어 있는 주기. 계약이 끝났거나 아직 시작 전이면 null */
+  current: {
+    label: string;
     quota: number;
     count: number;
     fee: number;
-    /** 그 달에 못 쓴 건수만큼의 광고비 */
-    wasted: number;
-  }[];
-
-  // ── 서버가 계산해 내려주는 값 (저장하지 않는다) ──
-  totalQuota: number; // 월 대수 × 개월
-  used: number;
-  remaining: number;
-  daysLeft: number;
-  /** 남은 기간에 하루 몇 대를 올려야 다 쓰는지 */
-  perDayNeeded: number;
-  totalFee: number;
-  /** 기간이 끝났는데 못 쓴 대수만큼의 광고비 */
-  wastedFee: number;
+    remaining: number;
+    daysLeft: number;
+    perDayNeeded: number;
+  } | null;
 }
 
 /** 결재 문서 종류. 지금은 시말서 하나지만 휴가원·지출결의서처럼 늘어난다. */

@@ -289,9 +289,20 @@ model AdContract {
   platform    String @db.VarChar(30) // 엔카 / KB차차차 …
   productName String @default("") @db.VarChar(60) // "22만원 상품"
 
-  monthlyFee   Int @default(0) // 월 광고비(원)
-  monthlyQuota Int @default(0) // 월 약정 대수
-  months       Int @default(1) // 계약 개월 수
+  /**
+   * 대당 얼마짜리 상품인가. 22만원 상품이면 한 대 올릴 때마다 22만원이다 —
+   * 달마다 정액으로 나가는 게 아니라 찍은 대수만큼 나간다.
+   */
+  unitFee Int @default(0)
+
+  /**
+   * 약정. 22만원 상품은 분기마다 90대를 찍어야 하고, 10만원 상품은 대수 제약이 없다.
+   * 제약이 없으면 quotaCycle 을 '없음'으로 두고 돈만 센다.
+   */
+  quotaCycle String @default("분기") @db.VarChar(4) // 분기 / 월 / 없음
+  quotaCount Int    @default(0) // 그 주기에 찍어야 하는 대수 — 분기 90
+
+  months Int @default(12) // 계약 개월 수
 
   startOn DateTime @db.Date
   endOn   DateTime @db.Date // 시작일 + 개월 수. 계약마다 마감이 달라 따로 둔다
