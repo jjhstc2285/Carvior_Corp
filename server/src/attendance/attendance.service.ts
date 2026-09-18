@@ -39,6 +39,9 @@ function hashDeviceToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+/** 자리·네트워크 제한을 안 거는 직책 — 관리자(ADMIN)는 직책과 무관하게 함께 풀린다 */
+const PLACE_EXEMPT_POSITIONS = ['사무장'];
+
 @Injectable()
 export class AttendanceService {
   constructor(
@@ -98,8 +101,28 @@ export class AttendanceService {
    * 허용 조건은 IP와 단말 두 가지이고, 등록된 것만 검사한다(둘 다 비어 있으면 제한 없음).
    */
   async clockIn(employeeId: string, clientIp: string, deviceToken?: string, fingerprint?: string) {
-    await this.assertClockInAllowed(clientIp, deviceToken, fingerprint);
+    if (!(await this.isPlaceExempt(employeeId))) {
+      await this.assertClockInAllowed(clientIp, deviceToken, fingerprint);
+    }
     return this.recordClockIn(employeeId);
+  }
+
+  /**
+   * 자리·네트워크를 안 따지는 사람.
+   *
+   * 관리자와 사무장은 밖에서 일하는 시간이 길다 — 현장에 나갔다가 바로 퇴근하거나,
+   * 사무실에 들르기 전에 다른 데부터 간다. 그런 사람에게 '사무실 PC에서만 찍기'를
+   * 걸면 찍을 방법이 없어서 매번 정정 요청을 받게 된다.
+   *
+   * 자리에서 안 찍는 게 문제면 그건 제한이 아니라 기록을 보고 말할 일이다.
+   */
+  private async isPlaceExempt(employeeId: string): Promise<boolean> {
+    const me = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { role: true, position: true },
+    });
+    if (!me) return false;
+    return me.role === Role.ADMIN || PLACE_EXEMPT_POSITIONS.some((p) => (me.position ?? '').includes(p));
   }
 
   /**

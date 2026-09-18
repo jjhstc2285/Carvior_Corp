@@ -39,6 +39,9 @@ export default function IpWhitelistSettings() {
       <div className="px-5 py-4">
         <p className="text-xs leading-relaxed text-slate-400">
           목록이 비어있으면 모든 IP에서 출근 등록이 가능합니다. IP를 하나라도 추가하면 목록에 없는 IP에서는 출근이 거부돼요.
+          <br />
+          <strong className="font-semibold text-slate-500">관리자와 사무장은 이 제한을 안 받습니다</strong> — 밖에서 일하는
+          시간이 길어 사무실에서만 찍게 하면 찍을 방법이 없습니다.
           판단은 서버가 요청의 실제 소스 IP로 합니다(Apache 뒤라 X-Forwarded-For를 봅니다).
           <br />
           ⚠️ IP는 <strong className="font-semibold text-slate-500">사무실 네트워크까지만</strong> 가릅니다 — 같은 WiFi를 쓰는 휴대폰도
