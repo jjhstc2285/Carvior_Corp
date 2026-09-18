@@ -12,13 +12,14 @@ type TabKey = 'policy' | 'expense';
   매입 관리 화면을 보고 있다. 상품화는 그리로 옮겼다(매입 등록 → 실차 검차 완료).
   외부 이동 금지는 주차 배치에서만 쓰는 값이라 주차 배치 기준으로 옮겼다.
 */
+/* 주유·배터리가 앞이다 — 하루에도 몇 번 적는 건 이쪽이고, 배치 기준은 가끔 고친다 */
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'policy', label: '주차 배치 기준' },
   { key: 'expense', label: '주유 · 배터리 비용' },
+  { key: 'policy', label: '주차 배치 기준' },
 ];
 
 export default function VehicleModule() {
-  const [tab, setTab] = useState<TabKey>('policy');
+  const [tab, setTab] = useState<TabKey>('expense');
   const api = useVehicles();
 
   return (
