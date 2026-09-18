@@ -152,7 +152,7 @@ export default function PropertyCostModal({
               직접 내는 돈 {(total - auto).toLocaleString()}원
             </span>
           )}
-          <span className="ml-auto flex flex-wrap gap-1">
+          <span className="ml-auto flex flex-wrap items-center gap-1">
             {kinds.map(k => (
               <button
                 key={k}
@@ -162,8 +162,21 @@ export default function PropertyCostModal({
                 <Plus size={11} /> {k}
               </button>
             ))}
+            {/* 목록에 없는 것도 넣는다 — 빈 줄을 만들고 이름은 표에서 친다 */}
+            <button
+              onClick={() => void addRow('새 항목')}
+              className="flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-indigo-700"
+            >
+              <Plus size={12} /> 직접 추가
+            </button>
           </span>
         </div>
+
+        <datalist id="property-cost-kinds">
+          {[...new Set([...kinds, ...rows.map(r => r.kind)])].filter(Boolean).map(k => (
+            <option key={k} value={k} />
+          ))}
+        </datalist>
 
         <div className="mt-3 max-h-[55vh] overflow-auto rounded-xl border border-slate-200">
           <table className="w-full min-w-[1180px] text-sm">
@@ -202,19 +215,22 @@ export default function PropertyCostModal({
                       <Trash2 size={13} />
                     </button>
                   </td>
+                  {/*
+                    고르게만 두면 목록에 없는 건 못 적는다 — 엘리베이터 점검료, 청소 용역,
+                    CCTV 처럼 나가는 건 끝이 없다. 직접 치고, 자주 쓰는 건 아래 목록에서 고른다.
+                  */}
                   <td className="px-3 py-2">
-                    <select
-                      value={r.kind}
-                      onChange={e => void patch(r, { kind: e.target.value })}
+                    <input
+                      defaultValue={r.kind}
+                      onBlur={e => {
+                        const next = e.target.value.trim();
+                        if (next && next !== r.kind) void patch(r, { kind: next });
+                      }}
+                      list="property-cost-kinds"
                       disabled={busyId === r.id}
-                      className={`${INPUT} w-28`}
-                    >
-                      {[...new Set([...kinds, r.kind].filter(Boolean))].map(k => (
-                        <option key={k} value={k}>
-                          {k}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="항목 이름"
+                      className={`${INPUT} w-32`}
+                    />
                   </td>
                   {/* 대수가 오르내리는 건 단가·대수로 둔다 — 대수만 고치면 금액이 따라간다 */}
                   <td className="px-3 py-2">
