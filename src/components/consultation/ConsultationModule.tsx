@@ -8,10 +8,12 @@ import {
   type ConsultationKind,
   type ConsultationRecord,
   type ConsultationStatus,
+  type ManagedVehicle,
 } from '../../types';
 import ConsultationForm from './ConsultationForm';
 import PriceCheckModal from '../price/PriceCheckModal';
 import CustomerHistoryModal from './CustomerHistoryModal';
+import SellableVehicles from './SellableVehicles';
 import ConsultationDetailModal from './ConsultationDetailModal';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
@@ -184,6 +186,12 @@ export default function ConsultationModule({ role, kind }: Props) {
    * 세는 규칙은 lib/consultationStats.ts 한 곳에 있다:
    * 계약 = 계약 + 판매완료 · 보류는 계약이 아니고 · 종결은 모수에서 뺀다.
    */
+  // 이미 상담이 등록된 차는 흐리게 보여준다(막지는 않는다 — 같은 차에 문의가 여러 번 온다)
+  const consultedNumbers = useMemo(
+    () => new Set(state.consultations.filter(c => c.kind === kind).map(c => c.vehicleNumber)),
+    [state.consultations, kind],
+  );
+
   const staffStats = useMemo(() => {
     if (role !== 'ADMIN') return [];
     return state.employees
@@ -219,6 +227,18 @@ export default function ConsultationModule({ role, kind }: Props) {
         </button>
         </div>
       </div>
+
+      {/* 상품화된 차를 눌러 그 차로 상담을 연다 — 차량번호를 옮겨 치지 않게 */}
+      {kind === 'BROKERAGE' && (
+        <SellableVehicles
+          consultedNumbers={consultedNumbers}
+          onStart={(v: ManagedVehicle) => {
+            setEditing(null);
+            setPreset({ vehicleNumber: v.vehicleNumber, vehicleName: v.vehicleModel });
+            setFormOpen(true);
+          }}
+        />
+      )}
 
       {role === 'ADMIN' && staffStats.length > 0 && (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
