@@ -11,7 +11,15 @@ import { api, ApiError } from '../../lib/api';
  *
  * 그동안 이 기록은 그 앱 안에만 있어서, 차가 지금 나가 있는지 물어보려면 휴대폰으로 그
  * 앱을 열어야 했다. 여기서 같이 본다. 읽기만 한다.
+ *
+ * 색으로 가른다 — 목록을 읽지 않고 색만 봐도 급한 게 보여야 한다.
+ *  - 초록: 돌려받음
+ *  - 주황: 빌려갔고 아직 두 시간이 안 지남 — 정상이다
+ *  - 빨강: 두 시간이 지났는데 안 들어옴. 시승이 두 시간을 넘길 일이 없다
  */
+
+/** 이 시간을 넘겨 안 들어오면 빨강 */
+const OVERDUE_HOURS = 2;
 
 interface KeyRow {
   id: string;
@@ -61,9 +69,32 @@ export default function KeyDispatchPanel() {
     void load();
   }, [load]);
 
-  const rows = (view?.rows ?? []).filter(r => !outOnly || !r.returned);
+  /*
+    지금 시각으로 가른다. 서버에서 한 번 계산해 내려주면 화면을 열어둔 동안 색이 안 바뀐다 —
+    두 시간이 지나는 걸 봐야 하는 자리라 볼 때마다 다시 센다.
+  */
+  const mark = (r: KeyRow): 'back' | 'out' | 'late' => {
+    if (r.returned) return 'back';
+    const hours = r.at ? dayjs().diff(dayjs(r.at), 'minute') / 60 : 0;
+    return hours >= OVERDUE_HOURS ? 'late' : 'out';
+  };
+
+  const all = view?.rows ?? [];
+  const late = all.filter(r => mark(r) === 'late').length;
+  const out = all.filter(r => mark(r) === 'out').length;
+
+  const rows = all.filter(r => !outOnly || !r.returned);
   const today = dayjs().format('YYYY-MM-DD');
-  const todayCount = (view?.rows ?? []).filter(r => r.at.slice(0, 10) === today).length;
+  const todayCount = all.filter(r => r.at.slice(0, 10) === today).length;
+
+  /** 얼마나 지났는지 — '3시간 20분째' */
+  const elapsed = (at: string) => {
+    if (!at) return '';
+    const m = dayjs().diff(dayjs(at), 'minute');
+    if (m < 60) return `${m}분째`;
+    const h = Math.floor(m / 60);
+    return m % 60 === 0 ? `${h}시간째` : `${h}시간 ${m % 60}분째`;
+  };
 
   return (
     <section className="mb-5 rounded-2xl border border-slate-200 bg-white">
@@ -76,12 +107,19 @@ export default function KeyDispatchPanel() {
         )}
         {view?.summary && (
           <>
-            {view.summary.out > 0 ? (
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">
-                안 돌아온 키 {view.summary.out}개
+            {/* 두 시간 넘긴 것부터 — 이게 이 화면을 여는 이유다 */}
+            {late > 0 && (
+              <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                안 들어온 키 {late}개
               </span>
-            ) : (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+            )}
+            {out > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                빌려간 키 {out}개
+              </span>
+            )}
+            {late === 0 && out === 0 && (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
                 다 반납됨
               </span>
             )}
@@ -107,6 +145,9 @@ export default function KeyDispatchPanel() {
           <p className="mb-3 text-xs text-slate-500">
             방문 딜러가 QR 로 키를 가져간 기록입니다. 그 앱을 <b>읽기만</b> 합니다 — 여기서 반납 처리는 안 됩니다.
             차량번호는 뒤 4자리로 적혀 있어, 우리 재고와 <b>하나로 붙는 것만</b> 전체 번호를 같이 보여줍니다.
+            <br />
+            빌려간 키는 <b className="text-amber-700">주황</b>, <b>두 시간</b>이 지나도 안 들어오면{' '}
+            <b className="text-red-600">빨강</b>, 돌려받으면 <b className="text-emerald-700">초록</b>입니다.
           </p>
 
           {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{error}</p>}
@@ -124,9 +165,20 @@ export default function KeyDispatchPanel() {
                       : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                   }`}
                 >
-                  안 돌아온 키만 {view.summary.out}
+                  아직 안 들어온 키만 {late + out}
                 </button>
                 <span className="text-xs text-slate-400">전체 {view.summary.total}건</span>
+                <span className="ml-auto flex items-center gap-2 text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <i className="inline-block size-2.5 rounded-sm bg-red-600" /> 두 시간 넘김
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <i className="inline-block size-2.5 rounded-sm bg-amber-400" /> 빌려감
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <i className="inline-block size-2.5 rounded-sm bg-emerald-500" /> 반납
+                  </span>
+                </span>
               </div>
 
               {rows.length === 0 ? (
@@ -150,8 +202,15 @@ export default function KeyDispatchPanel() {
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(r => (
-                        <tr key={r.id} className={`border-b border-slate-50 last:border-0 ${r.returned ? '' : 'bg-amber-50/40'}`}>
+                      {rows.map(r => {
+                        const state = mark(r);
+                        return (
+                        <tr
+                          key={r.id}
+                          className={`border-b border-slate-50 last:border-0 ${
+                            state === 'late' ? 'bg-red-50/70' : state === 'out' ? 'bg-amber-50/50' : ''
+                          }`}
+                        >
                           <td className="whitespace-nowrap px-3 py-2 text-slate-500">
                             {r.at ? dayjs(r.at).format('M/D HH:mm') : '-'}
                           </td>
@@ -188,18 +247,28 @@ export default function KeyDispatchPanel() {
                             )}
                           </td>
                           <td className="px-3 py-2 text-slate-500">{r.loc || '-'}</td>
+                          {/* 재검과 같은 방식 — 색 상자 하나로 급한 것이 보이게 */}
                           <td className="whitespace-nowrap px-3 py-2">
-                            {r.returned ? (
-                              <span className="text-emerald-700">반납{r.returnLoc && ` · ${r.returnLoc}`}</span>
+                            {state === 'back' ? (
+                              <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+                                반납{r.returnLoc && ` · ${r.returnLoc}`}
+                              </span>
+                            ) : state === 'out' ? (
+                              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800">
+                                빌려감 · {elapsed(r.at)}
+                              </span>
                             ) : (
-                              <span className="font-bold text-amber-700">나가 있음</span>
+                              <span className="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                                안 들어옴 · {elapsed(r.at)}
+                              </span>
                             )}
                           </td>
                           <td className="max-w-[12rem] truncate px-3 py-2 text-slate-500" title={r.memo}>
                             {r.memo || '-'}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

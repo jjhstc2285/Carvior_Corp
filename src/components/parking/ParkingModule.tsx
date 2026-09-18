@@ -7,7 +7,6 @@ import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
 import SheetImportModal from './SheetImportModal';
 import MoveSuggestions from './MoveSuggestions';
-import ParkBoardPanel from './ParkBoardPanel';
 import KeyDispatchPanel from './KeyDispatchPanel';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { PARKING_LOTS } from '../../lib/parkingLayout';
@@ -224,9 +223,6 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
 
       {/* 방문 딜러가 QR 로 키를 가져간 기록 — 지금 나가 있는 차가 어느 것인지 */}
       <KeyDispatchPanel />
-
-      {/* 현장 현황판 앱을 읽어 우리 재고와 맞춰본다 — 같은 차를 두 군데 적고 있다 */}
-      <ParkBoardPanel />
 
       {view === 'grid' ? (
         <ParkingGrid onCellClick={handleCellClick} onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)} />
