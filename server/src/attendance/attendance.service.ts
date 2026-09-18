@@ -125,17 +125,6 @@ export class AttendanceService {
     return me.role === Role.ADMIN || PLACE_EXEMPT_POSITIONS.some((p) => (me.position ?? '').includes(p));
   }
 
-  /**
-   * 관리자가 대신 찍어 준다.
-   *
-   * 사무실 한 대에서 전 직원 출퇴근을 찍는 자리가 필요하다 — 계정이 없는 사람도 있고,
-   * 휴대폰을 안 들고 오는 사람도 있다. 단말·네트워크 확인은 건너뛴다. 관리자가 자기
-   * PC에서 누르는 것이라 그 확인이 뜻이 없다.
-   */
-  async clockInFor(employeeId: string) {
-    return this.recordClockIn(employeeId);
-  }
-
   private async recordClockIn(employeeId: string) {
     const date = toDateOnly(todayKst());
     const existing = await this.prisma.attendanceRecord.findUnique({

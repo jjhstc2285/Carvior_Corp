@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import ApprovalInbox from './ApprovalInbox';
 import SignupApprovals from './SignupApprovals';
 import AttendanceRequestInbox from './AttendanceRequestInbox';
-import TeamClockBoard from './TeamClockBoard';
+import ClockCard from './ClockCard';
 import StatusBar from './StatusBar';
 import SettlementApprovalInbox from './settlement/SettlementApprovalInbox';
 import MonthlyDashboard from './MonthlyDashboard';
@@ -19,10 +19,15 @@ export default function AdminView() {
       </div>
 
       <div className="space-y-6">
+        {/*
+          관리자도 자기 출퇴근은 직접 찍는다.
+
+          이 화면에는 찍는 자리가 없어서 관리자·사무장만 출퇴근을 못 찍고 있었다 —
+          직원 화면과 같은 카드를 같은 자리에 둔다.
+        */}
+        <ClockCard />
         {/* 오늘 누가 무엇을 하는지 — 승인함보다 먼저 보는 값이다 */}
         <StatusBar />
-        {/* 본인 계정으로 못 찍는 사람 몫을 여기서 대신 찍는다 */}
-        <TeamClockBoard />
         {/* 결재를 기다리는 정산 — 찾으러 들어가야 하는 결재는 밀린다 */}
         <SettlementApprovalInbox />
         <AttendanceRequestInbox />
