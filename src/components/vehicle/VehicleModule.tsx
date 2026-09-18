@@ -1,19 +1,24 @@
 import { useState } from 'react';
 import { useVehicles } from './useVehicles';
-import MovementTab from './MovementTab';
 import ExpenseTab from './ExpenseTab';
 import ParkingPolicyTab from './ParkingPolicyTab';
 
-type TabKey = 'movement' | 'policy' | 'expense';
+type TabKey = 'policy' | 'expense';
 
+/*
+  외부 이동 차량 목록을 뺐다.
+
+  상품화 체크 하나 하려고 들어오는 자리였는데, 켜는 사람은 실차를 본 사람이고 그 사람은
+  매입 관리 화면을 보고 있다. 상품화는 그리로 옮겼다(매입 등록 → 실차 검차 완료).
+  외부 이동 금지는 주차 배치에서만 쓰는 값이라 주차 배치 기준으로 옮겼다.
+*/
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'movement', label: '외부 이동 차량' },
   { key: 'policy', label: '주차 배치 기준' },
   { key: 'expense', label: '주유 · 배터리 비용' },
 ];
 
 export default function VehicleModule() {
-  const [tab, setTab] = useState<TabKey>('movement');
+  const [tab, setTab] = useState<TabKey>('policy');
   const api = useVehicles();
 
   return (
@@ -21,7 +26,6 @@ export default function VehicleModule() {
       <div className="mb-5">
         <h1 className="text-xl font-bold text-slate-900">차량 관리</h1>
         <p className="mt-1 text-sm text-slate-500">
-          {tab === 'movement' && '상품화한 차량이 외부 이동 가능으로 자동 분류됩니다.'}
           {tab === 'policy' &&
             '값·차종·연료·판매유형으로 어느 주차장에 세울지가 정해집니다. 매입할 때 들어온 값이 채워져 있고, 고치면 추천이 바로 바뀝니다.'}
           {tab === 'expense' &&
@@ -46,7 +50,6 @@ export default function VehicleModule() {
       {api.error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{api.error}</p>}
       {api.loading && <p className="mb-3 text-xs text-slate-400">불러오는 중…</p>}
 
-      {tab === 'movement' && <MovementTab api={api} />}
       {tab === 'policy' && <ParkingPolicyTab api={api} />}
       {tab === 'expense' && <ExpenseTab api={api} />}
     </div>

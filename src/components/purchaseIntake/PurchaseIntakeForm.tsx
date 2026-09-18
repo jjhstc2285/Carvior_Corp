@@ -48,6 +48,13 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   const [brokerFee, setBrokerFee] = useState(withCommas(editing?.brokerFee ?? 0));
   const [brokerFeeType, setBrokerFeeType] = useState<BrokerFeeType>(editing?.brokerFeeType ?? 'CASH');
   const [checkedMileage, setCheckedMileage] = useState(withCommas(editing?.checkedMileage ?? 0));
+  /*
+    상품화 — 실차를 보고 상품으로 낼 수 있게 손봤는가.
+
+    차량 관리에 목록을 따로 두고 거기서 켰는데, 켜는 사람은 실차를 본 사람이고 그 사람이
+    보고 있는 건 이 화면이다. 본 자리에서 켠다. 저장하면 차량 관리로 넘어간다.
+  */
+  const [prepared, setPrepared] = useState(editing?.prepared ?? false);
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -136,6 +143,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       keyCount: moneyToNumber(keyCount),
       mileage: moneyToNumber(mileage),
       checkedMileage: moneyToNumber(checkedMileage),
+      prepared,
       note: note.trim(),
       purchaseAmount: moneyToNumber(purchaseAmount),
       brokerFee: moneyToNumber(brokerFee),
@@ -256,6 +264,23 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
                 </p>
               )}
             </>,
+          )}
+          {/* 실차를 본 김에 여기서 켠다 — 차량 관리까지 들어가서 다시 찾지 않게 */}
+          {field(
+            '상품화',
+            <label
+              className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm ${
+                prepared ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-600'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={prepared}
+                onChange={e => setPrepared(e.target.checked)}
+                className="size-4 accent-emerald-600"
+              />
+              실차 검차 완료
+            </label>,
           )}
           {/*
             10년차 차만 묻는다. 그 밖의 차는 등록 월이 언제든 결론이 같아서 물을 이유가 없다 —

@@ -67,13 +67,14 @@ export default function ParkingPolicyTab({ api }: { api: VehiclesApi }) {
                 <th className="px-3 py-2.5 text-right font-medium">가격(만원)</th>
                 <th className="px-3 py-2.5 font-medium">판매유형</th>
                 <th className="px-3 py-2.5 text-center font-medium">택시</th>
+                <th className="px-3 py-2.5 text-center font-medium">이동 금지</th>
                 <th className="px-4 py-2.5 font-medium">추천 주차장</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">
                     해당하는 차량이 없습니다.
                   </td>
                 </tr>
@@ -149,6 +150,17 @@ export default function ParkingPolicyTab({ api }: { api: VehiclesApi }) {
                       onChange={e => void toggleFlag(v, { isTaxi: e.target.checked })}
                       className="size-4 accent-indigo-600"
                       aria-label="택시"
+                    />
+                  </td>
+
+                  {/* 켜면 어느 주차장도 추천하지 않는다 — 밖으로 내보낼 수 없는 차다 */}
+                  <td className="px-3 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={v.moveBlocked}
+                      onChange={e => void toggleFlag(v, { moveBlocked: e.target.checked })}
+                      className="size-4 accent-red-500"
+                      aria-label="외부 이동 금지"
                     />
                   </td>
 

@@ -22,7 +22,7 @@ import { PushService } from '../push/push.service';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { PushModule } from '../push/push.module';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { transferFeeOf } from '../settlements/settlement.calc';
@@ -77,6 +77,13 @@ export class CreatePurchaseIntakeDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) keyCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) mileage?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) checkedMileage?: number;
+  /**
+   * 상품화 — 실차를 보고 상품으로 낼 수 있게 손본 차.
+   *
+   * 차량 관리에 따로 목록을 두고 거기서 켰는데, 켜는 사람은 실차를 본 사람이고 그 사람은
+   * 이 화면을 보고 있다. 본 자리에서 켠다.
+   */
+  @IsOptional() @IsBoolean() prepared?: boolean;
   @IsOptional() @IsString() @MaxLength(255) note?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) purchaseAmount?: number;
@@ -102,6 +109,13 @@ export class UpdatePurchaseIntakeDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) keyCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) mileage?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) checkedMileage?: number;
+  /**
+   * 상품화 — 실차를 보고 상품으로 낼 수 있게 손본 차.
+   *
+   * 차량 관리에 따로 목록을 두고 거기서 켰는데, 켜는 사람은 실차를 본 사람이고 그 사람은
+   * 이 화면을 보고 있다. 본 자리에서 켠다.
+   */
+  @IsOptional() @IsBoolean() prepared?: boolean;
   @IsOptional() @IsString() @MaxLength(255) note?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) purchaseAmount?: number;
@@ -370,6 +384,7 @@ export class PurchaseIntakeService {
       // 실차 확인한 값이 있으면 그게 맞다.
       mileage: dto.checkedMileage || dto.mileage || 0,
       firstRegisteredOn: toDateOnlyOrNull(dto.firstRegisteredOn),
+      prepared: dto.prepared,
     });
     await this.alertMileageGap(row);
     return this.toView(row);
@@ -421,6 +436,7 @@ export class PurchaseIntakeService {
       dto.mileage,
       dto.checkedMileage,
       dto.firstRegisteredOn,
+      dto.prepared,
     ].some((v) => v !== undefined);
 
     if (affectsVehicle) {
@@ -430,6 +446,7 @@ export class PurchaseIntakeService {
         modelYear: row.modelYear,
         mileage: row.checkedMileage || row.mileage,
         firstRegisteredOn: row.firstRegisteredOn,
+        prepared: dto.prepared,
       });
     }
 
@@ -474,6 +491,8 @@ export class PurchaseIntakeService {
       modelYear: string;
       mileage: number;
       firstRegisteredOn: Date | null;
+      /** 안 주면 건드리지 않는다 — 다른 칸을 고쳤다고 상품화가 꺼지면 안 된다 */
+      prepared?: boolean;
     },
   ): Promise<void> {
     if (!isValidPlate(vehicleNumber)) {
@@ -496,6 +515,7 @@ export class PurchaseIntakeService {
               modelYear: policy.modelYear,
               mileage: policy.mileage,
               firstRegisteredOn: policy.firstRegisteredOn,
+              ...(policy.prepared !== undefined ? { prepared: policy.prepared } : {}),
             }
           : {}),
       };
@@ -524,7 +544,7 @@ export class PurchaseIntakeService {
       brokerFee: number;
       vehicleNumber?: string;
     },
-  >(row: T, registeredPlates?: Set<string>, salePrices?: Map<string, number>) {
+  >(row: T, registeredPlates?: { all: Set<string>; prepared: Set<string> }, salePrices?: Map<string, number>) {
     return {
       ...row,
       date: formatDateOnly(row.date),
@@ -539,8 +559,12 @@ export class PurchaseIntakeService {
        * 모르면서 '미등록'이라고 겁주지 않는다.
        */
       registered: registeredPlates
-        ? registeredPlates.has(normalizePlate(row.vehicleNumber ?? ''))
+        ? registeredPlates.all.has(normalizePlate(row.vehicleNumber ?? ''))
         : true,
+      /** 상품화됐는가 — 차량 관리 쪽 값이다. 한 건만 볼 때는 알 수 없어 false 로 둔다. */
+      prepared: registeredPlates
+        ? registeredPlates.prepared.has(normalizePlate(row.vehicleNumber ?? ''))
+        : false,
       /**
        * 이 차가 얼마에 팔렸는가(원). 아직 안 팔았으면 0.
        *
@@ -722,10 +746,20 @@ export class PurchaseIntakeService {
     return new Map(rows.map((r) => [normalizePlate(r.vehicleNumber), r.salePrice]));
   }
 
-  /** 차량 관리에 올라가 있는 차량번호 — 목록에 등록 여부를 붙이는 데 쓴다. */
-  private async registeredPlates(): Promise<Set<string>> {
-    const rows = await this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true } });
-    return new Set(rows.map((r) => normalizePlate(r.vehicleNumber)));
+  /**
+   * 차량 관리에 올라가 있는 차량번호와, 그중 상품화된 것.
+   *
+   * 상품화는 차량 관리 쪽 값이라 매입 기록에는 없다. 목록에서 바로 보이고 체크도 여기서
+   * 하려면 같이 실어 보내야 한다.
+   */
+  private async registeredPlates(): Promise<{ all: Set<string>; prepared: Set<string> }> {
+    const rows = await this.prisma.managedVehicle.findMany({
+      select: { vehicleNumber: true, prepared: true },
+    });
+    return {
+      all: new Set(rows.map((r) => normalizePlate(r.vehicleNumber))),
+      prepared: new Set(rows.filter((r) => r.prepared).map((r) => normalizePlate(r.vehicleNumber))),
+    };
   }
 }
 

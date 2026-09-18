@@ -1248,6 +1248,11 @@ export interface PurchaseIntake {
   brokerFeeType: BrokerFeeType; // 구전 지급 방식
   /** 차량 관리에 올라가 있는가 — 안 올라가 있으면 재고금융 제시 대상에 안 뜬다 */
   registered?: boolean;
+  /**
+   * 상품화 — 실차를 보고 상품으로 낼 수 있게 손본 차.
+   * 차량 관리 쪽 값이지만, 켜는 사람은 실차를 본 사람이라 매입 화면에서 같이 다룬다.
+   */
+  prepared?: boolean;
   /** 이 차가 얼마에 팔렸는지(원). 아직 안 팔았으면 0 */
   salePrice?: number;
   /** 서버 파생값 — 실매입금액 + 구전. 저장하지 않는다. */

@@ -226,6 +226,12 @@ export default function PurchaseIntakeModule() {
                       <Car size={11} /> 차량관리 등록
                     </span>
                   )}
+                  {/* 실차를 보고 손봤는가 — 상품화된 차라야 상담을 걸 수 있다 */}
+                  {r.prepared && (
+                    <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                      상품화
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-xs text-slate-400">
                   {r.date} · 등록자 {r.employee?.name ?? '-'}
