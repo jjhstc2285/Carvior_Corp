@@ -177,11 +177,13 @@ export class ParkBoardService {
    * 전체 번호를 같이 내려주고, 아니면 4자리 그대로 둔다.
    */
   async keys(limit: number) {
-    const [hist, returned, returnLoc, memos, stock] = await Promise.all([
+    const [hist, returned, returnLoc, memos, scans, stock] = await Promise.all([
       this.fetchNode<Record<string, KeyEntry> | KeyEntry[]>('hist'),
       this.fetchNode<string[] | Record<string, string>>('returned'),
       this.fetchNode<Record<string, string>>('returnLocMap'),
       this.fetchNode<Record<string, string>>('memos'),
+      /* 딜러가 약도 QR 을 열어본 시각 — 위치를 봤는지 안 봤는지가 여기 남는다 */
+      this.fetchNode<Record<string, { at?: number; car?: string }>>('dispatch_scan'),
       this.stock(),
     ]);
 
@@ -228,6 +230,13 @@ export class ParkBoardService {
           returned: back.has(id),
           returnLoc: returnLoc?.[id] ?? '',
           memo: memos?.[id] ?? '',
+          /**
+           * 딜러가 약도(QR)를 열어본 때.
+           *
+           * 키를 내주면서 차 세워둔 자리를 알려주는 링크를 QR·문자로 보낸다. 딜러가 그걸
+           * 열면 그 시각이 남는다 — 안 열렸으면 아직 차를 못 찾고 있을 수 있다.
+           */
+          scannedAt: scans?.[id]?.at ? new Date(scans[id].at as number).toISOString() : '',
           vehicleNumber: one?.vehicleNumber ?? '',
           vehicleModel: one?.vehicleModel ?? '',
         };

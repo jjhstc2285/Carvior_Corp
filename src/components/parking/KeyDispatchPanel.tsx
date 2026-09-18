@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { ChevronDown, ChevronRight, KeyRound, Phone, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, KeyRound, MapPinned, Phone, RefreshCw, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 
 /**
@@ -33,8 +33,22 @@ interface KeyRow {
   returned: boolean;
   returnLoc: string;
   memo: string;
+  /** 딜러가 약도(QR)를 열어본 때 — 비어 있으면 아직 안 봤다 */
+  scannedAt: string;
   vehicleNumber: string;
   vehicleModel: string;
+}
+
+/**
+ * 메모에 약도 링크가 들어 있는 건이 있다.
+ *
+ * 키를 내주면서 '차가 어디 세워져 있는지' 보여주는 쪽지(view.html)를 QR·문자로 보내는데,
+ * 그 주소가 메모에 통째로 들어간다. 표에서는 글자가 잘려 아무 뜻이 없어서, 링크면 단추로
+ * 바꿔 준다.
+ */
+function linkOf(memo: string): string {
+  const m = (memo ?? '').match(/https?:\/\/\S+/);
+  return m ? m[0] : '';
 }
 
 interface KeyView {
@@ -52,6 +66,8 @@ export default function KeyDispatchPanel() {
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
   const [outOnly, setOutOnly] = useState(false);
+  /** 메모를 펼쳐 볼 건 — 표에서는 잘려서 무슨 말인지 알 수 없다 */
+  const [memoOf, setMemoOf] = useState<KeyRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,6 +164,9 @@ export default function KeyDispatchPanel() {
             <br />
             빌려간 키는 <b className="text-amber-700">주황</b>, <b>두 시간</b>이 지나도 안 들어오면{' '}
             <b className="text-red-600">빨강</b>, 돌려받으면 <b className="text-emerald-700">초록</b>입니다.
+            <br />
+            <b>약도</b> 칸은 키를 내주며 보낸 <b>차 위치 안내 QR</b>을 딜러가 열어봤는지입니다 — 안 열었으면
+            아직 차를 못 찾고 있을 수 있습니다. 메모를 누르면 전체 내용과 약도가 열립니다.
           </p>
 
           {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{error}</p>}
@@ -198,6 +217,7 @@ export default function KeyDispatchPanel() {
                         <th className="px-3 py-2 font-medium">조합</th>
                         <th className="px-3 py-2 font-medium">위치</th>
                         <th className="px-3 py-2 font-medium">반납</th>
+                        <th className="px-3 py-2 font-medium">약도</th>
                         <th className="px-3 py-2 font-medium">메모</th>
                       </tr>
                     </thead>
@@ -263,8 +283,26 @@ export default function KeyDispatchPanel() {
                               </span>
                             )}
                           </td>
-                          <td className="max-w-[12rem] truncate px-3 py-2 text-slate-500" title={r.memo}>
-                            {r.memo || '-'}
+                          {/* 딜러가 약도를 열었는지 — 안 열었으면 아직 차를 못 찾고 있을 수 있다 */}
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {r.scannedAt ? (
+                              <span className="text-emerald-700">봄 {dayjs(r.scannedAt).format('HH:mm')}</span>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="max-w-[13rem] px-3 py-2">
+                            {r.memo ? (
+                              <button
+                                onClick={() => setMemoOf(r)}
+                                className="block max-w-full truncate text-left text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-indigo-600"
+                                title="눌러서 전체 보기"
+                              >
+                                {linkOf(r.memo) ? '🗺️ 약도 링크' : r.memo}
+                              </button>
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
                           </td>
                         </tr>
                         );
@@ -281,6 +319,60 @@ export default function KeyDispatchPanel() {
               </p>
             </>
           )}
+        </div>
+      )}
+
+      {memoOf && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setMemoOf(null)}
+        >
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-base font-bold text-slate-800">
+                  {memoOf.vehicleNumber || memoOf.car}
+                  <span className="ml-2 text-sm font-medium text-slate-400">{memoOf.dealer}</span>
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  {memoOf.at ? dayjs(memoOf.at).format('M/D HH:mm') : ''} 불출
+                  {memoOf.company && ` · ${memoOf.company}`}
+                </p>
+              </div>
+              <button
+                onClick={() => setMemoOf(null)}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100"
+                aria-label="닫기"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/*
+              약도 링크면 단추로 연다. 딜러에게 QR·문자로 보내는 그 쪽지와 같은 화면이라
+              "차를 어디에 세워뒀는지"가 그대로 보인다.
+            */}
+            {linkOf(memoOf.memo) && (
+              <a
+                href={linkOf(memoOf.memo)}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+              >
+                <MapPinned size={15} /> 약도 열기 <ExternalLink size={13} />
+              </a>
+            )}
+
+            <p className="mt-3 whitespace-pre-wrap break-all rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] leading-relaxed text-slate-700">
+              {memoOf.memo}
+            </p>
+
+            <p className="mt-2 text-[11px] text-slate-400">
+              {memoOf.scannedAt
+                ? `딜러가 ${dayjs(memoOf.scannedAt).format('M/D HH:mm')} 에 약도를 열어봤습니다.`
+                : '딜러가 아직 약도를 열지 않았습니다.'}
+            </p>
+          </div>
         </div>
       )}
     </section>
