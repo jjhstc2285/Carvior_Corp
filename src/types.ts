@@ -140,6 +140,18 @@ export const AD_SPEND_CHANNELS = [
 export const AD_SPEND_STATUSES = ['신규', '유지', '중지', '종료'] as const;
 
 /** 월별 광고비 — 엔카·차차차 약정 외 광고에 그 달 쓴 돈(원) */
+/** 광고 운영 현황 메모 — 대행사 주차별 보고처럼 여러 줄짜리 글 */
+export interface AdReport {
+  id: string;
+  month: string; // YYYY-MM
+  channel: string;
+  title: string;
+  body: string;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AdSpend {
   id: string;
   month: string; // YYYY-MM

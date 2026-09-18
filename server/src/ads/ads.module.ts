@@ -26,6 +26,7 @@ import { PushService } from '../push/push.service';
 import { PushModule } from '../push/push.module';
 import { normalizePlate } from '../vehicles/vehicle.rules';
 import { AdSpendController, AdSpendService } from './ad-spend';
+import { AdReportController, AdReportService } from './ad-report';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -410,7 +411,7 @@ export class AdsController {
 
 @Module({
   imports: [RealtimeModule, PushModule],
-  controllers: [AdsController, AdSpendController],
-  providers: [AdsService, AdReminderService, AdSpendService],
+  controllers: [AdsController, AdSpendController, AdReportController],
+  providers: [AdsService, AdReminderService, AdSpendService, AdReportService],
 })
 export class AdsModule {}

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { ChevronLeft, ChevronRight, Copy, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, NotebookPen, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
-import { AD_SPEND_CHANNELS, AD_SPEND_STATUSES, type AdSpend } from '../../types';
+import { AD_SPEND_CHANNELS, AD_SPEND_STATUSES, type AdReport, type AdSpend } from '../../types';
+import AdReportModal from './AdReportModal';
 
 /**
  * 월별 광고비.
@@ -32,6 +33,12 @@ export default function AdSpendPanel() {
   const [rows, setRows] = useState<AdSpend[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  /*
+    운영 현황 메모 — 대행사 주차별 보고는 여러 줄짜리라 아래 메모 칸(한 줄)에 안 들어간다.
+    화면에 늘어놓지 않고 모달로 연다. null 이면 닫힘, 빈 문자열이면 이 달 전체.
+  */
+  const [reportChannel, setReportChannel] = useState<string | null>(null);
+  const [reportCount, setReportCount] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,6 +54,21 @@ export default function AdSpendPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** 채널별 운영 메모 개수 — 있는 줄에만 숫자를 띄운다 */
+  const loadReportCount = useCallback(async () => {
+    try {
+      const list = await api<AdReport[]>(`/ad-reports?month=${month}`);
+      setReportCount(list.reduce<Record<string, number>>((m, r) => ({ ...m, [r.channel]: (m[r.channel] ?? 0) + 1 }), {}));
+    } catch {
+      // 개수는 곁가지다 — 못 세도 광고비는 보여준다
+      setReportCount({});
+    }
+  }, [month]);
+
+  useEffect(() => {
+    void loadReportCount();
+  }, [loadReportCount]);
 
   const patch = async (row: AdSpend, body: Partial<AdSpend>) => {
     setBusyId(row.id);
@@ -147,6 +169,18 @@ export default function AdSpendPanel() {
           ))}
         <div className="ml-auto flex items-center gap-2">
           <button
+            onClick={() => setReportChannel('')}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            title="대행사 주차별 운영 보고를 그대로 붙여 넣는 자리입니다"
+          >
+            <NotebookPen size={13} /> 운영 메모
+            {Object.values(reportCount).reduce((a, b) => a + b, 0) > 0 && (
+              <span className="rounded-full bg-indigo-100 px-1.5 text-[10px] font-bold text-indigo-700">
+                {Object.values(reportCount).reduce((a, b) => a + b, 0)}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => void copyPrevious()}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
             title="지난달 채널을 이번 달로 복사합니다. 바뀐 것만 고치면 됩니다"
@@ -163,7 +197,7 @@ export default function AdSpendPanel() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[960px] text-sm">
           <thead>
             <tr className="border-y border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
               <th className="px-3 py-2" />
@@ -172,12 +206,13 @@ export default function AdSpendPanel() {
               <th className="px-3 py-2 font-medium">상태</th>
               <th className="px-3 py-2 font-medium">담당</th>
               <th className="px-3 py-2 font-medium">메모</th>
+              <th className="px-3 py-2 font-medium">운영 현황</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
+                <td colSpan={7} className="px-5 py-8 text-center text-sm text-slate-400">
                   {loading ? '불러오는 중…' : '이 달에 적은 광고비가 없습니다. [지난달 가져오기] 또는 [채널 추가]로 시작하세요.'}
                 </td>
               </tr>
@@ -249,11 +284,30 @@ export default function AdSpendPanel() {
                     className={`${INPUT} w-72`}
                   />
                 </td>
+                {/* 주차별 보고처럼 긴 글은 한 줄 메모에 안 들어간다 — 모달로 뺀다 */}
+                <td className="px-3 py-2">
+                  <button
+                    onClick={() => setReportChannel(r.channel)}
+                    className="flex items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    <NotebookPen size={12} />
+                    {reportCount[r.channel] ? `${reportCount[r.channel]}건` : '쓰기'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {reportChannel !== null && (
+        <AdReportModal
+          month={month}
+          channel={reportChannel}
+          onClose={() => setReportChannel(null)}
+          onChanged={() => void loadReportCount()}
+        />
+      )}
 
       {/* 자주 쓰는 채널 — 치다 보면 '114우선문의' '114 우선문의'로 갈린다 */}
       <datalist id="ad-spend-channels">
