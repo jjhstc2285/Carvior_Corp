@@ -1,7 +1,7 @@
 import { Controller, Get, Injectable, Logger, Module, Query } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly } from '../common/date.util';
-import { matchSlots, missingFromBoard, tailOf, type BoardSlot, type StockVehicle } from './parkboard.rules';
+import { matchSlots, missingFromBoard, plateKey, tailOf, type BoardSlot, type StockVehicle } from './parkboard.rules';
 
 /**
  * 주차위치 현황판 읽어오기.
@@ -22,18 +22,20 @@ const CACHE_MS = 60 * 1000;
 const TIMEOUT_MS = 8000;
 
 /*
-  어느 Firebase 를 보는가.
+  어느 방을 보는가.
 
-  현장 앱이 2026-09 에 anyone-4e3c6 에서 kp-system-8e4eb 으로 옮겨갔다(주소도 netlify 에서
-  github.io 로 바뀌었다). 옛 쪽은 8/12 에서 기록이 멈춰 있다. 또 옮길 수 있으니 .env 로
-  바꿀 수 있게 두고, 기본값만 지금 쓰는 곳으로 맞춘다.
+  그 앱은 한 Firebase 안에 상사마다 '방'을 두고 나눠 쓴다. 우리 방은 anyone9569 이고,
+  hangyul2024 는 한결모터스 방이다 — 앱을 만든 쪽 기본값이라 그대로 두면 남의 재고를
+  보게 된다. 방 코드는 키불출 화면 메모에 적히는 약도 주소(view-v6...?c=)에 들어 있다.
+
+  옮길 수 있으니 .env(PARKBOARD_URL·PARKBOARD_CODE)로 바꿀 수 있게 둔다.
 */
 function boardUrl(): string {
-  return (process.env.PARKBOARD_URL ?? 'https://kp-system-8e4eb-default-rtdb.firebaseio.com').replace(/\/+$/, '');
+  return (process.env.PARKBOARD_URL ?? 'https://anyone-4e3c6-default-rtdb.firebaseio.com').replace(/\/+$/, '');
 }
 
 function boardCode(): string {
-  return (process.env.PARKBOARD_CODE ?? 'hangyul2024').trim();
+  return (process.env.PARKBOARD_CODE ?? 'anyone9569').trim();
 }
 
 @Injectable()
@@ -193,9 +195,11 @@ export class ParkBoardService {
       (Array.isArray(returned) ? returned : Object.values(returned ?? {})).map((v) => String(v)),
     );
 
-    // 4자리로 재고를 찾는다 — 둘 이상 걸리면 어느 차인지 모르니 붙이지 않는다
+    // 전체 번호가 적혀 있으면 그걸로, 아니면 4자리로 찾는다. 둘 이상 걸리면 안 붙인다
+    const byPlate = new Map<string, StockVehicle>();
     const byTail = new Map<string, StockVehicle[]>();
     for (const v of stock) {
+      byPlate.set(plateKey(v.vehicleNumber), v);
       const t = v.plateTail || tailOf(v.vehicleNumber);
       if (!t) continue;
       byTail.set(t, [...(byTail.get(t) ?? []), v]);
@@ -205,7 +209,8 @@ export class ParkBoardService {
       .map((e) => {
         const id = String(e.id ?? '');
         const tail = tailOf(e.car ?? '');
-        const hit = (byTail.get(tail) ?? []).filter((v) => !v.soldDate);
+        const exact = byPlate.get(plateKey(e.car ?? ''));
+        const hit = exact ? [exact] : (byTail.get(tail) ?? []).filter((v) => !v.soldDate);
         const one = hit.length === 1 ? hit[0] : null;
         return {
           id,

@@ -96,13 +96,23 @@ export interface MatchedSlot {
   soldButParked: boolean;
 }
 
+/** 띄어쓰기·하이픈을 걷어낸 차량번호 — '141로 6794' 와 '141로6794' 는 같은 차다 */
+export function plateKey(plate: string): string {
+  return (plate ?? '').replace(/[\s-]/g, '').trim();
+}
+
 /**
  * 현황판 칸과 우리 재고를 맞춰본다.
  *
- * 4자리가 하나만 걸리면 붙이고, 둘 이상 걸리면 차종으로 한 번 더 걸러본다. 그래도
- * 하나로 안 좁혀지면 '확인 필요'다 — 엉뚱한 차에 붙는 것보다 사람이 보는 편이 낫다.
+ * 전체 번호가 적혀 있으면 그걸로 바로 붙인다. 뒤 4자리뿐이면 그것으로 찾되, 둘 이상
+ * 걸리면 차종으로 한 번 더 걸러본다. 그래도 하나로 안 좁혀지면 '확인 필요'다 —
+ * 엉뚱한 차에 붙는 것보다 사람이 보는 편이 낫다.
  */
 export function matchSlots(board: Record<string, BoardSlot>, stock: StockVehicle[]): MatchedSlot[] {
+  // 전체 번호가 적혀 있으면 4자리로 헤맬 이유가 없다 — 그것부터 본다
+  const byPlate = new Map<string, StockVehicle>();
+  for (const v of stock) byPlate.set(plateKey(v.vehicleNumber), v);
+
   const byTail = new Map<string, StockVehicle[]>();
   for (const v of stock) {
     const t = v.plateTail || tailOf(v.vehicleNumber);
@@ -118,8 +128,9 @@ export function matchSlots(board: Record<string, BoardSlot>, stock: StockVehicle
     const car = (slot.car ?? '').trim();
     if (!car || slot.disabled) continue; // 빈 칸과 사용안함 칸은 맞춰볼 게 없다
 
+    const exact = byPlate.get(plateKey(car));
     const tail = tailOf(car);
-    const all = tail ? (byTail.get(tail) ?? []) : [];
+    const all = exact ? [exact] : tail ? (byTail.get(tail) ?? []) : [];
     // 매도로 끝난 차부터 걷어낸다 — 현황판에 남아 있으면 그건 그것대로 알려준다
     const live = all.filter((v) => !v.soldDate);
     let picked: StockVehicle[] = live.length > 0 ? live : all;
