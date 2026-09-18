@@ -21,8 +21,15 @@ import { matchSlots, missingFromBoard, tailOf, type BoardSlot, type StockVehicle
 const CACHE_MS = 60 * 1000;
 const TIMEOUT_MS = 8000;
 
+/*
+  어느 Firebase 를 보는가.
+
+  현장 앱이 2026-09 에 anyone-4e3c6 에서 kp-system-8e4eb 으로 옮겨갔다(주소도 netlify 에서
+  github.io 로 바뀌었다). 옛 쪽은 8/12 에서 기록이 멈춰 있다. 또 옮길 수 있으니 .env 로
+  바꿀 수 있게 두고, 기본값만 지금 쓰는 곳으로 맞춘다.
+*/
 function boardUrl(): string {
-  return (process.env.PARKBOARD_URL ?? 'https://anyone-4e3c6-default-rtdb.firebaseio.com').replace(/\/+$/, '');
+  return (process.env.PARKBOARD_URL ?? 'https://kp-system-8e4eb-default-rtdb.firebaseio.com').replace(/\/+$/, '');
 }
 
 function boardCode(): string {
