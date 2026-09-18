@@ -205,6 +205,11 @@ export default function AdModule({ role }: { role: Role }) {
       <div className="space-y-3">
         {rows.map(c => {
           const pct = c.totalQuota > 0 ? Math.min(100, Math.round((c.used / c.totalQuota) * 100)) : 0;
+          /*
+            대당 얼마짜리인지 — 22만원에 월 30대면 한 대에 7,333원이다.
+            차를 넣을 때마다 이 값이 붙는다. 약정을 다 못 쓰면 실제 대당은 이보다 비싸진다.
+          */
+          const unitFee = c.monthlyQuota > 0 ? Math.round(c.monthlyFee / c.monthlyQuota) : 0;
           // 남은 기간보다 남은 대수가 많이 뒤처지면 붉게 — 숫자만으로는 급한 줄 모른다
           const behind = c.remaining > 0 && c.daysLeft <= 7;
           const open = openId === c.id;
@@ -218,6 +223,9 @@ export default function AdModule({ role }: { role: Role }) {
                 <span className="text-sm font-bold text-slate-800">{c.productName || '광고 상품'}</span>
                 <span className="text-xs text-slate-400">
                   월 {c.monthlyFee.toLocaleString()}원 · 월 {c.monthlyQuota}대 · {c.months}개월
+                  {unitFee > 0 && (
+                    <b className="ml-1 font-semibold text-indigo-600">대당 {unitFee.toLocaleString()}원</b>
+                  )}
                 </span>
                 <span className="ml-auto text-xs text-slate-400">
                   {c.startOn} ~ {c.endOn}
@@ -275,6 +283,7 @@ export default function AdModule({ role }: { role: Role }) {
                       <th className="px-3 py-2 text-right font-medium">진단완료</th>
                       <th className="px-3 py-2 text-right font-medium">약정</th>
                       <th className="px-3 py-2 text-right font-medium">광고비</th>
+                      <th className="px-3 py-2 text-right font-medium">실제 대당</th>
                       <th className="px-3 py-2 text-right font-medium">못 쓴 몫</th>
                     </tr>
                   </thead>
@@ -287,6 +296,10 @@ export default function AdModule({ role }: { role: Role }) {
                         </td>
                         <td className="px-3 py-1.5 text-right text-slate-400">{m.quota}건</td>
                         <td className="px-3 py-1.5 text-right text-slate-500">{m.fee.toLocaleString()}원</td>
+                        {/* 약정을 다 못 쓰면 한 대에 얼마 물었는지가 올라간다 — 거기가 아픈 자리다 */}
+                        <td className={`px-3 py-1.5 text-right ${m.count > 0 && Math.round(m.fee / m.count) > unitFee ? 'font-semibold text-red-600' : 'text-slate-500'}`}>
+                          {m.count > 0 ? `${Math.round(m.fee / m.count).toLocaleString()}원` : '—'}
+                        </td>
                         <td className={`px-3 py-1.5 text-right ${m.wasted > 0 ? 'font-semibold text-red-600' : 'text-slate-300'}`}>
                           {m.wasted > 0 ? `${m.wasted.toLocaleString()}원` : '—'}
                         </td>
@@ -297,6 +310,9 @@ export default function AdModule({ role }: { role: Role }) {
                       <td className="px-3 py-1.5 text-right text-slate-800">{c.used}건</td>
                       <td className="px-3 py-1.5 text-right text-slate-400">{c.totalQuota}건</td>
                       <td className="px-3 py-1.5 text-right text-slate-600">{c.totalFee.toLocaleString()}원</td>
+                      <td className="px-3 py-1.5 text-right text-slate-600">
+                        {c.used > 0 ? `${Math.round(c.totalFee / c.used).toLocaleString()}원` : '—'}
+                      </td>
                       <td className="px-3 py-1.5 text-right text-red-600">
                         {c.monthly.reduce((sum, m) => sum + m.wasted, 0).toLocaleString()}원
                       </td>
@@ -323,6 +339,8 @@ export default function AdModule({ role }: { role: Role }) {
                     <div key={p.id} className="flex items-center gap-2 rounded-lg px-2 py-1 text-xs hover:bg-slate-50">
                       <span className="font-mono font-semibold text-slate-700">{p.vehicleNumber}</span>
                       <span className="text-slate-400">{p.postedOn}</span>
+                      {/* 이 한 대에 얼마 들었는지 — 약정 단가 */}
+                      {unitFee > 0 && <span className="font-semibold text-indigo-600">{unitFee.toLocaleString()}원</span>}
                       {p.auto && (
                         <span className="rounded bg-slate-100 px-1.5 text-[10px] font-medium text-slate-500">진단완료</span>
                       )}
