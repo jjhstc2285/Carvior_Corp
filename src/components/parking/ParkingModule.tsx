@@ -7,6 +7,7 @@ import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
 import SheetImportModal from './SheetImportModal';
 import MoveSuggestions from './MoveSuggestions';
+import ParkBoardPanel from './ParkBoardPanel';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { PARKING_LOTS } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
@@ -219,6 +220,9 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
       </div>
 
       <MoveSuggestions />
+
+      {/* 현장 현황판 앱을 읽어 우리 재고와 맞춰본다 — 같은 차를 두 군데 적고 있다 */}
+      <ParkBoardPanel />
 
       {view === 'grid' ? (
         <ParkingGrid onCellClick={handleCellClick} onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)} />

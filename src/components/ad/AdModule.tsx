@@ -46,6 +46,53 @@ export default function AdModule({ role }: { role: Role }) {
     void load();
   }, [load]);
 
+  /*
+    현황판에서 엔카 사진완료 차량을 불러온다.
+
+    현장 현황판 앱에 사진 찍은 날짜까지 이미 적혀 있다. 그걸 그대로 집어넣지는 않는다 —
+    현황판은 차량번호를 뒤 4자리만 적어서 같은 4자리가 둘이면 엉뚱한 차가 들어간다.
+    재고와 하나로 붙은 것만 칸에 채워 주고, 넣는 건 사람이 [넣기]를 눌러서 한다.
+  */
+  const [boardBusy, setBoardBusy] = useState(false);
+  const pullFromBoard = async () => {
+    setBoardBusy(true);
+    try {
+      const res = await api<{
+        connected: boolean;
+        error: string;
+        rows: { car: string; doneDate: string; match: string; vehicleNumber: string }[];
+      }>(`/parkboard/encar?month=${month}`);
+
+      const sure = res.rows.filter(r => r.match === 'matched' && r.vehicleNumber);
+      const unsure = res.rows.length - sure.length;
+
+      // 이미 이 계약에 들어 있는 차는 빼고 채운다 — 넣어봐야 건너뛴다
+      const already = new Set((addingTo?.postings ?? []).map(p => p.vehicleNumber));
+      const typed = new Set(plates.split(/[\n,]/).map(v => v.trim()).filter(Boolean));
+      const fresh = sure.map(r => r.vehicleNumber).filter(v => !already.has(v) && !typed.has(v));
+
+      if (!res.connected) {
+        void alertError('현황판을 읽지 못했습니다', res.error);
+        return;
+      }
+      setPlates(prev => [...(prev.trim() ? [prev.trim()] : []), ...fresh].join('\n'));
+      await alertSuccess(
+        fresh.length > 0 ? `${fresh.length}대를 채웠습니다` : '새로 채울 차가 없습니다',
+        [
+          `${dayjs(`${month}-01`).format('M월')} 현황판에 사진완료로 찍힌 차 ${res.rows.length}대`,
+          unsure > 0 ? `그중 ${unsure}대는 어느 차인지 가려지지 않아 뺐습니다 — 직접 넣으세요.` : '',
+          '내용을 확인하고 [넣기]를 누르세요.',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      );
+    } catch (e) {
+      void alertError('현황판을 읽지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setBoardBusy(false);
+    }
+  };
+
   const addPostings = async () => {
     if (!addingTo || !plates.trim()) return;
     try {
@@ -385,8 +432,17 @@ export default function AdModule({ role }: { role: Role }) {
               placeholder={'12가3456\n34나5678'}
               className="mt-3 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm outline-none focus:border-indigo-400"
             />
-            <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setAddingTo(null)} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
+            <div className="mt-4 flex items-center gap-2">
+              {/* 현황판에 사진 찍은 날짜가 이미 있다 — 다시 치지 않게 채워만 준다 */}
+              <button
+                onClick={() => void pullFromBoard()}
+                disabled={boardBusy}
+                className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                title="주차위치 현황판에서 이번 달 엔카 사진완료로 찍힌 차를 불러옵니다"
+              >
+                {boardBusy ? '읽는 중…' : '현황판에서 가져오기'}
+              </button>
+              <button onClick={() => setAddingTo(null)} className="ml-auto rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
                 취소
               </button>
               <button
