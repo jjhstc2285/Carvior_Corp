@@ -13,9 +13,8 @@ import AdSpendPanel from './AdSpendPanel';
  * 광고 상품은 '월 몇 대'로 팔린다 — 22만원짜리가 월 30대, 3개월이면 90대다.
  * 3달에 30대만 올리면 60대분이 그냥 날아가는데, 지금까지는 몇 대 썼는지 볼 데가 없었다.
  *
- * 건수는 두 갈래로 센다.
- *  - 카비어에서 진단완료된 차를 자동으로 붙인다 — 진단서가 나온 건이 곧 한 건이다.
- *  - 거기 없는 건은 차량번호로 직접 넣는다
+ * 건수는 [차량 넣기]로 사람이 넣은 것만 센다 — 기간만 맞으면 모든 계약에 똑같이 붙던
+ * 자동 집계는 같은 차를 여러 상품에 중복으로 세어서 뺐다.
  *
  * 월별로 접어 보여준다 — "9월에 몇 건 하고 광고비 얼마 썼나"가 실제로 보는 단위다.
  */
@@ -88,9 +87,45 @@ export default function AdModule({ role }: { role: Role }) {
     }
   };
 
-  const totalFee = rows.reduce((sum, c) => sum + c.totalFee, 0);
-  const totalQuota = rows.reduce((sum, c) => sum + c.totalQuota, 0);
-  const totalUsed = rows.reduce((sum, c) => sum + c.used, 0);
+  /*
+    맨 위는 '이번 달'로 본다.
+
+    계약 전체 기간을 더해 놓으면 "광고비 96만"처럼 이번 달에 안 나가는 돈이 찍힌다 —
+    이번 달에 얼마가 나가고 몇 대를 해야 하는지를 보려고 여는 화면이다.
+  */
+  const month = dayjs().format('YYYY-MM');
+  const today = dayjs().format('YYYY-MM-DD');
+  /*
+    계약은 시작일 기준으로 한 달씩 끊긴다(9/15 시작이면 9/15~10/14) — 달력의 달과 안 맞는다.
+    그래서 '오늘이 들어 있는 한 달'을 고른다. 이미 끝났거나 아직 시작 안 한 계약은 빠진다.
+  */
+  const thisMonth = rows.flatMap(c => {
+    if (c.startOn > today || c.endOn < today) return [];
+    const m = [...c.monthly].reverse().find(x => x.from <= today);
+    return m ? [{ c, m }] : [];
+  });
+  const monthFee = thisMonth.reduce((sum, x) => sum + x.m.fee, 0);
+  const monthQuota = thisMonth.reduce((sum, x) => sum + x.m.quota, 0);
+  const monthDone = thisMonth.reduce((sum, x) => sum + x.m.count, 0);
+  const monthLeft = Math.max(0, monthQuota - monthDone);
+  /** 이번 달 남은 날 — 오늘 포함 */
+  const daysLeftInMonth = dayjs().endOf('month').diff(dayjs(), 'day') + 1;
+
+  /** 플랫폼별로 몇 대 했는지 — 엔카 몇 대인지가 먼저 궁금하다 */
+  const byPlatform = [...thisMonth.reduce((map, x) => {
+    const prev = map.get(x.c.platform) ?? { done: 0, quota: 0 };
+    map.set(x.c.platform, { done: prev.done + x.m.count, quota: prev.quota + x.m.quota });
+    return map;
+  }, new Map<string, { done: number; quota: number }>())];
+
+  /** 엔카·차차차 약정 말고 따로 나가는 광고비(구글 애즈·114 …) */
+  const [otherSpend, setOtherSpend] = useState(0);
+  useEffect(() => {
+    void api<{ amount: number }[]>(`/ad-spends?month=${month}`)
+      .then(list => setOtherSpend(list.reduce((sum, r) => sum + r.amount, 0)))
+      // 못 불러와도 약정 쪽은 보여준다
+      .catch(() => setOtherSpend(0));
+  }, [month]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
@@ -114,33 +149,50 @@ export default function AdModule({ role }: { role: Role }) {
         </div>
       </div>
 
-      {/* 약정 계약 말고, 달마다 얼마를 썼는지만 남기는 광고 */}
-      <AdSpendPanel />
-
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">
-          <p className="text-xs font-medium text-indigo-700/80">진행중 광고비</p>
+          <p className="text-xs font-medium text-indigo-700/80">{dayjs().format('M월')} 광고비</p>
           <p className="mt-1 text-2xl font-bold text-indigo-700">
-            {totalFee.toLocaleString()}
+            {(monthFee + otherSpend).toLocaleString()}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
-          <p className="text-[11px] text-slate-400">계약 {rows.length}건</p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">진단완료</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">
-            {totalUsed}
-            <span className="ml-1 text-sm font-medium text-slate-400">/ {totalQuota}대</span>
+          {/* 약정 상품과 그 밖의 광고를 갈라 둔다 — 줄일 수 있는 쪽이 다르다 */}
+          <p className="text-[11px] text-slate-400">
+            약정 {monthFee.toLocaleString()}원
+            {otherSpend > 0 && ` · 그 외 ${otherSpend.toLocaleString()}원`}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">남은 건수</p>
+          <p className="text-xs font-medium text-slate-400">{dayjs().format('M월')} 진단완료</p>
+          <p className="mt-1 text-2xl font-bold text-slate-800">
+            {monthDone}
+            <span className="ml-1 text-sm font-medium text-slate-400">/ {monthQuota}대</span>
+          </p>
+          <p className="truncate text-[11px] text-slate-400">
+            {byPlatform.length > 0
+              ? byPlatform.map(([platform, v]) => `${platform} ${v.done}/${v.quota}`).join(' · ')
+              : '이번 달 걸린 계약이 없습니다'}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-xs font-medium text-slate-400">{dayjs().format('M월')} 남은 건수</p>
           <p className="mt-1 text-2xl font-bold text-amber-600">
-            {Math.max(0, totalQuota - totalUsed)}
+            {monthLeft}
             <span className="ml-1 text-sm font-medium text-slate-400">대</span>
+          </p>
+          {/* 남은 날로 나눠 둔다 — 이달 안에 못 쓰면 그대로 날아가는 대수다 */}
+          <p className="text-[11px] text-slate-400">
+            {monthLeft > 0
+              ? `${daysLeftInMonth}일 남음 · 하루 ${Math.ceil(monthLeft / daysLeftInMonth)}대`
+              : monthQuota > 0
+                ? '이번 달 약정을 다 썼습니다'
+                : '—'}
           </p>
         </div>
       </div>
+
+      {/* 약정 계약 말고, 달마다 얼마를 썼는지만 남기는 광고 */}
+      <AdSpendPanel />
 
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{error}</p>}
       {loading && <p className="py-10 text-center text-sm text-slate-400">불러오는 중…</p>}
