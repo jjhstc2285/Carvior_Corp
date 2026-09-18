@@ -19,7 +19,14 @@ import {
  * 금액은 부가세까지 더한 '실제로 빠져나가는 돈'으로 적는다 — 공급가액으로 적으면
  * 통장에서 나간 돈과 안 맞아 매달 다시 계산하게 된다.
  * 달마다 오르내리는 것(전기·수도)은 대표값 하나만 적는다. 러프하게 보는 자리다.
+ *
+ * property 를 안 주면 '사무실 부대비용'이다 — 인터넷·정수기·복합기처럼 자리에 매이지
+ * 않고 매달 자동이체로 빠져나가는 것. 아무 건물 밑에 넣어두면 그 자리 고정비가 부풀어
+ * 자리끼리 비교가 안 된다.
  */
+
+/** 사무실 부대비용에서 자주 쓰는 항목 — 월세·주차 임대료는 자리에 붙는 것이라 뺀다 */
+const OFFICE_KINDS = ['관리비', '인터넷·전화', '정수기', '복합기', '보험료', '기타'] as const;
 
 const INPUT =
   'rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-400 disabled:opacity-50';
@@ -29,11 +36,15 @@ export default function PropertyCostModal({
   onClose,
   onChanged,
 }: {
-  property: Property;
+  /** 없으면 사무실 부대비용 — 자리에 매이지 않는 돈 */
+  property: Property | null;
   onClose: () => void;
   /** 합계가 바뀌면 뒤에 있는 표도 다시 받아야 한다 */
   onChanged?: () => void;
 }) {
+  const office = !property;
+  const base = property ? `/properties/${property.id}/costs` : '/properties/office-costs';
+  const kinds = office ? OFFICE_KINDS : PROPERTY_COST_KINDS;
   const [rows, setRows] = useState<PropertyCost[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -41,13 +52,13 @@ export default function PropertyCostModal({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setRows(await api<PropertyCost[]>(`/properties/${property.id}/costs`));
+      setRows(await api<PropertyCost[]>(base));
     } catch (e) {
       void alertError('불러오지 못했습니다', e instanceof ApiError ? e.message : '');
     } finally {
       setLoading(false);
     }
-  }, [property.id]);
+  }, [base]);
 
   useEffect(() => {
     void load();
@@ -69,7 +80,7 @@ export default function PropertyCostModal({
 
   const addRow = async (kind: string) => {
     try {
-      await api(`/properties/${property.id}/costs`, { method: 'POST', body: { kind } });
+      await api(base, { method: 'POST', body: { kind, method: office ? '자동이체' : '직접이체' } });
       await load();
       onChanged?.();
     } catch (e) {
@@ -105,11 +116,21 @@ export default function PropertyCostModal({
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="flex items-center gap-1.5 text-base font-bold text-slate-800">
-              <Coins size={16} className="text-indigo-600" /> 달마다 나가는 돈 — {property.name}
+              <Coins size={16} className="text-indigo-600" />{' '}
+              {office ? '사무실 부대비용 자동이체' : `달마다 나가는 돈 — ${property.name}`}
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              월세 · 관리비 · 주차 임대료를 한곳에 적어둡니다. 금액은 <b>부가세까지 더한 실제 나가는 돈</b>으로
-              적어 주세요 — 통장에서 빠진 금액과 맞아야 매달 다시 안 셉니다.
+              {office ? (
+                <>
+                  자리에 매이지 않고 <b>매달 자동이체로 빠져나가는 것</b>을 적습니다 — 관리비 · 인터넷 · 정수기 ·
+                  복합기처럼요. 건물별 비용과 섞지 않습니다.
+                </>
+              ) : (
+                <>
+                  월세 · 관리비 · 주차 임대료를 한곳에 적어둡니다. 금액은 <b>부가세까지 더한 실제 나가는 돈</b>으로
+                  적어 주세요 — 통장에서 빠진 금액과 맞아야 매달 다시 안 셉니다.
+                </>
+              )}
             </p>
           </div>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -132,7 +153,7 @@ export default function PropertyCostModal({
             </span>
           )}
           <span className="ml-auto flex flex-wrap gap-1">
-            {PROPERTY_COST_KINDS.map(k => (
+            {kinds.map(k => (
               <button
                 key={k}
                 onClick={() => void addRow(k)}
@@ -188,7 +209,7 @@ export default function PropertyCostModal({
                       disabled={busyId === r.id}
                       className={`${INPUT} w-28`}
                     >
-                      {[...new Set([...PROPERTY_COST_KINDS, r.kind].filter(Boolean))].map(k => (
+                      {[...new Set([...kinds, r.kind].filter(Boolean))].map(k => (
                         <option key={k} value={k}>
                           {k}
                         </option>

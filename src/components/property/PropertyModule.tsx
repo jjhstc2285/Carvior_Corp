@@ -4,7 +4,7 @@ import { AlarmClock, Coins, FileText, Lock, Phone, Plus, Trash2 } from 'lucide-r
 import { api, ApiError, getPropertyPass, setPropertyPass } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
-import { PROPERTY_SIDES, PROPERTY_USAGES, type Property } from '../../types';
+import { PROPERTY_SIDES, PROPERTY_USAGES, type Property, type PropertyCost } from '../../types';
 import LeaseContractModal from './LeaseContractModal';
 import PropertyCostModal from './PropertyCostModal';
 
@@ -140,6 +140,29 @@ export default function PropertyModule() {
     }
   };
 
+  /*
+    사무실 부대비용 — 자리에 매이지 않고 매달 자동이체로 빠져나가는 것.
+
+    관리비·인터넷·정수기처럼 어느 건물 것도 아닌 돈이 있다. 아무 자리 밑에 넣어두면 그
+    자리 고정비가 부풀어 자리끼리 비교가 안 된다. 따로 세서 한 달 고정비에만 더한다.
+  */
+  const [officeOpen, setOfficeOpen] = useState(false);
+  const [officeCost, setOfficeCost] = useState(0);
+  const loadOffice = useCallback(async () => {
+    try {
+      const list = await api<PropertyCost[]>('/properties/office-costs');
+      setOfficeCost(list.filter(r => r.active).reduce((sum, r) => sum + r.amount, 0));
+    } catch {
+      // 못 받아도 자리 목록은 보여준다 — 잠금 화면에서도 불리는 길이다
+      setOfficeCost(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    // 잠금이 풀린 뒤라야 읽힌다 — 통행증이 있어야 열리는 길이다
+    if (!locked) void loadOffice();
+  }, [locked, loadOffice]);
+
   const totals = useMemo(() => {
     const live = rows.filter(r => r.active);
     // 빌려 쓰는 자리는 나가는 돈, 빌려준 자리는 들어오는 돈이다. 섞어 더하면 뜻이 없다
@@ -151,7 +174,7 @@ export default function PropertyModule() {
       rentIn: income.reduce((sum, r) => sum + r.monthlyRent, 0),
       deposit: out.reduce((sum, r) => sum + r.deposit, 0),
       // 월세만 보면 실제로 나가는 돈보다 한참 적다 — 관리비·주차 임대료까지 더해야 한 달 고정비다
-      fixed: out.reduce((sum, r) => sum + r.monthlyRent + (r.monthlyCost ?? 0), 0),
+      fixed: out.reduce((sum, r) => sum + r.monthlyRent + (r.monthlyCost ?? 0), 0) + officeCost,
       depositIn: income.reduce((sum, r) => sum + r.deposit, 0),
       // 석 달 안에 끝나는 계약 — 미리 알아야 옮기든 연장하든 한다
       soon: live.filter(r => {
@@ -159,7 +182,7 @@ export default function PropertyModule() {
         return d !== null && d <= 90;
       }).length,
     };
-  }, [rows]);
+  }, [rows, officeCost]);
 
   /**
    * 곧 끝나거나 이미 지난 계약.
@@ -363,6 +386,20 @@ export default function PropertyModule() {
           />
           계약 끝난 곳도 보기
         </label>
+
+        {/* 자리에 안 붙는 돈 — 사무장이 매달 자동이체로 내는 것들 */}
+        <button
+          onClick={() => setOfficeOpen(true)}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+          title="관리비·인터넷·정수기처럼 자리에 매이지 않고 매달 자동이체로 나가는 돈"
+        >
+          <Coins size={13} className="text-indigo-600" /> 사무실 부대비용 자동이체
+          {officeCost > 0 && (
+            <span className="rounded-full bg-indigo-50 px-1.5 text-[11px] font-bold text-indigo-700">
+              월 {Math.round(officeCost / 10000).toLocaleString()}만
+            </span>
+          )}
+        </button>
         <span className="ml-auto text-xs text-slate-400">{loading ? '불러오는 중…' : `${rows.length}곳`}</span>
       </div>
 
@@ -625,7 +662,19 @@ export default function PropertyModule() {
         <br />
         <b>우리 위치</b>를 <b>임대(빌려줌)</b>로 두면 그 자리의 보증금·월세는 <b>받는 돈</b>으로 셉니다.
         계약서를 만들 때도 우리가 임대인 자리에 들어가고, 상대가 임차인이 됩니다.
+        <br />
+        관리비·인터넷처럼 <b>자리에 안 붙는</b> 돈은 위의 <b>[사무실 부대비용 자동이체]</b>에 적어 주세요 —
+        건물별 비용과 섞이지 않고, 한 달 고정비에는 같이 잡힙니다.
       </p>
+
+
+      {officeOpen && (
+        <PropertyCostModal
+          property={null}
+          onClose={() => setOfficeOpen(false)}
+          onChanged={() => void loadOffice()}
+        />
+      )}
     </div>
   );
 }

@@ -155,6 +155,7 @@ export class PropertiesService {
       그 자리에 달마다 나가는 돈을 같이 내준다.
       저장하지 않고 볼 때마다 더한다 — 따로 적어두면 비용을 고쳤을 때 합계만 옛 값으로 남는다.
     */
+    // 사무실 부대비용(propertyId 없음)은 어느 자리 것도 아니라 여기서 세지 않는다
     const costs = await this.prisma.propertyCost.groupBy({
       by: ['propertyId'],
       where: { active: true },
@@ -427,6 +428,23 @@ export class UpsertCostDto {
 export class PropertyCostService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * 사무실 부대비용 — 자리에 매이지 않고 매달 자동이체로 빠져나가는 것.
+   *
+   * 인터넷·정수기·복합기 같은 것들이다. 아무 건물 밑에 넣어두면 그 자리 고정비가 부풀어
+   * 자리끼리 비교가 안 된다. propertyId 를 비워 따로 둔다.
+   */
+  findOffice() {
+    return this.prisma.propertyCost.findMany({
+      where: { propertyId: null },
+      orderBy: [{ active: 'desc' }, { amount: 'desc' }],
+    });
+  }
+
+  createOffice(dto: UpsertCostDto) {
+    return this.prisma.propertyCost.create({ data: { propertyId: null, ...this.dataOf(dto) } });
+  }
+
   findByProperty(propertyId: string) {
     // 큰 돈부터 — 어디에 제일 많이 나가는지가 먼저 보여야 한다
     return this.prisma.propertyCost.findMany({
@@ -558,6 +576,26 @@ export class PropertiesController {
   // ── 계약서 ── 부동산과 같은 사람만 본다(계약 조건이 그대로 들어 있다)
 
   // ── 달마다 나가는 돈 ──
+
+  /*
+    사무실 부대비용. ':id' 를 타는 길보다 먼저 둔다 — 뒤에 두면 'office-costs' 가
+    부동산 id 로 잡힌다.
+  */
+  @Get('office-costs')
+  findOfficeCosts(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string) {
+    assertCeo(user, pass);
+    return this.costs.findOffice();
+  }
+
+  @Post('office-costs')
+  createOfficeCost(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
+    @Body() dto: UpsertCostDto,
+  ) {
+    assertCeo(user, pass);
+    return this.costs.createOffice(dto);
+  }
 
   @Get(':id/costs')
   findCosts(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Param('id') id: string) {
