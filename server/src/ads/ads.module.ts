@@ -25,7 +25,6 @@ import { RealtimeModule } from '../realtime/realtime.module';
 import { PushService } from '../push/push.service';
 import { PushModule } from '../push/push.module';
 import { normalizePlate } from '../vehicles/vehicle.rules';
-import { CarviorModule, CarviorService } from '../carvior/carvior.module';
 import { AdSpendController, AdSpendService } from './ad-spend';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -70,7 +69,6 @@ export class AdsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly carvior: CarviorService,
     private readonly realtime: RealtimeGateway,
     private readonly push: PushService,
   ) {}
@@ -173,62 +171,6 @@ export class AdsService {
     await this.prisma.adPosting.delete({ where: { id } }).catch(() => {
       throw new NotFoundException('등록 내역을 찾을 수 없습니다.');
     });
-  }
-
-  /**
-   * 진단완료된 차를 계약에 붙인다.
-   *
-   * 광고 상품은 진단 건수로 소진된다 — 진단서가 나온 건이 곧 한 건이다.
-   * 계약만 잡히고 진단이 안 나간 건은 약정을 쓴 게 아니라서 뺀다.
-   *
-   * 계약 기간 안에 잡힌 것만 본다. 같은 차가 여러 번 있으면 한 건으로 세고 처음 날을 쓴다.
-   * 손으로 넣은 건은 그대로 둔다 — 사람이 넣은 걸 자동 집계가 덮으면 왜 사라졌는지 알 수 없다.
-   *
-   * 카비어가 죽어 있어도 화면은 그대로 써야 하므로 실패하면 0건으로 돌린다.
-   */
-  async syncFromCarvior(contractId?: string) {
-    const contracts = await this.prisma.adContract.findMany({
-      where: { active: true, ...(contractId ? { id: contractId } : {}) },
-    });
-    if (contracts.length === 0) return { added: 0 };
-
-    let diagnosed: { carNumber: string; createdAt: string }[];
-    try {
-      // 진단서가 나온 건만 약정을 쓴 것으로 본다.
-      diagnosed = (await this.carvior.findContracts()).filter((c) => c.reportUrl);
-    } catch (e) {
-      this.logger.warn(`카비어 조회 실패: ${(e as Error).message}`);
-      return { added: 0 };
-    }
-
-    let added = 0;
-    for (const c of contracts) {
-      const from = c.startOn.getTime();
-      const to = c.endOn.getTime() + 86_400_000;
-
-      const first = new Map<string, Date>();
-      for (const item of diagnosed) {
-        const at = new Date(item.createdAt);
-        if (at.getTime() < from || at.getTime() >= to) continue;
-
-        const plate = normalizePlate(item.carNumber ?? '');
-        if (!plate) continue;
-        const seen = first.get(plate);
-        if (!seen || at < seen) first.set(plate, at);
-      }
-
-      const res = await this.prisma.adPosting.createMany({
-        data: [...first].map(([vehicleNumber, at]) => ({
-          contractId: c.id,
-          vehicleNumber,
-          postedOn: toDateOnly(formatDateOnly(at)),
-          auto: true,
-        })),
-        skipDuplicates: true,
-      });
-      added += res.count;
-    }
-    return { added };
   }
 
   /**
@@ -358,7 +300,10 @@ export class AdsService {
 // ── 매일 확인 ──────────────────────────────
 
 /**
- * 아침에 한 번, 카비어에서 진단 나간 건을 계약에 붙이고 못 쓴 대수를 알린다.
+ * 아침에 한 번, 못 쓴 대수를 알린다.
+ *
+ * 차를 붙이는 건 사람이 [차량 넣기]로 한다 — 기간만 맞으면 모든 계약에 똑같이 붙던
+ * 자동 집계를 없앴다. 같은 차가 여러 상품에 중복으로 세어졌기 때문이다.
  *
  * 30분마다 깨어나 보낼 시간인지만 본다 — 정각에 맞추면 서버가 잠깐 내려갔을 때
  * 그날을 통째로 놓친다.
@@ -401,7 +346,6 @@ export class AdReminderService implements OnModuleInit, OnModuleDestroy {
     this.ranOn = today;
     try {
       // 세기 전에 먼저 붙인다 — 안 붙이고 세면 실제보다 적게 나온다.
-      await this.ads.syncFromCarvior();
       await this.ads.notifyShortfall(today);
     } catch (e) {
       this.logger.warn(`광고 약정 확인 실패: ${(e as Error).message}`);
@@ -462,15 +406,10 @@ export class AdsController {
     await this.ads.removePosting(id);
   }
 
-  /** 진단완료된 차를 지금 붙인다 — 아침을 기다리지 않고 확인할 때 */
-  @Post('sync')
-  sync() {
-    return this.ads.syncFromCarvior();
-  }
 }
 
 @Module({
-  imports: [RealtimeModule, PushModule, CarviorModule],
+  imports: [RealtimeModule, PushModule],
   controllers: [AdsController, AdSpendController],
   providers: [AdsService, AdReminderService, AdSpendService],
 })

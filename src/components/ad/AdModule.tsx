@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlertTriangle, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { VEHICLE_POST_SITES, type AdContract, type Role } from '../../types';
-import VehicleAdCostPanel from './VehicleAdCostPanel';
 import AdSpendPanel from './AdSpendPanel';
 
 /**
@@ -46,19 +45,6 @@ export default function AdModule({ role }: { role: Role }) {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const sync = async () => {
-    try {
-      const res = await api<{ added: number }>('/ads/sync', { method: 'POST' });
-      await alertSuccess(
-        res.added > 0 ? `${res.added}대를 새로 붙였습니다` : '새로 붙일 게 없습니다',
-        '계약 기간에 진단완료된 차를 카비어에서 가져옵니다.',
-      );
-      await load();
-    } catch (e) {
-      void alertError('가져오지 못했습니다', e instanceof ApiError ? e.message : '');
-    }
-  };
 
   const addPostings = async () => {
     if (!addingTo || !plates.trim()) return;
@@ -117,13 +103,6 @@ export default function AdModule({ role }: { role: Role }) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            onClick={() => void sync()}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            title="계약 기간에 진단완료된 차를 카비어에서 가져옵니다"
-          >
-            <RefreshCw size={15} /> 진단완료 가져오기
-          </button>
           {isAdmin && (
             <button
               onClick={() => setFormOpen(true)}
@@ -311,7 +290,6 @@ export default function AdModule({ role }: { role: Role }) {
         })}
       </div>
 
-      <VehicleAdCostPanel />
 
       {formOpen && <AdContractForm onSaved={() => void load()} onClose={() => setFormOpen(false)} />}
 
