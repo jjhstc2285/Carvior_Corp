@@ -1,7 +1,7 @@
 import { Controller, Get, Injectable, Logger, Module, Query } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly } from '../common/date.util';
-import { matchSlots, missingFromBoard, type BoardSlot, type StockVehicle } from './parkboard.rules';
+import { matchSlots, missingFromBoard, tailOf, type BoardSlot, type StockVehicle } from './parkboard.rules';
 
 /**
  * 주차위치 현황판 읽어오기.
@@ -17,6 +17,7 @@ import { matchSlots, missingFromBoard, type BoardSlot, type StockVehicle } from 
  * 읽어서 맞춰본다. 1분은 같은 걸 다시 안 읽는다(현황판은 몇 분 단위로 바뀐다).
  */
 
+/** 키 불출은 몇 분 단위로 생긴다 — 너무 자주 읽어도 의미가 없다 */
 const CACHE_MS = 60 * 1000;
 const TIMEOUT_MS = 8000;
 
@@ -56,6 +57,23 @@ export class ParkBoardService {
       this.logger.warn(`현황판 읽기 실패: ${message}`);
       // 앞서 읽어둔 게 있으면 그거라도 보여준다 — 아무것도 안 보이는 것보다 낫다
       return { slots: this.cache?.slots ?? {}, error: message };
+    }
+  }
+
+  /** 방 안의 아무 가지나 하나 읽는다 — 없으면 null */
+  private async fetchNode<T>(node: string): Promise<T | null> {
+    const url = `${boardUrl()}/kd_rooms/${encodeURIComponent(boardCode())}/${node}.json`;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: ac.signal });
+      if (!res.ok) throw new Error(`현황판이 ${res.status} 로 답했습니다`);
+      return (await res.json()) as T | null;
+    } catch (e) {
+      this.logger.warn(`${node} 읽기 실패: ${(e as Error).message}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -137,6 +155,101 @@ export class ParkBoardService {
       })),
     };
   }
+  /**
+   * 키 불출 이력.
+   *
+   * 딜러가 QR 로 키를 달라고 하면 그 앱에 한 줄이 쌓인다 — 누가(이름·번호·소속 상사),
+   * 어느 차를, 언제, 어디서(실내·외부) 가져갔는지. 돌려주면 반납으로 찍힌다.
+   *
+   * 그 앱은 마지막 50건만 들고 있다. 그 앞은 지워져서 우리가 읽을 수 없다 —
+   * 오래 남겨야 하면 그 앱 쪽을 고쳐야 한다.
+   *
+   * 차량번호는 여기서도 뒤 4자리뿐이라 재고와 하나로 안 붙을 수 있다. 붙은 것만
+   * 전체 번호를 같이 내려주고, 아니면 4자리 그대로 둔다.
+   */
+  async keys(limit: number) {
+    const [hist, returned, returnLoc, memos, stock] = await Promise.all([
+      this.fetchNode<Record<string, KeyEntry> | KeyEntry[]>('hist'),
+      this.fetchNode<string[] | Record<string, string>>('returned'),
+      this.fetchNode<Record<string, string>>('returnLocMap'),
+      this.fetchNode<Record<string, string>>('memos'),
+      this.stock(),
+    ]);
+
+    if (!hist) return { connected: false, error: '키 불출 이력을 읽지 못했습니다', rows: [], summary: null };
+
+    const entries = (Array.isArray(hist) ? hist : Object.values(hist)).filter(
+      (e): e is KeyEntry => !!e && typeof e === 'object' && !!e.car,
+    );
+
+    const back = new Set(
+      (Array.isArray(returned) ? returned : Object.values(returned ?? {})).map((v) => String(v)),
+    );
+
+    // 4자리로 재고를 찾는다 — 둘 이상 걸리면 어느 차인지 모르니 붙이지 않는다
+    const byTail = new Map<string, StockVehicle[]>();
+    for (const v of stock) {
+      const t = v.plateTail || tailOf(v.vehicleNumber);
+      if (!t) continue;
+      byTail.set(t, [...(byTail.get(t) ?? []), v]);
+    }
+
+    const rows = entries
+      .map((e) => {
+        const id = String(e.id ?? '');
+        const tail = tailOf(e.car ?? '');
+        const hit = (byTail.get(tail) ?? []).filter((v) => !v.soldDate);
+        const one = hit.length === 1 ? hit[0] : null;
+        return {
+          id,
+          /* id 가 곧 시각이다(epoch ms). 앱이 적어둔 글자 시각은 '2026. 8. 12. 오후 1:56:50'
+             꼴이라 그대로는 못 쓴다. */
+          at: Number(id) > 0 ? new Date(Number(id)).toISOString() : '',
+          car: e.car ?? '',
+          dealer: e.name ?? '',
+          phone: e.phone ?? '',
+          company: e.pr ?? '',
+          /** 조합 가입 여부 — 그 앱이 카모두에서 확인해 적어둔 문구 */
+          dealerStatus: e.dealerStatus ?? '',
+          union: (e.dealerStatus ?? '').includes('미가입') ? '미가입' : (e.dealerStatus ?? '').includes('가입') ? '가입' : '',
+          loc: e.dispatchLoc ?? '',
+          returned: back.has(id),
+          returnLoc: returnLoc?.[id] ?? '',
+          memo: memos?.[id] ?? '',
+          vehicleNumber: one?.vehicleNumber ?? '',
+          vehicleModel: one?.vehicleModel ?? '',
+        };
+      })
+      // 늦은 것부터 — 방금 나간 키가 맨 위여야 한다
+      .sort((a, b) => Number(b.id) - Number(a.id));
+
+    const out = rows.filter((r) => !r.returned);
+    return {
+      connected: true,
+      error: '',
+      readAt: new Date().toISOString(),
+      room: boardCode(),
+      rows: limit > 0 ? rows.slice(0, limit) : rows,
+      summary: {
+        total: rows.length,
+        out: out.length,
+        /** 아직 안 돌려준 차 — 이게 지금 나가 있는 키다 */
+        outCars: out.slice(0, 8).map((r) => r.vehicleNumber || r.car),
+      },
+    };
+  }
+}
+
+/** 그 앱이 한 줄에 적어두는 것 */
+interface KeyEntry {
+  id?: number | string;
+  car?: string;
+  name?: string;
+  phone?: string;
+  pr?: string;
+  timestamp?: string;
+  dispatchLoc?: string;
+  dealerStatus?: string;
 }
 
 /** 현황판은 현장 사람이 다 같이 본다 — 우리 쪽도 막을 이유가 없다. */
@@ -152,6 +265,12 @@ export class ParkBoardController {
   @Get('encar')
   encarDone(@Query('month') month = '') {
     return this.board.encarDone(month.trim());
+  }
+
+  /** 키 불출 이력 — 기본 30건. 0 을 주면 그 앱이 들고 있는 것 전부(50건) */
+  @Get('keys')
+  keys(@Query('limit') limit = '30') {
+    return this.board.keys(Number(limit) || 0);
   }
 }
 
