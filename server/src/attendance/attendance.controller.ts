@@ -58,6 +58,24 @@ export class AttendanceController {
     return this.attendance.clockOut(user.id);
   }
 
+  /*
+    관리자가 대신 찍는다 — 사무실 한 대에서 전 직원 출퇴근을 찍는 자리.
+    단말·네트워크 확인은 안 한다. 관리자 PC 에서 누르는 것이라 그 확인이 뜻이 없다.
+  */
+  @Roles(Role.ADMIN)
+  @Post('clock-in/:employeeId')
+  @HttpCode(200)
+  clockInFor(@Param('employeeId') employeeId: string) {
+    return this.attendance.clockInFor(employeeId);
+  }
+
+  @Roles(Role.ADMIN)
+  @Post('clock-out/:employeeId')
+  @HttpCode(200)
+  clockOutFor(@Param('employeeId') employeeId: string) {
+    return this.attendance.clockOut(employeeId);
+  }
+
   // ── 정정 요청 ──
 
   @Get('corrections')

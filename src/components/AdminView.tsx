@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import ApprovalInbox from './ApprovalInbox';
 import SignupApprovals from './SignupApprovals';
 import AttendanceRequestInbox from './AttendanceRequestInbox';
+import TeamClockBoard from './TeamClockBoard';
 import StatusBar from './StatusBar';
 import SettlementApprovalInbox from './settlement/SettlementApprovalInbox';
 import MonthlyDashboard from './MonthlyDashboard';
@@ -20,6 +21,8 @@ export default function AdminView() {
       <div className="space-y-6">
         {/* 오늘 누가 무엇을 하는지 — 승인함보다 먼저 보는 값이다 */}
         <StatusBar />
+        {/* 본인 계정으로 못 찍는 사람 몫을 여기서 대신 찍는다 */}
+        <TeamClockBoard />
         {/* 결재를 기다리는 정산 — 찾으러 들어가야 하는 결재는 밀린다 */}
         <SettlementApprovalInbox />
         <AttendanceRequestInbox />
