@@ -784,10 +784,12 @@ export const CONSULTATION_PLATFORMS_BY_KIND: Record<ConsultationKind, readonly s
 export const VENDOR_CATEGORIES = [
   '광택·세차',
   '판금·덴트',
+  '휠복원',
   '성능',
   '탁송',
   '공업사',
   '배터리',
+  '유리',
   '할부사',
   '보험',
   '기타',
@@ -919,6 +921,15 @@ export interface Property {
   updatedAt: string;
 }
 
+/** 거래처 담당자 한 사람 — 한 곳에 여럿이다(메인팀장·하부세척·픽업이 따로) */
+export interface VendorContact {
+  id: string;
+  vendorId: string;
+  name: string;
+  phone: string;
+  sort: number;
+}
+
 export interface Vendor {
   id: string;
   category: string;
@@ -927,7 +938,11 @@ export interface Vendor {
   /** 번호가 둘인 곳 */
   phone2: string;
   manager: string;
+  /** 어디로 가면 되는지 */
+  address: string;
   memo: string;
+  /** 대표 번호 말고 더 있는 사람들 */
+  contacts: VendorContact[];
   /** 거래 끊으면 내린다 — 지우지 않는다(지난 비용 명세가 이 이름을 가리킨다) */
   active: boolean;
   createdAt: string;

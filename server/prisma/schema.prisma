@@ -929,15 +929,39 @@ model Vendor {
   name     String  @db.VarChar(60)
   phone    String  @default("") @db.VarChar(30)
   phone2   String  @default("") @db.VarChar(30) // 번호가 둘인 곳
-  manager  String  @default("") @db.VarChar(30) // 담당자
-  memo     String  @default("") @db.VarChar(255)
+  manager  String  @default("") @db.VarChar(30) // 담당자 — 대표로 연락하는 사람
+  address  String  @default("") @db.VarChar(255) // 어디로 가면 되는지
+  memo     String  @default("") @db.VarChar(255) // 영업시간처럼 알아둘 것
   active   Boolean @default(true) // 거래 끊으면 내린다(지우지 않는다 — 지난 비용이 이 이름을 가리킨다)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  contacts VendorContact[]
+
   @@index([category])
   @@index([name])
+}
+
+/**
+ * 거래처 담당자 한 사람.
+ *
+ * 한 곳에 사람이 여럿이다 — 네바퀴 성능장만 해도 메인팀장·하부세척·픽업 담당이 따로다.
+ * 업체 줄에 번호 칸을 늘리는 대신 사람을 붙인다. 누구에게 무슨 일로 거는지가 이름에 적힌다.
+ */
+model VendorContact {
+  id       String @id @default(cuid())
+  vendorId String
+  name     String @default("") @db.VarChar(40) // 김재근 부장(메인팀장)
+  phone    String @default("") @db.VarChar(30)
+  sort     Int    @default(0) // 시트에 적힌 순서 그대로
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
 }
 
 // ─────────────────────────────────────────────

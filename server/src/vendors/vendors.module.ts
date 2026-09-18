@@ -33,6 +33,7 @@ export class UpsertVendorDto {
   @IsOptional() @IsString() @MaxLength(30) phone?: string;
   @IsOptional() @IsString() @MaxLength(30) phone2?: string;
   @IsOptional() @IsString() @MaxLength(30) manager?: string;
+  @IsOptional() @IsString() @MaxLength(255) address?: string;
   @IsOptional() @IsString() @MaxLength(255) memo?: string;
   @IsOptional() @IsBoolean() active?: boolean;
 }
@@ -43,8 +44,15 @@ export class UpdateVendorDto {
   @IsOptional() @IsString() @MaxLength(30) phone?: string;
   @IsOptional() @IsString() @MaxLength(30) phone2?: string;
   @IsOptional() @IsString() @MaxLength(30) manager?: string;
+  @IsOptional() @IsString() @MaxLength(255) address?: string;
   @IsOptional() @IsString() @MaxLength(255) memo?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+}
+
+/** 담당자 한 사람 — 이름에 '김재근 부장(메인팀장)'처럼 무슨 일로 거는지까지 적는다 */
+export class UpsertContactDto {
+  @IsOptional() @IsString() @MaxLength(40) name?: string;
+  @IsOptional() @IsString() @MaxLength(30) phone?: string;
 }
 
 @Injectable()
@@ -62,12 +70,19 @@ export class VendorsService {
               { manager: { contains: params.q } },
               { phone: { contains: params.q } },
               { memo: { contains: params.q } },
+              { address: { contains: params.q } },
+              // 사람 이름으로 찾는 일이 더 많다 — '김재근 부장'
+              { contacts: { some: { OR: [{ name: { contains: params.q } }, { phone: { contains: params.q } }] } } },
             ],
           }
         : {}),
     };
     // 분류끼리 모아 보여준다. 같은 분류 안에서는 이름 순 — 번호를 찾으려면 이름으로 짚는다.
-    return this.prisma.vendor.findMany({ where, orderBy: [{ category: 'asc' }, { name: 'asc' }] });
+    return this.prisma.vendor.findMany({
+      where,
+      include: { contacts: { orderBy: [{ sort: 'asc' }, { createdAt: 'asc' }] } },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
   }
 
   create(dto: UpsertVendorDto) {
@@ -78,9 +93,11 @@ export class VendorsService {
         phone: dto.phone?.trim() ?? '',
         phone2: dto.phone2?.trim() ?? '',
         manager: dto.manager?.trim() ?? '',
+        address: dto.address?.trim() ?? '',
         memo: dto.memo?.trim() ?? '',
         ...(dto.active !== undefined ? { active: dto.active } : {}),
       },
+      include: { contacts: true },
     });
   }
 
@@ -94,9 +111,11 @@ export class VendorsService {
         ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
         ...(dto.phone2 !== undefined ? { phone2: dto.phone2.trim() } : {}),
         ...(dto.manager !== undefined ? { manager: dto.manager.trim() } : {}),
+        ...(dto.address !== undefined ? { address: dto.address.trim() } : {}),
         ...(dto.memo !== undefined ? { memo: dto.memo.trim() } : {}),
         ...(dto.active !== undefined ? { active: dto.active } : {}),
       },
+      include: { contacts: { orderBy: [{ sort: 'asc' }, { createdAt: 'asc' }] } },
     });
   }
 
@@ -111,9 +130,48 @@ export class VendorsService {
     await this.prisma.vendor.delete({ where: { id } });
   }
 
+  /** 담당자를 한 사람 붙인다 — 맨 뒤로 */
+  async addContact(vendorId: string, dto: UpsertContactDto) {
+    await this.assertExists(vendorId);
+    const last = await this.prisma.vendorContact.findFirst({
+      where: { vendorId },
+      orderBy: { sort: 'desc' },
+      select: { sort: true },
+    });
+    return this.prisma.vendorContact.create({
+      data: {
+        vendorId,
+        name: dto.name?.trim() ?? '',
+        phone: dto.phone?.trim() ?? '',
+        sort: (last?.sort ?? 0) + 1,
+      },
+    });
+  }
+
+  async updateContact(id: string, dto: UpsertContactDto) {
+    await this.assertContactExists(id);
+    return this.prisma.vendorContact.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
+      },
+    });
+  }
+
+  async removeContact(id: string) {
+    await this.assertContactExists(id);
+    await this.prisma.vendorContact.delete({ where: { id } });
+  }
+
   private async assertExists(id: string) {
     const row = await this.prisma.vendor.findUnique({ where: { id }, select: { id: true } });
     if (!row) throw new NotFoundException('거래처를 찾을 수 없습니다.');
+  }
+
+  private async assertContactExists(id: string) {
+    const row = await this.prisma.vendorContact.findUnique({ where: { id }, select: { id: true } });
+    if (!row) throw new NotFoundException('담당자를 찾을 수 없습니다.');
   }
 }
 
@@ -148,6 +206,27 @@ export class VendorsController {
   @HttpCode(204)
   async remove(@Param('id') id: string) {
     await this.vendors.remove(id);
+  }
+
+  // ── 담당자 ──
+
+  @Roles(Role.ADMIN)
+  @Post(':id/contacts')
+  addContact(@Param('id') id: string, @Body() dto: UpsertContactDto) {
+    return this.vendors.addContact(id, dto);
+  }
+
+  @Roles(Role.ADMIN)
+  @Patch('contacts/:contactId')
+  updateContact(@Param('contactId') contactId: string, @Body() dto: UpsertContactDto) {
+    return this.vendors.updateContact(contactId, dto);
+  }
+
+  @Roles(Role.ADMIN)
+  @Delete('contacts/:contactId')
+  @HttpCode(204)
+  async removeContact(@Param('contactId') contactId: string) {
+    await this.vendors.removeContact(contactId);
   }
 }
 

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Phone, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
-import { VENDOR_CATEGORIES, type Vendor } from '../../types';
+import { VENDOR_CATEGORIES, type Vendor, type VendorContact } from '../../types';
 import EmployeeAvatar from '../EmployeeAvatar';
 
 /**
@@ -31,6 +31,8 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** 담당자를 펼쳐 둔 업체 — 여덟 명씩 늘어놓으면 표를 못 읽는다 */
+  const [openId, setOpenId] = useState<string | null>(null);
   const [includeInactive, setIncludeInactive] = useState(false);
 
   const load = useCallback(async () => {
@@ -91,6 +93,36 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
     }
   };
 
+  const addContact = async (row: Vendor) => {
+    try {
+      await api(`/vendors/${row.id}/contacts`, { method: 'POST', body: { name: '', phone: '' } });
+      await load();
+    } catch (e) {
+      void alertError('담당자를 추가하지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
+  const patchContact = async (c: VendorContact, body: Partial<VendorContact>) => {
+    try {
+      await api(`/vendors/contacts/${c.id}`, { method: 'PATCH', body });
+      await load();
+    } catch (e) {
+      void alertError('저장하지 못했습니다', e instanceof ApiError ? e.message : '');
+      await load();
+    }
+  };
+
+  const removeContact = async (c: VendorContact) => {
+    const ok = await confirmDanger(`${c.name || '이 담당자'}를 지울까요?`, '');
+    if (!ok) return;
+    try {
+      await api(`/vendors/contacts/${c.id}`, { method: 'DELETE' });
+      await load();
+    } catch (e) {
+      void alertError('지우지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
   /** 분류별 건수 — 어디에 몇 곳을 쓰고 있는지 */
   const counts = useMemo(() => {
     const by = new Map<string, number>();
@@ -102,7 +134,9 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
     .filter(r => category === 'all' || r.category === category)
     .filter(r => {
       const q = query.trim();
-      return !q || [r.name, r.manager, r.phone, r.phone2, r.memo].some(v => v?.includes(q));
+      // 사람 이름으로 찾는 일이 더 많다 — '김재근 부장'
+      const fields = [r.name, r.manager, r.phone, r.phone2, r.memo, r.address, ...r.contacts.flatMap(c => [c.name, c.phone])];
+      return !q || fields.some(v => v?.includes(q));
     });
 
   /** 목록에 없는 분류가 쓰이고 있으면 그것도 고를 수 있어야 한다 */
@@ -178,7 +212,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1040px] text-sm">
+          <table className="w-full min-w-[1360px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
                 {canEdit && <th className="px-3 py-3" />}
@@ -187,6 +221,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                 <th className="px-3 py-3 font-medium">전화번호</th>
                 <th className="px-3 py-3 font-medium">번호 2</th>
                 <th className="px-3 py-3 font-medium">담당자</th>
+                <th className="px-3 py-3 font-medium">주소</th>
                 <th className="px-3 py-3 font-medium">메모</th>
                 {canEdit && <th className="px-3 py-3 text-center font-medium">거래중</th>}
               </tr>
@@ -194,14 +229,14 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '등록된 거래처가 없습니다.'}
                   </td>
                 </tr>
               )}
               {filtered.map(r => (
+                <Fragment key={r.id}>
                 <tr
-                  key={r.id}
                   className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/60 ${
                     r.active ? '' : 'bg-slate-50/60 text-slate-400'
                   }`}
@@ -277,15 +312,39 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                     </td>
                   ))}
                   <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-1.5">
+                      {canEdit ? (
+                        <input
+                          defaultValue={r.manager}
+                          onBlur={e => e.target.value !== r.manager && void patch(r, { manager: e.target.value })}
+                          disabled={busyId === r.id}
+                          className={`${INPUT} w-24`}
+                        />
+                      ) : (
+                        <span className="text-slate-600">{r.manager || '—'}</span>
+                      )}
+                      {/* 사람이 여럿인 곳은 눌러서 펼친다 */}
+                      {(r.contacts.length > 0 || canEdit) && (
+                        <button
+                          onClick={() => setOpenId(v => (v === r.id ? null : r.id))}
+                          className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
+                        >
+                          {r.contacts.length > 0 ? `외 ${r.contacts.length}명` : '담당자'}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5">
                     {canEdit ? (
                       <input
-                        defaultValue={r.manager}
-                        onBlur={e => e.target.value !== r.manager && void patch(r, { manager: e.target.value })}
+                        defaultValue={r.address}
+                        onBlur={e => e.target.value !== r.address && void patch(r, { address: e.target.value })}
                         disabled={busyId === r.id}
-                        className={`${INPUT} w-24`}
+                        placeholder="경기도 수원시 권선구 …"
+                        className={`${INPUT} w-64`}
                       />
                     ) : (
-                      <span className="text-slate-600">{r.manager || '—'}</span>
+                      <span className="text-xs text-slate-500">{r.address || '—'}</span>
                     )}
                   </td>
                   <td className="px-3 py-2.5">
@@ -313,6 +372,67 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                     </td>
                   )}
                 </tr>
+
+                {/* 담당자들 — 한 곳에 여럿이라 펼쳐서 본다 */}
+                {openId === r.id && (
+                  <tr className="border-b border-slate-100 bg-slate-50/70">
+                    <td colSpan={9} className="px-5 py-3">
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        {r.contacts.length === 0 && !canEdit && (
+                          <span className="text-xs text-slate-400">등록된 담당자가 없습니다.</span>
+                        )}
+                        {r.contacts.map(c => (
+                          <div key={c.id} className="flex items-center gap-1.5">
+                            {canEdit ? (
+                              <>
+                                <input
+                                  defaultValue={c.name}
+                                  onBlur={e => e.target.value !== c.name && void patchContact(c, { name: e.target.value })}
+                                  placeholder="김재근 부장(메인팀장)"
+                                  className={`${INPUT} w-48`}
+                                />
+                                <input
+                                  defaultValue={c.phone}
+                                  onBlur={e => e.target.value !== c.phone && void patchContact(c, { phone: e.target.value })}
+                                  placeholder="010-0000-0000"
+                                  className={`${INPUT} w-36 font-mono`}
+                                />
+                                <button
+                                  onClick={() => void removeContact(c)}
+                                  className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                                  aria-label="담당자 삭제"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-xs text-slate-600">{c.name || '담당자'}</span>
+                                {c.phone && (
+                                  <a
+                                    href={`tel:${c.phone.replace(/[^\d+]/g, '')}`}
+                                    className="inline-flex items-center gap-1 font-mono text-xs font-medium text-indigo-600 hover:underline"
+                                  >
+                                    <Phone size={11} /> {c.phone}
+                                  </a>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ))}
+                        {canEdit && (
+                          <button
+                            onClick={() => void addContact(r)}
+                            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          >
+                            <Plus size={12} /> 담당자 추가
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -327,6 +447,9 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
           <br />
           <b>광택·세차 · 판금·덴트 · 성능 · 탁송 · 공업사</b> 로 넣어두면 매입 정산의 상품화 비용에서
           바로 골라 쓸 수 있습니다.
+          <br />
+          한 곳에 사람이 여럿이면 담당자 칸의 <b>[외 N명]</b> 을 눌러 펼친 뒤 추가하세요 —
+          이름에 <b>김재근 부장(메인팀장)</b> 처럼 무슨 일로 거는지까지 적어두면 찾기 좋습니다.
         </p>
       )}
     </div>
