@@ -473,8 +473,11 @@ export class AttendanceService {
   }
 
   /**
-   * 남은 연차 — 근로기준법 15일 고정으로 단순화(입사연차 가산 미반영).
-   * 반차는 반 일로 센다.
+   * 올해 쓴 연차. 반차는 반 일로 센다.
+   *
+   * 몇 개를 쓸 수 있는지는 내려주지 않는다 — 입사일·근속에 따라 사람마다 다른데 그
+   * 원본 자료가 우리한테 없다. 모르는 값을 15일로 박아 '남은 연차'를 띄우면 그걸 믿고
+   * 쓰게 된다. 쓴 날만 센다.
    */
   async annualLeaveUsage(employeeId: string, year: string) {
     const range = {
@@ -496,7 +499,7 @@ export class AttendanceService {
       counted.find((c) => c.kind === kind)?._count._all ?? 0;
 
     const used = countOf(AttendanceRequestKind.ANNUAL_LEAVE) + countOf(AttendanceRequestKind.HALF_DAY) * 0.5;
-    return { quota: 15, used, remaining: 15 - used };
+    return { used };
   }
 
   // ── 알림 ──────────────────────────────

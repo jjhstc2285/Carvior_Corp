@@ -2,6 +2,7 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../store';
+import { ApiError } from '../lib/api';
 import { ATTENDANCE_REQUEST_KIND_HINT, ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
 
 interface Props {
@@ -15,12 +16,27 @@ export default function AttendanceRequestModal({ onClose }: Props) {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [reason, setReason] = useState('');
 
-  const canSubmit = reason.trim().length >= 3;
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const canSubmit = reason.trim().length >= 3 && !saving;
+
+  /*
+    보내고 결과를 기다린다 — 보내자마자 닫으면 서버가 거절해도 아무 말이 없다.
+    누른 사람은 신청이 간 줄 알고 기다린다.
+  */
+  const handleSubmit = async () => {
     if (!canSubmit) return;
-    submitAttendanceRequest({ date, kind, reason: reason.trim() });
-    onClose();
+    setSaving(true);
+    setError(null);
+    try {
+      await submitAttendanceRequest({ date, kind, reason: reason.trim() });
+      onClose();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '보내지 못했습니다. 잠시 후 다시 눌러 주세요.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -72,16 +88,18 @@ export default function AttendanceRequestModal({ onClose }: Props) {
           />
         </div>
 
+        {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{error}</p>}
+
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
             취소
           </button>
           <button
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={!canSubmit}
             className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
           >
-            신청하기
+            {saving ? '보내는 중…' : '신청하기'}
           </button>
         </div>
       </div>

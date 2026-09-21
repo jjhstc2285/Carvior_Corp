@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { CalendarDays, ChevronRight, List, Plus } from 'lucide-react';
 import { useStore } from '../store';
 import { approvedRequestKind, computeStatus, formatMinutes, isWorkday, workedMinutes } from '../lib/attendance';
-import { ANNUAL_LEAVE_QUOTA, ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
+import { ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
 
 /** 신청 종류별 뱃지 색 — 승인함(AttendanceRequestInbox)과 같은 색을 쓴다. */
 const KIND_COLOR: Record<AttendanceRequestKind, string> = {
@@ -111,9 +111,16 @@ export default function EmployeeView() {
         </div>
         <div className="flex items-center gap-2">
           <div className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm">
-            <span className="text-slate-400">연차 사용</span>{' '}
+            {/*
+              몇 개를 쓸 수 있는지는 적지 않는다.
+
+              근로기준법 15일로 박아 두었는데 입사일·근속에 따라 사람마다 다르고, 그 원본
+              자료가 우리한테 없다. 모르는 값을 아는 척해 '남은 연차 12일'이라고 띄우면
+              그걸 믿고 쓴다. 쓴 날만 센다.
+            */}
+            <span className="text-slate-400">올해 연차 사용</span>{' '}
             <span className="font-bold text-violet-600">{usedAnnualLeave}</span>
-            <span className="text-slate-400"> / {ANNUAL_LEAVE_QUOTA}</span>
+            <span className="text-slate-400">일</span>
           </div>
           <button
             onClick={() => setAttReqOpen(true)}

@@ -61,8 +61,13 @@ export const ATTENDANCE_REQUEST_KIND_HINT: Record<AttendanceRequestKind, string>
   LATE_EXCUSE: '이미 지각·조퇴로 찍힌 날의 사유를 적습니다. 승인되면 그날이 정상 출근으로 바뀝니다.',
 };
 
-// 연차 — 근로기준법 기준 연 15일 고정으로 단순화(입사연차 가산 등은 미반영, MVP 틀)
-export const ANNUAL_LEAVE_QUOTA = 15;
+/*
+  연차 한도는 두지 않는다.
+
+  근로기준법 15일로 박아 뒀었는데 입사일·근속에 따라 사람마다 다르고, 그 원본 자료가
+  우리한테 없다. 모르는 값을 아는 척해 '남은 연차'를 띄우면 그걸 믿고 쓴다.
+  쓴 날만 세고, 한도는 사람이 판단한다.
+*/
 
 export interface AttendanceRequest {
   id: string;

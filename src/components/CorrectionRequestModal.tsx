@@ -2,6 +2,7 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../store';
+import { ApiError } from '../lib/api';
 import { WORK_START, WORK_END } from '../lib/attendance';
 
 interface Props {
@@ -16,18 +17,34 @@ export default function CorrectionRequestModal({ date, onClose }: Props) {
   const [clockIn, setClockIn] = useState(WORK_START);
   const [clockOut, setClockOut] = useState(WORK_END);
 
-  const canSubmit = reason.trim().length >= 5;
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const canSubmit = reason.trim().length >= 5 && !saving;
+
+  /*
+    보내고 결과를 기다린다.
+
+    예전에는 보내자마자 창을 닫았다. 서버가 거절해도 화면에는 아무 일도 안 일어나서,
+    누른 사람은 신청이 간 줄 알고 기다렸다 — 실패한 줄은 아무도 몰랐다.
+  */
+  const handleSubmit = async () => {
     if (!canSubmit) return;
-    submitCorrectionRequest({
-      
-      date,
-      reason: reason.trim(),
-      requestedClockIn: clockIn,
-      requestedClockOut: clockOut,
-    });
-    onClose();
+    setSaving(true);
+    setError(null);
+    try {
+      await submitCorrectionRequest({
+        date,
+        reason: reason.trim(),
+        requestedClockIn: clockIn,
+        requestedClockOut: clockOut,
+      });
+      onClose();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '보내지 못했습니다. 잠시 후 다시 눌러 주세요.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -73,16 +90,18 @@ export default function CorrectionRequestModal({ date, onClose }: Props) {
           />
         </div>
 
+        {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{error}</p>}
+
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
             취소
           </button>
           <button
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={!canSubmit}
             className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
           >
-            요청 보내기
+            {saving ? '보내는 중…' : '요청 보내기'}
           </button>
         </div>
       </div>
