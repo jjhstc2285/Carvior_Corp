@@ -20,6 +20,8 @@ function weekLabel(weekStart: Dayjs): string {
   return `${weekStart.format('YYYY년 M월')} ${nth}주차`;
 }
 
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+
 export default function WorkLogModule({ role }: Props) {
   const { state } = useStore();
   const [weekStart, setWeekStart] = useState(() => dayjs().startOf('week'));
@@ -68,6 +70,22 @@ export default function WorkLogModule({ role }: Props) {
 
   // 상단 요약은 '보고 있는 주'만 센다(받아온 범위에는 캘린더용 다른 달도 섞여 있다).
   const weekLogs = useMemo(() => logs.filter(l => l.date >= weekFrom && l.date <= weekTo), [logs, weekFrom, weekTo]);
+  /*
+    빈 날은 접어 둔다.
+
+    연차·주말처럼 아무도 안 적은 날이 한 주에 두세 칸씩 있는데, 일곱 칸을 똑같이 나눠
+    두면 정작 스무 줄씩 적힌 날이 좁아져서 읽을 수가 없다. 적힌 게 없는 날은 띠 하나로
+    접고, 그만큼 적힌 날을 넓게 쓴다. 눌러서 펼치면 그 날도 다시 쓸 수 있다.
+
+    사람이 직접 누른 것만 기억한다 — 기본은 '비었으면 접힘'이라 주가 바뀌면 다시 셈한다.
+  */
+  const [openOverride, setOpenOverride] = useState<Record<string, boolean>>({});
+  const toggleDay = (key: string, isOpen: boolean) =>
+    setOpenOverride(prev => ({ ...prev, [key]: !isOpen }));
+
+  /** 완료한 줄을 감춘다 — 남은 일만 보고 싶을 때 */
+  const [hideDone, setHideDone] = useState(false);
+
   const total = weekLogs.length;
   const doneCount = weekLogs.filter(l => l.done).length;
   const employeeName = (id: string) => state.employees.find(e => e.id === id)?.name ?? '알 수 없음';
@@ -162,29 +180,64 @@ export default function WorkLogModule({ role }: Props) {
           {weekStart.format('M/D')} – {weekStart.add(6, 'day').format('M/D')} · {viewerName}
         </p>
 
-        <span className="ml-auto text-xs text-slate-400">
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
+          <input
+            type="checkbox"
+            checked={hideDone}
+            onChange={e => setHideDone(e.target.checked)}
+            className="size-4 accent-indigo-600"
+          />
+          완료한 일 감추기
+        </label>
+        <span className="text-xs text-slate-400">
           {loading ? '불러오는 중…' : total === 0 ? '등록된 일지 없음' : `완료 ${doneCount}/${total}`}
         </span>
       </div>
 
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{error}</p>}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      {/* 넓은 화면에서는 칸을 나눠 갖는다 — 접힌 날은 띠만 남고 그만큼 적힌 날이 넓어진다 */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:flex xl:items-start">
         {days.map(day => {
           const key = day.format('YYYY-MM-DD');
+          const dayLogs = byDate.get(key) ?? [];
+          const open = openOverride[key] ?? dayLogs.length > 0;
+          const shown = hideDone ? dayLogs.filter(l => !l.done) : dayLogs;
+
+          if (!open) {
+            return (
+              <button
+                key={key}
+                onClick={() => toggleDay(key, open)}
+                title="눌러서 펼치기"
+                className="flex items-center justify-between gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2 text-xs text-slate-400 hover:bg-slate-100 xl:w-11 xl:shrink-0 xl:flex-col xl:justify-start xl:px-0 xl:py-3"
+              >
+                <span className="font-semibold text-slate-500 xl:[writing-mode:vertical-rl]">
+                  {day.format('M/D')} {WEEKDAY[day.day()]}
+                </span>
+                <span className="xl:[writing-mode:vertical-rl]">
+                  {dayLogs.length > 0 ? `${dayLogs.length}건` : '기록 없음'}
+                </span>
+              </button>
+            );
+          }
+
           return (
-            <WorkLogDayCard
-              key={key}
-              day={day}
-              logs={byDate.get(key) ?? []}
-              canAdd={!readOnly}
-              readOnly={readOnly}
-              ownerName={ownerLabel}
-              onAdd={content => add(key, content)}
-              onToggle={toggle}
-              onEdit={edit}
-              onRemove={remove}
-            />
+            <div key={key} className="xl:min-w-0 xl:flex-1">
+              <WorkLogDayCard
+                day={day}
+                logs={shown}
+                hiddenCount={dayLogs.length - shown.length}
+                onCollapse={() => toggleDay(key, open)}
+                canAdd={!readOnly}
+                readOnly={readOnly}
+                ownerName={ownerLabel}
+                onAdd={content => add(key, content)}
+                onToggle={toggle}
+                onEdit={edit}
+                onRemove={remove}
+              />
+            </div>
           );
         })}
       </div>
@@ -192,6 +245,10 @@ export default function WorkLogModule({ role }: Props) {
       <p className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-400">
         <NotebookPen size={12} />
         할 일을 입력하고 Enter를 누르면 저장됩니다. 적어둔 내용을 누르면 바로 고칠 수 있어요.
+        <br className="sm:hidden" />
+        <span className="hidden sm:inline">· </span>
+        적은 게 없는 날(연차·주말)은 <b>띠로 접힙니다</b> — 띠를 누르면 펼쳐지고, 날짜 옆 접기 표를
+        누르면 다시 접힙니다.
       </p>
 
       <div className="mt-8 border-t border-slate-200 pt-6">

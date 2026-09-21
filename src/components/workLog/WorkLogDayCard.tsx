@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import type { Dayjs } from 'dayjs';
-import { CheckSquare, Square, Trash2 } from 'lucide-react';
+import { CheckSquare, ChevronsLeftRight, Square, Trash2 } from 'lucide-react';
 import type { WorkLog } from '../../types';
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
@@ -17,6 +17,10 @@ interface Props {
    * 서버도 막지만, 버튼이 보이면 눌러보고 거절당한다.
    */
   readOnly?: boolean;
+  /** 완료한 일을 감춘 경우 몇 줄이 빠졌는지 — 빈 칸처럼 보이지 않게 적어 준다 */
+  hiddenCount?: number;
+  /** 이 날을 접는다 — 적을 게 없는 날은 띠로 줄여 다른 날을 넓게 쓴다 */
+  onCollapse?: () => void;
   onAdd: (content: string) => void;
   onToggle: (log: WorkLog) => void;
   onEdit: (id: string, content: string) => void;
@@ -35,7 +39,19 @@ function autoGrow(el: HTMLTextAreaElement | null) {
   el.style.height = `${el.scrollHeight}px`;
 }
 
-export default function WorkLogDayCard({ day, logs, canAdd, ownerName, readOnly = false, onAdd, onToggle, onEdit, onRemove }: Props) {
+export default function WorkLogDayCard({
+  day,
+  logs,
+  canAdd,
+  ownerName,
+  readOnly = false,
+  hiddenCount = 0,
+  onCollapse,
+  onAdd,
+  onToggle,
+  onEdit,
+  onRemove,
+}: Props) {
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
@@ -106,11 +122,24 @@ export default function WorkLogDayCard({ day, logs, canAdd, ownerName, readOnly 
             {WEEKDAY[weekday]}
           </span>
         </p>
-        {logs.length > 0 && (
-          <span className={`text-[11px] font-medium ${doneCount === logs.length ? 'text-emerald-500' : 'text-slate-400'}`}>
-            {doneCount}/{logs.length}
-          </span>
-        )}
+        <span className="flex items-baseline gap-1.5">
+          {logs.length > 0 && (
+            <span className={`text-[11px] font-medium ${doneCount === logs.length ? 'text-emerald-500' : 'text-slate-400'}`}>
+              {doneCount}/{logs.length}
+            </span>
+          )}
+          {/* 안 쓰는 날은 접어서 다른 날에 자리를 넘긴다 */}
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              title="이 날 접기"
+              className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-500"
+              aria-label="이 날 접기"
+            >
+              <ChevronsLeftRight size={13} />
+            </button>
+          )}
+        </span>
       </div>
 
       <ul className="flex-1 space-y-0.5 px-1.5 py-2">
@@ -167,6 +196,10 @@ export default function WorkLogDayCard({ day, logs, canAdd, ownerName, readOnly 
         ))}
 
         {logs.length === 0 && !canAdd && <li className="px-1.5 py-1 text-[12px] text-slate-300">기록 없음</li>}
+        {/* 감춘 줄이 몇 개인지 적어 둔다 — 안 그러면 다 지운 것처럼 보인다 */}
+        {hiddenCount > 0 && (
+          <li className="px-1.5 py-1 text-[11px] text-slate-300">완료한 일 {hiddenCount}개는 감췄습니다</li>
+        )}
       </ul>
 
       {canAdd && (
