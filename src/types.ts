@@ -930,6 +930,29 @@ export interface VendorContact {
   sort: number;
 }
 
+/**
+ * 인건비 한 줄.
+ *
+ * 실 이체액은 담지 않는다 — 급여에서 공제를 빼고 식대를 더하면 나오는 값이라,
+ * 저장해 두면 금액을 고쳤을 때 둘이 어긋난다.
+ */
+export interface PayrollEntry {
+  id: string;
+  name: string;
+  position: string;
+  monthlyPay: number; // 급여(원)
+  companyDeduction: number; // 회사공제(원)
+  selfDeduction: number; // 본인공제(원)
+  mealAllowance: number; // 식대(원)
+  /** 공제를 누가 지는가 — '본인all' / '세금 all 회사부담' / '공제없음' */
+  burden: string;
+  memo: string;
+  /** 그만두면 내린다 — 지우지 않는다(지난 달 인건비다) */
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Vendor {
   id: string;
   category: string;

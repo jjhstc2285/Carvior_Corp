@@ -1,4 +1,4 @@
-import { Building2, CalendarClock, Car, Contact, Handshake, Home, Landmark, Megaphone, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Sparkles, Stamp, X } from 'lucide-react';
+import { Building2, CalendarClock, Car, Contact, Handshake, Home, Landmark, Megaphone, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Sparkles, Stamp, Wallet, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 
 interface Props {
@@ -12,6 +12,8 @@ interface Props {
   canSeeLedger: boolean;
   /** 대표인가 — 부동산 메뉴를 가린다 */
   isCeo?: boolean;
+  /** 인건비를 볼 수 있는 계정인가 — 서버가 정해 준 값 */
+  canSeePayroll?: boolean;
 }
 
 const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[] = [
@@ -28,6 +30,7 @@ const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[]
   { key: 'dealerFee', label: '신차영업소 상조회비', icon: Building2 },
   { key: 'vendor', label: '거래처 대장', icon: Contact },
   { key: 'property', label: '부동산 정보', icon: Home },
+  { key: 'payroll', label: '인건비', icon: Wallet },
   { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
   { key: 'chat', label: '메시지', icon: MessageSquare },
 ];
@@ -40,6 +43,7 @@ export default function Sidebar({
   chatUnread = 0,
   canSeeLedger,
   isCeo = false,
+  canSeePayroll = false,
 }: Props) {
   // 상조회비 대장은 사무장과 관리자만 본다.
   const officeOnly: ModuleKey[] = ['dealerFee'];
@@ -47,7 +51,9 @@ export default function Sidebar({
     item =>
       (!officeOnly.includes(item.key) || canSeeLedger) &&
       // 부동산은 대표만 — 메뉴에서부터 안 보인다
-      (item.key !== 'property' || isCeo),
+      (item.key !== 'property' || isCeo) &&
+      // 인건비도 마찬가지다. 누가 얼마 받는지는 메뉴에 있는 것만으로도 말이 나온다
+      (item.key !== 'payroll' || canSeePayroll),
   );
   const content = (
     <>

@@ -10,6 +10,18 @@ import { canSeeLedger } from './lib/permissions';
  * 화면도 들고 있으면 사람이 바뀔 때 양쪽을 고쳐야 한다 — 한쪽만 고치면 메뉴는 보이는데
  * 안 열리거나, 열리는데 메뉴가 없다.
  */
+/** 인건비를 볼 수 있는 계정인가 — 누가 보는지는 서버가 정한다 */
+function usePayrollAccess(): boolean {
+  const [canOpen, setCanOpen] = useState(false);
+  useEffect(() => {
+    void api<{ canOpen: boolean }>('/payroll/access')
+      .then(r => setCanOpen(r.canOpen))
+      // 못 물어보면 안 보여준다 — 남의 급여는 막히는 쪽이 안전하다
+      .catch(() => setCanOpen(false));
+  }, []);
+  return canOpen;
+}
+
 function usePropertyAccess(): boolean {
   const [canOpen, setCanOpen] = useState(false);
   useEffect(() => {
@@ -47,6 +59,7 @@ import RealtimeToasts from './components/RealtimeToasts';
 import LoginPage from './components/auth/LoginPage';
 import VendorModule from './components/vendor/VendorModule';
 import PropertyModule from './components/property/PropertyModule';
+import PayrollModule from './components/payroll/PayrollModule';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
   attendance: '출퇴근 관리',
@@ -61,6 +74,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   stockFinance: '재고금융 (제시)',
   vendor: '거래처 대장',
   property: '부동산 정보',
+  payroll: '인건비',
   dealerFee: '신차영업소 상조회비',
   cleaning: '청소 관리 대장',
   chat: '메시지',
@@ -77,6 +91,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'stockFinance') return <StockFinanceModule />;
   if (module === 'vendor') return <VendorModule role={role} />;
   if (module === 'property') return <PropertyModule />;
+  if (module === 'payroll') return <PayrollModule />;
   if (module === 'dealerFee') return <DealerFeeModule />;
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
@@ -88,6 +103,7 @@ function AuthedApp({ role }: { role: Role }) {
   const { user } = useAuth();
   const seeLedger = canSeeLedger(user);
   const isCeo = usePropertyAccess();
+  const canSeePayroll = usePayrollAccess();
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
@@ -118,7 +134,10 @@ function AuthedApp({ role }: { role: Role }) {
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
   const officeOnly: ModuleKey[] = ['dealerFee'];
   // 누가 보는지는 서버가 정한다 — 대표 · 사무장 · 테스트 계정
-  const blocked = (officeOnly.includes(module) && !seeLedger) || (module === 'property' && !isCeo);
+  const blocked =
+    (officeOnly.includes(module) && !seeLedger) ||
+    (module === 'property' && !isCeo) ||
+    (module === 'payroll' && !canSeePayroll);
   const shownModule: ModuleKey = blocked ? 'attendance' : module;
 
   return (
@@ -131,6 +150,7 @@ function AuthedApp({ role }: { role: Role }) {
         chatUnread={chatUnread}
         canSeeLedger={seeLedger}
         isCeo={isCeo}
+        canSeePayroll={canSeePayroll}
       />
       <div className="min-w-0 flex-1">
         <TopBar

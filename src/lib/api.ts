@@ -165,6 +165,31 @@ export function setPropertyPass(pass: string | null) {
   }
 }
 
+/**
+ * 인건비 통행증.
+ *
+ * 부동산과 같은 방식이고 서명이 달라 서로 열리지 않는다 — 한쪽 번호를 안다고 다른 쪽까지
+ * 열리면 나눠 잠근 뜻이 없다.
+ */
+const PAYROLL_PASS_KEY = 'payroll-pass';
+
+export function getPayrollPass(): string | null {
+  try {
+    return sessionStorage.getItem(PAYROLL_PASS_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setPayrollPass(pass: string | null) {
+  try {
+    if (pass) sessionStorage.setItem(PAYROLL_PASS_KEY, pass);
+    else sessionStorage.removeItem(PAYROLL_PASS_KEY);
+  } catch {
+    // 못 적어도 이번 화면에서는 쓸 수 있다 — 다음에 다시 번호를 받는다
+  }
+}
+
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -172,6 +197,10 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   if (path.startsWith('/properties')) {
     const pass = getPropertyPass();
     if (pass) headers['X-Property-Pass'] = pass;
+  }
+  if (path.startsWith('/payroll')) {
+    const pass = getPayrollPass();
+    if (pass) headers['X-Payroll-Pass'] = pass;
   }
   if (device) headers['X-Device-Token'] = device.token;
   if (fingerprint) headers['X-Device-Fingerprint'] = fingerprint;

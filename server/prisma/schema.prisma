@@ -930,6 +930,31 @@ model LeaseContract {
  * 분류는 글자로 둔다. '배터리', '공업사'처럼 쓰다 보면 늘어나는데, enum 으로 박으면
  * 한 종류 늘릴 때마다 표를 고쳐야 한다.
  */
+/**
+ * 인건비 — 누가 얼마를 받고, 공제를 누가 부담하고, 실제로 얼마가 나가는가.
+ *
+ * 실 이체액은 저장하지 않는다. 급여에서 공제를 빼고 식대를 더한 값이라 언제든 다시
+ * 낼 수 있고, 저장해 두면 금액을 고쳤을 때 둘이 어긋난다.
+ */
+model PayrollEntry {
+  id       String @id @default(cuid())
+  name     String @db.VarChar(30) // 안원용 / 이태희 …
+  position String @default("") @db.VarChar(20)
+
+  monthlyPay       Int @default(0) // 급여(원)
+  companyDeduction Int @default(0) // 회사공제(원)
+  selfDeduction    Int @default(0) // 본인공제(원)
+  mealAllowance    Int @default(0) // 식대(원)
+
+  /** 공제를 누가 지는가 — '본인all' / '세금 all 회사부담' / '공제없음' 처럼 적어둔 말 그대로 */
+  burden String  @default("") @db.VarChar(30)
+  memo   String  @default("") @db.VarChar(255)
+  active Boolean @default(true) // 그만두면 내린다(지우지 않는다 — 지난 달 인건비다)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Vendor {
   id       String  @id @default(cuid())
   category String  @db.VarChar(20) // 광택·세차 / 판금·덴트 / 성능 / 탁송 / 공업사 / 배터리 / 할부사 …
