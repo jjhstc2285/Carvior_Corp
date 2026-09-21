@@ -2,9 +2,29 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { Check, X } from 'lucide-react';
 import { useStore } from '../store';
+import { ApiError } from '../lib/api';
+import { alertError } from '../lib/alert';
 
 export default function ApprovalInbox() {
   const { state, approveRequest, rejectRequest } = useStore();
+  /*
+    누르고 결과를 기다린다.
+
+    예전에는 누르자마자 손을 뗐다. 서버가 '이미 처리된 요청입니다'로 거절해도 화면에는
+    아무 일도 안 일어나서, 줄이 그대로 남아 있으니 승인이 안 된 걸로 보였다.
+  */
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const review = async (id: string, run: () => Promise<void>) => {
+    setBusyId(id);
+    try {
+      await run();
+    } catch (e) {
+      void alertError('처리하지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setBusyId(null);
+    }
+  };
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
 
@@ -14,11 +34,13 @@ export default function ApprovalInbox() {
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
 
-  const confirmReject = (id: string) => {
+  const confirmReject = async (id: string) => {
     if (!rejectNote.trim()) return;
-    rejectRequest(id, rejectNote.trim());
-    setRejectingId(null);
-    setRejectNote('');
+    await review(id, async () => {
+      await rejectRequest(id, rejectNote.trim());
+      setRejectingId(null);
+      setRejectNote('');
+    });
   };
 
   return (
@@ -55,7 +77,8 @@ export default function ApprovalInbox() {
                   </div>
                   <div className="flex shrink-0 gap-1.5">
                     <button
-                      onClick={() => approveRequest(r.id)}
+                      onClick={() => void review(r.id, () => approveRequest(r.id))}
+                      disabled={busyId === r.id}
                       className="flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
                     >
                       <Check size={13} /> 승인
@@ -78,7 +101,7 @@ export default function ApprovalInbox() {
                       className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-red-300"
                     />
                     <button
-                      onClick={() => confirmReject(r.id)}
+                      onClick={() => void confirmReject(r.id)}
                       disabled={!rejectNote.trim()}
                       className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
                     >
