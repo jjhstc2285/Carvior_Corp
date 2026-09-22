@@ -1278,6 +1278,8 @@ export interface PurchaseIntake {
   panelCount?: number; // 판 몇 곳
   dentCount?: number; // 덴트 몇 곳
   dentLargeCount?: number; // 그중 큰 덴트
+  wheelCount?: number; // 휠 복원 몇 짝
+  fuelLevel?: string; // 기름 — 많음 / 적정 / 없음
   prepVendor?: string; // 판금 업체 — 대산 / KS
   imported?: boolean; // 수입차인가 — 판 단가가 갈린다
   note: string; // 특이사항

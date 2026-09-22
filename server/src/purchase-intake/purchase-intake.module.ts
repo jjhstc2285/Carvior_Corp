@@ -90,6 +90,8 @@ export class CreatePurchaseIntakeDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) panelCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentLargeCount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) wheelCount?: number;
+  @IsOptional() @IsString() @MaxLength(10) fuelLevel?: string;
   @IsOptional() @IsString() @MaxLength(10) prepVendor?: string;
   @IsOptional() @IsBoolean() imported?: boolean;
 
@@ -131,6 +133,8 @@ export class UpdatePurchaseIntakeDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) panelCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentLargeCount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) wheelCount?: number;
+  @IsOptional() @IsString() @MaxLength(10) fuelLevel?: string;
   @IsOptional() @IsString() @MaxLength(10) prepVendor?: string;
   @IsOptional() @IsBoolean() imported?: boolean;
 
@@ -389,6 +393,8 @@ export class PurchaseIntakeService {
         panelCount: dto.panelCount ?? 0,
         dentCount: dto.dentCount ?? 0,
         dentLargeCount: dto.dentLargeCount ?? 0,
+        wheelCount: dto.wheelCount ?? 0,
+        fuelLevel: dto.fuelLevel?.trim() ?? '',
         prepVendor: dto.prepVendor?.trim() ?? '',
         imported: dto.imported ?? false,
         note: dto.note?.trim() ?? '',
@@ -445,6 +451,8 @@ export class PurchaseIntakeService {
         panelCount: dto.panelCount,
         dentCount: dto.dentCount,
         dentLargeCount: dto.dentLargeCount,
+        wheelCount: dto.wheelCount,
+        fuelLevel: dto.fuelLevel?.trim(),
         prepVendor: dto.prepVendor?.trim(),
         imported: dto.imported,
         note: dto.note?.trim(),
@@ -568,7 +576,14 @@ export class PurchaseIntakeService {
     return this.prisma.purchaseIntake.findFirst({
       where: { vehicleNumber },
       orderBy: { date: 'desc' },
-      select: { panelCount: true, dentCount: true, dentLargeCount: true, prepVendor: true, imported: true },
+      select: {
+        panelCount: true,
+        dentCount: true,
+        dentLargeCount: true,
+        wheelCount: true,
+        prepVendor: true,
+        imported: true,
+      },
     });
   }
 

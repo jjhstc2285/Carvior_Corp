@@ -26,8 +26,15 @@ export const CHECK_ITEMS: CheckItem[] = [
   { key: 'glass', label: '유리 깨진 곳', hint: '앞유리 · 뒷유리 · 네비 · 뒷자리 TV' },
   { key: 'aircon', label: '에어컨 · 히터' },
   { key: 'seat', label: '전동시트' },
-  { key: 'fuel', label: '기름' },
 ];
+
+/**
+ * 대산 제휴 단가가 걸리는 달 판금 곳수.
+ *
+ * 한 달에 이만큼 맡기면 단가가 내려간다. 달마다 새로 세고, 몇 곳 모자라 못 받는 일이
+ * 없게 매입 관리에 어디까지 왔는지 띄운다.
+ */
+export const DAESAN_BULK_GOAL = 100;
 
 /** 판금 업체 — 단가가 갈린다 */
 export const PREP_VENDORS = ['대산', 'KS'] as const;
@@ -48,8 +55,25 @@ export const PANEL_PRICE: Record<PrepVendor, { domestic: number; imported: numbe
 /** 덴트 한 곳 값(원) — 크기로 갈린다 */
 export const DENT_PRICE = { small: 40_000, large: 60_000 };
 
+/**
+ * 휠 복원 한 짝 값(원).
+ *
+ * 3만에서 5만 사이다. 상태를 보고 부르는 값이라 미리 못 박지 않고, 잡아 볼 때는
+ * 가운데(4만)로 센다 — 청구서가 오면 그 값으로 덮어 적는다.
+ */
+export const WHEEL_PRICE = { min: 30_000, max: 50_000, mid: 40_000 };
+
+/**
+ * 기름이 얼마나 있는가.
+ *
+ * 있다/없다가 아니라 얼마나 있는지를 본다 — 가져오면서 넣고 와야 하는지가 거기서 갈린다.
+ */
+export const FUEL_LEVELS = ['많음', '적정', '없음'] as const;
+
 export interface CheckCounts {
   panelCount: number;
+  /** 휠 복원 몇 짝 */
+  wheelCount?: number;
   dentCount: number;
   /** 큰 덴트가 몇 곳인지 — 나머지는 작은 것으로 본다 */
   dentLargeCount: number;
@@ -72,13 +96,14 @@ export function panelUnit(c: Pick<CheckCounts, 'vendor' | 'imported' | 'bulk'>):
  *
  * 큰 덴트를 먼저 세고 남은 만큼을 작은 것으로 본다 — 큰 것 개수가 전체를 넘으면 전부 큰 것이다.
  */
-export function estimateCost(c: CheckCounts): { panel: number; dent: number; total: number } {
+export function estimateCost(c: CheckCounts): { panel: number; dent: number; wheel: number; total: number } {
   const large = Math.min(Math.max(c.dentLargeCount, 0), Math.max(c.dentCount, 0));
   const small = Math.max(c.dentCount - large, 0);
 
   const panel = panelUnit(c) * Math.max(c.panelCount, 0);
   const dent = large * DENT_PRICE.large + small * DENT_PRICE.small;
-  return { panel, dent, total: panel + dent };
+  const wheel = WHEEL_PRICE.mid * Math.max(c.wheelCount ?? 0, 0);
+  return { panel, dent, wheel, total: panel + dent + wheel };
 }
 
 /** 저장은 '확인한 항목 키를 쉼표로' — 항목이 늘어도 칸을 안 늘린다 */

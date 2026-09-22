@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { CHECK_ITEMS, DENT_PRICE, estimateCost, panelUnit, parseChecked, PREP_VENDORS, serializeChecked } from '../../lib/inspectionCheck';
+import {
+  CHECK_ITEMS,
+  DENT_PRICE,
+  FUEL_LEVELS,
+  WHEEL_PRICE,
+  estimateCost,
+  panelUnit,
+  parseChecked,
+  PREP_VENDORS,
+  serializeChecked,
+} from '../../lib/inspectionCheck';
 import { digitsOnly } from '../../lib/money';
 import type { PurchaseIntake } from '../../types';
 
@@ -9,11 +19,12 @@ import type { PurchaseIntake } from '../../types';
  * 창을 열고 들어가서 체크하게 두면 현장에서 안 쓴다 — 차 앞에 서서 휴대폰으로 누르는
  * 일이라, 목록에 뜬 그 줄에서 바로 눌러야 한다.
  *
- * 누르는 즉시 저장한다. 저장 단추를 따로 두면 체크만 하고 안 누르고 나간다.
+ * 누르면 화면이 먼저 바뀌고 저장은 뒤따라간다. 서버를 기다렸다 바꾸면 누를 때마다 한 박자
+ * 멈추는데, 열 개를 연달아 누르는 자리라 그 멈춤이 그대로 쌓인다. 실패하면 되돌리고 알린다.
  */
 
 const INPUT =
-  'w-14 rounded-lg border border-slate-200 px-1.5 py-1 text-right text-xs outline-none focus:border-indigo-400 disabled:opacity-50';
+  'w-14 rounded-lg border border-slate-200 px-1.5 py-1 text-right text-xs outline-none focus:border-indigo-400';
 
 interface Props {
   item: PurchaseIntake;
@@ -22,47 +33,66 @@ interface Props {
 }
 
 export default function IntakeCheckBar({ item, onPatch }: Props) {
-  const [checked, setChecked] = useState(() => parseChecked(item.checkedItems ?? ''));
-  const [panel, setPanel] = useState(String(item.panelCount ?? 0));
-  const [dent, setDent] = useState(String(item.dentCount ?? 0));
-  const [large, setLarge] = useState(String(item.dentLargeCount ?? 0));
-  const [busy, setBusy] = useState(false);
+  /*
+    화면에 보이는 값은 여기 들고 있는다.
+
+    서버가 돌려준 값을 그대로 쓰면 누를 때마다 왕복을 기다리게 된다. 누른 즉시 여기를
+    바꾸고, 저장이 실패했을 때만 서버 값으로 되돌린다.
+  */
+  const [draft, setDraft] = useState(() => pick(item));
   const [error, setError] = useState<string | null>(null);
 
-  // 다른 사람이 고친 게 들어오면 따라간다 — 내가 누르는 중이 아닐 때만
-  useEffect(() => {
-    if (busy) return;
-    setChecked(parseChecked(item.checkedItems ?? ''));
-    setPanel(String(item.panelCount ?? 0));
-    setDent(String(item.dentCount ?? 0));
-    setLarge(String(item.dentLargeCount ?? 0));
-  }, [item.checkedItems, item.panelCount, item.dentCount, item.dentLargeCount, busy]);
+  // 다른 사람이 고친 게 들어오면 따라간다
+  useEffect(() => setDraft(pick(item)), [item]);
 
   const save = async (patch: Partial<PurchaseIntake>) => {
-    setBusy(true);
+    const before = draft;
+    setDraft(prev => ({ ...prev, ...patch }));
     setError(null);
     const failed = await onPatch(patch);
-    setBusy(false);
-    if (failed) setError(failed);
+    if (failed) {
+      setDraft(before);
+      setError(failed);
+    }
   };
+
+  const checked = parseChecked(draft.checkedItems);
 
   const toggle = (key: string) => {
     const next = new Set(checked);
     if (next.has(key)) next.delete(key);
     else next.add(key);
-    setChecked(next);
     void save({ checkedItems: serializeChecked(next) });
   };
 
   const counts = {
-    panelCount: Number(digitsOnly(panel)) || 0,
-    dentCount: Number(digitsOnly(dent)) || 0,
-    dentLargeCount: Number(digitsOnly(large)) || 0,
-    vendor: item.prepVendor ?? '',
-    imported: item.imported ?? false,
+    panelCount: draft.panelCount,
+    dentCount: draft.dentCount,
+    dentLargeCount: draft.dentLargeCount,
+    wheelCount: draft.wheelCount,
+    vendor: draft.prepVendor,
+    imported: draft.imported,
     bulk: false,
   };
   const cost = estimateCost(counts);
+
+  /** 숫자 칸 — 고치는 동안은 화면만 바꾸고, 칸을 벗어날 때 저장한다 */
+  const numberField = (label: string, key: 'panelCount' | 'dentCount' | 'dentLargeCount' | 'wheelCount') => (
+    <label className="flex items-center gap-1 text-[11px] text-slate-500">
+      {label}
+      <input
+        value={draft[key] || ''}
+        onChange={e => {
+          const next = Number(digitsOnly(e.target.value).slice(0, 3)) || 0;
+          setDraft(prev => ({ ...prev, [key]: next }));
+        }}
+        onBlur={() => draft[key] !== (item[key] ?? 0) && void save({ [key]: draft[key] })}
+        inputMode="numeric"
+        placeholder="0"
+        className={INPUT}
+      />
+    </label>
+  );
 
   return (
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
@@ -76,9 +106,8 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
             <button
               key={c.key}
               onClick={() => toggle(c.key)}
-              disabled={busy}
               title={c.hint}
-              className={`rounded-md border px-1.5 py-0.5 text-[11px] transition-colors disabled:opacity-50 ${
+              className={`rounded-md border px-1.5 py-0.5 text-[11px] transition-colors ${
                 on
                   ? 'border-emerald-300 bg-emerald-50 font-semibold text-emerald-800'
                   : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-100'
@@ -89,53 +118,41 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
             </button>
           );
         })}
+
+        {/* 기름은 있다/없다가 아니라 얼마나 있는지를 본다 — 넣고 와야 하는지가 거기서 갈린다 */}
+        <span className="ml-1 flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-0.5">
+          <span className="text-[11px] text-slate-400">기름</span>
+          {FUEL_LEVELS.map(level => (
+            <button
+              key={level}
+              onClick={() => void save({ fuelLevel: draft.fuelLevel === level ? '' : level })}
+              className={`rounded px-1 text-[11px] transition-colors ${
+                draft.fuelLevel === level
+                  ? level === '없음'
+                    ? 'bg-red-100 font-bold text-red-700'
+                    : 'bg-emerald-100 font-bold text-emerald-800'
+                  : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              {level}
+            </button>
+          ))}
+        </span>
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
         {/* 센 개수가 그대로 상품화 비용이 된다 — 차 앞에서 세는 값이라 여기 둔다 */}
-        <label className="flex items-center gap-1 text-[11px] text-slate-500">
-          판
-          <input
-            value={panel}
-            onChange={e => setPanel(digitsOnly(e.target.value).slice(0, 3))}
-            onBlur={() => Number(panel || 0) !== (item.panelCount ?? 0) && void save({ panelCount: Number(panel) || 0 })}
-            disabled={busy}
-            inputMode="numeric"
-            className={INPUT}
-          />
-        </label>
-        <label className="flex items-center gap-1 text-[11px] text-slate-500">
-          덴트
-          <input
-            value={dent}
-            onChange={e => setDent(digitsOnly(e.target.value).slice(0, 3))}
-            onBlur={() => Number(dent || 0) !== (item.dentCount ?? 0) && void save({ dentCount: Number(dent) || 0 })}
-            disabled={busy}
-            inputMode="numeric"
-            className={INPUT}
-          />
-        </label>
-        <label className="flex items-center gap-1 text-[11px] text-slate-500">
-          큰 덴트
-          <input
-            value={large}
-            onChange={e => setLarge(digitsOnly(e.target.value).slice(0, 3))}
-            onBlur={() =>
-              Number(large || 0) !== (item.dentLargeCount ?? 0) && void save({ dentLargeCount: Number(large) || 0 })
-            }
-            disabled={busy}
-            inputMode="numeric"
-            className={INPUT}
-          />
-        </label>
+        {numberField('판', 'panelCount')}
+        {numberField('덴트', 'dentCount')}
+        {numberField('큰 덴트', 'dentLargeCount')}
+        {numberField('휠', 'wheelCount')}
 
         <label className="flex items-center gap-1 text-[11px] text-slate-500">
           판금집
           <select
-            value={item.prepVendor ?? ''}
+            value={draft.prepVendor}
             onChange={e => void save({ prepVendor: e.target.value })}
-            disabled={busy}
-            className="rounded-lg border border-slate-200 px-1.5 py-1 text-xs outline-none focus:border-indigo-400 disabled:opacity-50"
+            className="rounded-lg border border-slate-200 px-1.5 py-1 text-xs outline-none focus:border-indigo-400"
           >
             <option value="">-</option>
             {PREP_VENDORS.map(v => (
@@ -149,9 +166,8 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
         <label className="flex items-center gap-1 text-[11px] text-slate-500">
           <input
             type="checkbox"
-            checked={item.imported ?? false}
+            checked={draft.imported}
             onChange={e => void save({ imported: e.target.checked })}
-            disabled={busy}
             className="size-3.5 accent-indigo-600"
           />
           수입차
@@ -162,7 +178,8 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
             예상 상품화 <b className="text-xs text-indigo-700">{cost.total.toLocaleString()}</b>원
             <span className="ml-1 text-slate-400">
               (판 {counts.panelCount}곳 × {panelUnit(counts).toLocaleString() || '–'} · 덴트{' '}
-              {DENT_PRICE.small.toLocaleString()}/{DENT_PRICE.large.toLocaleString()})
+              {DENT_PRICE.small.toLocaleString()}/{DENT_PRICE.large.toLocaleString()} · 휠{' '}
+              {WHEEL_PRICE.mid.toLocaleString()})
             </span>
           </span>
         )}
@@ -171,4 +188,18 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
       {error && <p className="mt-1 text-[11px] font-medium text-red-500">{error}</p>}
     </div>
   );
+}
+
+/** 서버가 준 값 중 이 칸에서 다루는 것만 — 없으면 빈 값으로 */
+function pick(item: PurchaseIntake) {
+  return {
+    checkedItems: item.checkedItems ?? '',
+    panelCount: item.panelCount ?? 0,
+    dentCount: item.dentCount ?? 0,
+    dentLargeCount: item.dentLargeCount ?? 0,
+    wheelCount: item.wheelCount ?? 0,
+    fuelLevel: item.fuelLevel ?? '',
+    prepVendor: item.prepVendor ?? '',
+    imported: item.imported ?? false,
+  };
 }

@@ -21,6 +21,7 @@ import {
   type Vendor,
 } from '../../types';
 import { api } from '../../lib/api';
+import { estimateCost } from '../../lib/inspectionCheck';
 import { moneyToNumber, percentLabel, withCommas } from '../../lib/money';
 import PrepCostEditor, { type PrepCostRow } from './PrepCostEditor';
 import ContractPhotos from './ContractPhotos';
@@ -94,7 +95,14 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     또 손으로 계산해 넣고 있었다. 이름만 적으면 개수 × 단가로 채워 준다 —
     채우기만 하고, 실제로 청구된 금액이 다르면 그 위에 덮어 적으면 된다.
   */
-  const [check, setCheck] = useState<{ panelCount: number; dentCount: number; dentLargeCount: number; imported: boolean } | null>(null);
+  const [check, setCheck] = useState<{
+    panelCount: number;
+    dentCount: number;
+    dentLargeCount: number;
+    wheelCount: number;
+    prepVendor: string;
+    imported: boolean;
+  } | null>(null);
   useEffect(() => {
     const plate = vehicleNumber.trim();
     if (!plate) {
@@ -110,6 +118,42 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
       alive = false;
     };
   }, [vehicleNumber]);
+
+  /*
+    검차에서 센 판·덴트·휠이 있으면 판금·덴트 줄을 미리 깔아 준다.
+
+    이름을 적어야 채워지게 두었더니 아무도 안 적어서 값이 안 올라왔다 — 정산을 열면
+    이미 채워져 있어야 쓴다. 사람이 적어둔 줄이 있으면 건드리지 않는다.
+  */
+  useEffect(() => {
+    if (!check) return;
+    const cost = estimateCost({
+      panelCount: check.panelCount ?? 0,
+      dentCount: check.dentCount ?? 0,
+      dentLargeCount: check.dentLargeCount ?? 0,
+      wheelCount: check.wheelCount ?? 0,
+      vendor: check.prepVendor ?? '',
+      imported: check.imported ?? false,
+      bulk: false,
+    });
+    if (cost.total <= 0) return;
+
+    setPrepRows(prev => {
+      const has = prev.some(r => r.kind === 'DENT' && (r.vendor.trim() || moneyToNumber(r.amount) > 0));
+      if (has) return prev;
+      const vendor = check.prepVendor ? `${check.prepVendor}판집` : '';
+      const memo = [
+        (check.panelCount ?? 0) > 0 ? `판 ${check.panelCount}곳` : '',
+        (check.dentCount ?? 0) > 0 ? `덴트 ${check.dentCount}곳` : '',
+        (check.wheelCount ?? 0) > 0 ? `휠 ${check.wheelCount}짝` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      const blank = prev.findIndex(r => r.kind === 'DENT' && !r.vendor.trim() && !r.amount.trim());
+      const row = { kind: 'DENT' as const, vendor, amount: String(cost.total), memo: `검차 ${memo}` };
+      return blank >= 0 ? prev.map((r, i) => (i === blank ? row : r)) : [...prev, row];
+    });
+  }, [check]);
 
   const prepCosts = prepRows
     .map(r => ({ kind: r.kind, vendor: r.vendor.trim(), amount: moneyToNumber(r.amount), memo: r.memo.trim() }))

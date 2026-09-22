@@ -18,7 +18,14 @@ interface Props {
   /** 항목별로 지금까지 쓴 업체·카테고리 이름 — 자동완성에 쓴다 */
   vendors: Record<string, string[]>;
   /** 그 차를 매입할 때 센 판·덴트 개수 — 판금집 이름을 적으면 금액을 채운다 */
-  check?: { panelCount: number; dentCount: number; dentLargeCount: number; imported: boolean } | null;
+  check?: {
+    panelCount: number;
+    dentCount: number;
+    dentLargeCount: number;
+    wheelCount: number;
+    prepVendor: string;
+    imported: boolean;
+  } | null;
   /** 거래처 대장 — 늘 쓰는 업체를 눌러 넣고 번호를 본다 */
   contacts: Vendor[];
 }
@@ -79,6 +86,7 @@ export default function PrepCostEditor({ rows, onChange, vendors, contacts, chec
       panelCount: 0,
       dentCount: check.dentCount,
       dentLargeCount: check.dentLargeCount,
+      wheelCount: check.wheelCount,
       vendor,
       imported: check.imported,
       bulk: false,

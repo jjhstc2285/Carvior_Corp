@@ -18,6 +18,8 @@ import {
   CHECK_ITEMS,
   PREP_VENDORS,
   DENT_PRICE,
+  FUEL_LEVELS,
+  WHEEL_PRICE,
   estimateCost,
   panelUnit,
   parseChecked,
@@ -76,6 +78,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   const [panelCount, setPanelCount] = useState(String(editing?.panelCount ?? 0));
   const [dentCount, setDentCount] = useState(String(editing?.dentCount ?? 0));
   const [dentLargeCount, setDentLargeCount] = useState(String(editing?.dentLargeCount ?? 0));
+  const [wheelCount, setWheelCount] = useState(String(editing?.wheelCount ?? 0));
+  const [fuelLevel, setFuelLevel] = useState(editing?.fuelLevel ?? '');
   const [prepVendor, setPrepVendor] = useState(editing?.prepVendor ?? '');
   const [imported, setImported] = useState(editing?.imported ?? false);
   /** 대산이 그 달 100대를 채웠는가 — 채우면 단가가 내려간다. 그 달 사정이라 저장하지 않는다 */
@@ -85,6 +89,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
     panelCount: Number(digitsOnly(panelCount)) || 0,
     dentCount: Number(digitsOnly(dentCount)) || 0,
     dentLargeCount: Number(digitsOnly(dentLargeCount)) || 0,
+    wheelCount: Number(digitsOnly(wheelCount)) || 0,
     vendor: prepVendor,
     imported,
     bulk,
@@ -191,6 +196,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       panelCount: counts.panelCount,
       dentCount: counts.dentCount,
       dentLargeCount: counts.dentLargeCount,
+      wheelCount: counts.wheelCount,
+      fuelLevel,
       prepVendor,
       imported,
       note: note.trim(),
@@ -418,6 +425,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
             {field('판 (곳)', count(panelCount, setPanelCount))}
             {field('덴트 (곳)', count(dentCount, setDentCount))}
             {field(`큰 덴트 (${(DENT_PRICE.large / 10000).toLocaleString()}만)`, count(dentLargeCount, setDentLargeCount))}
+            {field(`휠 복원 (${(WHEEL_PRICE.mid / 10000).toLocaleString()}만)`, count(wheelCount, setWheelCount))}
             {field(
               '판금 업체',
               <select
@@ -436,6 +444,26 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-3">
+            {/* 기름은 있다/없다가 아니라 얼마나 있는지를 본다 */}
+            <span className="flex items-center gap-1 text-xs text-slate-600">
+              기름
+              {FUEL_LEVELS.map(level => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => setFuelLevel(fuelLevel === level ? '' : level)}
+                  className={`rounded-md border px-1.5 py-0.5 text-[11px] ${
+                    fuelLevel === level
+                      ? level === '없음'
+                        ? 'border-red-300 bg-red-50 font-bold text-red-700'
+                        : 'border-emerald-300 bg-emerald-50 font-bold text-emerald-800'
+                      : 'border-slate-200 bg-white text-slate-500'
+                  }`}
+                >
+                  {level}
+                </button>
+              ))}
+            </span>
             <label className="flex items-center gap-1.5 text-xs text-slate-600">
               <input
                 type="checkbox"
@@ -463,7 +491,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
                 예상 상품화 비용{' '}
                 <b className="text-sm text-indigo-700">{cost.total.toLocaleString()}</b>원
                 <span className="ml-1 text-[11px] text-slate-400">
-                  (판 {cost.panel.toLocaleString()} · 덴트 {cost.dent.toLocaleString()})
+                  (판 {cost.panel.toLocaleString()} · 덴트 {cost.dent.toLocaleString()} · 휠{' '}
+                  {cost.wheel.toLocaleString()})
                 </span>
               </span>
             )}
