@@ -1,53 +1,94 @@
 import { useMemo } from 'react';
+import dayjs from 'dayjs';
 import { CONSULTATION_KIND_COLOR, CONSULTATION_KIND_LABEL, type ConsultationKind } from '../../types';
 import { useStore } from '../../store';
 
 /**
- * 판매완료 비율.
+ * 판매완료 — 달마다 어디서 팔렸나.
  *
- * 넷 중 어디서 팔리고 있는지를 본다 — 우리 물건을 우리가 파는 것(판매)과 남이 파는 것
- * (기타), 남의 물건을 우리가 파는 것(알선), 수출이 각각 얼마인지.
+ * 넷 중 어느 쪽으로 나갔는지를 달별로 쌓아 본다. 한 덩어리 비율로만 보면 '이번 달에
+ * 흐름이 바뀌었는지'를 못 본다 — 지난달까지 판매가 늘고 있었는지, 알선으로 돌아섰는지가
+ * 다음 달에 무엇을 할지를 가른다.
  *
- * 건수만 센다. 금액은 정산에서 보고, 여기서는 '어느 쪽으로 몇 대가 나갔나'를 본다 —
- * 두 가지를 한 그래프에 섞으면 둘 다 안 읽힌다.
+ * 건수만 센다. 금액은 정산에서 본다 — 두 가지를 한 그래프에 섞으면 둘 다 안 읽힌다.
+ * 날짜는 상담일 기준이다(판 날을 따로 적는 칸이 없다).
  */
 
 const ORDER: ConsultationKind[] = ['SALE', 'BROKERAGE', 'EXPORT', 'OTHER'];
 
+/** 몇 달을 보여줄지 — 반년이면 흐름이 보이고, 그보다 길면 막대가 얇아져 못 읽는다 */
+const MONTHS = 6;
+
 export default function SoldMixChart() {
   const { state } = useStore();
 
-  const { rows, total } = useMemo(() => {
+  const { months, total, byKind, max } = useMemo(() => {
     const sold = state.consultations.filter(c => c.status === 'SOLD');
-    const counts = ORDER.map(kind => ({ kind, count: sold.filter(c => c.kind === kind).length }));
-    return { rows: counts, total: sold.length };
+
+    const keys = Array.from({ length: MONTHS }, (_, i) =>
+      dayjs()
+        .subtract(MONTHS - 1 - i, 'month')
+        .format('YYYY-MM'),
+    );
+
+    const rows = keys.map(key => {
+      const inMonth = sold.filter(c => (c.date ?? '').startsWith(key));
+      const counts = ORDER.map(kind => ({ kind, count: inMonth.filter(c => c.kind === kind).length }));
+      return { key, label: dayjs(`${key}-01`).format('M월'), counts, total: inMonth.length };
+    });
+
+    return {
+      months: rows,
+      total: sold.length,
+      byKind: ORDER.map(kind => ({ kind, count: sold.filter(c => c.kind === kind).length })),
+      max: Math.max(1, ...rows.map(r => r.total)),
+    };
   }, [state.consultations]);
 
   if (total === 0) return null;
 
   return (
     <section className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-      <div className="mb-2 flex flex-wrap items-baseline gap-2">
-        <h2 className="text-sm font-bold text-slate-800">판매완료 비율</h2>
-        <span className="text-xs text-slate-400">총 {total}건</span>
+      <div className="mb-3 flex flex-wrap items-baseline gap-2">
+        <h2 className="text-sm font-bold text-slate-800">판매완료 — 달마다 어디서 팔렸나</h2>
+        <span className="text-xs text-slate-400">최근 {MONTHS}개월 · 상담일 기준</span>
+        <span className="ml-auto text-xs text-slate-500">
+          전체 <b className="text-slate-800">{total}</b>건
+        </span>
       </div>
 
-      {/* 한 줄로 이어 붙인다 — 넷을 나란히 두면 어느 쪽이 큰지 한눈에 안 들어온다 */}
-      <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
-        {rows.map(({ kind, count }) =>
-          count > 0 ? (
+      {/* 달마다 한 막대, 위로 쌓아 넷을 갈라 본다 */}
+      <div className="flex h-36 items-end gap-2 sm:gap-4">
+        {months.map(m => (
+          <div key={m.key} className="flex flex-1 flex-col items-center gap-1">
+            <span className={`text-[11px] font-bold ${m.total > 0 ? 'text-slate-600' : 'text-slate-300'}`}>
+              {m.total || ''}
+            </span>
             <div
-              key={kind}
-              className={CONSULTATION_KIND_COLOR[kind].bar}
-              style={{ width: `${(count / total) * 100}%` }}
-              title={`${CONSULTATION_KIND_LABEL[kind]} ${count}건`}
-            />
-          ) : null,
-        )}
+              className="flex w-full max-w-16 flex-col-reverse overflow-hidden rounded-md bg-slate-100"
+              style={{ height: `${Math.max(4, (m.total / max) * 100)}%` }}
+              title={m.counts
+                .filter(c => c.count > 0)
+                .map(c => `${CONSULTATION_KIND_LABEL[c.kind]} ${c.count}`)
+                .join(' · ')}
+            >
+              {m.counts.map(({ kind, count }) =>
+                count > 0 ? (
+                  <div
+                    key={kind}
+                    className={CONSULTATION_KIND_COLOR[kind].bar}
+                    style={{ height: `${(count / m.total) * 100}%` }}
+                  />
+                ) : null,
+              )}
+            </div>
+            <span className="text-[11px] text-slate-400">{m.label}</span>
+          </div>
+        ))}
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-        {rows.map(({ kind, count }) => (
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2">
+        {byKind.map(({ kind, count }) => (
           <span key={kind} className="flex items-baseline gap-1.5 text-xs">
             <i className={`inline-block size-2.5 rounded-sm ${CONSULTATION_KIND_COLOR[kind].bar}`} />
             <span className="text-slate-500">{CONSULTATION_KIND_LABEL[kind]}</span>
