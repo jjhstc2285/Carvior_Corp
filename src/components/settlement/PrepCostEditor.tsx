@@ -1,6 +1,7 @@
 import { Phone, Plus, Trash2 } from 'lucide-react';
 import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
 import { findVendorByName, vendorsOfKind } from '../../lib/prepVendors';
+import { estimateCost, panelCost } from '../../lib/inspectionCheck';
 import { PREP_COST_KINDS, PREP_COST_LABEL, PREP_COST_VENDOR_HINT, type PrepCostKind, type Vendor } from '../../types';
 
 /** 편집 중에는 금액을 문자열로 들고 있는다("35000"). 저장할 때 숫자로 바꾼다. */
@@ -16,6 +17,8 @@ interface Props {
   onChange: (rows: PrepCostRow[]) => void;
   /** 항목별로 지금까지 쓴 업체·카테고리 이름 — 자동완성에 쓴다 */
   vendors: Record<string, string[]>;
+  /** 그 차를 매입할 때 센 판·덴트 개수 — 판금집 이름을 적으면 금액을 채운다 */
+  check?: { panelCount: number; dentCount: number; dentLargeCount: number; imported: boolean } | null;
   /** 거래처 대장 — 늘 쓰는 업체를 눌러 넣고 번호를 본다 */
   contacts: Vendor[];
 }
@@ -31,7 +34,7 @@ const INPUT = 'rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-no
  *
  * 업체명은 자유 입력이다. 한 번 쓴 이름은 다음부터 추천 목록에 뜬다(자동완성).
  */
-export default function PrepCostEditor({ rows, onChange, vendors, contacts }: Props) {
+export default function PrepCostEditor({ rows, onChange, vendors, contacts, check }: Props) {
   const rowsOf = (kind: PrepCostKind) =>
     rows.map((row, index) => ({ row, index })).filter(({ row }) => row.kind === kind);
 
@@ -59,6 +62,30 @@ export default function PrepCostEditor({ rows, onChange, vendors, contacts }: Pr
 
   const patchRow = (index: number, patch: Partial<PrepCostRow>) =>
     onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+
+  /**
+   * 판금집 이름을 적으면 금액을 채운다.
+   *
+   * 차 앞에서 센 판·덴트 개수가 매입 관리에 있다. 이름만 적으면 개수 × 단가로 채워 주고,
+   * 이미 적어둔 금액은 건드리지 않는다 — 청구서가 다르게 왔으면 그게 맞다.
+   */
+  const fillPanel = (index: number, row: PrepCostRow, vendor: string) => {
+    if (row.kind !== 'DENT' || !check || moneyToNumber(row.amount) > 0) {
+      patchRow(index, { vendor });
+      return;
+    }
+    const panel = panelCost(vendor, check.panelCount, check.imported);
+    const dent = estimateCost({
+      panelCount: 0,
+      dentCount: check.dentCount,
+      dentLargeCount: check.dentLargeCount,
+      vendor,
+      imported: check.imported,
+      bulk: false,
+    }).dent;
+    const total = panel + dent;
+    patchRow(index, total > 0 ? { vendor, amount: String(total) } : { vendor });
+  };
 
   const removeRow = (index: number) => onChange(rows.filter((_, i) => i !== index));
 
@@ -105,6 +132,7 @@ export default function PrepCostEditor({ rows, onChange, vendors, contacts }: Pr
                         <input
                           value={row.vendor}
                           onChange={e => patchRow(index, { vendor: e.target.value })}
+                          onBlur={e => fillPanel(index, row, e.target.value)}
                           list={`prep-vendors-${kind}`}
                           placeholder={PREP_COST_VENDOR_HINT[kind]}
                           className={`${INPUT} min-w-0 flex-1`}

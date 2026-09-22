@@ -560,6 +560,18 @@ export class PurchaseIntakeService {
     }
   }
 
+  /** 차량번호로 그 차의 검차 값만 — 없으면 null */
+  async checkOf(plate: string) {
+    const vehicleNumber = normalizePlate(plate);
+    if (!vehicleNumber) return null;
+    // 같은 차를 두 번 매입했으면 마지막 것이 지금 들고 있는 차다
+    return this.prisma.purchaseIntake.findFirst({
+      where: { vehicleNumber },
+      orderBy: { date: 'desc' },
+      select: { panelCount: true, dentCount: true, dentLargeCount: true, prepVendor: true, imported: true },
+    });
+  }
+
   private async assertExists(id: string) {
     const found = await this.prisma.purchaseIntake.findUnique({ where: { id }, select: { id: true } });
     if (!found) throw new NotFoundException('매입 내역을 찾을 수 없습니다.');
@@ -905,6 +917,17 @@ export class PurchaseIntakeController {
   @Get()
   findAll(@Query() query: PurchaseIntakeQueryDto) {
     return this.intake.findAll(query);
+  }
+
+  /**
+   * 그 차를 매입할 때 센 판·덴트 개수.
+   *
+   * 정산에서 판금집 이름을 적을 때 금액을 채우는 데 쓴다. 금액·고객 같은 건 안 내려준다 —
+   * 필요한 값만 준다.
+   */
+  @Get('check')
+  async check(@Query('plate') plate = '') {
+    return this.intake.checkOf(plate);
   }
 
   @Post()

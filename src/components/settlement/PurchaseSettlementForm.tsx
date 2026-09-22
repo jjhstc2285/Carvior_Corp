@@ -87,6 +87,30 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   }, []);
 
   // 0원짜리 줄은 아직 안 적은 칸이라 합계에서 뺀다(서버도 같은 규칙으로 버린다).
+  /*
+    그 차를 매입할 때 센 판·덴트 개수.
+
+    차 앞에서 센 값이 매입 관리에 적혀 있는데, 정산에서 판금집 이름을 적을 때 금액을
+    또 손으로 계산해 넣고 있었다. 이름만 적으면 개수 × 단가로 채워 준다 —
+    채우기만 하고, 실제로 청구된 금액이 다르면 그 위에 덮어 적으면 된다.
+  */
+  const [check, setCheck] = useState<{ panelCount: number; dentCount: number; dentLargeCount: number; imported: boolean } | null>(null);
+  useEffect(() => {
+    const plate = vehicleNumber.trim();
+    if (!plate) {
+      setCheck(null);
+      return;
+    }
+    let alive = true;
+    void api<typeof check>(`/purchase-intakes/check?plate=${encodeURIComponent(plate)}`)
+      .then(r => alive && setCheck(r))
+      // 못 읽어도 손으로 적으면 된다
+      .catch(() => alive && setCheck(null));
+    return () => {
+      alive = false;
+    };
+  }, [vehicleNumber]);
+
   const prepCosts = prepRows
     .map(r => ({ kind: r.kind, vendor: r.vendor.trim(), amount: moneyToNumber(r.amount), memo: r.memo.trim() }))
     .filter(r => r.amount > 0);
@@ -164,7 +188,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         </div>
 
         <div className="mt-4">
-          <PrepCostEditor rows={prepRows} onChange={setPrepRows} vendors={vendors} contacts={contacts} />
+          <PrepCostEditor rows={prepRows} onChange={setPrepRows} vendors={vendors} contacts={contacts} check={check} />
         </div>
 
         <div className="mt-4">

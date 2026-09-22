@@ -90,3 +90,34 @@ export function serializeChecked(keys: Set<string>): string {
   // 적어둔 차례대로 — 저장한 글자가 사람마다 달라지면 나중에 비교가 안 된다
   return CHECK_ITEMS.filter(i => keys.has(i.key)).map(i => i.key).join(',');
 }
+
+/**
+ * 적어 넣은 업체 이름에서 판금집을 알아본다.
+ *
+ * 정산에는 '대산판집', '대산 판금', 'KS판집'처럼 사람마다 다르게 적는다. 이름을 붙여
+ * 쓰든 띄어 쓰든 같은 집으로 본다 — 못 알아보면 단가를 못 찾아 금액이 안 채워진다.
+ */
+export function vendorOfName(name: string): PrepVendor | null {
+  const clean = (name ?? '').replace(/\s/g, '').toLowerCase();
+  if (!clean) return null;
+  if (clean.includes('대산')) return '대산';
+  if (clean.includes('ks') || clean.includes('케이에스')) return 'KS';
+  return null;
+}
+
+/**
+ * 판금 비용을 잡아 준다.
+ *
+ * 업체를 알아보면 그 집 단가로, 못 알아보면 두 집 평균으로 낸다 — 정산에 적을 때는
+ * 대개 어디 맡길지 이미 정해져 있지만, 아직 안 정했어도 얼추 잡히는 편이 낫다.
+ */
+export function panelCost(name: string, panelCount: number, imported: boolean, bulk = false): number {
+  const vendor = vendorOfName(name);
+  if (panelCount <= 0) return 0;
+
+  if (vendor) return panelUnit({ vendor, imported, bulk }) * panelCount;
+
+  const units = PREP_VENDORS.map(v => panelUnit({ vendor: v, imported, bulk }));
+  const average = Math.round(units.reduce((sum, u) => sum + u, 0) / units.length);
+  return average * panelCount;
+}
