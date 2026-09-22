@@ -110,7 +110,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
       return;
     }
     let alive = true;
-    void api<typeof check>(`/purchase-intakes/check?plate=${encodeURIComponent(plate)}`)
+    void api<typeof check>(`/purchase-intake/check?plate=${encodeURIComponent(plate)}`)
       .then(r => alive && setCheck(r))
       // 못 읽어도 손으로 적으면 된다
       .catch(() => alive && setCheck(null));

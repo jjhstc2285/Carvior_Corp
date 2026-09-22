@@ -603,13 +603,20 @@ export class PurchaseIntakeService {
     }
   }
 
-  /** 차량번호로 그 차의 검차 값만 — 없으면 null */
+  /**
+   * 차량번호로 그 차의 검차 값만 — 없으면 null.
+   *
+   * 뒤 4자리만 적어도 찾는다. 정산에서는 '3368'처럼 뒤만 치는 일이 많은데, 전체가
+   * 맞아떨어질 때만 찾으면 값이 있는데도 안 올라온 것처럼 보인다.
+   */
   async checkOf(plate: string) {
     const vehicleNumber = normalizePlate(plate);
     if (!vehicleNumber) return null;
+
+    const tail = /^\d{4}$/.test(vehicleNumber);
     // 같은 차를 두 번 매입했으면 마지막 것이 지금 들고 있는 차다
     return this.prisma.purchaseIntake.findFirst({
-      where: { vehicleNumber },
+      where: tail ? { vehicleNumber: { endsWith: vehicleNumber } } : { vehicleNumber },
       orderBy: { date: 'desc' },
       select: {
         panelCount: true,
