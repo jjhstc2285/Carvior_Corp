@@ -30,6 +30,30 @@ export default function WorkLogModule({ role }: Props) {
   const [view, setView] = useState<string>('self');
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day')), [weekStart]);
+
+  /*
+    보는 방법 둘.
+
+    주간은 한 주를 가로로 늘어놓는데, 일곱 칸으로 나누면 한 칸이 좁아 '엔카 진단완료차량
+    성능지 등록 및 광고수정' 한 줄이 네 줄로 접힌다. 평소에 보는 건 어제·오늘·내일이라,
+    그 사흘을 위아래로 쌓고 한 줄을 넓게 쓰는 쪽을 기본으로 둔다.
+
+    고른 건 이 브라우저에만 기억한다 — 사람마다 쓰는 방식이 다르다.
+  */
+  const [span, setSpan] = useState<'day3' | 'week'>(
+    () => (localStorage.getItem('worklogSpan') === 'week' ? 'week' : 'day3'),
+  );
+  const chooseSpan = (next: 'day3' | 'week') => {
+    localStorage.setItem('worklogSpan', next);
+    setSpan(next);
+  };
+
+  /** 어제 · 오늘 · 내일 — 어제 못 끝낸 것과 내일 챙길 것이 같이 보여야 한다 */
+  const [anchor, setAnchor] = useState(() => dayjs());
+  const threeDays = useMemo(
+    () => [anchor.subtract(1, 'day'), anchor, anchor.add(1, 'day')],
+    [anchor],
+  );
   const weekFrom = weekStart.format('YYYY-MM-DD');
   const weekTo = weekStart.add(6, 'day').format('YYYY-MM-DD');
 
@@ -154,20 +178,23 @@ export default function WorkLogModule({ role }: Props) {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setWeekStart(w => w.subtract(1, 'week'))}
+            onClick={() => (span === 'week' ? setWeekStart(w => w.subtract(1, 'week')) : setAnchor(a => a.subtract(1, 'day')))}
             className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50"
             aria-label="이전 주"
           >
             <ChevronLeft size={16} />
           </button>
           <button
-            onClick={() => setWeekStart(dayjs().startOf('week'))}
+            onClick={() => {
+              setWeekStart(dayjs().startOf('week'));
+              setAnchor(dayjs());
+            }}
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
           >
-            이번 주
+            {span === 'week' ? '이번 주' : '오늘'}
           </button>
           <button
-            onClick={() => setWeekStart(w => w.add(1, 'week'))}
+            onClick={() => (span === 'week' ? setWeekStart(w => w.add(1, 'week')) : setAnchor(a => a.add(1, 'day')))}
             className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50"
             aria-label="다음 주"
           >
@@ -175,10 +202,33 @@ export default function WorkLogModule({ role }: Props) {
           </button>
         </div>
 
-        <p className="text-base font-bold text-slate-800">{weekLabel(weekStart)}</p>
-        <p className="text-xs text-slate-400">
-          {weekStart.format('M/D')} – {weekStart.add(6, 'day').format('M/D')} · {viewerName}
+        <p className="text-base font-bold text-slate-800">
+          {span === 'week' ? weekLabel(weekStart) : anchor.format('YYYY년 M월 D일 (ddd)')}
         </p>
+        <p className="text-xs text-slate-400">
+          {span === 'week'
+            ? `${weekStart.format('M/D')} – ${weekStart.add(6, 'day').format('M/D')}`
+            : `${threeDays[0].format('M/D')} – ${threeDays[2].format('M/D')}`}{' '}
+          · {viewerName}
+        </p>
+
+        {/* 사흘을 위아래로 쌓아 넓게 쓸지, 한 주를 가로로 늘어놓을지 */}
+        <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs">
+          {([
+            ['day3', '3일'],
+            ['week', '주간'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => chooseSpan(key)}
+              className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+                span === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
         <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
           <input
@@ -196,7 +246,40 @@ export default function WorkLogModule({ role }: Props) {
 
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{error}</p>}
 
+      {/*
+        사흘 보기 — 날짜를 위아래로 쌓고 한 줄을 가로로 다 쓴다.
+
+        일곱 칸으로 나누면 한 칸이 좁아 긴 할 일이 네 줄로 접힌다. 넓게 쓰면 한 줄에
+        들어가고, 할 일이 여러 개면 여러 열로 깔려 가로가 빈 채로 남지 않는다.
+      */}
+      {span === 'day3' && (
+        <div className="space-y-3">
+          {threeDays.map(day => {
+            const key = day.format('YYYY-MM-DD');
+            const dayLogs = byDate.get(key) ?? [];
+            const shown = hideDone ? dayLogs.filter(l => !l.done) : dayLogs;
+            return (
+              <WorkLogDayCard
+                key={key}
+                day={day}
+                logs={shown}
+                wide
+                hiddenCount={dayLogs.length - shown.length}
+                canAdd={!readOnly}
+                readOnly={readOnly}
+                ownerName={ownerLabel}
+                onAdd={content => add(key, content)}
+                onToggle={toggle}
+                onEdit={edit}
+                onRemove={remove}
+              />
+            );
+          })}
+        </div>
+      )}
+
       {/* 넓은 화면에서는 칸을 나눠 갖는다 — 접힌 날은 띠만 남고 그만큼 적힌 날이 넓어진다 */}
+      {span === 'week' && (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:flex xl:items-start">
         {days.map(day => {
           const key = day.format('YYYY-MM-DD');
@@ -241,14 +324,15 @@ export default function WorkLogModule({ role }: Props) {
           );
         })}
       </div>
+      )}
 
       <p className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-400">
         <NotebookPen size={12} />
         할 일을 입력하고 Enter를 누르면 저장됩니다. 적어둔 내용을 누르면 바로 고칠 수 있어요.
         <br className="sm:hidden" />
         <span className="hidden sm:inline">· </span>
-        적은 게 없는 날(연차·주말)은 <b>띠로 접힙니다</b> — 띠를 누르면 펼쳐지고, 날짜 옆 접기 표를
-        누르면 다시 접힙니다.
+        <b>3일</b>은 어제·오늘·내일을 위아래로 놓고 한 줄을 넓게 씁니다. <b>주간</b>은 한 주를 가로로
+        늘어놓고, 적은 게 없는 날(연차·주말)은 띠로 접습니다 — 띠를 누르면 펼쳐집니다.
       </p>
 
       <div className="mt-8 border-t border-slate-200 pt-6">

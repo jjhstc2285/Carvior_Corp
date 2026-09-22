@@ -21,6 +21,14 @@ interface Props {
   hiddenCount?: number;
   /** 이 날을 접는다 — 적을 게 없는 날은 띠로 줄여 다른 날을 넓게 쓴다 */
   onCollapse?: () => void;
+  /**
+   * 가로를 다 쓰는 자리인가.
+   *
+   * 일곱 칸으로 나눠 놓으면 한 칸이 좁아 '엔카 진단완료차량 성능지 등록 및 광고수정'
+   * 한 줄이 네 줄로 접힌다. 날짜를 위아래로 쌓을 때는 한 줄을 넓게 쓰고, 할 일은
+   * 여러 열로 깔아 가로를 채운다.
+   */
+  wide?: boolean;
   onAdd: (content: string) => void;
   onToggle: (log: WorkLog) => void;
   onEdit: (id: string, content: string) => void;
@@ -47,6 +55,7 @@ export default function WorkLogDayCard({
   readOnly = false,
   hiddenCount = 0,
   onCollapse,
+  wide = false,
   onAdd,
   onToggle,
   onEdit,
@@ -148,7 +157,13 @@ export default function WorkLogDayCard({
         </span>
       </div>
 
-      <ul className="space-y-0.5 px-1.5 py-1.5">
+      <ul
+        className={
+          wide
+            ? 'grid gap-x-5 gap-y-0.5 px-2 py-1.5 sm:grid-cols-2 xl:grid-cols-3'
+            : 'space-y-0.5 px-1.5 py-1.5'
+        }
+      >
         {logs.map(log => (
           <li key={log.id} className="group flex items-start gap-1.5 rounded-lg px-1.5 py-1 hover:bg-slate-50">
             <button
