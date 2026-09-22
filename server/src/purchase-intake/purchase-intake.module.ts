@@ -92,6 +92,7 @@ export class CreatePurchaseIntakeDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentLargeCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) wheelCount?: number;
   @IsOptional() @IsString() @MaxLength(10) fuelLevel?: string;
+  @IsOptional() @IsString() @MaxLength(500) reportUrl?: string;
   @IsOptional() @IsString() @MaxLength(10) prepVendor?: string;
   @IsOptional() @IsBoolean() imported?: boolean;
 
@@ -135,6 +136,7 @@ export class UpdatePurchaseIntakeDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentLargeCount?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) wheelCount?: number;
   @IsOptional() @IsString() @MaxLength(10) fuelLevel?: string;
+  @IsOptional() @IsString() @MaxLength(500) reportUrl?: string;
   @IsOptional() @IsString() @MaxLength(10) prepVendor?: string;
   @IsOptional() @IsBoolean() imported?: boolean;
 
@@ -297,6 +299,7 @@ export class PurchaseIntakeService {
             keyCount: contract.keyCount ?? 0,
             mileage: contract.mileage ?? 0,
             note: this.carviorNote(contract),
+            reportUrl: (contract.reportUrl ?? '').slice(0, 500),
             purchaseAmount: (contract.purchasePrice ?? 0) * WON_PER_MANWON,
             brokerFee: (contract.oldDealerFee ?? 0) * WON_PER_MANWON,
             employeeId,
@@ -323,6 +326,36 @@ export class PurchaseIntakeService {
   }
 
   /** 카비어에만 있는 값을 특이사항 한 줄로 남긴다 — 매입 대장에 따로 칸이 없다. */
+  /**
+   * 이미 들어온 매입 건에 검차 리포트 주소를 붙인다.
+   *
+   * 리포트는 계약이 들어온 뒤에 붙기도 하고, 리포트를 담기 전에 들어온 건도 있다.
+   * 차량번호로 맞춰 채운다 — 저쪽이 주소를 안 주는 건은 건드리지 않는다(있던 링크가
+   * 사라지면 못 본다).
+   */
+  async syncReports(): Promise<{ updated: number; withReport: number }> {
+    const contracts = await this.carvior.findContracts();
+    const byPlate = new Map<string, string>();
+    for (const c of contracts) {
+      const plate = normalizePlate(c.carNumber ?? '');
+      const url = (c.reportUrl ?? '').trim();
+      if (plate && url) byPlate.set(plate, url.slice(0, 500));
+    }
+
+    const rows = await this.prisma.purchaseIntake.findMany({
+      select: { id: true, vehicleNumber: true, reportUrl: true },
+    });
+
+    let updated = 0;
+    for (const row of rows) {
+      const url = byPlate.get(normalizePlate(row.vehicleNumber));
+      if (!url || url === row.reportUrl) continue;
+      await this.prisma.purchaseIntake.update({ where: { id: row.id }, data: { reportUrl: url } });
+      updated += 1;
+    }
+    return { updated, withReport: byPlate.size };
+  }
+
   private carviorNote(c: CarviorContract): string {
     return [
       '카비어 수출계약',
@@ -395,6 +428,7 @@ export class PurchaseIntakeService {
         dentLargeCount: dto.dentLargeCount ?? 0,
         wheelCount: dto.wheelCount ?? 0,
         fuelLevel: dto.fuelLevel?.trim() ?? '',
+        reportUrl: dto.reportUrl?.trim() ?? '',
         prepVendor: dto.prepVendor?.trim() ?? '',
         imported: dto.imported ?? false,
         note: dto.note?.trim() ?? '',
@@ -453,6 +487,7 @@ export class PurchaseIntakeService {
         dentLargeCount: dto.dentLargeCount,
         wheelCount: dto.wheelCount,
         fuelLevel: dto.fuelLevel?.trim(),
+        reportUrl: dto.reportUrl?.trim(),
         prepVendor: dto.prepVendor?.trim(),
         imported: dto.imported,
         note: dto.note?.trim(),
@@ -940,6 +975,12 @@ export class PurchaseIntakeController {
    * 정산에서 판금집 이름을 적을 때 금액을 채우는 데 쓴다. 금액·고객 같은 건 안 내려준다 —
    * 필요한 값만 준다.
    */
+  /** 검차 리포트 주소를 카비어에서 다시 받아 붙인다 */
+  @Post('carvior/reports')
+  syncReports() {
+    return this.intake.syncReports();
+  }
+
   @Get('check')
   async check(@Query('plate') plate = '') {
     return this.intake.checkOf(plate);

@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { Car, CloudDownload, Download, Plus, Trash2 } from 'lucide-react';
+import { Car, CloudDownload, Download, FileSearch, Plus, Trash2 } from 'lucide-react';
 import { BROKER_FEE_TYPE_LABEL, type PurchaseIntake } from '../../types';
 import { CHECK_ITEMS, DAESAN_BULK_GOAL } from '../../lib/inspectionCheck';
 import IntakeCheckBar from './IntakeCheckBar';
 import PurchaseIntakeForm from './PurchaseIntakeForm';
 import CarviorImportModal from './CarviorImportModal';
 import { usePurchaseIntake } from './usePurchaseIntake';
-import { alertError, confirmDanger } from '../../lib/alert';
+import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
+import { api as callApi, ApiError } from '../../lib/api';
 import { halfYearRange, vatBalance, VAT_PERIOD_MONTHS } from '../../lib/vat';
 
 const NUM = (n: number) => (n ? n.toLocaleString() : '');
@@ -41,6 +42,31 @@ export default function PurchaseIntakeModule() {
   const daesanPanels = api.items
     .filter(r => (r.prepVendor ?? '') === '대산')
     .reduce((sum, r) => sum + (r.panelCount ?? 0), 0);
+
+  /*
+    검차 리포트 주소를 카비어에서 받아 붙인다.
+
+    리포트는 계약이 들어온 뒤에 붙기도 해서, 매입이 들어올 때는 비어 있는 건이 있다.
+    눌러서 다시 맞춘다 — 차량번호로 짝지으므로 언제 들어온 건이든 채워진다.
+  */
+  const [reportBusy, setReportBusy] = useState(false);
+  const syncReports = async () => {
+    setReportBusy(true);
+    try {
+      const res = await callApi<{ updated: number; withReport: number }>('/purchase-intake/carvior/reports', {
+        method: 'POST',
+      });
+      await alertSuccess(
+        res.updated > 0 ? `${res.updated}건에 리포트를 붙였습니다` : '새로 붙일 리포트가 없습니다',
+        `카비어에 리포트가 달린 계약은 ${res.withReport}건입니다.`,
+      );
+      await api.reload();
+    } catch (e) {
+      void alertError('리포트를 가져오지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setReportBusy(false);
+    }
+  };
 
   const handleDelete = async (item: PurchaseIntake) => {
     if (!(await confirmDanger(`${item.vehicleNumber} ${item.customerName} 매입 내역을 지울까요?`, '차량 관리에 올라간 차는 그대로 남습니다.'))) return;
@@ -92,6 +118,14 @@ export default function PurchaseIntakeModule() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => void syncReports()}
+            disabled={reportBusy}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            title="카비어에 올라온 성능점검 리포트 주소를 차량번호로 맞춰 붙입니다"
+          >
+            <FileSearch size={15} /> {reportBusy ? '가져오는 중…' : '검차 리포트 가져오기'}
+          </button>
           <button
             onClick={() => setCarviorOpen(true)}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -272,6 +306,17 @@ export default function PurchaseIntakeModule() {
                     <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white">
                       상품화
                     </span>
+                  )}
+                  {/* 카비어가 달아 준 성능점검 결과 — 여기서 바로 연다 */}
+                  {r.reportUrl && (
+                    <a
+                      href={r.reportUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100"
+                    >
+                      <FileSearch size={11} /> 검차 리포트
+                    </a>
                   )}
                   {/* 검차를 어디까지 했는지 — 판·덴트는 그대로 돈이라 같이 띄운다 */}
                   {(() => {

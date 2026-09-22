@@ -1280,6 +1280,8 @@ export interface PurchaseIntake {
   dentLargeCount?: number; // 그중 큰 덴트
   wheelCount?: number; // 휠 복원 몇 짝
   fuelLevel?: string; // 기름 — 많음 / 적정 / 없음
+  /** 검차 리포트 주소 — 카비어가 계약에 달아 주는 성능점검 결과 */
+  reportUrl?: string;
   prepVendor?: string; // 판금 업체 — 대산 / KS
   imported?: boolean; // 수입차인가 — 판 단가가 갈린다
   note: string; // 특이사항
