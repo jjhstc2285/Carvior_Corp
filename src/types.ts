@@ -768,17 +768,44 @@ export const CONSULTATION_PLATFORMS = ['엔카', '차차차', '오토벨', '114'
  * 상담 종류. 알선과 수출은 받는 창구도 손님도 다르지만 적는 내용과 흐름
  * (상담 → 계약 → 종결 → 판매완료)이 같아서, 한 곳에 쌓고 구분만 나눈다.
  */
-export type ConsultationKind = 'BROKERAGE' | 'EXPORT';
+/**
+ * 상담 넷 — 누구 물건을 누가 파느냐로 갈린다.
+ *
+ * 돈이 어디로 가는지가 거기서 정해진다. 기타는 파는 사람이 우리 직원이 아니라
+ * 담당자 자리에 남의 딜러·상사 이름이 들어간다.
+ */
+export type ConsultationKind = 'SALE' | 'BROKERAGE' | 'EXPORT' | 'OTHER';
 
 export const CONSULTATION_KIND_LABEL: Record<ConsultationKind, string> = {
+  SALE: '판매',
   BROKERAGE: '알선',
   EXPORT: '수출',
+  OTHER: '기타',
+};
+
+/** 무엇을 뜻하는지 — 처음 보는 사람이 넷을 못 가른다 */
+export const CONSULTATION_KIND_HINT: Record<ConsultationKind, string> = {
+  SALE: '우리 담당자가 우리 상사 물건을 팝니다',
+  BROKERAGE: '우리 담당자가 타 상사 물건을 팝니다',
+  EXPORT: '수출한 물건입니다',
+  OTHER: '타 딜러가 우리 상사 물건을 팝니다 — 담당자에 그 딜러·상사 이름을 적습니다',
+};
+
+/** 그래프·배지에서 쓰는 색 */
+export const CONSULTATION_KIND_COLOR: Record<ConsultationKind, { bar: string; chip: string }> = {
+  SALE: { bar: 'bg-indigo-500', chip: 'bg-indigo-50 text-indigo-700' },
+  BROKERAGE: { bar: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700' },
+  EXPORT: { bar: 'bg-sky-500', chip: 'bg-sky-50 text-sky-700' },
+  OTHER: { bar: 'bg-amber-500', chip: 'bg-amber-50 text-amber-800' },
 };
 
 /** 유입 경로 빠른 선택 — 수출은 들어오는 곳이 다르다. 어느 쪽이든 직접 입력도 된다. */
 export const CONSULTATION_PLATFORMS_BY_KIND: Record<ConsultationKind, readonly string[]> = {
+  // 우리 물건을 파는 쪽(판매·기타)은 손님이 들어오는 곳이 알선과 같다
+  SALE: CONSULTATION_PLATFORMS,
   BROKERAGE: CONSULTATION_PLATFORMS,
   EXPORT: ['카비어', '딜러', '직거래', '기타'],
+  OTHER: ['딜러 소개', '카비어', '직거래', '기타'],
 };
 
 /**
@@ -995,6 +1022,10 @@ export interface ConsultationRecord {
   customerPhone: string; // 손님번호
   /** 예전 양식의 고객명 — 손님번호로 바꾸기 전 상담에만 남아 있다 */
   customerName: string;
+  /** 기타 상담에서 판 사람 — 남의 딜러나 그 상사 이름 */
+  outsideDealer?: string;
+  /** 매입날짜(제시일자) — 차량 관리에서 맞춰 붙여 준다. 저장하지 않는다 */
+  offerDate?: string | null;
   employeeId: string; // 담당자
   status: ConsultationStatus;
   date: string; // YYYY-MM-DD, 상담일시(날짜만)

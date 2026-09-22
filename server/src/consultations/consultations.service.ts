@@ -125,13 +125,33 @@ export class ConsultationsService {
     files: { select: { id: true, fileName: true, url: true } },
   };
 
-  private toView<T extends { date: Date; visitDate: Date | null; nextContactDate: Date | null }>(row: T) {
+  private toView<T extends { date: Date; visitDate: Date | null; nextContactDate: Date | null }>(
+    row: T,
+    offerDates?: Map<string, string | null>,
+  ) {
     return {
       ...row,
       date: formatDateOnly(row.date),
       visitDate: formatDateOnlyOrNull(row.visitDate),
       nextContactDate: formatDateOnlyOrNull(row.nextContactDate),
+      /**
+       * 매입날짜 — 차량 관리의 제시일자다.
+       *
+       * 상담에는 없는 값이라 차량번호로 맞춰 붙인다. 저장하지 않는다 — 차 쪽에서 날짜를
+       * 고치면 상담도 같이 따라가야 한다. 한 건만 볼 때는 안 붙인다(목록에서만 쓴다).
+       */
+      offerDate: offerDates?.get(normalizePlate((row as { vehicleNumber?: string }).vehicleNumber ?? '')) ?? null,
     };
+  }
+
+  /** 상담에 뜬 차들의 제시일자 — 차량번호로 맞춰 붙인다 */
+  private async offerDatesOf(plates: string[]): Promise<Map<string, string | null>> {
+    if (plates.length === 0) return new Map();
+    const rows = await this.prisma.managedVehicle.findMany({
+      where: { vehicleNumber: { in: [...new Set(plates)] } },
+      select: { vehicleNumber: true, offerDate: true },
+    });
+    return new Map(rows.map((r) => [normalizePlate(r.vehicleNumber), formatDateOnlyOrNull(r.offerDate)]));
   }
 
   async findAll(params: { q?: string; status?: ConsultationStatus; employeeId?: string; kind?: ConsultationKind }) {
@@ -173,7 +193,8 @@ export class ConsultationsService {
       include: this.include,
       orderBy: [{ date: 'desc' }, { time: 'desc' }],
     });
-    return rows.map((r) => this.toView(r));
+    const offerDates = await this.offerDatesOf(rows.map((r) => normalizePlate(r.vehicleNumber)));
+    return rows.map((r) => this.toView(r, offerDates));
   }
 
   async create(dto: CreateConsultationDto) {
@@ -186,6 +207,7 @@ export class ConsultationsService {
         customerPhone: dto.customerPhone.trim(),
         customerName: dto.customerName?.trim() ?? '',
         employeeId: dto.employeeId,
+        outsideDealer: dto.outsideDealer?.trim() ?? '',
         status: dto.status ?? ConsultationStatus.IN_PROGRESS,
         date: toDateOnly(dto.date),
         time: dto.time,
@@ -213,6 +235,7 @@ export class ConsultationsService {
       where: { id },
       data: {
         ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
+        ...(dto.outsideDealer !== undefined ? { outsideDealer: dto.outsideDealer.trim() } : {}),
         ...(dto.platform !== undefined ? { platform: dto.platform.trim() } : {}),
         ...(dto.vehicleNumber !== undefined ? { vehicleNumber: dto.vehicleNumber } : {}),
         ...(dto.vehicleName !== undefined ? { vehicleName: dto.vehicleName.trim() } : {}),
@@ -278,7 +301,8 @@ export class ConsultationsService {
     const already = items.length - fresh.length;
 
     if (dryRun) {
-      const byKind = { EXPORT: 0, BROKERAGE: 0 };
+      // 시트에서 오는 건 알선·수출 둘뿐이지만, 분류가 늘어도 세다가 터지지 않게 열어 둔다
+      const byKind: Record<string, number> = { EXPORT: 0, BROKERAGE: 0 };
       const unmatched = new Set<string>();
       for (const i of fresh) {
         byKind[i.kind] += 1;

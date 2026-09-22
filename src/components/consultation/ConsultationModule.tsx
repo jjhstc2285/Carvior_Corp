@@ -229,7 +229,8 @@ export default function ConsultationModule({ role, kind }: Props) {
       </div>
 
       {/* 상품화된 차를 눌러 그 차로 상담을 연다 — 차량번호를 옮겨 치지 않게 */}
-      {kind === 'BROKERAGE' && (
+      {/* 우리 물건을 우리가 파는 자리(판매·알선)에서만 — 수출·기타는 고를 차가 다르다 */}
+      {(kind === 'SALE' || kind === 'BROKERAGE') && (
         <SellableVehicles
           consultedNumbers={consultedNumbers}
           onStart={(v: ManagedVehicle) => {
@@ -335,6 +336,7 @@ export default function ConsultationModule({ role, kind }: Props) {
                 <th className="px-4 py-2.5 font-medium">플랫폼</th>
                 <th className="px-4 py-2.5 font-medium">차량번호</th>
                 <th className="px-4 py-2.5 font-medium">차명</th>
+                <th className="px-4 py-2.5 font-medium">매입날짜</th>
                 <th className="px-4 py-2.5 font-medium">손님번호</th>
                 <th className="px-4 py-2.5 font-medium">담당자</th>
                 <th className="px-4 py-2.5 font-medium">방문예정</th>
@@ -345,7 +347,7 @@ export default function ConsultationModule({ role, kind }: Props) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="px-5 py-10 text-center text-sm text-slate-400">상담 내역이 없습니다.</td></tr>
+                <tr><td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">상담 내역이 없습니다.</td></tr>
               )}
               {shown.map(c => (
                 <tr key={c.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -359,13 +361,23 @@ export default function ConsultationModule({ role, kind }: Props) {
                   </td>
                   <td className="px-4 py-2.5 font-mono text-slate-600">{c.vehicleNumber}</td>
                   <td className="px-4 py-2.5 text-slate-700">{c.vehicleName || <span className="text-slate-300">—</span>}</td>
+                  {/* 매입날짜(제시일자) — 차량 관리에서 맞춰 붙여 준다. 얼마나 들고 있는 차인지가 보인다 */}
+                  <td className="px-4 py-2.5 whitespace-nowrap text-slate-500">
+                    {c.offerDate ? dayjs(c.offerDate).format('YY.M.D') : <span className="text-slate-300">—</span>}
+                  </td>
                   <td className="px-4 py-2.5">
                     {/* 번호를 누르면 그 손님의 지난 상담이 모여 나온다 */}
                     <button onClick={() => setHistoryCustomer(c.customerPhone || c.customerName)} className="font-medium text-indigo-600 hover:underline">
                       {c.customerPhone || c.customerName || '—'}
                     </button>
                   </td>
-                  <td className="px-4 py-2.5 text-slate-500">{employeeOf(c.employeeId)?.name}</td>
+                  <td className="px-4 py-2.5 text-slate-500">
+                    {c.kind === 'OTHER' && c.outsideDealer ? (
+                      <span title="우리 물건을 판 남의 딜러·상사">{c.outsideDealer}</span>
+                    ) : (
+                      employeeOf(c.employeeId)?.name
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">
                     {c.visitDate || c.visitTime ? (
                       <>

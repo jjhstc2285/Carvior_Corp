@@ -32,6 +32,11 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? preset?.vehicleName ?? '');
   const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
+  /*
+    기타 상담은 남의 딜러가 우리 물건을 판 건이다 — 담당자가 우리 직원이 아니라서
+    목록에서 고를 수가 없다. 이름만 받아 둔다(그 사람 계정을 만들 일은 없다).
+  */
+  const [outsideDealer, setOutsideDealer] = useState(editing?.outsideDealer ?? '');
   const [status, setStatus] = useState<ConsultationStatus>(editing?.status ?? 'IN_PROGRESS');
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
   const [time, setTime] = useState(editing?.time ?? dayjs().format('HH:mm'));
@@ -64,6 +69,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
       // 예전 양식으로 적힌 고객명은 건드리지 않고 그대로 넘긴다.
       customerName: editing?.customerName ?? '',
       employeeId,
+      outsideDealer: outsideDealer.trim(),
       status,
       date,
       time,
@@ -142,11 +148,25 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">담당자</label>
-            <select value={employeeId} onChange={e => setEmployeeId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-              {state.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">
+              {kind === 'OTHER' ? '판 딜러 · 상사' : '담당자'}
+            </label>
+            {kind === 'OTHER' ? (
+              <>
+                <input
+                  value={outsideDealer}
+                  onChange={e => setOutsideDealer(e.target.value)}
+                  placeholder="김딜러 / 대성모터스"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">우리 물건을 판 남의 딜러나 그 상사 이름</p>
+              </>
+            ) : (
+              <select value={employeeId} onChange={e => setEmployeeId(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
+                {state.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">상담 상태</label>

@@ -470,9 +470,20 @@ model AttendanceDevice {
  * 상담 종류. 알선과 수출은 받는 창구도 손님도 다르지만, 적는 내용과 흐름
  * (상담 → 계약 → 종결 → 판매완료)이 같아서 한 표에 두고 구분만 나눈다.
  */
+/**
+ * 상담 넷.
+ *
+ * 누구 물건을 누가 파느냐로 갈린다 — 돈이 어디로 가는지가 거기서 정해진다.
+ *  - SALE      우리 담당자가 우리 상사 물건을 판다
+ *  - BROKERAGE 우리 담당자가 남의 상사 물건을 판다 (알선)
+ *  - EXPORT    수출
+ *  - OTHER     남의 딜러가 우리 상사 물건을 판다 — 담당자가 우리 직원이 아니다
+ */
 enum ConsultationKind {
+  SALE // 판매
   BROKERAGE // 알선
   EXPORT // 수출
+  OTHER // 기타
 }
 
 enum ConsultationStatus {
@@ -493,7 +504,15 @@ model Consultation {
   // 구글 시트에서 옮겨온 건의 원래 번호. 두 번 넣어도 겹치지 않게 이걸로 가른다.
   // 앱에서 새로 적은 건은 비어 있다.
   sourceId      String?            @db.VarChar(30)
-  kind          ConsultationKind   @default(BROKERAGE) // 알선 / 수출
+  kind          ConsultationKind   @default(BROKERAGE) // 판매 / 알선 / 수출 / 기타
+
+  /**
+   * 기타 상담에서 판 사람 — 남의 딜러나 그 상사 이름.
+   *
+   * 우리 직원이 아니라 employeeId 로 못 적는다. 이름만 받아 둔다 — 그 사람이 또 올지도
+   * 모르고, 오더라도 우리 계정을 만들 일은 없다.
+   */
+  outsideDealer String @default("") @db.VarChar(60)
   platform      String             @default("") @db.VarChar(30) // 엔카·KB차차차 등 유입 경로
   vehicleNumber String
   vehicleName   String             @default("") @db.VarChar(60) // 차명

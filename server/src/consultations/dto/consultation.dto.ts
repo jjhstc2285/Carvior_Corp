@@ -37,6 +37,13 @@ export class CreateConsultationDto extends PayFields {
   /** 예전 양식의 고객명. 새로 등록할 때는 안 쓰지만 기존 상담을 고칠 때 넘어온다. */
   @IsOptional() @IsString() @MaxLength(50) customerName?: string;
 
+  /**
+   * 기타 상담에서 판 사람 — 남의 딜러나 그 상사 이름.
+   *
+   * 우리 직원이 아니라 employeeId 로 못 적는다. 이름만 받아 둔다.
+   */
+  @IsOptional() @IsString() @MaxLength(60) outsideDealer?: string;
+
   @IsString()
   @IsNotEmpty()
   employeeId!: string;
@@ -80,6 +87,7 @@ export class UpdateConsultationDto extends PayFields {
   @IsOptional() @IsString() @MaxLength(30) visitTime?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) depositAmount?: number;
   @IsOptional() @IsString() @MaxLength(50) customerName?: string;
+  @IsOptional() @IsString() @MaxLength(60) outsideDealer?: string;
   @IsOptional() @IsString() employeeId?: string;
   @IsOptional() @IsEnum(ConsultationStatus) status?: ConsultationStatus;
   @IsOptional() @Matches(DATE_PATTERN) date?: string;
