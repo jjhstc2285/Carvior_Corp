@@ -34,14 +34,12 @@ export default function PurchaseIntakeModule() {
   const soldCount = api.items.filter(r => (r.salePrice ?? 0) > 0).length;
 
   /*
-    대산에 이번 달 몇 곳을 맡겼는가.
+    대산에 이번 달 몇 대를 맡겼는가.
 
-    백 곳을 채워야 제휴 단가를 받는다 — 스물 몇 곳이 모자라 못 받는 일이 없게 어디까지
-    왔는지 띄운다. 검차에서 '대산'으로 고른 차의 판 곳수를 센다.
+    백 대를 채워야 제휴 단가를 받는다. 한 대에 판을 두 곳 했어도 그건 한 대다 —
+    곳수로 세면 실제보다 빨리 채운 것처럼 보이고, 그 숫자를 믿고 있다가 못 받는다.
   */
-  const daesanPanels = api.items
-    .filter(r => (r.prepVendor ?? '') === '대산')
-    .reduce((sum, r) => sum + (r.panelCount ?? 0), 0);
+  const daesanCars = api.items.filter(r => (r.prepVendor ?? '') === '대산' && (r.panelCount ?? 0) > 0).length;
 
   /*
     검차 리포트 주소를 카비어에서 받아 붙인다.
@@ -200,27 +198,27 @@ export default function PurchaseIntakeModule() {
       {period === 'month' && (
         <div
           className={`mb-4 flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 ${
-            daesanPanels >= DAESAN_BULK_GOAL ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/40'
+            daesanCars >= DAESAN_BULK_GOAL ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/40'
           }`}
         >
           <span className="text-xs font-bold text-slate-600">대산 판금 {dayjs(month).format('M월')}</span>
           <span className="text-lg font-bold text-slate-800">
-            {daesanPanels}
-            <span className="ml-0.5 text-xs font-medium text-slate-400">/ {DAESAN_BULK_GOAL}곳</span>
+            {daesanCars}
+            <span className="ml-0.5 text-xs font-medium text-slate-400">/ {DAESAN_BULK_GOAL}대</span>
           </span>
           <div className="h-2 w-40 overflow-hidden rounded-full bg-white">
             <div
-              className={`h-full rounded-full ${daesanPanels >= DAESAN_BULK_GOAL ? 'bg-emerald-500' : 'bg-amber-400'}`}
-              style={{ width: `${Math.min(100, (daesanPanels / DAESAN_BULK_GOAL) * 100)}%` }}
+              className={`h-full rounded-full ${daesanCars >= DAESAN_BULK_GOAL ? 'bg-emerald-500' : 'bg-amber-400'}`}
+              style={{ width: `${Math.min(100, (daesanCars / DAESAN_BULK_GOAL) * 100)}%` }}
             />
           </div>
-          <span className={`text-xs font-semibold ${daesanPanels >= DAESAN_BULK_GOAL ? 'text-emerald-700' : 'text-amber-700'}`}>
-            {daesanPanels >= DAESAN_BULK_GOAL
+          <span className={`text-xs font-semibold ${daesanCars >= DAESAN_BULK_GOAL ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {daesanCars >= DAESAN_BULK_GOAL
               ? '채웠습니다 — 제휴 단가가 걸립니다'
-              : `${DAESAN_BULK_GOAL - daesanPanels}곳 남았습니다`}
+              : `${DAESAN_BULK_GOAL - daesanCars}대 남았습니다`}
           </span>
           <span className="ml-auto text-[11px] text-slate-400">
-            채우면 국산 7만 · 수입 12만 — 검차에서 판금집을 '대산'으로 고른 차만 셉니다
+            채우면 국산 7만 · 수입 12만 — 한 대에 판을 몇 곳 했든 <b>한 대</b>로 셉니다
           </span>
         </div>
       )}

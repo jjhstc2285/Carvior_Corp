@@ -29,12 +29,13 @@ export const CHECK_ITEMS: CheckItem[] = [
 ];
 
 /**
- * 대산 제휴 단가가 걸리는 달 판금 곳수.
+ * 대산 제휴 단가가 걸리는 달 대수.
  *
- * 한 달에 이만큼 맡기면 단가가 내려간다. 달마다 새로 세고, 몇 곳 모자라 못 받는 일이
- * 없게 매입 관리에 어디까지 왔는지 띄운다.
+ * 한 달에 이만큼 맡기면 단가가 내려간다. **차 한 대가 한 건이다** — 한 대에 판을 두 곳
+ * 했어도 두 건이 아니다. 곳수로 세면 실제보다 빨리 채운 것처럼 보이고, 그 숫자를 믿고
+ * 있다가 제휴를 못 받는다. 달마다 새로 센다.
  */
-export const DAESAN_BULK_GOAL = 100;
+export const DAESAN_BULK_GOAL = 100; // 대
 
 /** 판금 업체 — 단가가 갈린다 */
 export const PREP_VENDORS = ['대산', 'KS'] as const;
@@ -43,7 +44,7 @@ export type PrepVendor = (typeof PREP_VENDORS)[number];
 /**
  * 판금 한 곳 값(원).
  *
- * 수입차가 국산보다 비싸고, 업체마다 다르다. 대산은 그 달 100대를 채우면 국산이 내려간다.
+ * 수입차가 국산보다 비싸고, 업체마다 다르다. 대산은 그 달 100대(차 대수)를 채우면 국산이 내려간다.
  * 숫자가 바뀌면 여기만 고친다 — 화면 여러 곳에 흩어 두면 한 군데는 꼭 안 고쳐진다.
  */
 export const PANEL_PRICE: Record<PrepVendor, { domestic: number; imported: number; bulkDomestic?: number; bulkImported?: number }> = {
