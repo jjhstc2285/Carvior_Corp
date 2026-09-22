@@ -107,7 +107,13 @@ export default function WorkLogDayCard({
 
   return (
     <div
-      className={`flex min-h-40 flex-col rounded-2xl border bg-white ${
+      /*
+        높이를 미리 잡아 두지 않는다.
+
+        빈 칸에 160px 을 깔아 두니 아무것도 안 적힌 날이 화면 한 뼘씩 차지했다 —
+        일곱 칸이면 그게 그대로 쌓여서 정작 적힌 날이 아래로 밀린다. 적은 만큼만 차지한다.
+      */
+      className={`flex flex-col rounded-2xl border bg-white ${
         isToday ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-slate-200'
       }`}
     >
@@ -142,7 +148,7 @@ export default function WorkLogDayCard({
         </span>
       </div>
 
-      <ul className="flex-1 space-y-0.5 px-1.5 py-2">
+      <ul className="space-y-0.5 px-1.5 py-1.5">
         {logs.map(log => (
           <li key={log.id} className="group flex items-start gap-1.5 rounded-lg px-1.5 py-1 hover:bg-slate-50">
             <button
