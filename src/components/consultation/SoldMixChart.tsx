@@ -16,20 +16,29 @@ import { useStore } from '../../store';
 
 const ORDER: ConsultationKind[] = ['SALE', 'BROKERAGE', 'EXPORT', 'OTHER'];
 
-/** 몇 달을 보여줄지 — 반년이면 흐름이 보이고, 그보다 길면 막대가 얇아져 못 읽는다 */
-const MONTHS = 6;
+/**
+ * 어느 달부터 세는가.
+ *
+ * 분류를 넷으로 나눈 게 2026년 9월이다. 그 전 상담은 전부 알선 하나로 쌓여 있어서
+ * 같이 그리면 '알선만 있던 회사'처럼 보인다 — 나눠 적기 시작한 달부터 센다.
+ */
+const START_MONTH = '2026-09';
+
+/** 그보다 길어지면 막대가 얇아져 못 읽는다 — 열두 달까지만 */
+const MAX_MONTHS = 12;
 
 export default function SoldMixChart() {
   const { state } = useStore();
 
   const { months, total, byKind, max } = useMemo(() => {
-    const sold = state.consultations.filter(c => c.status === 'SOLD');
+    // 나눠 적기 전 것은 세지 않는다 — 전부 알선으로 쌓여 있어 뜻이 없다
+    const sold = state.consultations.filter(c => c.status === 'SOLD' && (c.date ?? '') >= `${START_MONTH}-01`);
 
-    const keys = Array.from({ length: MONTHS }, (_, i) =>
-      dayjs()
-        .subtract(MONTHS - 1 - i, 'month')
-        .format('YYYY-MM'),
-    );
+    // 시작 달부터 이번 달까지
+    const start = dayjs(`${START_MONTH}-01`);
+    const span = Math.min(Math.max(dayjs().diff(start, 'month') + 1, 1), MAX_MONTHS);
+    const first = dayjs().subtract(span - 1, 'month');
+    const keys = Array.from({ length: span }, (_, i) => first.add(i, 'month').format('YYYY-MM'));
 
     const rows = keys.map(key => {
       const inMonth = sold.filter(c => (c.date ?? '').startsWith(key));
@@ -51,7 +60,7 @@ export default function SoldMixChart() {
     <section className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
       <div className="mb-3 flex flex-wrap items-baseline gap-2">
         <h2 className="text-sm font-bold text-slate-800">판매완료 — 달마다 어디서 팔렸나</h2>
-        <span className="text-xs text-slate-400">최근 {MONTHS}개월 · 상담일 기준</span>
+        <span className="text-xs text-slate-400">{dayjs(`${START_MONTH}-01`).format('YYYY년 M월')}부터 · 상담일 기준</span>
         <span className="ml-auto text-xs text-slate-500">
           전체 <b className="text-slate-800">{total}</b>건
         </span>
@@ -65,7 +74,7 @@ export default function SoldMixChart() {
               {m.total || ''}
             </span>
             <div
-              className="flex w-full max-w-16 flex-col-reverse overflow-hidden rounded-md bg-slate-100"
+              className="flex w-full max-w-14 flex-col-reverse overflow-hidden rounded-md bg-slate-100"
               style={{ height: `${Math.max(4, (m.total / max) * 100)}%` }}
               title={m.counts
                 .filter(c => c.count > 0)
