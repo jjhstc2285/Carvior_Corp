@@ -84,6 +84,15 @@ export class CreatePurchaseIntakeDto {
    * 이 화면을 보고 있다. 본 자리에서 켠다.
    */
   @IsOptional() @IsBoolean() prepared?: boolean;
+
+  // ── 실차 검차 ──
+  @IsOptional() @IsString() @MaxLength(255) checkedItems?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) panelCount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentCount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentLargeCount?: number;
+  @IsOptional() @IsString() @MaxLength(10) prepVendor?: string;
+  @IsOptional() @IsBoolean() imported?: boolean;
+
   @IsOptional() @IsString() @MaxLength(255) note?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) purchaseAmount?: number;
@@ -116,6 +125,15 @@ export class UpdatePurchaseIntakeDto {
    * 이 화면을 보고 있다. 본 자리에서 켠다.
    */
   @IsOptional() @IsBoolean() prepared?: boolean;
+
+  // ── 실차 검차 ──
+  @IsOptional() @IsString() @MaxLength(255) checkedItems?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) panelCount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentCount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) dentLargeCount?: number;
+  @IsOptional() @IsString() @MaxLength(10) prepVendor?: string;
+  @IsOptional() @IsBoolean() imported?: boolean;
+
   @IsOptional() @IsString() @MaxLength(255) note?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) purchaseAmount?: number;
@@ -367,6 +385,12 @@ export class PurchaseIntakeService {
         keyCount: dto.keyCount ?? 0,
         mileage: dto.mileage ?? 0,
         checkedMileage: dto.checkedMileage ?? 0,
+        checkedItems: dto.checkedItems?.trim() ?? '',
+        panelCount: dto.panelCount ?? 0,
+        dentCount: dto.dentCount ?? 0,
+        dentLargeCount: dto.dentLargeCount ?? 0,
+        prepVendor: dto.prepVendor?.trim() ?? '',
+        imported: dto.imported ?? false,
         note: dto.note?.trim() ?? '',
         purchaseAmount: dto.purchaseAmount ?? 0,
         brokerFee: dto.brokerFee ?? 0,
@@ -417,6 +441,12 @@ export class PurchaseIntakeService {
         keyCount: dto.keyCount,
         mileage: dto.mileage,
         checkedMileage: dto.checkedMileage,
+        checkedItems: dto.checkedItems?.trim(),
+        panelCount: dto.panelCount,
+        dentCount: dto.dentCount,
+        dentLargeCount: dto.dentLargeCount,
+        prepVendor: dto.prepVendor?.trim(),
+        imported: dto.imported,
         note: dto.note?.trim(),
         purchaseAmount: dto.purchaseAmount,
         brokerFee: dto.brokerFee,

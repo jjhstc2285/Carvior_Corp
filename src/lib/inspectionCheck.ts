@@ -1,0 +1,92 @@
+/**
+ * 실차 검차.
+ *
+ * 차를 보러 가서 확인하는 것들과, 거기서 센 개수로 나올 상품화 비용을 미리 잡아 본다.
+ * 현장에서 카톡으로 주고받던 걸 그대로 옮긴 것이라 항목도 부르는 이름도 그때 말 그대로다.
+ *
+ * 돈은 여기서 '예상'까지만 낸다 — 실제로 나간 돈은 매입 정산의 상품화 비용에 적는다.
+ * 두 곳이 어긋나면 실제로 나간 쪽이 맞다.
+ */
+
+export interface CheckItem {
+  key: string;
+  label: string;
+  /** 왜 보는지 — 처음 가는 사람이 뭘 확인해야 하는지 모른다 */
+  hint?: string;
+}
+
+/** 차 보러 갈 때 확인하는 것 — 적어둔 차례가 곧 도는 차례다 */
+export const CHECK_ITEMS: CheckItem[] = [
+  { key: 'flashlight', label: '후레시 들고 가기', hint: '지하·야간에는 판·덴트가 안 보인다' },
+  { key: 'blackbox', label: '블랙박스 선 빼기' },
+  { key: 'engine', label: '시동 걸기' },
+  { key: 'panel', label: '판 체크', hint: '판금한 자리가 몇 곳인지' },
+  { key: 'dent', label: '덴트 체크' },
+  { key: 'wheel', label: '휠 체크' },
+  { key: 'glass', label: '유리 깨진 곳', hint: '앞유리 · 뒷유리 · 네비 · 뒷자리 TV' },
+  { key: 'aircon', label: '에어컨 · 히터' },
+  { key: 'seat', label: '전동시트' },
+  { key: 'fuel', label: '기름' },
+];
+
+/** 판금 업체 — 단가가 갈린다 */
+export const PREP_VENDORS = ['대산', 'KS'] as const;
+export type PrepVendor = (typeof PREP_VENDORS)[number];
+
+/**
+ * 판금 한 곳 값(원).
+ *
+ * 수입차가 국산보다 비싸고, 업체마다 다르다. 대산은 그 달 100대를 채우면 국산이 내려간다.
+ * 숫자가 바뀌면 여기만 고친다 — 화면 여러 곳에 흩어 두면 한 군데는 꼭 안 고쳐진다.
+ */
+export const PANEL_PRICE: Record<PrepVendor, { domestic: number; imported: number; bulkDomestic?: number; bulkImported?: number }> = {
+  // 100대를 채우면 국산 7만, 수입 12만
+  대산: { domestic: 80_000, imported: 130_000, bulkDomestic: 70_000, bulkImported: 120_000 },
+  KS: { domestic: 90_000, imported: 120_000 },
+};
+
+/** 덴트 한 곳 값(원) — 크기로 갈린다 */
+export const DENT_PRICE = { small: 40_000, large: 60_000 };
+
+export interface CheckCounts {
+  panelCount: number;
+  dentCount: number;
+  /** 큰 덴트가 몇 곳인지 — 나머지는 작은 것으로 본다 */
+  dentLargeCount: number;
+  vendor: string;
+  imported: boolean;
+  /** 대산이 그 달 100대를 채웠는가 — 채우면 단가가 내려간다 */
+  bulk: boolean;
+}
+
+/** 판금 한 곳에 얼마인지 */
+export function panelUnit(c: Pick<CheckCounts, 'vendor' | 'imported' | 'bulk'>): number {
+  const table = PANEL_PRICE[c.vendor as PrepVendor];
+  if (!table) return 0;
+  if (c.imported) return (c.bulk && table.bulkImported) || table.imported;
+  return (c.bulk && table.bulkDomestic) || table.domestic;
+}
+
+/**
+ * 센 개수로 잡아 본 상품화 비용(원).
+ *
+ * 큰 덴트를 먼저 세고 남은 만큼을 작은 것으로 본다 — 큰 것 개수가 전체를 넘으면 전부 큰 것이다.
+ */
+export function estimateCost(c: CheckCounts): { panel: number; dent: number; total: number } {
+  const large = Math.min(Math.max(c.dentLargeCount, 0), Math.max(c.dentCount, 0));
+  const small = Math.max(c.dentCount - large, 0);
+
+  const panel = panelUnit(c) * Math.max(c.panelCount, 0);
+  const dent = large * DENT_PRICE.large + small * DENT_PRICE.small;
+  return { panel, dent, total: panel + dent };
+}
+
+/** 저장은 '확인한 항목 키를 쉼표로' — 항목이 늘어도 칸을 안 늘린다 */
+export function parseChecked(value: string): Set<string> {
+  return new Set((value ?? '').split(',').map(v => v.trim()).filter(Boolean));
+}
+
+export function serializeChecked(keys: Set<string>): string {
+  // 적어둔 차례대로 — 저장한 글자가 사람마다 달라지면 나중에 비교가 안 된다
+  return CHECK_ITEMS.filter(i => keys.has(i.key)).map(i => i.key).join(',');
+}

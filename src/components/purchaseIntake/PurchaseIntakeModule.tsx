@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { Car, CloudDownload, Download, Plus, Trash2 } from 'lucide-react';
 import { BROKER_FEE_TYPE_LABEL, type PurchaseIntake } from '../../types';
+import { CHECK_ITEMS } from '../../lib/inspectionCheck';
 import PurchaseIntakeForm from './PurchaseIntakeForm';
 import CarviorImportModal from './CarviorImportModal';
 import { usePurchaseIntake } from './usePurchaseIntake';
@@ -232,6 +233,20 @@ export default function PurchaseIntakeModule() {
                       상품화
                     </span>
                   )}
+                  {/* 검차를 어디까지 했는지 — 판·덴트는 그대로 돈이라 같이 띄운다 */}
+                  {(() => {
+                    const done = (r.checkedItems ?? '').split(',').filter(Boolean).length;
+                    const parts = [
+                      done > 0 ? `검차 ${done}/${CHECK_ITEMS.length}` : '',
+                      (r.panelCount ?? 0) > 0 ? `판 ${r.panelCount}` : '',
+                      (r.dentCount ?? 0) > 0 ? `덴트 ${r.dentCount}` : '',
+                    ].filter(Boolean);
+                    return parts.length > 0 ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                        {parts.join(' · ')}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
                 <p className="mt-1 text-xs text-slate-400">
                   {r.date} · 등록자 {r.employee?.name ?? '-'}

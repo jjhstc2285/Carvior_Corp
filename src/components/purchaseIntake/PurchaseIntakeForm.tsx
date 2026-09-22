@@ -11,9 +11,18 @@ import {
 
 /** 이만큼 벌어지면 저장할 때 관리자에게 알림이 간다 — 서버 기준과 같아야 한다. */
 const MILEAGE_GAP_ALERT_KM = 1000;
-import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
+import { digitsOnly, moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
 import { needsRegistrationCheck, stockDeadline } from '../../lib/stockFinance';
 import { parseIntakeText } from './parseIntake';
+import {
+  CHECK_ITEMS,
+  PREP_VENDORS,
+  DENT_PRICE,
+  estimateCost,
+  panelUnit,
+  parseChecked,
+  serializeChecked,
+} from '../../lib/inspectionCheck';
 import PriceCheckModal from '../price/PriceCheckModal';
 import type { PurchaseIntakeInput } from './usePurchaseIntake';
 
@@ -55,6 +64,40 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
     보고 있는 건 이 화면이다. 본 자리에서 켠다. 저장하면 차량 관리로 넘어간다.
   */
   const [prepared, setPrepared] = useState(editing?.prepared ?? false);
+
+  /*
+    실차 검차.
+
+    차를 보러 가서 확인하는 것들을 카톡으로 주고받다 보니, 갈 때마다 빠뜨리는 게 달랐다 —
+    후레시를 안 들고 가서 지하에서 판을 못 보고 오기도 했다. 목록으로 박아 두고 거기서
+    센 개수로 상품화 비용까지 미리 잡아 본다.
+  */
+  const [checked, setChecked] = useState<Set<string>>(() => parseChecked(editing?.checkedItems ?? ''));
+  const [panelCount, setPanelCount] = useState(String(editing?.panelCount ?? 0));
+  const [dentCount, setDentCount] = useState(String(editing?.dentCount ?? 0));
+  const [dentLargeCount, setDentLargeCount] = useState(String(editing?.dentLargeCount ?? 0));
+  const [prepVendor, setPrepVendor] = useState(editing?.prepVendor ?? '');
+  const [imported, setImported] = useState(editing?.imported ?? false);
+  /** 대산이 그 달 100대를 채웠는가 — 채우면 단가가 내려간다. 그 달 사정이라 저장하지 않는다 */
+  const [bulk, setBulk] = useState(false);
+
+  const counts = {
+    panelCount: Number(digitsOnly(panelCount)) || 0,
+    dentCount: Number(digitsOnly(dentCount)) || 0,
+    dentLargeCount: Number(digitsOnly(dentLargeCount)) || 0,
+    vendor: prepVendor,
+    imported,
+    bulk,
+  };
+  const cost = estimateCost(counts);
+
+  const toggleCheck = (key: string) =>
+    setChecked(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -144,6 +187,12 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       mileage: moneyToNumber(mileage),
       checkedMileage: moneyToNumber(checkedMileage),
       prepared,
+      checkedItems: serializeChecked(checked),
+      panelCount: counts.panelCount,
+      dentCount: counts.dentCount,
+      dentLargeCount: counts.dentLargeCount,
+      prepVendor,
+      imported,
       note: note.trim(),
       purchaseAmount: moneyToNumber(purchaseAmount),
       brokerFee: moneyToNumber(brokerFee),
@@ -177,6 +226,17 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       onChange={e => set(toMoneyValue(e.target.value))}
       inputMode="numeric"
       placeholder={placeholder}
+      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
+    />
+  );
+
+  /** 개수 칸 — 몇 곳인지 세는 자리라 콤마를 안 붙인다 */
+  const count = (value: string, set: (v: string) => void) => (
+    <input
+      value={value}
+      onChange={e => set(digitsOnly(e.target.value).slice(0, 3))}
+      inputMode="numeric"
+      placeholder="0"
       className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
     />
   );
@@ -319,6 +379,103 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
               'col-span-2 sm:col-span-2',
             )}
           {field('특이사항', text(note, setNote, '금일 전액 이체 및 차량인도'), 'col-span-2 sm:col-span-3')}
+        </div>
+
+        {/* ── 실차 검차 ── */}
+        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <p className="text-xs font-bold text-slate-600">실차 검차</p>
+            <span className="text-[11px] text-slate-400">차 보러 가서 확인한 것 — 누르면 체크됩니다</span>
+            <span className="ml-auto text-[11px] font-semibold text-slate-500">
+              {checked.size}/{CHECK_ITEMS.length}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+            {CHECK_ITEMS.map(item => {
+              const on = checked.has(item.key);
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => toggleCheck(item.key)}
+                  title={item.hint}
+                  className={`rounded-lg border px-2 py-1.5 text-left text-xs transition-colors ${
+                    on
+                      ? 'border-emerald-300 bg-emerald-50 font-semibold text-emerald-800'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {on ? '✓ ' : ''}
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 센 개수 — 여기서 센 대로 상품화 비용이 잡힌다 */}
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {field('판 (곳)', count(panelCount, setPanelCount))}
+            {field('덴트 (곳)', count(dentCount, setDentCount))}
+            {field(`큰 덴트 (${(DENT_PRICE.large / 10000).toLocaleString()}만)`, count(dentLargeCount, setDentLargeCount))}
+            {field(
+              '판금 업체',
+              <select
+                value={prepVendor}
+                onChange={e => setPrepVendor(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+              >
+                <option value="">선택</option>
+                {PREP_VENDORS.map(v => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>,
+            )}
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={imported}
+                onChange={e => setImported(e.target.checked)}
+                className="size-4 accent-indigo-600"
+              />
+              수입차
+            </label>
+            {/* 그 달 사정이라 저장하지 않는다 — 볼 때마다 고른다 */}
+            {prepVendor === '대산' && (
+              <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={bulk}
+                  onChange={e => setBulk(e.target.checked)}
+                  className="size-4 accent-indigo-600"
+                />
+                대산 100대 채움
+              </label>
+            )}
+
+            {cost.total > 0 && (
+              <span className="ml-auto text-xs text-slate-600">
+                예상 상품화 비용{' '}
+                <b className="text-sm text-indigo-700">{cost.total.toLocaleString()}</b>원
+                <span className="ml-1 text-[11px] text-slate-400">
+                  (판 {cost.panel.toLocaleString()} · 덴트 {cost.dent.toLocaleString()})
+                </span>
+              </span>
+            )}
+          </div>
+
+          {prepVendor && (
+            <p className="mt-1.5 text-[11px] text-slate-400">
+              판 한 곳 {panelUnit(counts).toLocaleString()}원 ({prepVendor} · {imported ? '수입' : '국산'}
+              {bulk ? ' · 100대' : ''}) · 덴트 작은 것 {DENT_PRICE.small.toLocaleString()}원 · 큰 것{' '}
+              {DENT_PRICE.large.toLocaleString()}원 — 실제로 나간 돈은 매입 정산의 상품화 비용에 적습니다.
+            </p>
+          )}
         </div>
 
         <datalist id="purchase-intake-fuels">

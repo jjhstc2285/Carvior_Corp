@@ -1271,6 +1271,15 @@ export interface PurchaseIntake {
   mileage: number; // 주행거리(km) — 매입할 때 받아 적은 값
   /** 실차 확인자가 차를 보고 다시 적은 주행거리. 0이면 아직 확인 안 함 */
   checkedMileage: number;
+
+  // ── 실차 검차 ──
+  /** 확인한 항목 키를 쉼표로 — lib/inspectionCheck 의 CHECK_ITEMS 와 같은 키 */
+  checkedItems?: string;
+  panelCount?: number; // 판 몇 곳
+  dentCount?: number; // 덴트 몇 곳
+  dentLargeCount?: number; // 그중 큰 덴트
+  prepVendor?: string; // 판금 업체 — 대산 / KS
+  imported?: boolean; // 수입차인가 — 판 단가가 갈린다
   note: string; // 특이사항
 
   purchaseAmount: number; // 실매입금액(원)

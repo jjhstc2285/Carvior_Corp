@@ -1348,6 +1348,21 @@ model PurchaseIntake {
   // 실차 확인자가 차를 직접 보고 다시 적는 주행거리. 처음 적은 것과 많이 벌어지면
   // 관리자에게 알린다(적어 온 값과 실제가 다르면 매입가를 다시 봐야 한다).
   // 0은 '아직 확인 안 함'이다 — 0km 인 차는 없다.
+  /**
+   * 실차 검차 — 차를 보러 가서 확인한 것들.
+   *
+   * 확인한 항목은 키를 쉼표로 이어 한 칸에 담는다. 항목이 늘 때마다 칸을 늘리면
+   * 마이그레이션이 계속 붙는다 — 확인했다/안 했다 두 값뿐이라 이걸로 충분하다.
+   */
+  checkedItems String @default("") @db.VarChar(255)
+
+  /** 센 개수 — 판금·덴트는 여기서 센 대로 상품화 비용이 잡힌다 */
+  panelCount     Int     @default(0) // 판 몇 곳
+  dentCount      Int     @default(0) // 덴트 몇 곳
+  dentLargeCount Int     @default(0) // 그중 큰 덴트
+  prepVendor     String  @default("") @db.VarChar(10) // 판금 업체 — 대산 / KS
+  imported       Boolean @default(false) // 수입차인가 — 판 단가가 갈린다
+
   checkedMileage Int    @default(0)
   note           String @default("") @db.VarChar(255) // 특이사항
 
