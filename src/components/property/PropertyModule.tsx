@@ -33,6 +33,32 @@ function daysLeft(endOn: string | null): number | null {
   return dayjs(endOn).startOf('day').diff(dayjs().startOf('day'), 'day');
 }
 
+/** 열 차례를 기억해 두는 곳 — 이 브라우저에만 남는다 */
+const COL_ORDER_KEY = 'propertyColOrder';
+
+/**
+ * 표의 칸들.
+ *
+ * 제목과 그리는 방법을 한 벌로 묶어 둔다 — 차례를 바꿀 수 있으려면 제목과 내용이
+ * 따로 놀면 안 된다. 칸을 새로 만들 때도 여기 한 줄만 더한다.
+ */
+const COLUMNS: { key: string; label: string; align?: string }[] = [
+  { key: 'name', label: '이름' },
+  { key: 'docs', label: '계약서 · 비용' },
+  { key: 'side', label: '우리 위치' },
+  { key: 'usage', label: '용도' },
+  { key: 'address', label: '주소' },
+  { key: 'ownerName', label: '상대방' },
+  { key: 'ownerPhone', label: '연락처' },
+  { key: 'deposit', label: '보증금', align: 'text-right' },
+  { key: 'monthlyRent', label: '월세', align: 'text-right' },
+  { key: 'payDay', label: '내는 날', align: 'text-center' },
+  { key: 'startOn', label: '계약 시작' },
+  { key: 'endOn', label: '계약 만료' },
+  { key: 'memo', label: '메모' },
+  { key: 'active', label: '계약중', align: 'text-center' },
+];
+
 export default function PropertyModule() {
   const [rows, setRows] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -240,6 +266,38 @@ export default function PropertyModule() {
   }
 
   /*
+    열 차례는 사람마다 다르다.
+
+    누구는 월세부터 보고 누구는 만료일부터 본다. 제목을 잡아 끌어 옮기면 그 차례로
+    기억한다 — 이 브라우저에만 남는다. 칸을 새로 만들면 기억해 둔 차례 뒤에 붙는다.
+  */
+  const [order, setOrder] = useState<string[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COL_ORDER_KEY) ?? '[]') as string[];
+      const known = saved.filter(k => COLUMNS.some(c => c.key === k));
+      return [...known, ...COLUMNS.map(c => c.key).filter(k => !known.includes(k))];
+    } catch {
+      return COLUMNS.map(c => c.key);
+    }
+  });
+  const [dragKey, setDragKey] = useState<string | null>(null);
+
+  const moveColumn = (from: string, to: string) => {
+    if (from === to) return;
+    setOrder(prev => {
+      const next = prev.filter(k => k !== from);
+      next.splice(next.indexOf(to), 0, from);
+      localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const resetOrder = () => {
+    localStorage.removeItem(COL_ORDER_KEY);
+    setOrder(COLUMNS.map(c => c.key));
+  };
+
+  /*
     화면을 넓게 쓴다 — 이 화면은 사무실 PC 에서만 본다. 가운데 좁게 모아 두면 칸이
     스무 개 가까운 표가 옆으로 잘려 매번 밀어 봐야 한다.
   */
@@ -405,6 +463,13 @@ export default function PropertyModule() {
             </span>
           )}
         </button>
+        <button
+          onClick={resetOrder}
+          title="제목줄을 끌어 옮긴 차례를 처음으로 되돌립니다"
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
+        >
+          열 순서 초기화
+        </button>
         <span className="ml-auto text-xs text-slate-400">{loading ? '불러오는 중…' : `${rows.length}곳`}</span>
       </div>
 
@@ -418,27 +483,37 @@ export default function PropertyModule() {
           <table className="w-full min-w-[1640px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
-                <th className="px-3 py-3" />
-                <th className="px-3 py-3 font-medium">이름</th>
-                <th className="px-3 py-3 font-medium">계약서 · 비용</th>
-                <th className="px-3 py-3 font-medium">우리 위치</th>
-                <th className="px-3 py-3 font-medium">용도</th>
-                <th className="px-3 py-3 font-medium">주소</th>
-                <th className="px-3 py-3 font-medium">상대방</th>
-                <th className="px-3 py-3 font-medium">연락처</th>
-                <th className="px-3 py-3 text-right font-medium">보증금</th>
-                <th className="px-3 py-3 text-right font-medium">월세</th>
-                <th className="px-3 py-3 text-center font-medium">내는 날</th>
-                <th className="px-3 py-3 font-medium">계약 시작</th>
-                <th className="px-3 py-3 font-medium">계약 만료</th>
-                <th className="px-3 py-3 font-medium">메모</th>
-                <th className="px-3 py-3 text-center font-medium">계약중</th>
+                {/* 제목을 잡아 끌어 옮기면 그 차례로 기억한다 */}
+                <th className="px-2 py-2.5" />
+                {order.map(key => {
+                  const col = COLUMNS.find(c => c.key === key);
+                  if (!col) return null;
+                  return (
+                    <th
+                      key={key}
+                      draggable
+                      onDragStart={() => setDragKey(key)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => {
+                        if (dragKey) moveColumn(dragKey, key);
+                        setDragKey(null);
+                      }}
+                      onDragEnd={() => setDragKey(null)}
+                      title="끌어서 순서를 바꿉니다"
+                      className={`cursor-grab px-2.5 py-2.5 font-medium select-none ${col.align ?? ''} ${
+                        dragKey === key ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-slate-100'
+                      }`}
+                    >
+                      {col.label}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={15} className="px-5 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={COLUMNS.length + 1} className="px-5 py-8 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '등록된 부동산이 없습니다.'}
                   </td>
                 </tr>
@@ -447,6 +522,19 @@ export default function PropertyModule() {
                 .filter(r => sideFilter === 'all' || (r.side || '임차') === sideFilter)
                 .map(r => {
                 const left = daysLeft(r.endOn);
+                /** 보증금·월세 — 적는 방법이 같아 한 번만 적는다 */
+                const money = (field: 'deposit' | 'monthlyRent') => (
+                  <input
+                    defaultValue={withCommas(String(r[field] || ''))}
+                    onBlur={e => {
+                      const next = Number(digitsOnly(e.target.value)) || 0;
+                      if (next !== r[field]) void patch(r, { [field]: next });
+                    }}
+                    disabled={busyId === r.id}
+                    inputMode="numeric"
+                    className={`${INPUT} w-28 text-right`}
+                  />
+                );
                 return (
                   <tr
                     key={r.id}
@@ -460,7 +548,7 @@ export default function PropertyModule() {
                             : ''
                     }`}
                   >
-                    <td className="px-2.5 py-1.5">
+                    <td className="px-2 py-1.5">
                       <button
                         onClick={() => void removeRow(r)}
                         disabled={busyId === r.id}
@@ -470,177 +558,185 @@ export default function PropertyModule() {
                         <Trash2 size={14} />
                       </button>
                     </td>
-                    <td className="px-2.5 py-1.5">
-                      <input
-                        defaultValue={r.name}
-                        onBlur={e => e.target.value !== r.name && void patch(r, { name: e.target.value })}
-                        disabled={busyId === r.id}
-                        className={`${INPUT} w-36`}
-                      />
-                    </td>
-                    {/* 양식을 손으로 채워 인쇄하던 것과, 달마다 나가는 돈 */}
-                    <td className="whitespace-nowrap px-2.5 py-1.5">
-                      <span className="flex items-center gap-1">
-                        <button
-                          onClick={() => setContractFor(r)}
-                          className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                        >
-                          <FileText size={12} /> 계약서
-                        </button>
-                        <button
-                          onClick={() => setCostFor(r)}
-                          title="달마다 나가는 돈 — 월세·관리비·주차 임대료"
-                          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold ${
-                            (r.monthlyCost ?? 0) > 0
-                              ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                              : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+
+                    {/* 제목줄과 같은 차례로 깐다 — 제목과 내용이 따로 놀면 안 된다 */}
+                    {order.map(key => {
+                      const cell = {
+                        name: (
+                          <input
+                            defaultValue={r.name}
+                            onBlur={e => e.target.value !== r.name && void patch(r, { name: e.target.value })}
+                            disabled={busyId === r.id}
+                            className={`${INPUT} w-36`}
+                          />
+                        ),
+                        // 양식을 손으로 채워 인쇄하던 것과, 달마다 나가는 돈
+                        docs: (
+                          <span className="flex items-center gap-1">
+                            <button
+                              onClick={() => setContractFor(r)}
+                              className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                              <FileText size={12} /> 계약서
+                            </button>
+                            <button
+                              onClick={() => setCostFor(r)}
+                              title="달마다 나가는 돈 — 월세·관리비·주차 임대료"
+                              className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold ${
+                                (r.monthlyCost ?? 0) > 0
+                                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              <Coins size={12} />
+                              {(r.monthlyCost ?? 0) > 0
+                                ? `${Math.round((r.monthlyCost ?? 0) / 10000).toLocaleString()}만`
+                                : '비용'}
+                            </button>
+                          </span>
+                        ),
+                        side: (
+                          <select
+                            value={r.side}
+                            onChange={e => void patch(r, { side: e.target.value })}
+                            disabled={busyId === r.id}
+                            className={`${INPUT} w-24 ${r.side === '임대' ? 'font-bold text-emerald-700' : ''}`}
+                          >
+                            {[...new Set([...PROPERTY_SIDES, r.side].filter(Boolean))].map(sd => (
+                              <option key={sd} value={sd}>
+                                {sd === '임차' ? '임차(빌림)' : sd === '임대' ? '임대(빌려줌)' : sd}
+                              </option>
+                            ))}
+                          </select>
+                        ),
+                        usage: (
+                          <select
+                            value={r.usage}
+                            onChange={e => void patch(r, { usage: e.target.value })}
+                            disabled={busyId === r.id}
+                            className={`${INPUT} w-24`}
+                          >
+                            {[...new Set([...PROPERTY_USAGES, r.usage].filter(Boolean))].map(u => (
+                              <option key={u} value={u}>
+                                {u}
+                              </option>
+                            ))}
+                          </select>
+                        ),
+                        address: (
+                          <input
+                            defaultValue={r.address}
+                            onBlur={e => e.target.value !== r.address && void patch(r, { address: e.target.value })}
+                            disabled={busyId === r.id}
+                            className={`${INPUT} w-56`}
+                          />
+                        ),
+                        ownerName: (
+                          <input
+                            defaultValue={r.ownerName}
+                            onBlur={e => e.target.value !== r.ownerName && void patch(r, { ownerName: e.target.value })}
+                            disabled={busyId === r.id}
+                            placeholder={r.side === '임대' ? '임차인' : '임대인'}
+                            className={`${INPUT} w-24`}
+                          />
+                        ),
+                        ownerPhone: (
+                          <span className="flex items-center gap-1">
+                            <input
+                              defaultValue={r.ownerPhone}
+                              onBlur={e => e.target.value !== r.ownerPhone && void patch(r, { ownerPhone: e.target.value })}
+                              disabled={busyId === r.id}
+                              placeholder="010-0000-0000"
+                              className={`${INPUT} w-32 font-mono`}
+                            />
+                            {r.ownerPhone && (
+                              <a
+                                href={`tel:${r.ownerPhone.replace(/[^\d+]/g, '')}`}
+                                className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-indigo-50 hover:text-indigo-700"
+                                aria-label="전화"
+                              >
+                                <Phone size={12} />
+                              </a>
+                            )}
+                          </span>
+                        ),
+                        deposit: money('deposit'),
+                        monthlyRent: money('monthlyRent'),
+                        payDay: (
+                          <input
+                            defaultValue={r.payDay || ''}
+                            onBlur={e => {
+                              const next = Math.min(31, Number(digitsOnly(e.target.value)) || 0);
+                              if (next !== r.payDay) void patch(r, { payDay: next });
+                            }}
+                            disabled={busyId === r.id}
+                            inputMode="numeric"
+                            placeholder="5"
+                            className={`${INPUT} w-14 text-center`}
+                          />
+                        ),
+                        startOn: (
+                          <input
+                            type="date"
+                            value={r.startOn ?? ''}
+                            onChange={e => void patch(r, { startOn: e.target.value || null })}
+                            disabled={busyId === r.id}
+                            className={`${INPUT} w-36`}
+                          />
+                        ),
+                        endOn: (
+                          <span className="flex items-center gap-1">
+                            <input
+                              type="date"
+                              value={r.endOn ?? ''}
+                              onChange={e => void patch(r, { endOn: e.target.value || null })}
+                              disabled={busyId === r.id}
+                              className={`${INPUT} w-36`}
+                            />
+                            {/* 만료가 가까우면 숫자로 알려준다 — 날짜만 보고는 며칠 남았는지 안 세어진다 */}
+                            {r.active && left !== null && left <= 90 && (
+                              <span
+                                className={`shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                  left < 0 ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {left < 0 ? `${-left}일 지남` : `${left}일 남음`}
+                              </span>
+                            )}
+                          </span>
+                        ),
+                        memo: (
+                          <input
+                            defaultValue={r.memo}
+                            onBlur={e => e.target.value !== r.memo && void patch(r, { memo: e.target.value })}
+                            disabled={busyId === r.id}
+                            className={`${INPUT} w-48`}
+                          />
+                        ),
+                        active: (
+                          <input
+                            type="checkbox"
+                            checked={r.active}
+                            onChange={e => void patch(r, { active: e.target.checked })}
+                            disabled={busyId === r.id}
+                            className="size-4 accent-indigo-600"
+                            aria-label="계약중"
+                          />
+                        ),
+                      }[key];
+
+                      const col = COLUMNS.find(c => c.key === key);
+                      return (
+                        <td
+                          key={key}
+                          className={`px-2.5 py-1.5 ${col?.align === 'text-center' ? 'text-center' : ''} ${
+                            key === 'docs' || key === 'ownerPhone' ? 'whitespace-nowrap' : ''
                           }`}
                         >
-                          <Coins size={12} />
-                          {(r.monthlyCost ?? 0) > 0 ? `${Math.round((r.monthlyCost ?? 0) / 10000).toLocaleString()}만` : '비용'}
-                        </button>
-                      </span>
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      <select
-                        value={r.side}
-                        onChange={e => void patch(r, { side: e.target.value })}
-                        disabled={busyId === r.id}
-                        className={`${INPUT} w-24 ${r.side === '임대' ? 'font-bold text-emerald-700' : ''}`}
-                      >
-                        {[...new Set([...PROPERTY_SIDES, r.side].filter(Boolean))].map(s => (
-                          <option key={s} value={s}>
-                            {s === '임차' ? '임차(빌림)' : s === '임대' ? '임대(빌려줌)' : s}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      <select
-                        value={r.usage}
-                        onChange={e => void patch(r, { usage: e.target.value })}
-                        disabled={busyId === r.id}
-                        className={`${INPUT} w-24`}
-                      >
-                        {[...new Set([...PROPERTY_USAGES, r.usage].filter(Boolean))].map(u => (
-                          <option key={u} value={u}>
-                            {u}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      <input
-                        defaultValue={r.address}
-                        onBlur={e => e.target.value !== r.address && void patch(r, { address: e.target.value })}
-                        disabled={busyId === r.id}
-                        className={`${INPUT} w-56`}
-                      />
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      <input
-                        defaultValue={r.ownerName}
-                        onBlur={e => e.target.value !== r.ownerName && void patch(r, { ownerName: e.target.value })}
-                        disabled={busyId === r.id}
-                        placeholder={r.side === '임대' ? '임차인' : '임대인'}
-                        className={`${INPUT} w-24`}
-                      />
-                    </td>
-                    <td className="whitespace-nowrap px-2.5 py-1.5">
-                      <span className="flex items-center gap-1">
-                        <input
-                          defaultValue={r.ownerPhone}
-                          onBlur={e => e.target.value !== r.ownerPhone && void patch(r, { ownerPhone: e.target.value })}
-                          disabled={busyId === r.id}
-                          placeholder="010-0000-0000"
-                          className={`${INPUT} w-32 font-mono`}
-                        />
-                        {r.ownerPhone && (
-                          <a
-                            href={`tel:${r.ownerPhone.replace(/[^\d+]/g, '')}`}
-                            className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-indigo-50 hover:text-indigo-700"
-                            aria-label="전화"
-                          >
-                            <Phone size={12} />
-                          </a>
-                        )}
-                      </span>
-                    </td>
-                    {(['deposit', 'monthlyRent'] as const).map(field => (
-                      <td key={field} className="px-2.5 py-1.5">
-                        <input
-                          defaultValue={withCommas(String(r[field] || ''))}
-                          onBlur={e => {
-                            const next = Number(digitsOnly(e.target.value)) || 0;
-                            if (next !== r[field]) void patch(r, { [field]: next });
-                          }}
-                          disabled={busyId === r.id}
-                          inputMode="numeric"
-                          className={`${INPUT} w-28 text-right`}
-                        />
-                      </td>
-                    ))}
-                    <td className="px-2.5 py-1.5">
-                      <input
-                        defaultValue={r.payDay || ''}
-                        onBlur={e => {
-                          const next = Math.min(31, Number(digitsOnly(e.target.value)) || 0);
-                          if (next !== r.payDay) void patch(r, { payDay: next });
-                        }}
-                        disabled={busyId === r.id}
-                        inputMode="numeric"
-                        placeholder="5"
-                        className={`${INPUT} w-14 text-center`}
-                      />
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      <input
-                        type="date"
-                        value={r.startOn ?? ''}
-                        onChange={e => void patch(r, { startOn: e.target.value || null })}
-                        disabled={busyId === r.id}
-                        className={`${INPUT} w-36`}
-                      />
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      <span className="flex items-center gap-1">
-                        <input
-                          type="date"
-                          value={r.endOn ?? ''}
-                          onChange={e => void patch(r, { endOn: e.target.value || null })}
-                          disabled={busyId === r.id}
-                          className={`${INPUT} w-36`}
-                        />
-                        {/* 만료가 가까우면 숫자로 알려준다 — 날짜만 보고는 며칠 남았는지 안 세어진다 */}
-                        {r.active && left !== null && left <= 90 && (
-                          <span
-                            className={`shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                              left < 0 ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {left < 0 ? `${-left}일 지남` : `${left}일 남음`}
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      <input
-                        defaultValue={r.memo}
-                        onBlur={e => e.target.value !== r.memo && void patch(r, { memo: e.target.value })}
-                        disabled={busyId === r.id}
-                        className={`${INPUT} w-48`}
-                      />
-                    </td>
-                    <td className="px-2.5 py-1.5 text-center">
-                      <input
-                        type="checkbox"
-                        checked={r.active}
-                        onChange={e => void patch(r, { active: e.target.checked })}
-                        disabled={busyId === r.id}
-                        className="size-4 accent-indigo-600"
-                        aria-label="계약중"
-                      />
-                    </td>
+                          {cell}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
@@ -662,6 +758,8 @@ export default function PropertyModule() {
       )}
 
       <p className="mt-2 text-[11px] text-slate-400">
+        <b>제목줄을 잡아 끌면</b> 열 순서를 바꿀 수 있습니다 — 바꾼 차례는 이 컴퓨터에 기억됩니다.
+        <br />
         칸을 고치고 <b>칸 밖을 누르면 바로 저장</b>됩니다. 계약이 끝난 자리는 지우지 말고{' '}
         <b>계약중 체크를 풀어</b> 주세요 — 지난 계약도 기록입니다.
         <br />
