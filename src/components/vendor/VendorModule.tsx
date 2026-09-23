@@ -142,9 +142,10 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
   /** 목록에 없는 분류가 쓰이고 있으면 그것도 고를 수 있어야 한다 */
   const categories = [...new Set([...VENDOR_CATEGORIES, ...rows.map(r => r.category)])];
 
+  /* 번호를 찾는 화면이라 한눈에 많이 보이는 게 낫다 — 사무실 PC 기준으로 넓게 쓴다 */
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div className="mx-auto max-w-[1700px] px-3 py-4 sm:px-5">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold text-slate-900">거래처 대장</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -164,7 +165,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
       </div>
 
       {/* 분류로 먼저 좁힌다 — 번호를 찾을 때는 '어느 쪽 업체인지'가 먼저 떠오른다 */}
-      <div className="mb-3 flex flex-wrap gap-1.5">
+      <div className="mb-2 flex flex-wrap gap-1.5">
         <button
           onClick={() => setCategory('all')}
           className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
@@ -191,7 +192,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
         ))}
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
@@ -215,21 +216,21 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
           <table className="w-full min-w-[1360px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
-                {canEdit && <th className="px-3 py-3" />}
-                <th className="px-3 py-3 font-medium">분류</th>
-                <th className="px-3 py-3 font-medium">업체명</th>
-                <th className="px-3 py-3 font-medium">전화번호</th>
-                <th className="px-3 py-3 font-medium">번호 2</th>
-                <th className="px-3 py-3 font-medium">담당자</th>
-                <th className="px-3 py-3 font-medium">주소</th>
-                <th className="px-3 py-3 font-medium">메모</th>
-                {canEdit && <th className="px-3 py-3 text-center font-medium">거래중</th>}
+                {canEdit && <th className="px-2.5 py-2.5" />}
+                <th className="px-2.5 py-2.5 font-medium">분류</th>
+                <th className="px-2.5 py-2.5 font-medium">업체명</th>
+                <th className="px-2.5 py-2.5 font-medium">전화번호</th>
+                <th className="px-2.5 py-2.5 font-medium">번호 2</th>
+                <th className="px-2.5 py-2.5 font-medium">담당자</th>
+                <th className="px-2.5 py-2.5 font-medium">주소</th>
+                <th className="px-2.5 py-2.5 font-medium">메모</th>
+                {canEdit && <th className="px-2.5 py-2.5 text-center font-medium">거래중</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={9} className="px-5 py-8 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '등록된 거래처가 없습니다.'}
                   </td>
                 </tr>
@@ -242,7 +243,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                   }`}
                 >
                   {canEdit && (
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <button
                         onClick={() => void removeRow(r)}
                         disabled={busyId === r.id}
@@ -253,7 +254,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                       </button>
                     </td>
                   )}
-                  <td className="whitespace-nowrap px-3 py-2.5">
+                  <td className="whitespace-nowrap px-2.5 py-1.5">
                     {canEdit ? (
                       <select
                         value={r.category}
@@ -273,7 +274,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-2.5 py-1.5">
                     {canEdit ? (
                       <input
                         defaultValue={r.name}
@@ -290,7 +291,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                     )}
                   </td>
                   {(['phone', 'phone2'] as const).map(field => (
-                    <td key={field} className="whitespace-nowrap px-3 py-2.5">
+                    <td key={field} className="whitespace-nowrap px-2.5 py-1.5">
                       {canEdit ? (
                         <input
                           defaultValue={r[field]}
@@ -311,7 +312,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                       )}
                     </td>
                   ))}
-                  <td className="px-3 py-2.5">
+                  <td className="px-2.5 py-1.5">
                     <div className="flex items-center gap-1.5">
                       {canEdit ? (
                         <input
@@ -334,7 +335,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-2.5 py-1.5">
                     {canEdit ? (
                       <input
                         defaultValue={r.address}
@@ -347,7 +348,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                       <span className="text-xs text-slate-500">{r.address || '—'}</span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-2.5 py-1.5">
                     {canEdit ? (
                       <input
                         defaultValue={r.memo}
@@ -360,7 +361,7 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
                     )}
                   </td>
                   {canEdit && (
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-2.5 py-1.5 text-center">
                       <input
                         type="checkbox"
                         checked={r.active}
