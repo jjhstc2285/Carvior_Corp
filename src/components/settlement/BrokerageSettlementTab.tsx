@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, Lock, Pencil, Plus, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 import {
   brokerageProfit,
   SETTLEMENT_STAGE_CLASS,
@@ -32,6 +33,29 @@ const BROKERAGE_TEAM = '알선팀';
 
 // 시트지 컬럼 순서 그대로 — 표/엑셀 양쪽에서 같은 순서를 쓴다
 const NUM = (n: number) => n.toLocaleString();
+
+/** 표의 칸들 — 제목과 그리는 방법을 한 벌로 묶어야 차례를 바꿔도 값이 안 엉킨다 */
+const COLUMNS: Column[] = [
+  { key: 'date', label: '일자' },
+  { key: 'vehicleNumber', label: '차량번호' },
+  { key: 'vehicleName', label: '차량명' },
+  { key: 'totalSaleAmount', label: '총 진행 판매금액', align: 'text-right' },
+  { key: 'ownerDeposit', label: '실차주입금', align: 'text-right' },
+  { key: 'profit', label: '수익금', align: 'text-right' },
+  { key: 'transferFee', label: '이전비', align: 'text-right' },
+  { key: 'transferFeeBalance', label: '이전비 잔액', align: 'text-right' },
+  { key: 'cashCommission', label: '현금 수수료', align: 'text-right' },
+  { key: 'cashConfirm', label: '현금 확인', align: 'text-center' },
+  { key: 'installmentFee', label: '할부 피', align: 'text-right' },
+  { key: 'insuranceFee', label: '보험 피', align: 'text-right' },
+  { key: 'etcCost', label: '차대금업', align: 'text-right' },
+  { key: 'settlementAmount', label: '정산받을금액', align: 'text-right' },
+  { key: 'owner', label: '담당자' },
+  { key: 'contract', label: '계약서', align: 'text-center' },
+  { key: 'stage', label: '결재' },
+  { key: 'status', label: '상태' },
+  { key: 'actions', label: '관리', align: 'text-right' },
+];
 
 export default function BrokerageSettlementTab({ role, kind }: Props) {
   const kindLabel = CONSULTATION_KIND_LABEL[kind];
@@ -104,6 +128,9 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
 
     kind 가 없던 시절에 적은 건이 있어서, 안 적힌 건은 알선으로 본다 — 그때는 알선뿐이었다.
   */
+  /* 제목줄을 끌어 열 순서를 바꾼다 — 알선과 수출이 차례를 따로 기억한다 */
+  const cols = useColumnOrder(`settlementColOrder-${kind}`, COLUMNS);
+
   const ofKind = state.brokerageSettlements.filter(s => (s.kind ?? 'BROKERAGE') === kind);
   const scoped = seesAll ? ofKind : ofKind.filter(s => s.employeeId === state.currentEmployeeId);
 
@@ -254,6 +281,8 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
         </select>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* 제목줄을 끌어 옮긴 차례를 되돌린다 — 리스트에서만 뜻이 있다 */}
+          {view === 'list' && <ColumnResetButton onReset={cols.reset} />}
           <SettlementViewToggle view={view} onChange={setView} />
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download size={14} /> 엑셀 다운로드
@@ -282,168 +311,172 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           <table className="w-full min-w-[1180px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">일자</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">차량번호</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">차량명</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">총 진행 판매금액</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">실차주입금</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">수익금</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">이전비</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">이전비 잔액</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">현금 수수료</th>
-                <th
-                  className="whitespace-nowrap px-3 py-2.5 text-center font-medium"
-                  title="대표가 현금 수수료를 실제로 받았는지 — 눌러서 바꿉니다"
-                >
-                  현금 확인
-                </th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">할부 피</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">보험 피</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">차대금업</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">정산받을금액</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">담당자</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-center font-medium">계약서</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">결재</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">상태</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">관리</th>
+                {cols.headers()}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={20} className="px-5 py-10 text-center text-sm text-slate-400">{kindLabel} 정산 내역이 없습니다.</td></tr>
+                <tr>
+                  <td colSpan={cols.count} className="px-5 py-10 text-center text-sm text-slate-400">
+                    {kindLabel} 정산 내역이 없습니다.
+                  </td>
+                </tr>
               )}
               {filtered.map(s => {
                 const profit = brokerageProfit(s);
 
                 return (
                   <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{dayjs(s.date).format('M/D')}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-mono text-slate-600">{s.vehicleNumber}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-700">{s.vehicleName}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-600">{NUM(s.totalSaleAmount)}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.ownerDeposit)}</td>
-                    <td className={`px-3 py-2.5 text-right font-medium ${profit >= 0 ? 'text-slate-700' : 'text-red-600'}`}>{NUM(profit)}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.transferFee)}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.transferFeeBalance)}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.cashCommission)}</td>
-                    {/*
-                      적어둔 금액과 손에 들어온 돈이 다를 수 있어 대표가 한 건씩 찍는다.
-                      찍은 때를 같이 보여준다 — 확인 여부만 남기면 언제 받은 건지 알 수가 없다.
-                      대표가 아니면 눌리지 않는다. 받은 사람이 스스로 찍으면 확인하는 뜻이 없다.
-                    */}
-                    <td className="whitespace-nowrap px-3 py-2.5 text-center">
-                      <button
-                        disabled={!isCeo || busyId === s.id}
-                        onClick={() => void toggleCash(s)}
-                        title={
-                          s.cashConfirmedAt
-                            ? `${dayjs(s.cashConfirmedAt).format('M월 D일 HH:mm')} 확인`
-                            : isCeo
-                              ? '누르면 확인으로 바꿉니다'
-                              : '대표만 확인할 수 있습니다'
-                        }
-                        className={`rounded-full border px-2 py-0.5 text-[11px] font-bold disabled:cursor-default ${
-                          s.cashConfirmedAt
-                            ? 'border-blue-300 bg-blue-50 text-blue-700'
-                            : 'border-red-300 bg-red-50 text-red-600'
-                        } ${isCeo ? 'hover:brightness-95' : ''}`}
-                      >
-                        {s.cashConfirmedAt ? '확인' : '미확인'}
-                      </button>
-                      {s.cashConfirmedAt && (
-                        <span className="mt-0.5 block text-[10px] text-slate-400">
-                          {dayjs(s.cashConfirmedAt).format('M/D HH:mm')}
+                    {cols.cells({
+                      date: <span className="text-slate-600">{dayjs(s.date).format('M/D')}</span>,
+                      vehicleNumber: <span className="font-mono text-slate-600">{s.vehicleNumber}</span>,
+                      vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
+                      totalSaleAmount: <span className="text-slate-600">{NUM(s.totalSaleAmount)}</span>,
+                      ownerDeposit: <span className="text-slate-500">{NUM(s.ownerDeposit)}</span>,
+                      profit: (
+                        <span className={`font-medium ${profit >= 0 ? 'text-slate-700' : 'text-red-600'}`}>
+                          {NUM(profit)}
                         </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.installmentFee)}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.insuranceFee)}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">{NUM(s.etcCost)}</td>
-                    <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{NUM(s.settlementAmount)}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{employeeOf(s.employeeId)?.name}</td>
-                    {/* 눌러서 크게 본다 — 결재하는 쪽이 표에서 바로 확인한다 */}
-                    <td className="px-3 py-2.5 text-center">
-                      {s.contractPhotos ? (
+                      ),
+                      transferFee: <span className="text-slate-500">{NUM(s.transferFee)}</span>,
+                      transferFeeBalance: <span className="text-slate-500">{NUM(s.transferFeeBalance)}</span>,
+                      cashCommission: <span className="text-slate-500">{NUM(s.cashCommission)}</span>,
+                      /*
+                        적어둔 금액과 손에 들어온 돈이 다를 수 있어 대표가 한 건씩 찍는다.
+                        찍은 때를 같이 보여준다 — 확인 여부만 남기면 언제 받은 건지 알 수가 없다.
+                        대표가 아니면 눌리지 않는다. 받은 사람이 스스로 찍으면 확인하는 뜻이 없다.
+                      */
+                      cashConfirm: (
+                        <>
+                          <button
+                            disabled={!isCeo || busyId === s.id}
+                            onClick={() => void toggleCash(s)}
+                            title={
+                              s.cashConfirmedAt
+                                ? `${dayjs(s.cashConfirmedAt).format('M월 D일 HH:mm')} 확인`
+                                : isCeo
+                                  ? '누르면 확인으로 바꿉니다'
+                                  : '대표만 확인할 수 있습니다'
+                            }
+                            className={`rounded-full border px-2 py-0.5 text-[11px] font-bold disabled:cursor-default ${
+                              s.cashConfirmedAt
+                                ? 'border-blue-300 bg-blue-50 text-blue-700'
+                                : 'border-red-300 bg-red-50 text-red-600'
+                            } ${isCeo ? 'hover:brightness-95' : ''}`}
+                          >
+                            {s.cashConfirmedAt ? '확인' : '미확인'}
+                          </button>
+                          {s.cashConfirmedAt && (
+                            <span className="mt-0.5 block text-[10px] text-slate-400">
+                              {dayjs(s.cashConfirmedAt).format('M/D HH:mm')}
+                            </span>
+                          )}
+                        </>
+                      ),
+                      installmentFee: <span className="text-slate-500">{NUM(s.installmentFee)}</span>,
+                      insuranceFee: <span className="text-slate-500">{NUM(s.insuranceFee)}</span>,
+                      etcCost: <span className="text-slate-500">{NUM(s.etcCost)}</span>,
+                      settlementAmount: (
+                        <span className="font-semibold text-slate-800">{NUM(s.settlementAmount)}</span>
+                      ),
+                      owner: <span className="text-slate-500">{employeeOf(s.employeeId)?.name}</span>,
+                      // 눌러서 크게 본다 — 결재하는 쪽이 표에서 바로 확인한다
+                      contract: s.contractPhotos ? (
                         <ContractPhotoThumb value={s.contractPhotos} size={32} />
                       ) : (
                         <span className="text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${SETTLEMENT_STAGE_CLASS[s.stage ?? 'DRAFT']}`}
-                        title={[
-                          s.chiefApprover && `본부장 ${s.chiefApprover}`,
-                          s.ceoApprover && `대표 ${s.ceoApprover}`,
-                        ].filter(Boolean).join(' · ') || undefined}
-                      >
-                        {s.locked && <Lock size={10} />}
-                        {/* 본부장을 안 거치는 건은 올라온 순간이 곧 대표 차례다 */}
-                        {s.stage === 'SUBMITTED' && s.chiefRequired === false
-                          ? '대표 승인 대기'
-                          : SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className={`inline-flex whitespace-nowrap items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${s.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-700 ring-amber-600/20'}`}>
-                        {SETTLEMENT_STATUS_LABEL[s.status]}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex justify-end gap-1">
-                        {/* 다 채웠으면 올린다. 올려야 결재하는 쪽이 볼 차례가 된다 */}
-                        {(s.stage ?? 'DRAFT') === 'DRAFT' && (
-                          <button
-                            disabled={busyId === s.id}
-                            onClick={() => void step(s, 'submit')}
-                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
-                            title="결재를 올립니다"
-                          >
-                            <Send size={12} /> 올리기
-                          </button>
-                        )}
-                        {/* 내 차례일 때만 승인 버튼이 보인다 */}
-                        {((approverRole === 'CHIEF' && s.stage === 'SUBMITTED' && s.chiefRequired !== false) ||
-                          (approverRole === 'CEO' &&
-                            (s.stage === 'CHIEF' || (s.stage === 'SUBMITTED' && s.chiefRequired === false)))) && (
-                          <button
-                            disabled={busyId === s.id}
-                            onClick={() => void step(s, 'approve')}
-                            className="flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                          >
-                            <Check size={12} /> 승인
-                          </button>
-                        )}
-                        {/* 내가 찍은 것만 되돌린다 */}
-                        {((approverRole === 'CHIEF' && s.stage === 'CHIEF') ||
-                          (approverRole === 'CEO' && s.stage === 'DONE')) && (
-                          <button
-                            disabled={busyId === s.id}
-                            onClick={() => void step(s, 'revoke')}
-                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 disabled:opacity-50"
-                            title="승인을 취소하면 다시 고칠 수 있습니다"
-                          >
-                            <Undo2 size={12} /> 승인 취소
-                          </button>
-                        )}
-                        <button
-                          disabled={s.locked}
-                          onClick={() => { setEditing(s); setPreset(undefined); setFormOpen(true); }}
-                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
-                          title={s.locked ? '승인된 정산은 고칠 수 없습니다' : '수정'}
+                      ),
+                      stage: (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${SETTLEMENT_STAGE_CLASS[s.stage ?? 'DRAFT']}`}
+                          title={
+                            [s.chiefApprover && `본부장 ${s.chiefApprover}`, s.ceoApprover && `대표 ${s.ceoApprover}`]
+                              .filter(Boolean)
+                              .join(' · ') || undefined
+                          }
                         >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          disabled={s.locked}
-                          onClick={() => void confirmDanger(`${kindLabel} 정산 내역을 삭제할까요?`).then(ok => { if (ok) void deleteBrokerageSettlement(s.id); })}
-                          className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
-                          title={s.locked ? '승인된 정산은 지울 수 없습니다' : '삭제'}
+                          {s.locked && <Lock size={10} />}
+                          {/* 본부장을 안 거치는 건은 올라온 순간이 곧 대표 차례다 */}
+                          {s.stage === 'SUBMITTED' && s.chiefRequired === false
+                            ? '대표 승인 대기'
+                            : SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']}
+                        </span>
+                      ),
+                      status: (
+                        <span
+                          className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                            s.status === 'COMPLETED'
+                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+                              : 'bg-amber-50 text-amber-700 ring-amber-600/20'
+                          }`}
                         >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
+                          {SETTLEMENT_STATUS_LABEL[s.status]}
+                        </span>
+                      ),
+                      actions: (
+                        <div className="flex justify-end gap-1">
+                          {/* 다 채웠으면 올린다. 올려야 결재하는 쪽이 볼 차례가 된다 */}
+                          {(s.stage ?? 'DRAFT') === 'DRAFT' && (
+                            <button
+                              disabled={busyId === s.id}
+                              onClick={() => void step(s, 'submit')}
+                              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
+                              title="결재를 올립니다"
+                            >
+                              <Send size={12} /> 올리기
+                            </button>
+                          )}
+                          {/* 내 차례일 때만 승인 버튼이 보인다 */}
+                          {((approverRole === 'CHIEF' && s.stage === 'SUBMITTED' && s.chiefRequired !== false) ||
+                            (approverRole === 'CEO' &&
+                              (s.stage === 'CHIEF' || (s.stage === 'SUBMITTED' && s.chiefRequired === false)))) && (
+                            <button
+                              disabled={busyId === s.id}
+                              onClick={() => void step(s, 'approve')}
+                              className="flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              <Check size={12} /> 승인
+                            </button>
+                          )}
+                          {/* 내가 찍은 것만 되돌린다 */}
+                          {((approverRole === 'CHIEF' && s.stage === 'CHIEF') ||
+                            (approverRole === 'CEO' && s.stage === 'DONE')) && (
+                            <button
+                              disabled={busyId === s.id}
+                              onClick={() => void step(s, 'revoke')}
+                              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                              title="승인을 취소하면 다시 고칠 수 있습니다"
+                            >
+                              <Undo2 size={12} /> 승인 취소
+                            </button>
+                          )}
+                          <button
+                            disabled={s.locked}
+                            onClick={() => {
+                              setEditing(s);
+                              setPreset(undefined);
+                              setFormOpen(true);
+                            }}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
+                            title={s.locked ? '승인된 정산은 고칠 수 없습니다' : '수정'}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            disabled={s.locked}
+                            onClick={() =>
+                              void confirmDanger(`${kindLabel} 정산 내역을 삭제할까요?`).then(ok => {
+                                if (ok) void deleteBrokerageSettlement(s.id);
+                              })
+                            }
+                            className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
+                            title={s.locked ? '승인된 정산은 지울 수 없습니다' : '삭제'}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ),
+                    })}
                   </tr>
                 );
               })}

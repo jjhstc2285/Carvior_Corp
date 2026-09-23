@@ -18,6 +18,22 @@ import ConsultationDetailModal from './ConsultationDetailModal';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { conversionOf, isOfKind } from '../../lib/consultationStats';
+import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
+
+/** 표의 칸들 — 제목과 그리는 방법을 한 벌로 묶어야 차례를 바꿔도 값이 안 엉킨다 */
+const COLUMNS: Column[] = [
+  { key: 'date', label: '상담일시' },
+  { key: 'platform', label: '플랫폼' },
+  { key: 'vehicleNumber', label: '차량번호' },
+  { key: 'vehicleName', label: '차명', nowrap: false },
+  { key: 'offerDate', label: '매입날짜' },
+  { key: 'customer', label: '손님번호' },
+  { key: 'owner', label: '담당자' },
+  { key: 'visit', label: '방문예정' },
+  { key: 'status', label: '상태' },
+  { key: 'content', label: '내용', nowrap: false },
+  { key: 'actions', label: '관리', align: 'text-right' },
+];
 
 /**
  * 카톡으로 주고받던 양식 그대로 만들어 클립보드에 넣는다.
@@ -177,6 +193,9 @@ export default function ConsultationModule({ role, kind }: Props) {
 
   const eventsForDate = (dateStr: string): CalEvent[] => eventIndex.get(dateStr) ?? [];
 
+  /* 제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다 */
+  const cols = useColumnOrder('consultationColOrder', COLUMNS);
+
   /**
    * 담당자별 전환율.
    *
@@ -306,6 +325,8 @@ export default function ConsultationModule({ role, kind }: Props) {
         >
           종결함 {closedCount.toLocaleString()}
         </button>
+        {/* 제목줄을 끌어 옮긴 차례를 되돌린다 — 리스트에서만 뜻이 있다 */}
+        {view === 'list' && <ColumnResetButton onReset={cols.reset} />}
         <div className="ml-auto flex rounded-lg bg-slate-100 p-0.5 text-sm">
           <button
             onClick={() => setView('list')}
@@ -331,96 +352,129 @@ export default function ConsultationModule({ role, kind }: Props) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                <th className="px-5 py-2.5 font-medium">상담일시</th>
-                <th className="px-4 py-2.5 font-medium">플랫폼</th>
-                <th className="px-4 py-2.5 font-medium">차량번호</th>
-                <th className="px-4 py-2.5 font-medium">차명</th>
-                <th className="px-4 py-2.5 font-medium">매입날짜</th>
-                <th className="px-4 py-2.5 font-medium">손님번호</th>
-                <th className="px-4 py-2.5 font-medium">담당자</th>
-                <th className="px-4 py-2.5 font-medium">방문예정</th>
-                <th className="px-4 py-2.5 font-medium">상태</th>
-                <th className="px-4 py-2.5 font-medium">내용</th>
-                <th className="px-5 py-2.5 font-medium text-right">관리</th>
-              </tr>
+              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">{cols.headers()}</tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">상담 내역이 없습니다.</td></tr>
+                <tr>
+                  <td colSpan={cols.count} className="px-5 py-10 text-center text-sm text-slate-400">
+                    상담 내역이 없습니다.
+                  </td>
+                </tr>
               )}
               {shown.map(c => (
                 <tr key={c.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                  <td className="px-5 py-2.5 whitespace-nowrap text-slate-600">{dayjs(c.date).format('M/D')} {c.time}</td>
-                  <td className="px-4 py-2.5">
-                    {c.platform ? (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{c.platform}</span>
+                  {cols.cells({
+                    date: (
+                      <span className="text-slate-600">
+                        {dayjs(c.date).format('M/D')} {c.time}
+                      </span>
+                    ),
+                    platform: c.platform ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                        {c.platform}
+                      </span>
                     ) : (
                       <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-slate-600">{c.vehicleNumber}</td>
-                  <td className="px-4 py-2.5 text-slate-700">{c.vehicleName || <span className="text-slate-300">—</span>}</td>
-                  {/* 매입날짜(제시일자) — 차량 관리에서 맞춰 붙여 준다. 얼마나 들고 있는 차인지가 보인다 */}
-                  <td className="px-4 py-2.5 whitespace-nowrap text-slate-500">
-                    {c.offerDate ? dayjs(c.offerDate).format('YY.M.D') : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {/* 번호를 누르면 그 손님의 지난 상담이 모여 나온다 */}
-                    <button onClick={() => setHistoryCustomer(c.customerPhone || c.customerName)} className="font-medium text-indigo-600 hover:underline">
-                      {c.customerPhone || c.customerName || '—'}
-                    </button>
-                  </td>
-                  <td className="px-4 py-2.5 text-slate-500">
-                    {c.kind === 'OTHER' && c.outsideDealer ? (
-                      <span title="우리 물건을 판 남의 딜러·상사">{c.outsideDealer}</span>
-                    ) : (
-                      employeeOf(c.employeeId)?.name
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">
-                    {c.visitDate || c.visitTime ? (
-                      <>
-                        {c.visitDate && <span className="font-medium">{dayjs(c.visitDate).format('M/D')}</span>}
-                        {c.visitTime && <span className="ml-1 text-slate-500">{c.visitTime}</span>}
-                      </>
+                    ),
+                    vehicleNumber: <span className="font-mono text-slate-600">{c.vehicleNumber}</span>,
+                    vehicleName: c.vehicleName ? (
+                      <span className="text-slate-700">{c.vehicleName}</span>
                     ) : (
                       <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_COLOR[c.status]}`}>
-                      {CONSULTATION_STATUS_LABEL[c.status]}
-                    </span>
-                  </td>
-                  <td className="max-w-xs truncate px-4 py-2.5 text-slate-500" title={c.content}>{c.content}</td>
-                  <td className="px-5 py-2.5">
-                    <div className="flex justify-end gap-1.5">
-                      <button onClick={() => void copyKakao(c)} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100" title="상담 카톡 양식으로 복사">
-                        <Copy size={13} />
-                      </button>
+                    ),
+                    // 매입날짜(제시일자) — 차량 관리에서 맞춰 붙여 준다. 얼마나 들고 있는 차인지가 보인다
+                    offerDate: c.offerDate ? (
+                      <span className="text-slate-500">{dayjs(c.offerDate).format('YY.M.D')}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    ),
+                    // 번호를 누르면 그 손님의 지난 상담이 모여 나온다
+                    customer: (
                       <button
-                        onClick={() => setPriceOpen(c.vehicleName || c.vehicleNumber)}
-                        className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
-                        title="이 차 시세 보기"
+                        onClick={() => setHistoryCustomer(c.customerPhone || c.customerName)}
+                        className="font-medium text-indigo-600 hover:underline"
                       >
-                        <LineChart size={13} />
+                        {c.customerPhone || c.customerName || '—'}
                       </button>
-                      {c.status === 'SOLD' && (
+                    ),
+                    owner:
+                      c.kind === 'OTHER' && c.outsideDealer ? (
+                        <span className="text-slate-500" title="우리 물건을 판 남의 딜러·상사">
+                          {c.outsideDealer}
+                        </span>
+                      ) : (
+                        <span className="text-slate-500">{employeeOf(c.employeeId)?.name}</span>
+                      ),
+                    visit:
+                      c.visitDate || c.visitTime ? (
+                        <span className="text-slate-600">
+                          {c.visitDate && <span className="font-medium">{dayjs(c.visitDate).format('M/D')}</span>}
+                          {c.visitTime && <span className="ml-1 text-slate-500">{c.visitTime}</span>}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      ),
+                    status: (
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_COLOR[c.status]}`}
+                      >
+                        {CONSULTATION_STATUS_LABEL[c.status]}
+                      </span>
+                    ),
+                    content: (
+                      <span className="block max-w-xs truncate text-slate-500" title={c.content}>
+                        {c.content}
+                      </span>
+                    ),
+                    actions: (
+                      <div className="flex justify-end gap-1.5">
                         <button
-                          onClick={() => void copyRelease(c, employeeOf(c.employeeId)?.name ?? '')}
-                          className="rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
-                          title="출고 양식으로 복사 — 카톡방에 올리면 광고팀이 전산을 내립니다"
+                          onClick={() => void copyKakao(c)}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+                          title="상담 카톡 양식으로 복사"
                         >
-                          출고
+                          <Copy size={13} />
                         </button>
-                      )}
-                      <button onClick={() => { setEditing(c); setPreset(undefined); setFormOpen(true); }} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">수정</button>
-                      <button onClick={() => void confirmDanger('상담 내역을 삭제할까요?').then(ok => { if (ok) void deleteConsultation(c.id); })} className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
+                        <button
+                          onClick={() => setPriceOpen(c.vehicleName || c.vehicleNumber)}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+                          title="이 차 시세 보기"
+                        >
+                          <LineChart size={13} />
+                        </button>
+                        {c.status === 'SOLD' && (
+                          <button
+                            onClick={() => void copyRelease(c, employeeOf(c.employeeId)?.name ?? '')}
+                            className="rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                            title="출고 양식으로 복사 — 카톡방에 올리면 광고팀이 전산을 내립니다"
+                          >
+                            출고
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setEditing(c);
+                            setPreset(undefined);
+                            setFormOpen(true);
+                          }}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+                        >
+                          수정
+                        </button>
+                        <button
+                          onClick={() =>
+                            void confirmDanger('상담 내역을 삭제할까요?').then(ok => {
+                              if (ok) void deleteConsultation(c.id);
+                            })
+                          }
+                          className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ),
+                  })}
                 </tr>
               ))}
             </tbody>

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlarmClock, Coins, FileText, GripVertical, Lock, Phone, Plus, Trash2 } from 'lucide-react';
+import { AlarmClock, Coins, FileText, Lock, Phone, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError, getPropertyPass, setPropertyPass } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { PROPERTY_SIDES, PROPERTY_USAGES, type Property, type PropertyCost } from '../../types';
+import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 import LeaseContractModal from './LeaseContractModal';
 import PropertyCostModal from './PropertyCostModal';
 
@@ -42,7 +43,7 @@ const COL_ORDER_KEY = 'propertyColOrder';
  * 제목과 그리는 방법을 한 벌로 묶어 둔다 — 차례를 바꿀 수 있으려면 제목과 내용이
  * 따로 놀면 안 된다. 칸을 새로 만들 때도 여기 한 줄만 더한다.
  */
-const COLUMNS: { key: string; label: string; align?: string }[] = [
+const COLUMNS: Column[] = [
   { key: 'name', label: '이름' },
   { key: 'docs', label: '계약서 · 비용' },
   { key: 'side', label: '우리 위치' },
@@ -265,46 +266,8 @@ export default function PropertyModule() {
     );
   }
 
-  /*
-    열 차례는 사람마다 다르다.
-
-    누구는 월세부터 보고 누구는 만료일부터 본다. 제목을 잡아 끌어 옮기면 그 차례로
-    기억한다 — 이 브라우저에만 남는다. 칸을 새로 만들면 기억해 둔 차례 뒤에 붙는다.
-  */
-  const [order, setOrder] = useState<string[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(COL_ORDER_KEY) ?? '[]') as string[];
-      const known = saved.filter(k => COLUMNS.some(c => c.key === k));
-      return [...known, ...COLUMNS.map(c => c.key).filter(k => !known.includes(k))];
-    } catch {
-      return COLUMNS.map(c => c.key);
-    }
-  });
-  const [dragKey, setDragKey] = useState<string | null>(null);
-  /** 지금 지나가고 있는 칸 — 그 칸 어느 쪽에 놓이는지 선으로 보여준다 */
-  const [overKey, setOverKey] = useState<string | null>(null);
-
-  /**
-   * 잡은 칸을 놓은 자리로 옮긴다.
-   *
-   * 오른쪽으로 끌면 그 칸 뒤에, 왼쪽으로 끌면 그 칸 앞에 놓는다 — 늘 앞에만 넣으면
-   * 오른쪽으로 옮길 때 한 칸 덜 간 것처럼 보인다.
-   */
-  const moveColumn = (from: string, to: string) => {
-    if (from === to) return;
-    setOrder(prev => {
-      const after = prev.indexOf(from) < prev.indexOf(to);
-      const next = prev.filter(k => k !== from);
-      next.splice(next.indexOf(to) + (after ? 1 : 0), 0, from);
-      localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next));
-      return next;
-    });
-  };
-
-  const resetOrder = () => {
-    localStorage.removeItem(COL_ORDER_KEY);
-    setOrder(COLUMNS.map(c => c.key));
-  };
+  /* 제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다(components/table) */
+  const cols = useColumnOrder(COL_ORDER_KEY, COLUMNS);
 
   /*
     화면을 넓게 쓴다 — 이 화면은 사무실 PC 에서만 본다. 가운데 좁게 모아 두면 칸이
@@ -472,13 +435,7 @@ export default function PropertyModule() {
             </span>
           )}
         </button>
-        <button
-          onClick={resetOrder}
-          title="제목줄을 끌어 옮긴 차례를 처음으로 되돌립니다"
-          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
-        >
-          열 순서 초기화
-        </button>
+        <ColumnResetButton onReset={cols.reset} />
         <span className="ml-auto text-xs text-slate-400">{loading ? '불러오는 중…' : `${rows.length}곳`}</span>
       </div>
 
@@ -492,77 +449,15 @@ export default function PropertyModule() {
           <table className="w-full min-w-[1640px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
-                {/* 제목을 잡아 끌어 옮기면 그 차례로 기억한다 */}
+                {/* 지울 칸 자리 — 차례를 바꿔도 늘 맨 앞이다 */}
                 <th className="px-2 py-2.5" />
-                {order.map(key => {
-                  const col = COLUMNS.find(c => c.key === key);
-                  if (!col) return null;
-
-                  /*
-                    놓일 자리를 선으로 그린다.
-
-                    잡은 칸보다 오른쪽이면 그 칸의 오른쪽에, 왼쪽이면 왼쪽에 들어간다 —
-                    어디로 가는지 모르면 옮겨 놓고 나서야 알게 된다. 테두리 대신 안쪽
-                    그림자로 그려 칸이 밀리지 않게 한다.
-                  */
-                  const dragging = dragKey === key;
-                  const hovering = !!dragKey && overKey === key && !dragging;
-                  const after = hovering && order.indexOf(dragKey) < order.indexOf(key);
-                  const mark = !hovering
-                    ? ''
-                    : after
-                      ? 'shadow-[inset_-3px_0_0_0_#4f46e5]'
-                      : 'shadow-[inset_3px_0_0_0_#4f46e5]';
-
-                  return (
-                    <th
-                      key={key}
-                      draggable
-                      onDragStart={e => {
-                        setDragKey(key);
-                        e.dataTransfer.effectAllowed = 'move';
-                      }}
-                      onDragOver={e => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        if (overKey !== key) setOverKey(key);
-                      }}
-                      onDragLeave={() => setOverKey(prev => (prev === key ? null : prev))}
-                      onDrop={() => {
-                        if (dragKey) moveColumn(dragKey, key);
-                        setDragKey(null);
-                        setOverKey(null);
-                      }}
-                      onDragEnd={() => {
-                        setDragKey(null);
-                        setOverKey(null);
-                      }}
-                      title="끌어서 순서를 바꿉니다"
-                      className={`select-none px-2.5 py-2.5 font-medium transition-colors ${col.align ?? ''} ${mark} ${
-                        dragging
-                          ? 'cursor-grabbing bg-indigo-50 text-indigo-400 opacity-60'
-                          : hovering
-                            ? 'cursor-grabbing bg-indigo-50/70 text-indigo-700'
-                            : 'cursor-grab hover:bg-slate-100'
-                      }`}
-                    >
-                      <span className="flex items-center gap-1">
-                        {/* 끌 수 있는 자리라는 표 — 잡기 전에는 흐리게 */}
-                        <GripVertical
-                          size={11}
-                          className={dragKey ? 'text-indigo-400' : 'text-slate-300'}
-                        />
-                        {col.label}
-                      </span>
-                    </th>
-                  );
-                })}
+                {cols.headers()}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length + 1} className="px-5 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={cols.count + 1} className="px-5 py-8 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '등록된 부동산이 없습니다.'}
                   </td>
                 </tr>
@@ -609,8 +504,7 @@ export default function PropertyModule() {
                     </td>
 
                     {/* 제목줄과 같은 차례로 깐다 — 제목과 내용이 따로 놀면 안 된다 */}
-                    {order.map(key => {
-                      const cell = {
+                    {cols.cells({
                         name: (
                           <input
                             defaultValue={r.name}
@@ -772,22 +666,7 @@ export default function PropertyModule() {
                             aria-label="계약중"
                           />
                         ),
-                      }[key];
-
-                      const col = COLUMNS.find(c => c.key === key);
-                      return (
-                        <td
-                          key={key}
-                          className={`px-2.5 py-1.5 ${dragKey === key ? 'bg-indigo-50/40' : ''} ${
-                            col?.align === 'text-center' ? 'text-center' : ''
-                          } ${
-                            key === 'docs' || key === 'ownerPhone' ? 'whitespace-nowrap' : ''
-                          }`}
-                        >
-                          {cell}
-                        </td>
-                      );
-                    })}
+                      })}
                   </tr>
                 );
               })}
