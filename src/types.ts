@@ -792,11 +792,11 @@ export const CONSULTATION_KIND_HINT: Record<ConsultationKind, string> = {
 };
 
 /** 그래프·배지에서 쓰는 색 */
-export const CONSULTATION_KIND_COLOR: Record<ConsultationKind, { bar: string; chip: string }> = {
-  SALE: { bar: 'bg-indigo-500', chip: 'bg-indigo-50 text-indigo-700' },
-  BROKERAGE: { bar: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700' },
-  EXPORT: { bar: 'bg-sky-500', chip: 'bg-sky-50 text-sky-700' },
-  OTHER: { bar: 'bg-amber-500', chip: 'bg-amber-50 text-amber-800' },
+export const CONSULTATION_KIND_COLOR: Record<ConsultationKind, { bar: string; chip: string; hex: string }> = {
+  SALE: { bar: 'bg-indigo-500', chip: 'bg-indigo-50 text-indigo-700', hex: '#6366f1' },
+  BROKERAGE: { bar: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700', hex: '#10b981' },
+  EXPORT: { bar: 'bg-sky-500', chip: 'bg-sky-50 text-sky-700', hex: '#0ea5e9' },
+  OTHER: { bar: 'bg-amber-500', chip: 'bg-amber-50 text-amber-800', hex: '#f59e0b' },
 };
 
 /** 유입 경로 빠른 선택 — 수출은 들어오는 곳이 다르다. 어느 쪽이든 직접 입력도 된다. */
