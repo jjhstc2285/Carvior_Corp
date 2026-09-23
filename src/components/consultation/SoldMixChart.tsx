@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import dayjs from 'dayjs';
 import { CONSULTATION_KIND_COLOR, CONSULTATION_KIND_LABEL, type ConsultationKind } from '../../types';
 import { useStore } from '../../store';
+import { effectiveKind } from '../../lib/consultationStats';
 
 /**
  * 판매완료 — 어디서 팔렸나.
@@ -30,8 +31,15 @@ export default function SoldMixChart() {
   const { rows, total } = useMemo(() => {
     // 나눠 적기 전 것은 세지 않는다 — 전부 알선으로 쌓여 있어 뜻이 없다
     const sold = state.consultations.filter(c => c.status === 'SOLD' && (c.date ?? '') >= `${START_MONTH}-01`);
+    /*
+      탭과 같은 규칙으로 센다.
+
+      저장된 분류로 세면 '알선으로 골라놓고 내용에 수출이라 적은' 건이 수출 탭에는
+      뜨는데 그래프에서는 판매로 잡힌다 — 같은 화면에서 숫자가 어긋나면 둘 다 안 믿는다.
+      규칙은 lib/consultationStats 한 곳에 있다.
+    */
     return {
-      rows: ORDER.map(kind => ({ kind, count: sold.filter(c => c.kind === kind).length })),
+      rows: ORDER.map(kind => ({ kind, count: sold.filter(c => effectiveKind(c) === kind).length })),
       total: sold.length,
     };
   }, [state.consultations]);
