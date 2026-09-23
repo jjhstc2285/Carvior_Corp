@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlarmClock, Coins, FileText, Lock, Phone, Plus, Trash2 } from 'lucide-react';
+import { AlarmClock, Coins, FileText, GripVertical, Lock, Phone, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError, getPropertyPass, setPropertyPass } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
@@ -281,12 +281,21 @@ export default function PropertyModule() {
     }
   });
   const [dragKey, setDragKey] = useState<string | null>(null);
+  /** 지금 지나가고 있는 칸 — 그 칸 어느 쪽에 놓이는지 선으로 보여준다 */
+  const [overKey, setOverKey] = useState<string | null>(null);
 
+  /**
+   * 잡은 칸을 놓은 자리로 옮긴다.
+   *
+   * 오른쪽으로 끌면 그 칸 뒤에, 왼쪽으로 끌면 그 칸 앞에 놓는다 — 늘 앞에만 넣으면
+   * 오른쪽으로 옮길 때 한 칸 덜 간 것처럼 보인다.
+   */
   const moveColumn = (from: string, to: string) => {
     if (from === to) return;
     setOrder(prev => {
+      const after = prev.indexOf(from) < prev.indexOf(to);
       const next = prev.filter(k => k !== from);
-      next.splice(next.indexOf(to), 0, from);
+      next.splice(next.indexOf(to) + (after ? 1 : 0), 0, from);
       localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next));
       return next;
     });
@@ -488,23 +497,63 @@ export default function PropertyModule() {
                 {order.map(key => {
                   const col = COLUMNS.find(c => c.key === key);
                   if (!col) return null;
+
+                  /*
+                    놓일 자리를 선으로 그린다.
+
+                    잡은 칸보다 오른쪽이면 그 칸의 오른쪽에, 왼쪽이면 왼쪽에 들어간다 —
+                    어디로 가는지 모르면 옮겨 놓고 나서야 알게 된다. 테두리 대신 안쪽
+                    그림자로 그려 칸이 밀리지 않게 한다.
+                  */
+                  const dragging = dragKey === key;
+                  const hovering = !!dragKey && overKey === key && !dragging;
+                  const after = hovering && order.indexOf(dragKey) < order.indexOf(key);
+                  const mark = !hovering
+                    ? ''
+                    : after
+                      ? 'shadow-[inset_-3px_0_0_0_#4f46e5]'
+                      : 'shadow-[inset_3px_0_0_0_#4f46e5]';
+
                   return (
                     <th
                       key={key}
                       draggable
-                      onDragStart={() => setDragKey(key)}
-                      onDragOver={e => e.preventDefault()}
+                      onDragStart={e => {
+                        setDragKey(key);
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={e => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (overKey !== key) setOverKey(key);
+                      }}
+                      onDragLeave={() => setOverKey(prev => (prev === key ? null : prev))}
                       onDrop={() => {
                         if (dragKey) moveColumn(dragKey, key);
                         setDragKey(null);
+                        setOverKey(null);
                       }}
-                      onDragEnd={() => setDragKey(null)}
+                      onDragEnd={() => {
+                        setDragKey(null);
+                        setOverKey(null);
+                      }}
                       title="끌어서 순서를 바꿉니다"
-                      className={`cursor-grab px-2.5 py-2.5 font-medium select-none ${col.align ?? ''} ${
-                        dragKey === key ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-slate-100'
+                      className={`select-none px-2.5 py-2.5 font-medium transition-colors ${col.align ?? ''} ${mark} ${
+                        dragging
+                          ? 'cursor-grabbing bg-indigo-50 text-indigo-400 opacity-60'
+                          : hovering
+                            ? 'cursor-grabbing bg-indigo-50/70 text-indigo-700'
+                            : 'cursor-grab hover:bg-slate-100'
                       }`}
                     >
-                      {col.label}
+                      <span className="flex items-center gap-1">
+                        {/* 끌 수 있는 자리라는 표 — 잡기 전에는 흐리게 */}
+                        <GripVertical
+                          size={11}
+                          className={dragKey ? 'text-indigo-400' : 'text-slate-300'}
+                        />
+                        {col.label}
+                      </span>
                     </th>
                   );
                 })}
@@ -729,7 +778,9 @@ export default function PropertyModule() {
                       return (
                         <td
                           key={key}
-                          className={`px-2.5 py-1.5 ${col?.align === 'text-center' ? 'text-center' : ''} ${
+                          className={`px-2.5 py-1.5 ${dragKey === key ? 'bg-indigo-50/40' : ''} ${
+                            col?.align === 'text-center' ? 'text-center' : ''
+                          } ${
                             key === 'docs' || key === 'ownerPhone' ? 'whitespace-nowrap' : ''
                           }`}
                         >
@@ -758,7 +809,9 @@ export default function PropertyModule() {
       )}
 
       <p className="mt-2 text-[11px] text-slate-400">
-        <b>제목줄을 잡아 끌면</b> 열 순서를 바꿀 수 있습니다 — 바꾼 차례는 이 컴퓨터에 기억됩니다.
+        <b>제목줄을 잡아 끌면</b> 열 순서를 바꿀 수 있습니다. 끌고 가는 동안 <b>놓일 자리에 파란 선</b>이
+        생깁니다 — 선이 오른쪽에 있으면 그 칸 뒤로, 왼쪽에 있으면 앞으로 들어갑니다.
+        바꾼 차례는 이 컴퓨터에 기억되고, <b>[열 순서 초기화]</b>로 되돌립니다.
         <br />
         칸을 고치고 <b>칸 밖을 누르면 바로 저장</b>됩니다. 계약이 끝난 자리는 지우지 말고{' '}
         <b>계약중 체크를 풀어</b> 주세요 — 지난 계약도 기록입니다.
