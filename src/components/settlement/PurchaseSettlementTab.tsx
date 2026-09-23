@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, Lock, Pencil, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 import { percentLabel } from '../../lib/money';
 import { canSeeAllSettlements } from '../../lib/permissions';
 import {
@@ -41,6 +42,46 @@ const NUM = (n: number) => n.toLocaleString();
  * 27,612,200원이 자릿수는 길어도 눈으로 바로 읽힌다.
  */
 const MAN = (n: number) => n.toLocaleString();
+
+/**
+ * 표의 칸들.
+ *
+ * 제목과 그리는 방법을 한 벌로 묶는다 — 차례를 바꿀 수 있으려면 둘이 따로 놀면 안 된다.
+ * 상품화 여섯 가지는 목록에서 펴서 만든다(광택·세차 … 진단비).
+ */
+const COLUMNS: Column[] = [
+  // 판 날이다. 안 판 차는 매입일에 머문다 — 정산은 판 다음에 하는 일이다
+  { key: 'date', label: '정산일자' },
+  { key: 'vehicleName', label: '차량명' },
+  { key: 'vehicleNumber', label: '차량번호' },
+  {
+    key: 'transferFee',
+    label: '이전비+추가',
+    align: 'text-right',
+    title: '상사 이전비(매입가의 1%) + 추가이전비(취득세의 15%) — 매입가로 자동 계산됩니다',
+  },
+  { key: 'purchasePrice', label: '매입가', align: 'text-right' },
+  ...PREP_COST_KINDS.map(k => ({ key: `prep:${k}`, label: PREP_COST_LABEL[k], align: 'text-right' })),
+  { key: 'prepTotal', label: '상품화총비용', align: 'text-right' },
+  { key: 'brokerFee', label: '구전', align: 'text-right' },
+  { key: 'grandTotal', label: '총비용', align: 'text-right' },
+  { key: 'settlementAmount', label: '정산금액', align: 'text-right' },
+  { key: 'vehicleCost', label: '차량비용(원)', align: 'text-right', headClass: 'text-sky-600' },
+  { key: 'totalWon', label: '총합계(원)', align: 'text-right', headClass: 'text-sky-600' },
+  { key: 'salePrice', label: '차량판매가', align: 'text-right', headClass: 'text-emerald-600' },
+  {
+    key: 'profit',
+    label: '판매수익',
+    align: 'text-right',
+    headClass: 'text-emerald-600',
+    title: `차량판매가 − 총합계 − 세금 ${percentLabel(SALE_TAX_RATE)}%`,
+  },
+  { key: 'owner', label: '담당자' },
+  { key: 'contract', label: '계약서', align: 'text-center' },
+  { key: 'stage', label: '결재' },
+  { key: 'status', label: '상태' },
+  { key: 'actions', label: '관리', align: 'text-right' },
+];
 
 export default function PurchaseSettlementTab({ role }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
@@ -162,6 +203,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
       void alertError('처리하지 못했습니다', e instanceof ApiError ? e.message : '');
     }
   };
+
+  /* 제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다 */
+  const cols = useColumnOrder('purchaseSettlementColOrder', COLUMNS);
 
   const filtered = scoped
     .filter(s => allMonths || s.date.startsWith(month))
@@ -375,6 +419,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
               {dayjs(month).format('M월')} 정산 비우기
             </button>
           )}
+          {/* 제목줄을 끌어 옮긴 차례를 되돌린다 — 리스트에서만 뜻이 있다 */}
+          {view === 'list' && <ColumnResetButton onReset={cols.reset} />}
           <SettlementViewToggle view={view} onChange={setView} />
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download size={14} /> 엑셀 다운로드
@@ -406,157 +452,144 @@ export default function PurchaseSettlementTab({ role }: Props) {
           <table className="w-full min-w-[1520px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                {/* 판 날이다. 안 판 차는 매입일에 머문다 — 정산은 판 다음에 하는 일이다 */}
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">정산일자</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">차량명</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">차량번호</th>
-                <th
-                  className="whitespace-nowrap px-3 py-2.5 text-right font-medium"
-                  title="상사 이전비(매입가의 1%) + 추가이전비(취득세의 15%) — 매입가로 자동 계산됩니다"
-                >
-                  이전비+추가
-                </th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">매입가</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">광택·세차</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">판금·덴트</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">성능비</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">탁송비</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">수리비</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">진단비</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">상품화총비용</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">구전</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">총비용</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">정산금액</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">차량비용(원)</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-sky-600">총합계(원)</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600">차량판매가</th>
-                <th
-                  className="whitespace-nowrap px-3 py-2.5 text-right font-medium text-emerald-600"
-                  title={`차량판매가 − 총합계 − 세금 ${percentLabel(SALE_TAX_RATE)}%`}
-                >
-                  판매수익
-                </th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">담당자</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-center font-medium">계약서</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">결재</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">상태</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">관리</th>
+                {cols.headers()}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={24} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
+                <tr><td colSpan={cols.count} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => (
                 <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{dayjs(s.date).format('M/D')}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-700">{s.vehicleName}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-mono text-slate-600">{s.vehicleNumber}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{MAN(s.transferFee)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{MAN(s.purchasePrice)}</td>
-                  {PREP_COST_KINDS.map(k => (
-                    <td key={k} className="px-3 py-2.5 text-right text-slate-500" title={vendorsOf(s, k)}>
-                      {MAN(breakdownOf(s)[k])}
-                    </td>
-                  ))}
-                  <td className="px-3 py-2.5 text-right font-medium text-amber-700">{MAN(prepTotalOf(s))}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-500">{MAN(s.brokerFee)}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-indigo-600">{MAN(grandTotalOf(s))}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{MAN(s.settlementAmount)}</td>
-                  <td
-                    className="whitespace-nowrap px-3 py-2.5 text-right text-sky-700"
-                    title={
-                      costOf(s).count > 0
-                        ? `주유 ${NUM(costOf(s).fuel)} / 배터리 ${NUM(costOf(s).battery)} / 주차 ${NUM(costOf(s).parking)} / 소모품 수리 ${NUM(costOf(s).repair)} / 기타 ${NUM(costOf(s).etc)} (${costOf(s).count}건)`
-                        : '차량관리에 등록된 이력이 없습니다.'
-                    }
-                  >
-                    {costOf(s).count > 0 ? NUM(costOf(s).total) : <span className="text-slate-300">-</span>}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-sky-700">{NUM(totalWonOf(s))}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{s.salePrice > 0 ? MAN(s.salePrice) : '—'}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-emerald-700">{MAN(profitOf(s))}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">{employeeOf(s.employeeId)?.name}</td>
-                  {/* 눌러서 크게 본다 — 결재하는 쪽이 표에서 바로 확인한다 */}
-                  <td className="px-3 py-2.5 text-center">
-                    {s.contractPhotos ? (
+                  {cols.cells({
+                    date: <span className="text-slate-600">{dayjs(s.date).format('M/D')}</span>,
+                    vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
+                    vehicleNumber: <span className="font-mono text-slate-600">{s.vehicleNumber}</span>,
+                    transferFee: <span className="text-slate-500">{MAN(s.transferFee)}</span>,
+                    purchasePrice: <span className="text-slate-600">{MAN(s.purchasePrice)}</span>,
+                    ...Object.fromEntries(
+                      PREP_COST_KINDS.map(k => [
+                        `prep:${k}`,
+                        <span key={k} className="text-slate-500" title={vendorsOf(s, k)}>
+                          {MAN(breakdownOf(s)[k])}
+                        </span>,
+                      ]),
+                    ),
+                    prepTotal: <span className="font-medium text-amber-700">{MAN(prepTotalOf(s))}</span>,
+                    brokerFee: <span className="text-slate-500">{MAN(s.brokerFee)}</span>,
+                    grandTotal: <span className="font-semibold text-indigo-600">{MAN(grandTotalOf(s))}</span>,
+                    settlementAmount: <span className="font-semibold text-slate-800">{MAN(s.settlementAmount)}</span>,
+                    vehicleCost: (
+                      <span
+                        className="text-sky-700"
+                        title={
+                          costOf(s).count > 0
+                            ? `주유 ${NUM(costOf(s).fuel)} / 배터리 ${NUM(costOf(s).battery)} / 주차 ${NUM(costOf(s).parking)} / 소모품 수리 ${NUM(costOf(s).repair)} / 기타 ${NUM(costOf(s).etc)} (${costOf(s).count}건)`
+                            : '차량관리에 등록된 이력이 없습니다.'
+                        }
+                      >
+                        {costOf(s).count > 0 ? NUM(costOf(s).total) : <span className="text-slate-300">-</span>}
+                      </span>
+                    ),
+                    totalWon: <span className="font-semibold text-sky-700">{NUM(totalWonOf(s))}</span>,
+                    salePrice: <span className="text-slate-600">{s.salePrice > 0 ? MAN(s.salePrice) : '—'}</span>,
+                    profit: <span className="font-semibold text-emerald-700">{MAN(profitOf(s))}</span>,
+                    owner: <span className="text-slate-500">{employeeOf(s.employeeId)?.name}</span>,
+                    // 눌러서 크게 본다 — 결재하는 쪽이 표에서 바로 확인한다
+                    contract: s.contractPhotos ? (
                       <ContractPhotoThumb value={s.contractPhotos} size={32} />
                     ) : (
                       <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${SETTLEMENT_STAGE_CLASS[s.stage ?? 'DRAFT']}`}
-                      title={[
-                        s.chiefApprover && `본부장 ${s.chiefApprover}`,
-                        s.ceoApprover && `대표 ${s.ceoApprover}`,
-                      ].filter(Boolean).join(' · ') || undefined}
-                    >
-                      {s.locked && <Lock size={10} />}
-                      {/* 본부장을 안 거치는 건은 올라온 순간이 곧 대표 차례다 */}
-                      {s.stage === 'SUBMITTED' && s.chiefRequired === false
-                        ? '대표 승인 대기'
-                        : SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className={`inline-flex whitespace-nowrap items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${s.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-700 ring-amber-600/20'}`}>
-                      {SETTLEMENT_STATUS_LABEL[s.status]}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex justify-end gap-1">
-                      {/* 다 채웠으면 올린다. 올려야 본부장이 볼 차례가 된다 */}
-                      {s.stage === 'DRAFT' && (
-                        <button
-                          onClick={() => void step(s, 'submit')}
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
-                          title="본부장에게 올립니다"
-                        >
-                          <Send size={12} /> 올리기
-                        </button>
-                      )}
-                      {/* 내 차례일 때만 승인 버튼이 보인다 */}
-                      {((approverRole === 'CHIEF' && s.stage === 'SUBMITTED' && s.chiefRequired !== false) ||
-                        (approverRole === 'CEO' &&
-                          (s.stage === 'CHIEF' || (s.stage === 'SUBMITTED' && s.chiefRequired === false)))) && (
-                        <button
-                          onClick={() => void step(s, 'approve')}
-                          className="flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
-                        >
-                          <Check size={12} /> 승인
-                        </button>
-                      )}
-                      {/* 내가 찍은 것만 되돌린다 */}
-                      {((approverRole === 'CHIEF' && s.stage === 'CHIEF') ||
-                        (approverRole === 'CEO' && s.stage === 'DONE')) && (
-                        <button
-                          onClick={() => void step(s, 'revoke')}
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
-                          title="승인을 취소하면 다시 고칠 수 있습니다"
-                        >
-                          <Undo2 size={12} /> 승인 취소
-                        </button>
-                      )}
-                      <button
-                        disabled={s.locked}
-                        onClick={() => { setEditing(s); setFormOpen(true); }}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
-                        title={s.locked ? '승인된 정산은 고칠 수 없습니다' : '수정'}
+                    ),
+                    stage: (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${SETTLEMENT_STAGE_CLASS[s.stage ?? 'DRAFT']}`}
+                        title={
+                          [s.chiefApprover && `본부장 ${s.chiefApprover}`, s.ceoApprover && `대표 ${s.ceoApprover}`]
+                            .filter(Boolean)
+                            .join(' · ') || undefined
+                        }
                       >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        disabled={s.locked}
-                        onClick={() => void confirmDanger('매입 정산 내역을 삭제할까요?', '상품화 비용 명세도 함께 지워집니다.').then(ok => { if (ok) void deletePurchaseSettlement(s.id); })}
-                        className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
-                        title={s.locked ? '승인된 정산은 지울 수 없습니다' : '삭제'}
+                        {s.locked && <Lock size={10} />}
+                        {/* 본부장을 안 거치는 건은 올라온 순간이 곧 대표 차례다 */}
+                        {s.stage === 'SUBMITTED' && s.chiefRequired === false
+                          ? '대표 승인 대기'
+                          : SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']}
+                      </span>
+                    ),
+                    status: (
+                      <span
+                        className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                          s.status === 'COMPLETED'
+                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+                            : 'bg-amber-50 text-amber-700 ring-amber-600/20'
+                        }`}
                       >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
+                        {SETTLEMENT_STATUS_LABEL[s.status]}
+                      </span>
+                    ),
+                    actions: (
+                      <div className="flex justify-end gap-1">
+                        {/* 다 채웠으면 올린다. 올려야 본부장이 볼 차례가 된다 */}
+                        {s.stage === 'DRAFT' && (
+                          <button
+                            onClick={() => void step(s, 'submit')}
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                            title="본부장에게 올립니다"
+                          >
+                            <Send size={12} /> 올리기
+                          </button>
+                        )}
+                        {/* 내 차례일 때만 승인 버튼이 보인다 */}
+                        {((approverRole === 'CHIEF' && s.stage === 'SUBMITTED' && s.chiefRequired !== false) ||
+                          (approverRole === 'CEO' &&
+                            (s.stage === 'CHIEF' || (s.stage === 'SUBMITTED' && s.chiefRequired === false)))) && (
+                          <button
+                            onClick={() => void step(s, 'approve')}
+                            className="flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
+                          >
+                            <Check size={12} /> 승인
+                          </button>
+                        )}
+                        {/* 내가 찍은 것만 되돌린다 */}
+                        {((approverRole === 'CHIEF' && s.stage === 'CHIEF') ||
+                          (approverRole === 'CEO' && s.stage === 'DONE')) && (
+                          <button
+                            onClick={() => void step(s, 'revoke')}
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+                            title="승인을 취소하면 다시 고칠 수 있습니다"
+                          >
+                            <Undo2 size={12} /> 승인 취소
+                          </button>
+                        )}
+                        <button
+                          disabled={s.locked}
+                          onClick={() => {
+                            setEditing(s);
+                            setFormOpen(true);
+                          }}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
+                          title={s.locked ? '승인된 정산은 고칠 수 없습니다' : '수정'}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          disabled={s.locked}
+                          onClick={() =>
+                            void confirmDanger('매입 정산 내역을 삭제할까요?', '상품화 비용 명세도 함께 지워집니다.').then(
+                              ok => {
+                                if (ok) void deletePurchaseSettlement(s.id);
+                              },
+                            )
+                          }
+                          className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
+                          title={s.locked ? '승인된 정산은 지울 수 없습니다' : '삭제'}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ),
+                  })}
                 </tr>
               ))}
             </tbody>

@@ -104,11 +104,11 @@ export default function PurchaseIntakeModule() {
   };
 
   return (
-    <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">
+    <div className="mx-auto max-w-[1500px] px-3 py-4 sm:px-6 sm:py-6">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">매입 관리</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 hidden text-sm text-slate-500 sm:block">
             차를 사올 때 확인한 내용을 등록합니다. 받은 양식을 그대로 붙여넣으면 칸이 채워지고,
             등록하면 <b>차량 관리</b>에 그 차가 올라갑니다.
             <br />
@@ -122,26 +122,31 @@ export default function PurchaseIntakeModule() {
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
             title="카비어에 올라온 성능점검 리포트 주소를 차량번호로 맞춰 붙입니다"
           >
-            <FileSearch size={15} /> {reportBusy ? '가져오는 중…' : '검차 리포트 가져오기'}
+            <FileSearch size={15} />
+            <span className="hidden sm:inline">{reportBusy ? '가져오는 중…' : '검차 리포트 가져오기'}</span>
+            <span className="sm:hidden">{reportBusy ? '…' : '리포트'}</span>
           </button>
           <button
             onClick={() => setCarviorOpen(true)}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             title="자동으로도 들어오지만, 지금 바로 받고 싶을 때 누릅니다"
           >
-            <CloudDownload size={15} /> 카비어 지금 가져오기
+            <CloudDownload size={15} />
+            <span className="hidden sm:inline">카비어 지금 가져오기</span>
+            <span className="sm:hidden">카비어</span>
           </button>
           <button
             onClick={handleExport}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
           >
-            <Download size={15} /> 엑셀
+            <Download size={15} />
+            <span className="hidden sm:inline">엑셀</span>
           </button>
           <button
             onClick={() => { setEditing(null); setFormOpen(true); }}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
           >
-            <Plus size={15} /> 매입 등록
+            <Plus size={15} /> 등록
           </button>
         </div>
       </div>
@@ -149,21 +154,21 @@ export default function PurchaseIntakeModule() {
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">{periodLabel} 매입 대수</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">
+          <p className="mt-1 text-xl font-bold text-slate-800 sm:text-2xl">
             {api.items.length}
             <span className="ml-1 text-sm font-medium text-slate-400">대</span>
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">총 매입금액 (실매입 + 구전)</p>
-          <p className="mt-1 text-2xl font-bold text-indigo-600">
+          <p className="mt-1 text-xl font-bold text-indigo-600 sm:text-2xl">
             {NUM(total) || 0}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">총 매도금액</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600">
+          <p className="mt-1 text-xl font-bold text-emerald-600 sm:text-2xl">
             {NUM(saleTotal) || 0}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
@@ -182,7 +187,7 @@ export default function PurchaseIntakeModule() {
           <p className={`text-xs font-medium ${vat.gap > 0 ? 'text-red-700/80' : 'text-emerald-700/80'}`}>
             {vat.gap > 0 ? '못 판 만큼 걸린 부가세' : '매입만큼 팔았습니다'}
           </p>
-          <p className={`mt-1 text-2xl font-bold ${vat.gap > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+          <p className={`mt-1 text-xl font-bold sm:text-2xl ${vat.gap > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
             {NUM(vat.vat) || 0}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
@@ -223,7 +228,7 @@ export default function PurchaseIntakeModule() {
         </div>
       )}
 
-      <p className="mb-4 text-[11px] leading-relaxed text-slate-400">
+      <p className="mb-4 hidden text-[11px] leading-relaxed text-slate-400 sm:block">
         중고차는 매입할 때 낸 세금을 의제매입세액으로 공제받는데, 그 차를 팔아 매출이 잡혀야
         자리를 잡습니다. {VAT_PERIOD_MONTHS}개월(반기) 동안 매입만큼 매출이 안 나오면 그 차이만큼
         부가세가 남습니다. 값 안에 세금이 들어 있어 <b>10/110</b>으로 뽑습니다 — 1억이면 909만원입니다.

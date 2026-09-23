@@ -21,6 +21,9 @@ import type { PurchaseIntake } from '../../types';
  *
  * 누르면 화면이 먼저 바뀌고 저장은 뒤따라간다. 서버를 기다렸다 바꾸면 누를 때마다 한 박자
  * 멈추는데, 열 개를 연달아 누르는 자리라 그 멈춤이 그대로 쌓인다. 실패하면 되돌리고 알린다.
+ *
+ * 폰에서는 접어 둔다. 칩 열 개에 숫자 칸 넷이 좁은 화면을 다 덮어서, 목록을 훑을 때는
+ * 차 한 대가 한 화면을 차지해 버린다 — 검차할 때만 펴서 쓴다. 넓은 화면에서는 늘 펴 둔다.
  */
 
 const INPUT =
@@ -41,6 +44,7 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
   */
   const [draft, setDraft] = useState(() => pick(item));
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   // 다른 사람이 고친 게 들어오면 따라간다
   useEffect(() => setDraft(pick(item)), [item]);
@@ -94,10 +98,32 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
     </label>
   );
 
+  /** 접었을 때 보여줄 한 줄 — 무엇을 셌는지까지는 보여야 펼지 말지 정한다 */
+  const summary = [
+    `검차 ${checked.size}/${CHECK_ITEMS.length}`,
+    draft.panelCount > 0 ? `판 ${draft.panelCount}` : '',
+    draft.dentCount > 0 ? `덴트 ${draft.dentCount}` : '',
+    draft.wheelCount > 0 ? `휠 ${draft.wheelCount}` : '',
+    draft.fuelLevel ? `기름 ${draft.fuelLevel}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
+      {/* 폰에서는 한 줄로 접는다 — 넓은 화면에서는 이 줄이 아예 안 보인다 */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex w-full items-center gap-1.5 text-left text-[11px] font-bold text-slate-500 sm:hidden"
+      >
+        <span className="text-slate-400">{open ? '▾' : '▸'}</span>
+        {summary}
+        {cost.total > 0 && <span className="ml-auto text-indigo-700">{cost.total.toLocaleString()}원</span>}
+      </button>
+
+      <div className={`${open ? 'block' : 'hidden'} sm:block`}>
       <div className="flex flex-wrap items-center gap-1">
-        <span className="mr-1 text-[11px] font-bold text-slate-500">
+        <span className="mr-1 hidden text-[11px] font-bold text-slate-500 sm:inline">
           검차 {checked.size}/{CHECK_ITEMS.length}
         </span>
         {CHECK_ITEMS.map(c => {
@@ -186,6 +212,7 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
       </div>
 
       {error && <p className="mt-1 text-[11px] font-medium text-red-500">{error}</p>}
+      </div>
     </div>
   );
 }

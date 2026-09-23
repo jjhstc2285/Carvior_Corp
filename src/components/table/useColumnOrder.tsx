@@ -18,6 +18,10 @@ export interface Column {
   align?: string;
   /** 제목줄에서 줄바꿈하지 않을 칸 */
   nowrap?: boolean;
+  /** 제목에 붙는 설명 — 계산식처럼 한 줄로 못 적는 것 */
+  title?: string;
+  /** 제목 글자색 같은 덧칠 */
+  headClass?: string;
 }
 
 export function useColumnOrder(storageKey: string, columns: Column[]) {
@@ -97,8 +101,9 @@ export function useColumnOrder(storageKey: string, columns: Column[]) {
             setDragKey(null);
             setOverKey(null);
           }}
-          title="끌어서 순서를 바꿉니다"
-          className={`select-none px-2.5 py-2.5 font-medium transition-colors ${col.align ?? ''} ${
+          title={col.title ? `${col.title}
+— 끌어서 순서를 바꿉니다` : '끌어서 순서를 바꿉니다'}
+          className={`select-none px-2.5 py-2.5 font-medium transition-colors ${col.align ?? ''} ${col.headClass ?? ''} ${
             col.nowrap === false ? '' : 'whitespace-nowrap'
           } ${mark} ${
             dragging
