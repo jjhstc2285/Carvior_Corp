@@ -179,9 +179,10 @@ export default function PayrollModule() {
     );
   }
 
+  /* 이 화면도 사무실 PC 에서만 본다 — 가운데 좁게 모으면 열두 칸짜리 표가 잘린다 */
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <div className="mx-auto max-w-[1700px] px-3 py-4 sm:px-5">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h1 className="flex items-center gap-1.5 text-xl font-bold text-slate-900">
             <Wallet size={18} className="text-indigo-600" /> 인건비
@@ -198,8 +199,8 @@ export default function PayrollModule() {
         </button>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-3.5 py-2.5">
           <p className="text-xs font-medium text-indigo-700/80">한 달 실 이체</p>
           <p className="mt-1 text-2xl font-bold text-indigo-700">
             {totals.net.toLocaleString()}
@@ -207,11 +208,11 @@ export default function PayrollModule() {
           </p>
           <p className="text-[11px] text-slate-400">{totals.count}명</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+        <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
           <p className="text-xs font-medium text-slate-400">급여 합계</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">{totals.pay.toLocaleString()}</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+        <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
           <p className="text-xs font-medium text-slate-400">공제 합계</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">
             {(totals.company + totals.self).toLocaleString()}
@@ -220,13 +221,13 @@ export default function PayrollModule() {
             회사 {totals.company.toLocaleString()} · 본인 {totals.self.toLocaleString()}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+        <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
           <p className="text-xs font-medium text-slate-400">식대 합계</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">{totals.meal.toLocaleString()}</p>
         </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1.5 text-sm text-slate-500">
           <input
             type="checkbox"
@@ -241,26 +242,26 @@ export default function PayrollModule() {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1160px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
-                <th className="px-3 py-3" />
-                <th className="px-3 py-3 font-medium">이름</th>
-                <th className="px-3 py-3 font-medium">직책</th>
-                <th className="px-3 py-3 text-right font-medium">급여</th>
-                <th className="px-3 py-3 text-right font-medium">회사공제</th>
-                <th className="px-3 py-3 text-right font-medium">본인공제</th>
-                <th className="px-3 py-3 font-medium">부담</th>
-                <th className="px-3 py-3 text-right font-medium">식대</th>
-                <th className="px-3 py-3 text-right font-medium">실 이체</th>
-                <th className="px-3 py-3 font-medium">메모</th>
-                <th className="px-3 py-3 text-center font-medium">지급중</th>
+                <th className="px-2.5 py-2.5" />
+                <th className="px-2.5 py-2.5 font-medium">이름</th>
+                <th className="px-2.5 py-2.5 font-medium">직책</th>
+                <th className="px-2.5 py-2.5 text-right font-medium">급여</th>
+                <th className="px-2.5 py-2.5 text-right font-medium">회사공제</th>
+                <th className="px-2.5 py-2.5 text-right font-medium">본인공제</th>
+                <th className="px-2.5 py-2.5 font-medium">부담</th>
+                <th className="px-2.5 py-2.5 text-right font-medium">식대</th>
+                <th className="px-2.5 py-2.5 text-right font-medium">실 이체</th>
+                <th className="px-2.5 py-2.5 font-medium">메모</th>
+                <th className="px-2.5 py-2.5 text-center font-medium">지급중</th>
               </tr>
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={11} className="px-5 py-8 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '적어둔 인건비가 없습니다. [직원 추가]로 시작하세요.'}
                   </td>
                 </tr>
@@ -270,7 +271,7 @@ export default function PayrollModule() {
                   key={r.id}
                   className={`border-b border-slate-50 last:border-0 ${r.active ? '' : 'bg-slate-50/60 text-slate-400'}`}
                 >
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-1.5">
                     <button
                       onClick={() => void removeRow(r)}
                       disabled={busyId === r.id}
@@ -280,7 +281,7 @@ export default function PayrollModule() {
                       <Trash2 size={13} />
                     </button>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-1.5">
                     <input
                       defaultValue={r.name}
                       onBlur={e => e.target.value.trim() !== r.name && void patch(r, { name: e.target.value })}
@@ -288,7 +289,7 @@ export default function PayrollModule() {
                       className={`${INPUT} w-24`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-1.5">
                     <input
                       defaultValue={r.position}
                       onBlur={e => e.target.value !== r.position && void patch(r, { position: e.target.value })}
@@ -299,7 +300,7 @@ export default function PayrollModule() {
                   </td>
 
                   {(['monthlyPay', 'companyDeduction', 'selfDeduction'] as const).map(field => (
-                    <td key={field} className="px-3 py-2">
+                    <td key={field} className="px-2.5 py-1.5">
                       <input
                         defaultValue={withCommas(String(r[field] || ''))}
                         onBlur={e => {
@@ -314,7 +315,7 @@ export default function PayrollModule() {
                     </td>
                   ))}
 
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-1.5">
                     {/* 종이에 적혀 있던 말 그대로 둔다 — '본인all' 같은 표현이 뜻을 더 잘 담는다 */}
                     <input
                       defaultValue={r.burden}
@@ -326,7 +327,7 @@ export default function PayrollModule() {
                     />
                   </td>
 
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-1.5">
                     <input
                       defaultValue={withCommas(String(r.mealAllowance || ''))}
                       onBlur={e => {
@@ -341,11 +342,11 @@ export default function PayrollModule() {
                   </td>
 
                   {/* 실 이체는 적는 칸이 아니다 — 위 숫자를 고치면 따라온다 */}
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-bold text-indigo-700">
+                  <td className="whitespace-nowrap px-2.5 py-1.5 text-right font-bold text-indigo-700">
                     {netOf(r).toLocaleString()}
                   </td>
 
-                  <td className="px-3 py-2">
+                  <td className="px-2.5 py-1.5">
                     <input
                       defaultValue={r.memo}
                       onBlur={e => e.target.value !== r.memo && void patch(r, { memo: e.target.value })}
@@ -354,7 +355,7 @@ export default function PayrollModule() {
                     />
                   </td>
 
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-2.5 py-1.5 text-center">
                     <input
                       type="checkbox"
                       checked={r.active}
