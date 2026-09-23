@@ -239,9 +239,13 @@ export default function PropertyModule() {
     );
   }
 
+  /*
+    화면을 넓게 쓴다 — 이 화면은 사무실 PC 에서만 본다. 가운데 좁게 모아 두면 칸이
+    스무 개 가까운 표가 옆으로 잘려 매번 밀어 봐야 한다.
+  */
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div className="mx-auto max-w-[1700px] px-3 py-4 sm:px-5">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold text-slate-900">부동산 정보</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -257,7 +261,7 @@ export default function PropertyModule() {
       </div>
 
       {expiring.length > 0 && (
-        <section className="mb-4 rounded-2xl border border-red-200 bg-red-50/60 px-4 py-3.5">
+        <section className="mb-3 rounded-2xl border border-red-200 bg-red-50/60 px-3.5 py-2.5">
           <div className="flex flex-wrap items-center gap-2">
             <AlarmClock size={15} className="text-red-600" />
             <h2 className="text-sm font-bold text-red-800">곧 끝나는 계약 {expiring.length}건</h2>
@@ -265,7 +269,7 @@ export default function PropertyModule() {
               연장하려면 임대인에게 먼저 연락하고, [계약서]에서 연장 계약서를 만드세요
             </span>
           </div>
-          <ul className="mt-2.5 space-y-1.5">
+          <ul className="mt-2 space-y-1">
             {expiring.map(({ row, left }) => (
               <li
                 key={row.id}
@@ -306,15 +310,15 @@ export default function PropertyModule() {
         </section>
       )}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
           <p className="text-xs font-medium text-slate-400">계약중</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">
             {totals.count}
             <span className="ml-1 text-sm font-medium text-slate-400">곳</span>
           </p>
         </div>
-        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">
+        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-3.5 py-2.5">
           <p className="text-xs font-medium text-indigo-700/80">매달 나가는 월세</p>
           <p className="mt-1 text-2xl font-bold text-indigo-700">
             {totals.rent.toLocaleString()}
@@ -332,7 +336,7 @@ export default function PropertyModule() {
             </p>
           )}
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+        <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
           <p className="text-xs font-medium text-slate-400">맡긴 보증금</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">
             {totals.deposit.toLocaleString()}
@@ -346,7 +350,7 @@ export default function PropertyModule() {
         </div>
         {/* 계약 끝나는 걸 놓치면 옮길 자리를 못 구한다 */}
         <div
-          className={`rounded-2xl border px-4 py-3.5 ${
+          className={`rounded-2xl border px-3.5 py-2.5 ${
             totals.soon > 0 ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white'
           }`}
         >
@@ -360,7 +364,7 @@ export default function PropertyModule() {
         </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         {/* 빌려 쓰는 자리와 빌려준 자리는 보는 눈이 다르다 — 갈라 볼 수 있게 한다 */}
         <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs">
           {[['all', '전체'], ...PROPERTY_SIDES.map(s => [s, s === '임차' ? '빌려 쓰는 자리' : '빌려준 자리'])].map(
@@ -389,11 +393,12 @@ export default function PropertyModule() {
 
         {/* 자리에 안 붙는 돈 — 사무장이 매달 자동이체로 내는 것들 */}
         <button
-          onClick={() => setOfficeOpen(true)}
+          onClick={() => setOfficeOpen(v => !v)}
           className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
           title="관리비·인터넷·정수기처럼 자리에 매이지 않고 매달 자동이체로 나가는 돈"
         >
           <Coins size={13} className="text-indigo-600" /> 사무실 부대비용 자동이체
+          <span className="text-slate-300">{officeOpen ? '▲' : '▼'}</span>
           {officeCost > 0 && (
             <span className="rounded-full bg-indigo-50 px-1.5 text-[11px] font-bold text-indigo-700">
               월 {Math.round(officeCost / 10000).toLocaleString()}만
@@ -402,6 +407,11 @@ export default function PropertyModule() {
         </button>
         <span className="ml-auto text-xs text-slate-400">{loading ? '불러오는 중…' : `${rows.length}곳`}</span>
       </div>
+
+      {/* 창으로 덮지 않고 자리에 깐다 — 스무 줄짜리 표라 뒤 화면과 같이 봐야 한다 */}
+      {officeOpen && (
+        <PropertyCostModal property={null} inline onClose={() => setOfficeOpen(false)} onChanged={() => void loadOffice()} />
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
@@ -428,7 +438,7 @@ export default function PropertyModule() {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={15} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={15} className="px-5 py-8 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '등록된 부동산이 없습니다.'}
                   </td>
                 </tr>
@@ -450,7 +460,7 @@ export default function PropertyModule() {
                             : ''
                     }`}
                   >
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <button
                         onClick={() => void removeRow(r)}
                         disabled={busyId === r.id}
@@ -460,7 +470,7 @@ export default function PropertyModule() {
                         <Trash2 size={14} />
                       </button>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <input
                         defaultValue={r.name}
                         onBlur={e => e.target.value !== r.name && void patch(r, { name: e.target.value })}
@@ -469,7 +479,7 @@ export default function PropertyModule() {
                       />
                     </td>
                     {/* 양식을 손으로 채워 인쇄하던 것과, 달마다 나가는 돈 */}
-                    <td className="whitespace-nowrap px-3 py-2.5">
+                    <td className="whitespace-nowrap px-2.5 py-1.5">
                       <span className="flex items-center gap-1">
                         <button
                           onClick={() => setContractFor(r)}
@@ -491,7 +501,7 @@ export default function PropertyModule() {
                         </button>
                       </span>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <select
                         value={r.side}
                         onChange={e => void patch(r, { side: e.target.value })}
@@ -505,7 +515,7 @@ export default function PropertyModule() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <select
                         value={r.usage}
                         onChange={e => void patch(r, { usage: e.target.value })}
@@ -519,7 +529,7 @@ export default function PropertyModule() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <input
                         defaultValue={r.address}
                         onBlur={e => e.target.value !== r.address && void patch(r, { address: e.target.value })}
@@ -527,7 +537,7 @@ export default function PropertyModule() {
                         className={`${INPUT} w-56`}
                       />
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <input
                         defaultValue={r.ownerName}
                         onBlur={e => e.target.value !== r.ownerName && void patch(r, { ownerName: e.target.value })}
@@ -536,7 +546,7 @@ export default function PropertyModule() {
                         className={`${INPUT} w-24`}
                       />
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2.5">
+                    <td className="whitespace-nowrap px-2.5 py-1.5">
                       <span className="flex items-center gap-1">
                         <input
                           defaultValue={r.ownerPhone}
@@ -557,7 +567,7 @@ export default function PropertyModule() {
                       </span>
                     </td>
                     {(['deposit', 'monthlyRent'] as const).map(field => (
-                      <td key={field} className="px-3 py-2.5">
+                      <td key={field} className="px-2.5 py-1.5">
                         <input
                           defaultValue={withCommas(String(r[field] || ''))}
                           onBlur={e => {
@@ -570,7 +580,7 @@ export default function PropertyModule() {
                         />
                       </td>
                     ))}
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <input
                         defaultValue={r.payDay || ''}
                         onBlur={e => {
@@ -583,7 +593,7 @@ export default function PropertyModule() {
                         className={`${INPUT} w-14 text-center`}
                       />
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <input
                         type="date"
                         value={r.startOn ?? ''}
@@ -592,7 +602,7 @@ export default function PropertyModule() {
                         className={`${INPUT} w-36`}
                       />
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <span className="flex items-center gap-1">
                         <input
                           type="date"
@@ -613,7 +623,7 @@ export default function PropertyModule() {
                         )}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <input
                         defaultValue={r.memo}
                         onBlur={e => e.target.value !== r.memo && void patch(r, { memo: e.target.value })}
@@ -621,7 +631,7 @@ export default function PropertyModule() {
                         className={`${INPUT} w-48`}
                       />
                     </td>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-2.5 py-1.5 text-center">
                       <input
                         type="checkbox"
                         checked={r.active}
@@ -668,13 +678,7 @@ export default function PropertyModule() {
       </p>
 
 
-      {officeOpen && (
-        <PropertyCostModal
-          property={null}
-          onClose={() => setOfficeOpen(false)}
-          onChanged={() => void loadOffice()}
-        />
-      )}
+
     </div>
   );
 }

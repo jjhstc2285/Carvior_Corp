@@ -35,12 +35,20 @@ export default function PropertyCostModal({
   property,
   onClose,
   onChanged,
+  inline = false,
 }: {
   /** 없으면 사무실 부대비용 — 자리에 매이지 않는 돈 */
   property: Property | null;
   onClose: () => void;
   /** 합계가 바뀌면 뒤에 있는 표도 다시 받아야 한다 */
   onChanged?: () => void;
+  /**
+   * 창을 띄우지 않고 화면에 그대로 편다.
+   *
+   * 사무실 부대비용은 줄이 스물 가까이 되고 자주 들여다보는 표라, 팝업으로 덮으면
+   * 뒤 화면을 같이 못 본다 — 부동산 표처럼 자리에 깔아 둔다.
+   */
+  inline?: boolean;
 }) {
   const office = !property;
   const base = property ? `/properties/${property.id}/costs` : '/properties/office-costs';
@@ -111,8 +119,7 @@ export default function PropertyCostModal({
   const auto = live.filter(r => r.method === '자동이체').reduce((sum, r) => sum + r.amount, 0);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-6" onClick={onClose}>
-      <div className="w-full max-w-4xl rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+    <Shell inline={inline} onClose={onClose}>
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="flex items-center gap-1.5 text-base font-bold text-slate-800">
@@ -138,7 +145,7 @@ export default function PropertyCostModal({
           </button>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5">
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-2 py-1.5.5">
           <span className="text-sm text-slate-500">
             한 달 합계 <b className="text-lg text-indigo-700">{total.toLocaleString()}</b>원
           </span>
@@ -178,21 +185,21 @@ export default function PropertyCostModal({
           ))}
         </datalist>
 
-        <div className="mt-3 max-h-[55vh] overflow-auto rounded-xl border border-slate-200">
+        <div className="mt-3 max-h-[60vh] overflow-auto rounded-xl border border-slate-200">
           <table className="w-full min-w-[1180px] text-sm">
             <thead className="sticky top-0 bg-slate-50 text-left text-xs text-slate-500">
               <tr>
-                <th className="px-3 py-2" />
-                <th className="px-3 py-2 font-medium">항목</th>
-                <th className="px-3 py-2 text-right font-medium">대당 단가</th>
-                <th className="px-3 py-2 text-right font-medium">대수</th>
-                <th className="px-3 py-2 text-right font-medium">한 달 금액(원)</th>
-                <th className="px-3 py-2 text-center font-medium">내는 날</th>
-                <th className="px-3 py-2 font-medium">이체</th>
-                <th className="px-3 py-2 font-medium">받는 곳</th>
-                <th className="px-3 py-2 font-medium">계좌</th>
-                <th className="px-3 py-2 font-medium">메모</th>
-                <th className="px-3 py-2 text-center font-medium">나감</th>
+                <th className="px-2 py-1.5" />
+                <th className="px-2 py-1.5 font-medium">항목</th>
+                <th className="px-2 py-1.5 text-right font-medium">대당 단가</th>
+                <th className="px-2 py-1.5 text-right font-medium">대수</th>
+                <th className="px-2 py-1.5 text-right font-medium">한 달 금액(원)</th>
+                <th className="px-2 py-1.5 text-center font-medium">내는 날</th>
+                <th className="px-2 py-1.5 font-medium">이체</th>
+                <th className="px-2 py-1.5 font-medium">받는 곳</th>
+                <th className="px-2 py-1.5 font-medium">계좌</th>
+                <th className="px-2 py-1.5 font-medium">메모</th>
+                <th className="px-2 py-1.5 text-center font-medium">나감</th>
               </tr>
             </thead>
             <tbody>
@@ -205,7 +212,7 @@ export default function PropertyCostModal({
               )}
               {rows.map(r => (
                 <tr key={r.id} className={`border-t border-slate-50 ${r.active ? '' : 'bg-slate-50/60 text-slate-400'}`}>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <button
                       onClick={() => void removeRow(r)}
                       disabled={busyId === r.id}
@@ -219,7 +226,7 @@ export default function PropertyCostModal({
                     고르게만 두면 목록에 없는 건 못 적는다 — 엘리베이터 점검료, 청소 용역,
                     CCTV 처럼 나가는 건 끝이 없다. 직접 치고, 자주 쓰는 건 아래 목록에서 고른다.
                   */}
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <input
                       defaultValue={r.kind}
                       onBlur={e => {
@@ -233,7 +240,7 @@ export default function PropertyCostModal({
                     />
                   </td>
                   {/* 대수가 오르내리는 건 단가·대수로 둔다 — 대수만 고치면 금액이 따라간다 */}
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <input
                       defaultValue={withCommas(String(r.unitPrice || ''))}
                       onBlur={e => {
@@ -246,7 +253,7 @@ export default function PropertyCostModal({
                       className={`${INPUT} w-24 text-right`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <input
                       defaultValue={r.units || ''}
                       onBlur={e => {
@@ -259,7 +266,7 @@ export default function PropertyCostModal({
                       className={`${INPUT} w-16 text-right`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <input
                       // 단가·대수를 적어두면 그 곱이 금액이라 여기는 못 고친다
                       key={`${r.id}-amount-${r.amount}`}
@@ -274,7 +281,7 @@ export default function PropertyCostModal({
                       className={`${INPUT} w-32 text-right ${r.unitPrice > 0 && r.units > 0 ? 'bg-slate-50 font-semibold' : ''}`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <input
                       defaultValue={r.payDay || ''}
                       onBlur={e => {
@@ -287,7 +294,7 @@ export default function PropertyCostModal({
                       className={`${INPUT} w-14 text-center`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <select
                       value={r.method}
                       onChange={e => void patch(r, { method: e.target.value })}
@@ -301,7 +308,7 @@ export default function PropertyCostModal({
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <input
                       defaultValue={r.payee}
                       onBlur={e => e.target.value !== r.payee && void patch(r, { payee: e.target.value })}
@@ -310,7 +317,7 @@ export default function PropertyCostModal({
                       className={`${INPUT} w-40`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <input
                       defaultValue={r.account}
                       onBlur={e => e.target.value !== r.account && void patch(r, { account: e.target.value })}
@@ -319,7 +326,7 @@ export default function PropertyCostModal({
                       className={`${INPUT} w-44 font-mono text-xs`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <input
                       defaultValue={r.memo}
                       onBlur={e => e.target.value !== r.memo && void patch(r, { memo: e.target.value })}
@@ -328,7 +335,7 @@ export default function PropertyCostModal({
                       className={`${INPUT} w-44`}
                     />
                   </td>
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-2 py-1.5 text-center">
                     <input
                       type="checkbox"
                       checked={r.active}
@@ -359,6 +366,23 @@ export default function PropertyCostModal({
             닫기
           </button>
         </div>
+    </Shell>
+  );
+}
+
+/**
+ * 껍데기 — 창으로 띄울지, 화면에 그대로 펼지.
+ *
+ * 안쪽 내용은 같다. 창일 때만 바깥을 어둡게 하고 바깥을 눌러 닫게 한다.
+ */
+function Shell({ inline, onClose, children }: { inline: boolean; onClose: () => void; children: React.ReactNode }) {
+  if (inline) {
+    return <section className="mb-3 rounded-2xl border border-slate-200 bg-white p-3.5">{children}</section>;
+  }
+  return (
+    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-3 py-4" onClick={onClose}>
+      <div className="w-full max-w-[1700px] rounded-2xl bg-white p-4 shadow-xl" onClick={e => e.stopPropagation()}>
+        {children}
       </div>
     </div>
   );
