@@ -21,7 +21,12 @@ interface Props {
   editing: ConsultationRecord | null;
   defaultEmployeeId: string;
   /** 차량관리에서 고른 차로 열 때 — 차량번호·차명을 미리 채운다 */
-  preset?: { vehicleNumber: string; vehicleName: string };
+  /**
+   * 미리 채워 둘 값.
+   *
+   * 차를 눌러서 열면 차량번호·차명이, 채널톡 통화를 옮기면 통화 내용과 손님번호가 실려 온다.
+   */
+  preset?: { vehicleNumber?: string; vehicleName?: string; content?: string; customerPhone?: string };
   onClose: () => void;
 }
 
@@ -30,7 +35,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const [platform, setPlatform] = useState(editing?.platform ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? preset?.vehicleNumber ?? '');
   const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? preset?.vehicleName ?? '');
-  const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? '');
+  const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? preset?.customerPhone ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   /*
     기타 상담은 남의 딜러가 우리 물건을 판 건이다 — 담당자가 우리 직원이 아니라서
@@ -40,7 +45,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const [status, setStatus] = useState<ConsultationStatus>(editing?.status ?? 'IN_PROGRESS');
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
   const [time, setTime] = useState(editing?.time ?? dayjs().format('HH:mm'));
-  const [content, setContent] = useState(editing?.content ?? '');
+  const [content, setContent] = useState(editing?.content ?? preset?.content ?? '');
   const [depositAmount, setDepositAmount] = useState(editing ? String(editing.depositAmount || '') : '');
   /* 재고금융을 쓴 캐피탈에 할부를 얼마나 깔았는지 — 약정을 채웠는지 세는 값이다 */
   const [payMethod, setPayMethod] = useState<PayMethod>(editing?.payMethod ?? 'UNKNOWN');

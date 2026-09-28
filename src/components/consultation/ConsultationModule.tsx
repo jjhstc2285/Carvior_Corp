@@ -14,6 +14,7 @@ import ConsultationForm from './ConsultationForm';
 import PriceCheckModal from '../price/PriceCheckModal';
 import CustomerHistoryModal from './CustomerHistoryModal';
 import SellableVehicles from './SellableVehicles';
+import CallInbox from './CallInbox';
 import ConsultationDetailModal from './ConsultationDetailModal';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
@@ -115,7 +116,9 @@ export default function ConsultationModule({ role, kind }: Props) {
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
   const [priceOpen, setPriceOpen] = useState<string | null>(null);
-  const [preset, setPreset] = useState<{ vehicleNumber: string; vehicleName: string } | undefined>();
+  const [preset, setPreset] = useState<
+    { vehicleNumber?: string; vehicleName?: string; content?: string; customerPhone?: string } | undefined
+  >();
   const [editing, setEditing] = useState<ConsultationRecord | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<string | null>(null);
   /** 달력에서 차를 누르면 뜨는 상세 */
@@ -245,6 +248,25 @@ export default function ConsultationModule({ role, kind }: Props) {
           <Plus size={15} /> {CONSULTATION_KIND_LABEL[kind]} 상담 등록
         </button>
         </div>
+      </div>
+
+      {/*
+        채널톡으로 들어온 전화 — 통화 내용을 그대로 상담으로 옮긴다.
+        지금 보고 있는 탭이 그대로 상담 종류가 된다(알선 탭에서 옮기면 알선 상담이다).
+      */}
+      <div className="mb-3">
+        <CallInbox
+          onStart={seed => {
+            setEditing(null);
+            setPreset({
+              content: seed.content,
+              customerPhone: seed.customerPhone,
+              vehicleNumber: seed.vehicle?.vehicleNumber,
+              vehicleName: seed.vehicle?.vehicleModel,
+            });
+            setFormOpen(true);
+          }}
+        />
       </div>
 
       {/* 상품화된 차를 눌러 그 차로 상담을 연다 — 차량번호를 옮겨 치지 않게 */}

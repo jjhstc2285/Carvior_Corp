@@ -18,6 +18,7 @@ import { ChatModule } from './chat/chat.module';
 import { PushModule } from './push/push.module';
 import { PurchaseIntakeModule } from './purchase-intake/purchase-intake.module';
 import { CarviorModule } from './carvior/carvior.module';
+import { ChannelTalkModule } from './channeltalk/channeltalk.module';
 import { DealerFeesModule } from './dealer-fees/dealer-fees.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { AdsModule } from './ads/ads.module';
@@ -47,6 +48,7 @@ import { RolesGuard } from './auth/roles.guard';
     PushModule,
     PurchaseIntakeModule,
     CarviorModule,
+    ChannelTalkModule,
     CleaningModule,
     DealerFeesModule,
     ApprovalsModule,
