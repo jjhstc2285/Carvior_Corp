@@ -83,6 +83,7 @@ model Employee {
 
   @@unique([provider, providerId])
   @@index([name])
+  dismissedCalls DismissedCall[]
 }
 
 model EmployeePhone {
@@ -1529,4 +1530,36 @@ model SignupRequest {
   updatedAt DateTime @updatedAt
 
   @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// ⑮ 치운 통화
+// ─────────────────────────────────────────────
+
+// 상담으로 옮겼거나 볼 일 없는 통화를 목록에서 치운다.
+//
+// 통화 자체는 채널톡 것이라 지울 수 없고, 지워서도 안 된다 — 녹취는 나중에 다툴 때
+// 꺼내 보는 물건이다. 그래서 저쪽은 그대로 두고 우리 목록에서만 가린다.
+//
+// 브라우저에 두지 않고 여기 둔다. 한 사람이 처리한 전화가 옆자리 화면에는 그대로
+// 남아 있으면 같은 손님에게 두 번 전화가 간다.
+//
+// 지운 사람과 시각을 남긴다. 휴지통에서 되돌릴 때 누가 치운 건지 보여야 한다.
+model DismissedCall {
+  id String @id @default(cuid())
+
+  // 채널톡 대화 id — 통화 한 건을 가리킨다
+  userChatId String @unique @db.VarChar(64)
+
+  // 되돌릴 때 목록에 뭐가 들었는지 보여주려고 적어 둔다.
+  // 채널톡에서 다시 받아오면 되지만, 휴지통을 열 때마다 저쪽을 훑을 일은 아니다.
+  customerPhone String @default("") @db.VarChar(20)
+  calledAt      String @default("") @db.VarChar(20)
+
+  dismissedById String
+  dismissedBy   Employee @relation(fields: [dismissedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

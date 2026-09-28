@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Car, ChevronDown, ChevronRight, PhoneCall, PhoneIncoming, PhoneOutgoing, RefreshCw } from 'lucide-react';
+import {
+  Car,
+  ChevronDown,
+  ChevronRight,
+  PhoneCall,
+  PhoneIncoming,
+  PhoneOutgoing,
+  RefreshCw,
+  RotateCcw,
+  Trash2,
+} from 'lucide-react';
 import { api } from '../../lib/api';
 import { matchVehicles, type CallMatch } from '../../lib/callMatch';
 import type { ManagedVehicle } from '../../types';
@@ -33,6 +43,14 @@ export interface CallRecord {
   live: boolean;
 }
 
+interface Dismissed {
+  userChatId: string;
+  customerPhone: string;
+  calledAt: string;
+  dismissedBy: string;
+  dismissedAt: string;
+}
+
 interface Props {
   /** 상담 등록 창을 연다 — 통화 내용과 손님번호, 고른 차를 실어 보낸다 */
   onStart: (seed: { content: string; customerPhone: string; vehicle?: ManagedVehicle }) => void;
@@ -61,6 +79,8 @@ export default function CallInbox({ onStart }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   /* 지금 붙어 있는 통화 — 접어 놨어도 이것만은 늘 본다 */
   const [live, setLive] = useState<CallRecord[]>([]);
+  /* 휴지통 — 열었을 때만 받아온다 */
+  const [trash, setTrash] = useState<Dismissed[] | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -129,6 +149,46 @@ export default function CallInbox({ onStart }: Props) {
     prevLive.current = liveCount;
   }, [liveCount, open, load]);
 
+  /*
+    목록에서 치운다.
+
+    화면에서 먼저 지우고 서버에 알린다 — 누르고 한 박자 기다리게 하면 두 번 누른다.
+    실패하면 도로 받아온다.
+  */
+  const dismiss = async (call: CallRecord) => {
+    setCalls(prev => prev.filter(c => c.userChatId !== call.userChatId));
+    setTrash(null); // 휴지통은 다음에 열 때 새로 받는다
+    try {
+      await api('/channeltalk/dismissed', {
+        method: 'POST',
+        body: { userChatId: call.userChatId, customerPhone: call.customerPhone, calledAt: call.at },
+      });
+    } catch {
+      await load();
+    }
+  };
+
+  const restore = async (userChatId: string) => {
+    setTrash(prev => prev?.filter(t => t.userChatId !== userChatId) ?? null);
+    try {
+      await api(`/channeltalk/dismissed/${encodeURIComponent(userChatId)}`, { method: 'DELETE' });
+    } finally {
+      await load();
+    }
+  };
+
+  const openTrash = async () => {
+    if (trash) {
+      setTrash(null);
+      return;
+    }
+    try {
+      setTrash(await api<Dismissed[]>('/channeltalk/dismissed'));
+    } catch {
+      setTrash([]);
+    }
+  };
+
   const toggle = () => {
     setOpen(prev => {
       localStorage.setItem(LS_OPEN, prev ? '0' : '1');
@@ -183,7 +243,43 @@ export default function CallInbox({ onStart }: Props) {
               {loading ? '불러오는 중' : '다시 불러오기'}
             </button>
             <span className="text-[11px] text-slate-400">최근 3일</span>
+            <button
+              onClick={() => void openTrash()}
+              title="치운 통화를 봅니다 — 되돌릴 수 있습니다"
+              className={`ml-auto flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium ${
+                trash
+                  ? 'border-slate-300 bg-slate-100 text-slate-600'
+                  : 'border-slate-200 text-slate-400 hover:bg-slate-50'
+              }`}
+            >
+              <Trash2 size={12} /> 휴지통
+            </button>
           </div>
+
+          {/* 치운 통화 — 잘못 치웠으면 여기서 꺼낸다 */}
+          {trash && (
+            <div className="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              {trash.length === 0 ? (
+                <p className="text-xs text-slate-400">치운 통화가 없습니다.</p>
+              ) : (
+                <ul className="divide-y divide-slate-200/70">
+                  {trash.map(t => (
+                    <li key={t.userChatId} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
+                      <span className="font-mono text-xs font-semibold text-slate-600">{t.customerPhone || '번호 없음'}</span>
+                      <span className="text-[11px] text-slate-400">{t.calledAt}</span>
+                      {t.dismissedBy && <span className="text-[11px] text-slate-400">{t.dismissedBy}가 치움</span>}
+                      <button
+                        onClick={() => void restore(t.userChatId)}
+                        className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
+                      >
+                        <RotateCcw size={11} /> 되돌리기
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {error && <p className="py-2 text-xs text-red-500">{error}</p>}
           {!error && !loading && calls.length === 0 && (
@@ -199,6 +295,7 @@ export default function CallInbox({ onStart }: Props) {
                 expanded={expanded === call.userChatId}
                 onToggle={() => setExpanded(prev => (prev === call.userChatId ? null : call.userChatId))}
                 onStart={onStart}
+                onDismiss={() => void dismiss(call)}
               />
             ))}
           </ul>
@@ -214,12 +311,14 @@ function CallRow({
   expanded,
   onToggle,
   onStart,
+  onDismiss,
 }: {
   call: CallRecord;
   vehicles: ManagedVehicle[];
   expanded: boolean;
   onToggle: () => void;
   onStart: Props['onStart'];
+  onDismiss: () => void;
 }) {
   /* 통화에 나온 차 — 요약과 전문을 합쳐서 찾는다 */
   const matches: CallMatch[] = matchVehicles(call.text, vehicles).slice(0, 4);
@@ -256,6 +355,14 @@ function CallRow({
           className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
         >
           상담으로 옮기기
+        </button>
+        {/* 다 처리한 전화를 목록에서 치운다. 채널톡 통화는 그대로 남는다 */}
+        <button
+          onClick={onDismiss}
+          title="목록에서 치웁니다 — 휴지통에서 되돌릴 수 있고, 채널톡 통화는 지워지지 않습니다"
+          className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+        >
+          <Trash2 size={13} />
         </button>
       </div>
 

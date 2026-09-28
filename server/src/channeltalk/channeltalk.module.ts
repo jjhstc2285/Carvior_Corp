@@ -1,5 +1,20 @@
-import { Controller, Get, Injectable, Logger, Module, Query, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Injectable,
+  Logger,
+  Module,
+  Param,
+  Post,
+  Query,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * 채널톡(channel.io) Open API 연동 — 전화 상담 기록 가져오기.
@@ -134,7 +149,10 @@ function composeText(p: {
 export class ChannelTalkService {
   private readonly logger = new Logger(ChannelTalkService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   private get key() {
     return this.config.get<string>('CHANNELTALK_ACCESS_KEY', '');
@@ -163,6 +181,12 @@ export class ChannelTalkService {
     return (await res.json()) as T;
   }
 
+  /** 목록에서 치운 통화 — 저쪽은 매번 다 내려주므로 여기서 걸러야 한다 */
+  private async hiddenIds(): Promise<Set<string>> {
+    const rows = await this.prisma.dismissedCall.findMany({ select: { userChatId: true } });
+    return new Set(rows.map((r) => r.userChatId));
+  }
+
   /** 상담원 id → 이름. 통화마다 부르지 않게 한 번만 받아 둔다 */
   private async managerNames(): Promise<Map<string, string>> {
     try {
@@ -187,8 +211,11 @@ export class ChannelTalkService {
     const logs = await this.get<CallLog[]>(`/meet/call/log?from=${from}&to=${to}`);
     const names = await this.managerNames();
 
+    // 치운 건 목록에 없다. 저쪽에서 매번 다시 내려오므로 여기서 걸러야 한다
+    const hidden = await this.hiddenIds();
+
     const out: CallRecord[] = [];
-    for (const log of logs.slice(0, MAX_CALLS)) {
+    for (const log of logs.filter((l) => !hidden.has(l.userChatId)).slice(0, MAX_CALLS)) {
       try {
         out.push(await this.oneCall(log, names));
       } catch (e) {
@@ -349,9 +376,61 @@ export class ChannelTalkService {
   }
 }
 
+/**
+ * 치운 통화를 다루는 부분.
+ *
+ * 통화 자체는 채널톡 것이라 지울 수 없고, 지워서도 안 된다 — 녹취는 나중에 다툴 때
+ * 꺼내 보는 물건이다. 저쪽은 그대로 두고 우리 목록에서만 가린다.
+ *
+ * 브라우저가 아니라 서버에 둔다. 한 사람이 처리한 전화가 옆자리 화면에 그대로 남아
+ * 있으면 같은 손님에게 두 번 전화가 간다.
+ */
+@Injectable()
+export class DismissedCallService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async hiddenIds(): Promise<Set<string>> {
+    const rows = await this.prisma.dismissedCall.findMany({ select: { userChatId: true } });
+    return new Set(rows.map((r) => r.userChatId));
+  }
+
+  /** 휴지통 — 치운 차례대로, 누가 언제 치웠는지와 함께 */
+  async list() {
+    const rows = await this.prisma.dismissedCall.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { dismissedBy: { select: { name: true } } },
+    });
+    return rows.map((r) => ({
+      userChatId: r.userChatId,
+      customerPhone: r.customerPhone,
+      calledAt: r.calledAt,
+      dismissedBy: r.dismissedBy?.name ?? '',
+      dismissedAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  /** 두 사람이 같은 통화를 동시에 치워도 탈이 없게 upsert 로 둔다 */
+  async dismiss(employeeId: string, userChatId: string, customerPhone: string, calledAt: string) {
+    await this.prisma.dismissedCall.upsert({
+      where: { userChatId },
+      create: { userChatId, customerPhone, calledAt, dismissedById: employeeId },
+      update: {},
+    });
+  }
+
+  /** 되돌리기 — 없는 걸 되돌려도 탈 없이 넘어간다 */
+  async restore(userChatId: string) {
+    await this.prisma.dismissedCall.deleteMany({ where: { userChatId } });
+  }
+}
+
 @Controller('channeltalk')
 export class ChannelTalkController {
-  constructor(private readonly service: ChannelTalkService) {}
+  constructor(
+    private readonly service: ChannelTalkService,
+    private readonly dismissed: DismissedCallService,
+  ) {}
 
   /** 열쇠가 꽂혀 있는지 — 화면이 안내 문구를 고르는 데 쓴다 */
   @Get('status')
@@ -369,7 +448,30 @@ export class ChannelTalkController {
   live() {
     return this.service.liveCalls();
   }
+
+  /** 휴지통 */
+  @Get('dismissed')
+  dismissedList() {
+    return this.dismissed.list();
+  }
+
+  /** 목록에서 치운다 — 저쪽 통화는 그대로 둔다 */
+  @Post('dismissed')
+  @HttpCode(204)
+  async dismiss(
+    @CurrentUser() user: AuthUser,
+    @Body() body: { userChatId?: string; customerPhone?: string; calledAt?: string },
+  ) {
+    await this.dismissed.dismiss(user.id, body.userChatId ?? '', body.customerPhone ?? '', body.calledAt ?? '');
+  }
+
+  /** 휴지통에서 꺼낸다 */
+  @Delete('dismissed/:userChatId')
+  @HttpCode(204)
+  async restore(@Param('userChatId') userChatId: string) {
+    await this.dismissed.restore(userChatId);
+  }
 }
 
-@Module({ controllers: [ChannelTalkController], providers: [ChannelTalkService] })
+@Module({ controllers: [ChannelTalkController], providers: [ChannelTalkService, DismissedCallService] })
 export class ChannelTalkModule {}
