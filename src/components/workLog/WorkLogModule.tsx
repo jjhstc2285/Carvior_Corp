@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import dayjs, { type Dayjs } from 'dayjs';
-import { ChevronLeft, ChevronRight, NotebookPen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileSpreadsheet, NotebookPen } from 'lucide-react';
 import { useStore } from '../../store';
 import type { Role, WorkLog } from '../../types';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { useWorkLogs } from './useWorkLogs';
 import WorkLogDayCard from './WorkLogDayCard';
+import MonthlyReportModal from './MonthlyReportModal';
 
 interface Props {
   role: Role;
@@ -28,6 +29,8 @@ export default function WorkLogModule({ role }: Props) {
   const [calMonth, setCalMonth] = useState(() => dayjs().startOf('month'));
   // 'self' = 내 일지, 'all' = 전 직원(관리자만), 그 외에는 직원 id
   const [view, setView] = useState<string>('self');
+  /* 월말 보고 — 달이 끝나면 누가 얼마나 했는지 추려야 한다 */
+  const [reportOpen, setReportOpen] = useState(false);
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day')), [weekStart]);
 
@@ -157,6 +160,19 @@ export default function WorkLogModule({ role }: Props) {
           </p>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+            월말 보고. 관리자만 — 남이 얼마나 적었는지 세는 화면이라 아무나 열 자리가 아니다.
+          */}
+          {isAdmin && (
+            <button
+              onClick={() => setReportOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <FileSpreadsheet size={14} /> 월말 보고
+            </button>
+          )}
+
         {/* 직원도 같은 팀 사람을 골라 볼 수 있다. 팀이 없으면 고를 게 없어 상자를 안 띄운다. */}
         {(isAdmin || pickable.length > 0) && (
           <select
@@ -173,6 +189,7 @@ export default function WorkLogModule({ role }: Props) {
             ))}
           </select>
         )}
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -350,6 +367,8 @@ export default function WorkLogModule({ role }: Props) {
           onSelectDate={date => setWeekStart(dayjs(date).startOf('week'))}
         />
       </div>
+
+      {reportOpen && <MonthlyReportModal onClose={() => setReportOpen(false)} />}
     </div>
   );
 }
