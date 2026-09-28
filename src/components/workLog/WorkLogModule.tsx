@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import dayjs, { type Dayjs } from 'dayjs';
-import { ChevronLeft, ChevronRight, FileSpreadsheet, NotebookPen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, NotebookPen } from 'lucide-react';
 import { useStore } from '../../store';
 import type { Role, WorkLog } from '../../types';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { useWorkLogs } from './useWorkLogs';
 import WorkLogDayCard from './WorkLogDayCard';
 import MonthlyReportModal from './MonthlyReportModal';
+import { exportWorkLogs } from './exportWorkLogs';
+import { api } from '../../lib/api';
 
 interface Props {
   role: Role;
@@ -31,6 +33,8 @@ export default function WorkLogModule({ role }: Props) {
   const [view, setView] = useState<string>('self');
   /* 월말 보고 — 달이 끝나면 누가 얼마나 했는지 추려야 한다 */
   const [reportOpen, setReportOpen] = useState(false);
+  /* 엑셀로 내리는 중 — 달 전체를 새로 받아와야 해서 한 박자 걸린다 */
+  const [saving, setSaving] = useState(false);
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day')), [weekStart]);
 
@@ -146,6 +150,51 @@ export default function WorkLogModule({ role }: Props) {
     return <p className="px-6 py-10 text-sm text-slate-400">불러오는 중…</p>;
   }
 
+  /**
+   * 보고 있는 달을 엑셀로 내린다.
+   *
+   * 화면이 들고 있는 목록은 주간 보드와 달력이 같이 쓰려고 달 경계를 넘겨 받아 둔 것이라,
+   * 그대로 내리면 앞뒤 달이 섞인다. 내릴 때는 그 달만 다시 받는다.
+   *
+   * 누구 것인지는 지금 보고 있는 사람을 따른다 — 내 일지를 보고 있으면 내 것,
+   * 팀원을 골라 뒀으면 그 사람 것이다.
+   */
+  const saveExcel = async () => {
+    setSaving(true);
+    try {
+      const monthFrom = calMonth.startOf('month').format('YYYY-MM-DD');
+      const monthTo = calMonth.endOf('month').format('YYYY-MM-DD');
+      const query = [
+        `from=${monthFrom}`,
+        `to=${monthTo}`,
+        ...(isAllView ? [] : [`employeeId=${scope}`]),
+        ...(!isAdmin && isAllView ? ['team=true'] : []),
+      ].join('&');
+
+      const rows = await api<WorkLog[]>(`/work-logs?${query}`);
+      if (rows.length === 0) {
+        window.alert(`${calMonth.format('YYYY년 M월')}에 적은 업무일지가 없습니다.`);
+        return;
+      }
+
+      const me = state.employees.find(e => e.id === state.currentEmployeeId);
+      const picked = state.employees.find(e => e.id === view);
+      const who = isAllView ? (isAdmin ? '전직원' : (myTeam ?? '팀')) : (picked?.name ?? me?.name ?? '내');
+
+      exportWorkLogs({
+        logs: rows,
+        who,
+        month: calMonth.format('YYYY-MM'),
+        // 여러 사람 것이 섞일 때만 이름 칸을 넣는다
+        nameOf: isAllView ? id => state.employees.find(e => e.id === id)?.name ?? '' : undefined,
+      });
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '엑셀을 만들지 못했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -161,6 +210,23 @@ export default function WorkLogModule({ role }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/*
+            적은 그대로 내려받기.
+
+            월말이면 각자 자기가 한 일을 정리해 올린다. 화면을 주 단위로 넘겨 가며 한 줄씩
+            옮겨 적으면 하루 열 줄 × 스무 날이 이백 줄이고, 옮기다 빠뜨린 건 안 한 일이 된다.
+
+            보고 있는 달을 그대로 내린다 — 달력에 뜬 달이 곧 받을 달이라 따로 고를 게 없다.
+          */}
+          <button
+            onClick={() => void saveExcel()}
+            disabled={saving}
+            title={`${calMonth.format('YYYY년 M월')} 업무일지를 엑셀로 받습니다`}
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-300"
+          >
+            <Download size={14} /> {saving ? '만드는 중…' : `${calMonth.format('M월')} 엑셀 저장`}
+          </button>
+
           {/*
             월말 보고. 관리자만 — 남이 얼마나 적었는지 세는 화면이라 아무나 열 자리가 아니다.
           */}
