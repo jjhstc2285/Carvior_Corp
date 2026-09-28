@@ -158,20 +158,34 @@ export default function CallInbox({ onStart }: Props) {
   const dismiss = async (call: CallRecord) => {
     setCalls(prev => prev.filter(c => c.userChatId !== call.userChatId));
     setTrash(null); // 휴지통은 다음에 열 때 새로 받는다
+    setError(null);
     try {
       await api('/channeltalk/dismissed', {
         method: 'POST',
         body: { userChatId: call.userChatId, customerPhone: call.customerPhone, calledAt: call.at },
       });
-    } catch {
+    } catch (e) {
+      /*
+        못 치웠으면 도로 띄우고, 왜 못 치웠는지 적는다.
+
+        예전에는 조용히 다시 받아오기만 했다. 그러니 화면에서는 사라졌다가 되살아나는
+        것만 보이고 까닭은 어디에도 안 남았다 — 누른 사람은 기능이 고장 난 줄 안다.
+      */
+      setError(
+        `치우지 못했습니다: ${e instanceof Error ? e.message : '알 수 없는 까닭'}` +
+          ' (서버에 DB 반영이 안 됐을 수 있습니다)',
+      );
       await load();
     }
   };
 
   const restore = async (userChatId: string) => {
     setTrash(prev => prev?.filter(t => t.userChatId !== userChatId) ?? null);
+    setError(null);
     try {
       await api(`/channeltalk/dismissed/${encodeURIComponent(userChatId)}`, { method: 'DELETE' });
+    } catch (e) {
+      setError(`되돌리지 못했습니다: ${e instanceof Error ? e.message : '알 수 없는 까닭'}`);
     } finally {
       await load();
     }
@@ -184,8 +198,9 @@ export default function CallInbox({ onStart }: Props) {
     }
     try {
       setTrash(await api<Dismissed[]>('/channeltalk/dismissed'));
-    } catch {
+    } catch (e) {
       setTrash([]);
+      setError(`휴지통을 열지 못했습니다: ${e instanceof Error ? e.message : '알 수 없는 까닭'}`);
     }
   };
 

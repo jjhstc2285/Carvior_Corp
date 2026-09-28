@@ -266,7 +266,9 @@ export class ChannelTalkService {
     const res = await this.get<{ userChats?: { id: string; liveMeetId?: string | null }[] }>(
       '/user-chats?limit=30&sortOrder=desc',
     );
-    const live = (res.userChats ?? []).filter((c) => c.liveMeetId);
+    // 치운 건 통화 중 칸에도 안 뜬다 — 여기로 되살아나면 치운 뜻이 없다
+    const hidden = await this.hiddenIds();
+    const live = (res.userChats ?? []).filter((c) => c.liveMeetId && !hidden.has(c.id));
     if (live.length === 0) return [];
 
     const names = await this.managerNames();
