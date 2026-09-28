@@ -16,23 +16,57 @@ interface Props {
   canSeePayroll?: boolean;
 }
 
-const NAV_ITEMS: { key: ModuleKey; label: string; icon: typeof CalendarClock }[] = [
-  { key: 'attendance', label: '출퇴근 관리', icon: CalendarClock },
-  { key: 'workLog', label: '업무 일지(작업 일지)', icon: NotebookPen },
-  { key: 'approval', label: '결재 관리', icon: Stamp },
-  { key: 'consultation', label: '상담 관리', icon: MessageSquareText },
-  { key: 'settlement', label: '정산 관리', icon: ReceiptText },
-  { key: 'parking', label: '주차장 관리', icon: ParkingSquare },
-  { key: 'vehicle', label: '차량 관리', icon: Car },
-  { key: 'ad', label: '광고 관리', icon: Megaphone },
-  { key: 'purchaseIntake', label: '매입 관리', icon: Handshake },
-  { key: 'stockFinance', label: '재고금융 (제시)', icon: Landmark },
-  { key: 'dealerFee', label: '신차영업소 상조회비', icon: Building2 },
-  { key: 'vendor', label: '거래처 대장', icon: Contact },
-  { key: 'property', label: '부동산 정보', icon: Home },
-  { key: 'payroll', label: '인건비', icon: Wallet },
-  { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
-  { key: 'chat', label: '메시지', icon: MessageSquare },
+/**
+ * 메뉴를 갈래로 묶는다.
+ *
+ * 열여섯 개가 한 줄로 늘어서 있으니 어느 게 어디 있는지 외워야 찾는다 — 매일 쓰는
+ * 사람은 외우지만, 가끔 쓰는 메뉴는 늘 위에서부터 훑게 된다.
+ *
+ * 묶는 기준은 '누가 쓰는가'가 아니라 '무슨 일인가'다. 사람 기준으로 묶으면 겸하는
+ * 사람이 두 군데를 봐야 한다.
+ *
+ * 갈래 이름은 짧게 둔다. 이름이 길면 그걸 읽느라 정작 메뉴를 못 본다.
+ */
+const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon: typeof CalendarClock }[] }[] = [
+  {
+    title: '근태 · 인사',
+    items: [
+      { key: 'attendance', label: '출퇴근 관리', icon: CalendarClock },
+      { key: 'workLog', label: '업무 일지', icon: NotebookPen },
+      { key: 'payroll', label: '인건비', icon: Wallet },
+    ],
+  },
+  {
+    title: '영업 · 차량',
+    items: [
+      { key: 'consultation', label: '상담 관리', icon: MessageSquareText },
+      { key: 'vehicle', label: '차량 관리', icon: Car },
+      { key: 'ad', label: '광고 관리', icon: Megaphone },
+      { key: 'purchaseIntake', label: '매입 관리', icon: Handshake },
+    ],
+  },
+  {
+    title: '재무 · 정산',
+    items: [
+      { key: 'settlement', label: '정산 관리', icon: ReceiptText },
+      { key: 'approval', label: '결재 관리', icon: Stamp },
+      { key: 'stockFinance', label: '재고금융 (제시)', icon: Landmark },
+      { key: 'dealerFee', label: '신차영업소 상조회비', icon: Building2 },
+    ],
+  },
+  {
+    title: '자산 · 시설',
+    items: [
+      { key: 'parking', label: '주차장 관리', icon: ParkingSquare },
+      { key: 'vendor', label: '거래처 대장', icon: Contact },
+      { key: 'property', label: '부동산 정보', icon: Home },
+      { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
+    ],
+  },
+  {
+    title: '소통',
+    items: [{ key: 'chat', label: '메시지', icon: MessageSquare }],
+  },
 ];
 
 export default function Sidebar({
@@ -45,16 +79,22 @@ export default function Sidebar({
   isCeo = false,
   canSeePayroll = false,
 }: Props) {
-  // 상조회비 대장은 사무장과 관리자만 본다.
-  const officeOnly: ModuleKey[] = ['dealerFee'];
-  const navItems = NAV_ITEMS.filter(
-    item =>
-      (!officeOnly.includes(item.key) || canSeeLedger) &&
-      // 부동산은 대표만 — 메뉴에서부터 안 보인다
-      (item.key !== 'property' || isCeo) &&
-      // 인건비도 마찬가지다. 누가 얼마 받는지는 메뉴에 있는 것만으로도 말이 나온다
-      (item.key !== 'payroll' || canSeePayroll),
+  /*
+    볼 수 없는 메뉴는 아예 안 그린다. 거르고 나서 빈 갈래는 제목까지 지운다 —
+    아무것도 없는 제목만 남으면 뭔가 고장 난 것처럼 보인다.
+  */
+  const canSee = (key: ModuleKey) =>
+    // 상조회비 대장은 사무장과 관리자만 본다
+    (key !== 'dealerFee' || canSeeLedger) &&
+    // 부동산은 대표만 — 메뉴에서부터 안 보인다
+    (key !== 'property' || isCeo) &&
+    // 인건비도 마찬가지다. 누가 얼마 받는지는 메뉴에 있는 것만으로도 말이 나온다
+    (key !== 'payroll' || canSeePayroll);
+
+  const groups = NAV_GROUPS.map(g => ({ ...g, items: g.items.filter(i => canSee(i.key)) })).filter(
+    g => g.items.length > 0,
   );
+
   const content = (
     <>
       <div className="flex items-center justify-between px-4 py-4">
@@ -68,28 +108,39 @@ export default function Sidebar({
         </button>
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-3">
-        {navItems.map(item => {
-          const Icon = item.icon;
-          const isActive = active === item.key;
-          return (
-            <button
-              key={item.key}
-              onClick={() => { onChange(item.key); onMobileClose(); }}
-              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Icon size={16} />
-              {item.label}
-              {item.key === 'chat' && chatUnread > 0 && (
-                <span className="ml-auto inline-flex min-w-4 justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
-                  {chatUnread > 99 ? '99+' : chatUnread}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* 메뉴가 길어 화면을 넘길 수 있다 — 넘치면 이 안에서만 구른다 */}
+      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+        {groups.map(group => (
+          <div key={group.title} className="mb-3 last:mb-0">
+            <p className="px-3 pb-1 text-[11px] font-bold tracking-wide text-slate-400">{group.title}</p>
+            <div className="space-y-0.5">
+              {group.items.map(item => {
+                const Icon = item.icon;
+                const isActive = active === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => {
+                      onChange(item.key);
+                      onMobileClose();
+                    }}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Icon size={16} />
+                    {item.label}
+                    {item.key === 'chat' && chatUnread > 0 && (
+                      <span className="ml-auto inline-flex min-w-4 justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                        {chatUnread > 99 ? '99+' : chatUnread}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* 계정 정보/로그아웃은 상단 네비게이션 바(UserMenu)로 옮김 */}
