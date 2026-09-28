@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Car, ChevronDown, ChevronRight, PhoneIncoming, PhoneOutgoing, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Car, ChevronDown, ChevronRight, PhoneCall, PhoneIncoming, PhoneOutgoing, RefreshCw } from 'lucide-react';
 import { api } from '../../lib/api';
 import { matchVehicles, type CallMatch } from '../../lib/callMatch';
 import type { ManagedVehicle } from '../../types';
@@ -30,6 +30,7 @@ export interface CallRecord {
   summary: string;
   lines: { who: string; text: string; at: string }[];
   text: string;
+  live: boolean;
 }
 
 interface Props {
@@ -39,6 +40,18 @@ interface Props {
 
 const LS_OPEN = 'callInboxOpen';
 
+/*
+  통화 중일 때 얼마 만에 다시 묻는지.
+
+  녹취는 말하고 0.2초면 읽힌다. 그래도 그만큼 자주 물으면 저쪽 한도를 깎아 먹기만 한다 —
+  사람이 읽고 목록에서 차를 찾는 데 몇 초는 걸린다. 서버가 받아 둔 걸 잠깐 돌려쓰니
+  화면이 몇이든 저쪽에 가는 건 그대로다.
+
+  통화가 없을 때는 드물게 묻는다. 하루 종일 조용한 시간이 훨씬 길다.
+*/
+const LIVE_MS = 3000;
+const IDLE_MS = 15000;
+
 export default function CallInbox({ onStart }: Props) {
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [vehicles, setVehicles] = useState<ManagedVehicle[]>([]);
@@ -46,6 +59,8 @@ export default function CallInbox({ onStart }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  /* 지금 붙어 있는 통화 — 접어 놨어도 이것만은 늘 본다 */
+  const [live, setLive] = useState<CallRecord[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,10 +80,54 @@ export default function CallInbox({ onStart }: Props) {
     }
   }, []);
 
-  // 펼칠 때 받아온다 — 접어 둔 채로 저쪽 API를 계속 두드릴 이유가 없다
+  // 펼칠 때 받아온다 — 접어 둔 채로 지난 통화까지 계속 받아올 이유는 없다
   useEffect(() => {
     if (open && calls.length === 0 && !error) void load();
   }, [open, calls.length, error, load]);
+
+  /*
+    통화 중인 건은 접어 놨어도 계속 본다.
+
+    전화를 받는 그 순간이 이 화면이 쓸모 있는 유일한 순간이다. 접어 뒀다고 안 보면
+    상담원은 통화가 끝난 뒤에야 알게 되고, 그때는 이미 늦다.
+
+    통화가 붙어 있는 동안만 자주 묻고, 없으면 뜸하게 묻는다.
+  */
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = async () => {
+      try {
+        const rows = await api<CallRecord[]>('/channeltalk/live');
+        if (!alive) return;
+        setLive(rows);
+        timer = setTimeout(() => void tick(), rows.length > 0 ? LIVE_MS : IDLE_MS);
+      } catch {
+        // 못 받아도 조용히 넘어간다 — 지난 통화 목록은 그대로 쓸 수 있다
+        if (alive) timer = setTimeout(() => void tick(), IDLE_MS);
+      }
+    };
+    void tick();
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, []);
+
+  /*
+    통화가 끝나면 지난 목록을 다시 받는다.
+
+    방금 끊은 전화가 목록에 없으면 사람은 새로고침을 찾는다. 통화 중이던 게 사라진
+    그때가 다시 받을 때다.
+  */
+  const liveCount = live.length;
+  const prevLive = useRef(0);
+  useEffect(() => {
+    if (prevLive.current > 0 && liveCount === 0 && open) void load();
+    prevLive.current = liveCount;
+  }, [liveCount, open, load]);
 
   const toggle = () => {
     setOpen(prev => {
@@ -87,6 +146,13 @@ export default function CallInbox({ onStart }: Props) {
         )}
         <PhoneIncoming size={15} className="text-emerald-500" />
         <span className="text-sm font-bold text-slate-700">채널톡 전화 상담</span>
+        {/* 통화 중이면 접어 놨어도 눈에 띄어야 한다 */}
+        {live.length > 0 && (
+          <span className="flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
+            <span className="size-1.5 animate-pulse rounded-full bg-white" />
+            통화 중 {live.length > 1 ? `${live.length}건` : ''}
+          </span>
+        )}
         {calls.length > 0 && (
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
             최근 {calls.length}건
@@ -94,6 +160,16 @@ export default function CallInbox({ onStart }: Props) {
         )}
         <span className="ml-auto text-[11px] text-slate-400">통화 내용을 상담으로 옮겨 적습니다</span>
       </button>
+
+      {/*
+        지금 붙어 있는 통화.
+
+        접어 뒀는지와 상관없이 보여준다 — 전화를 받는 그 순간이 이 화면이 쓸모 있는
+        유일한 순간이고, 접혀 있어서 못 봤다면 만든 보람이 없다.
+      */}
+      {live.map(call => (
+        <LiveCall key={call.userChatId} call={call} vehicles={vehicles} onStart={onStart} />
+      ))}
 
       {open && (
         <div className="border-t border-slate-100 px-4 py-3">
@@ -229,5 +305,79 @@ function CallRow({
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * 지금 붙어 있는 통화.
+ *
+ * 말이 들어오는 대로 줄이 쌓이고, 차 이름이 나오면 그 아래에 그 차가 뜬다. 상담원이
+ * 목록을 눈으로 뒤지는 동안 손님은 기다린다 — 그 시간을 없애는 게 이 칸의 전부다.
+ *
+ * 통화 중에도 '상담으로 옮기기'를 둔다. 끊고 나서 옮기려면 그새 다음 전화가 온다.
+ * 지금까지 오간 말이 그대로 들어가고, 모자란 건 끊고 나서 한 번 더 누르면 된다.
+ */
+function LiveCall({
+  call,
+  vehicles,
+  onStart,
+}: {
+  call: CallRecord;
+  vehicles: ManagedVehicle[];
+  onStart: Props['onStart'];
+}) {
+  const matches = matchVehicles(call.text, vehicles).slice(0, 4);
+
+  return (
+    <div className="border-t border-red-100 bg-red-50/40 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <PhoneCall size={14} className="animate-pulse text-red-500" />
+        <span className="text-xs font-bold text-red-600">통화 중</span>
+        <span className="font-mono text-sm font-semibold text-slate-800">{call.customerPhone}</span>
+        {call.managerName && <span className="text-xs text-slate-500">담당 {call.managerName}</span>}
+        <button
+          onClick={() => onStart({ content: call.text, customerPhone: call.customerPhone })}
+          className="ml-auto rounded-md bg-indigo-600 px-2 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
+        >
+          상담으로 옮기기
+        </button>
+      </div>
+
+      {/* 말에서 짚인 차 — 통화 중에 바로 눌러 연다 */}
+      {matches.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <Car size={13} className="text-red-400" />
+          <span className="text-[11px] font-bold text-red-600">이 차 같습니다</span>
+          {matches.map(m => (
+            <button
+              key={m.vehicle.id}
+              onClick={() => onStart({ content: call.text, customerPhone: call.customerPhone, vehicle: m.vehicle })}
+              title={`${m.reason} 로 찾았습니다`}
+              className="flex items-center gap-1 rounded-md border border-red-300 bg-white px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+            >
+              <span className="font-mono">{m.vehicle.vehicleNumber}</span>
+              <span className="font-medium text-slate-600">{m.vehicle.vehicleModel}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-2 max-h-40 overflow-y-auto rounded-lg bg-white/70 px-3 py-2">
+        {call.lines.length === 0 ? (
+          <p className="text-xs text-slate-400">막 연결됐습니다. 말이 들어오면 여기에 뜹니다.</p>
+        ) : (
+          <ul className="space-y-0.5">
+            {call.lines.map((l, i) => (
+              <li key={i} className="text-xs leading-relaxed">
+                <span className={l.who === '상담원' ? 'font-semibold text-indigo-600' : 'font-semibold text-slate-500'}>
+                  {l.who}
+                </span>
+                <span className="ml-1.5 text-slate-700">{l.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }

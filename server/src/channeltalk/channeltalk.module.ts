@@ -19,6 +19,9 @@ const BASE = 'https://api.channel.io/open/v5';
 /** 한 번에 훑을 통화 수 — 저쪽은 채널당 초당 열 번쯤까지 받아준다 */
 const MAX_CALLS = 30;
 
+/** 통화 중인 건을 받아 두고 돌려쓰는 시간 — 말이 끊기지 않게 짧게 둔다 */
+const LIVE_CACHE_MS = 2500;
+
 interface CallLog {
   from: string;
   to: string;
@@ -40,6 +43,8 @@ interface ChannelMessage {
   meet?: {
     state?: string;
     summaries?: { text?: string }[] | null;
+    managerIds?: string[];
+    call?: { from?: string; to?: string; direction?: string; engagedAt?: number };
   };
 }
 
@@ -64,6 +69,8 @@ export interface CallRecord {
   lines: { who: '손님' | '상담원'; text: string; at: string }[];
   /** 상담내용 칸에 그대로 붙일 수 있게 엮어 둔 글 */
   text: string;
+  /** 지금 통화가 붙어 있는 중인지 — 화면이 이 줄만 계속 다시 받는다 */
+  live: boolean;
 }
 
 /**
@@ -191,6 +198,103 @@ export class ChannelTalkService {
     return out;
   }
 
+  /**
+   * 지금 붙어 있는 통화.
+   *
+   * 녹취는 통화가 끝나고 만들어지는 게 아니라 말하는 대로 쌓인다 — 말하고 0.2초 뒤면
+   * 읽힌다. 통화가 끝난 뒤에 차를 짚어 줘야 소용이 없다. 손님이 "카니발이요" 하는 그
+   * 순간에 목록이 떠 있어야 상담원이 보고 답한다.
+   *
+   * 통화 중인지는 대화에 liveMeetId 가 박혀 있는지로 안다. 통화 로그(/meet/call/log)는
+   * 끝난 것만 나오는 걸로 보인다 — 거기에 기대면 통화 중에는 아무것도 못 본다.
+   */
+  async liveCalls(): Promise<CallRecord[]> {
+    /*
+      받아 둔 걸 잠깐 돌려쓴다.
+
+      화면이 몇 초마다 묻는데, 사무실에서 다섯 명이 화면을 열어 두면 저쪽을 다섯 배로
+      두드린다. 한도는 채널당으로 걸려 있어서 사람이 늘수록 다 같이 막힌다.
+      한 번 받아 온 걸 잠깐 쥐고 있으면 사람이 몇이든 저쪽에 가는 건 그대로다.
+    */
+    const now = Date.now();
+    if (this.liveCache && now - this.liveCache.at < LIVE_CACHE_MS) return this.liveCache.rows;
+    // 이미 받는 중이면 그 결과를 같이 기다린다 — 동시에 들어와도 한 번만 나간다
+    if (this.liveInFlight) return this.liveInFlight;
+
+    this.liveInFlight = this.fetchLive()
+      .then((rows) => {
+        this.liveCache = { at: Date.now(), rows };
+        return rows;
+      })
+      .finally(() => {
+        this.liveInFlight = null;
+      });
+    return this.liveInFlight;
+  }
+
+  private liveCache: { at: number; rows: CallRecord[] } | null = null;
+  private liveInFlight: Promise<CallRecord[]> | null = null;
+
+  private async fetchLive(): Promise<CallRecord[]> {
+    const res = await this.get<{ userChats?: { id: string; liveMeetId?: string | null }[] }>(
+      '/user-chats?limit=30&sortOrder=desc',
+    );
+    const live = (res.userChats ?? []).filter((c) => c.liveMeetId);
+    if (live.length === 0) return [];
+
+    const names = await this.managerNames();
+    const out: CallRecord[] = [];
+    for (const chat of live) {
+      try {
+        out.push(await this.oneLive(chat.id, chat.liveMeetId!, names));
+      } catch (e) {
+        this.logger.warn(`통화 중인 건을 못 읽었습니다(${chat.id}): ${(e as Error).message}`);
+      }
+    }
+    return out;
+  }
+
+  private async oneLive(chatId: string, meetId: string, names: Map<string, string>): Promise<CallRecord> {
+    const chat = await this.get<{ messages?: ChannelMessage[] }>(`/user-chats/${chatId}/messages?limit=50`);
+    const root = (chat.messages ?? []).find((m) => m.id === meetId && m.meet) ?? (chat.messages ?? []).find((m) => m.meet);
+    const call = root?.meet?.call;
+
+    const stt = await this.get<{ messages?: ChannelMessage[] }>(
+      `/user-chats/${chatId}/meets/${meetId}/messages?sortOrder=asc`,
+    );
+    const lines = (stt.messages ?? [])
+      .filter((m) => (m.plainText ?? '').trim())
+      .map((m) => ({
+        who: m.personType === 'manager' ? ('상담원' as const) : ('손님' as const),
+        text: (m.plainText ?? '').trim(),
+        at: hhmm(m.createdAt),
+      }));
+
+    const direction = (call?.direction === 'outbound' ? 'outbound' : 'inbound') as 'inbound' | 'outbound';
+    const customer = direction === 'outbound' ? call?.to : call?.from;
+    const at = call?.engagedAt ?? root?.createdAt ?? Date.now();
+    const managerName = (root?.meet?.managerIds ?? [])
+      .map((id) => names.get(id) ?? '')
+      .filter(Boolean)
+      .join(', ');
+
+    return {
+      userChatId: chatId,
+      messageId: meetId,
+      customerPhone: toLocalPhone(customer),
+      direction,
+      at: stamp(at),
+      // 통화 중이라 아직 안 끝났다 — 길이는 지금까지 흐른 시간이다
+      seconds: Math.max(0, Math.round((Date.now() - at) / 1000)),
+      managerName,
+      state: root?.meet?.state ?? 'live',
+      summary: '',
+      lines,
+      text: composeText({ at, seconds: 0, managerName, direction, summary: '', lines }),
+      live: true,
+    };
+  }
+
   private async oneCall(log: CallLog, names: Map<string, string>): Promise<CallRecord> {
     // 통화 로그에는 메시지 id가 없다 — 그 대화에서 통화를 가리키는 메시지를 찾아야 한다
     const chat = await this.get<{ messages?: ChannelMessage[] }>(`/user-chats/${log.userChatId}/messages?limit=50`);
@@ -240,6 +344,7 @@ export class ChannelTalkService {
       summary,
       lines,
       text: composeText({ at, seconds, managerName, direction: log.direction, summary, lines }),
+      live: false,
     };
   }
 }
@@ -257,6 +362,12 @@ export class ChannelTalkController {
   @Get('calls')
   calls(@Query('days') days?: string) {
     return this.service.recentCalls(Number(days) || 3);
+  }
+
+  /** 지금 붙어 있는 통화 — 화면이 몇 초마다 다시 묻는다 */
+  @Get('live')
+  live() {
+    return this.service.liveCalls();
   }
 }
 
