@@ -67,7 +67,21 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const [vendors, setVendors] = useState<Record<string, string[]>>({});
   /* 거래처 대장 — 늘 쓰는 업체를 눌러 넣고 번호를 바로 본다 */
   const [contacts, setContacts] = useState<Vendor[]>([]);
+  /*
+    정산금액은 총비용을 따라간다.
+
+    새로 만들 때는 비워 두면 총비용이 들어갔는데, 고칠 때는 저장된 숫자가 칸에 박혀 있었다.
+    매입팀이 올린 건을 계약팀이 열어 상품화 비용을 적으면 총비용만 오르고 정산금액은 옛날
+    숫자 그대로 남는다 — 적었는데 반영이 안 된다는 말이 여기서 나왔다.
+
+    그래서 '따라가는 중'을 기본으로 둔다. 칸에 직접 숫자를 넣으면 그때부터 손으로 잡은
+    값으로 보고 건드리지 않는다(청구서가 다르게 온 건은 그게 맞다). 예전에 손으로 잡아 둔
+    건은 열었을 때도 손으로 잡은 값으로 본다 — 저장된 값이 그때의 총비용과 다르면 그렇다.
+  */
   const [settlementAmount, setSettlementAmount] = useState(editing ? String(editing.settlementAmount) : '');
+  const [amountManual, setAmountManual] = useState(
+    !!editing && editing.settlementAmount !== (editing.grandTotal ?? editing.settlementAmount),
+  );
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
   /** 계약서 사진 — 줄바꿈으로 이어 담은 경로 */
@@ -174,27 +188,38 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   // 폼에서는 차량비용(주유·배터리)을 모른다 — 표에서는 그것까지 더한 총합계로 낸다.
   const profit = saleProfit(nums.salePrice, grandTotal);
 
-  const handleSubmit = () => {
+  /* 보내고 나서 닫는다 — 안 기다리고 닫으면 실패해도 저장된 것처럼 보인다 */
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
     if (!vehicleName.trim() || !vehicleNumber.trim() || !purchasePrice) {
       setError('차량명, 차량번호, 매입가는 필수 입력입니다.');
       return;
     }
-    upsertPurchaseSettlement({
-      id: editing?.id,
-      date,
-      vehicleName: vehicleName.trim(),
-      vehicleNumber: vehicleNumber.trim(),
-      ...nums,
-      brokerFeePayout,
-      contractPhotos,
-      prepCosts,
-      // 비워두면 매입+상품화총비용을 그대로 정산금액으로 잡는다
-      settlementAmount: settlementAmount === '' ? grandTotal : moneyToNumber(settlementAmount),
-      employeeId,
-      status,
-      memo: memo.trim(),
-    });
-    onClose();
+    setSaving(true);
+    setError(null);
+    try {
+      await upsertPurchaseSettlement({
+        id: editing?.id,
+        date,
+        vehicleName: vehicleName.trim(),
+        vehicleNumber: vehicleNumber.trim(),
+        ...nums,
+        brokerFeePayout,
+        contractPhotos,
+        prepCosts,
+          // 손으로 잡지 않았으면 총비용이 그대로 정산금액이다
+        settlementAmount: amountManual && settlementAmount !== '' ? moneyToNumber(settlementAmount) : grandTotal,
+        employeeId,
+        status,
+        memo: memo.trim(),
+      });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '매입 정산을 저장하지 못했습니다.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -284,17 +309,45 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MoneyField label="정산금액" value={settlementAmount} onChange={setSettlementAmount} />
+          <MoneyField
+            label="정산금액"
+            value={amountManual ? settlementAmount : String(grandTotal)}
+            onChange={v => {
+              setAmountManual(true);
+              setSettlementAmount(v);
+            }}
+          />
           <StatusField value={status} onChange={v => setStatus(v as SettlementStatus)} />
           <TextField label="메모" value={memo} onChange={setMemo} />
         </div>
-        <p className="mt-1.5 text-[11px] text-slate-400">정산금액을 비워두면 위의 총비용({withCommas(grandTotal)}원)이 자동으로 들어갑니다.</p>
+        {amountManual ? (
+          <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-400">
+            정산금액을 직접 넣었습니다. 총비용은 {withCommas(grandTotal)}원입니다.
+            <button
+              onClick={() => setAmountManual(false)}
+              className="rounded border border-slate-200 px-1.5 py-0.5 font-medium text-indigo-600 hover:bg-indigo-50"
+            >
+              총비용으로 되돌리기
+            </button>
+          </p>
+        ) : (
+          <p className="mt-1.5 text-[11px] text-slate-400">
+            <span className="mr-1 rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700">자동</span>
+            위의 총비용을 그대로 따라갑니다 — 상품화 비용을 적으면 함께 올라갑니다. 칸에 숫자를 넣으면 그 값으로 고정됩니다.
+          </p>
+        )}
 
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">취소</button>
-          <button onClick={handleSubmit} className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700">저장</button>
+          <button
+            onClick={() => void handleSubmit()}
+            disabled={saving}
+            className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-slate-300"
+          >
+            {saving ? '저장 중…' : '저장'}
+          </button>
         </div>
       </div>
     </div>

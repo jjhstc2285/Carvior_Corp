@@ -32,21 +32,32 @@ export default function SettlementForm({ editing, defaultEmployeeId, onClose }: 
   };
   const profit = netProfit(nums);
 
-  const handleSubmit = () => {
+  /* 보내고 나서 닫는다 — 안 기다리고 닫으면 실패해도 저장된 것처럼 보인다 */
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
     if (!vehicleInfo.trim() || !purchaseCost || !saleAmount) {
       setError('차량정보, 매입가, 판매금액은 필수 입력입니다.');
       return;
     }
-    upsertSettlement({
-      id: editing?.id,
-      employeeId,
-      vehicleInfo: vehicleInfo.trim(),
-      ...nums,
-      status,
-      date,
-      memo,
-    });
-    onClose();
+    setSaving(true);
+    setError(null);
+    try {
+      await upsertSettlement({
+        id: editing?.id,
+        employeeId,
+        vehicleInfo: vehicleInfo.trim(),
+        ...nums,
+        status,
+        date,
+        memo,
+      });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '정산 내역을 저장하지 못했습니다.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -121,7 +132,13 @@ export default function SettlementForm({ editing, defaultEmployeeId, onClose }: 
 
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">취소</button>
-          <button onClick={handleSubmit} className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700">저장</button>
+          <button
+            onClick={() => void handleSubmit()}
+            disabled={saving}
+            className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-slate-300"
+          >
+            {saving ? '저장 중…' : '저장'}
+          </button>
         </div>
       </div>
     </div>

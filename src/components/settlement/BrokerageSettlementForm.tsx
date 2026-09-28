@@ -63,27 +63,38 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
   const suggested = brokerageSettlementAmount(profit);
   const rate = brokerageSettlementRate(profit);
 
-  const handleSubmit = () => {
+  /* 보내고 나서 닫는다 — 안 기다리고 닫으면 실패해도 저장된 것처럼 보인다 */
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
     if (!vehicleNumber.trim() || !vehicleName.trim() || !totalSaleAmount) {
       setError('차량번호, 차량명, 총 진행 판매금액은 필수 입력입니다.');
       return;
     }
-    upsertBrokerageSettlement({
-      id: editing?.id,
-      date,
-      vehicleNumber: vehicleNumber.trim(),
-      vehicleName: vehicleName.trim(),
-      ...nums,
-      // 비워두면 구간 비율로 낸 값이 들어간다
-      settlementAmount: settlementAmount === '' ? suggested : Number(settlementAmount) || 0,
-      employeeId,
-      status,
-      memo: memo.trim(),
-      contractPhotos,
-      // 고칠 때는 원래 종류를 그대로 둔다 — 표를 옮기는 건 다른 일이다
-      kind: editing?.kind ?? kind,
-    });
-    onClose();
+    setSaving(true);
+    setError(null);
+    try {
+      await upsertBrokerageSettlement({
+        id: editing?.id,
+        date,
+        vehicleNumber: vehicleNumber.trim(),
+        vehicleName: vehicleName.trim(),
+        ...nums,
+        // 비워두면 구간 비율로 낸 값이 들어간다
+        settlementAmount: settlementAmount === '' ? suggested : Number(settlementAmount) || 0,
+        employeeId,
+        status,
+        memo: memo.trim(),
+        contractPhotos,
+        // 고칠 때는 원래 종류를 그대로 둔다 — 표를 옮기는 건 다른 일이다
+        kind: editing?.kind ?? kind,
+      });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '정산 내역을 저장하지 못했습니다.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -151,7 +162,13 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
 
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">취소</button>
-          <button onClick={handleSubmit} className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700">저장</button>
+          <button
+            onClick={() => void handleSubmit()}
+            disabled={saving}
+            className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-slate-300"
+          >
+            {saving ? '저장 중…' : '저장'}
+          </button>
         </div>
       </div>
     </div>
