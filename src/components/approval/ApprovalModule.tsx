@@ -186,8 +186,8 @@ export default function ApprovalModule({ role }: { role: Role }) {
 
       {/* 문서 보기 — 인쇄하면 이 종이만 나온다 */}
       {opened && (
-        <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-6 sm:p-10 print:static print:bg-white print:p-0" onClick={() => setOpened(null)}>
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-8 shadow-xl print:max-w-none print:shadow-none" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-6 sm:p-10 print:static print:bg-white print:p-0">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-8 shadow-xl print:max-w-none print:shadow-none">
             <h2 className="text-center text-2xl font-bold tracking-[0.3em] text-slate-900">
               {APPROVAL_KIND_LABEL[opened.kind]}
             </h2>
@@ -275,6 +275,16 @@ export default function ApprovalModule({ role }: { role: Role }) {
 
             {/* 인쇄물에는 버튼이 안 나온다 */}
             <div className="mt-6 flex flex-wrap items-center justify-end gap-2 print:hidden">
+              {/*
+                닫는 단추. 예전에는 뒷 화면을 눌러 닫았는데, 적다 말고 잘못 눌러 닫히는 일이
+                잦아 그 길을 막았다 — 그러고 나니 여기가 유일한 출구다.
+              */}
+              <button
+                onClick={() => setOpened(null)}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100"
+              >
+                닫기
+              </button>
               <button
                 onClick={() => window.print()}
                 className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"

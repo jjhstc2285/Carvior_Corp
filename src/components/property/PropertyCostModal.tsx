@@ -119,7 +119,7 @@ export default function PropertyCostModal({
   const auto = live.filter(r => r.method === '자동이체').reduce((sum, r) => sum + r.amount, 0);
 
   return (
-    <Shell inline={inline} onClose={onClose}>
+    <Shell inline={inline}>
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="flex items-center gap-1.5 text-base font-bold text-slate-800">
@@ -373,15 +373,16 @@ export default function PropertyCostModal({
 /**
  * 껍데기 — 창으로 띄울지, 화면에 그대로 펼지.
  *
- * 안쪽 내용은 같다. 창일 때만 바깥을 어둡게 하고 바깥을 눌러 닫게 한다.
+ * 안쪽 내용은 같다. 창일 때만 바깥을 어둡게 한다. 바깥을 눌러 닫지는 않는다 —
+ * 적다 말고 잘못 눌러 닫히는 일이 잦았다. 닫는 건 안쪽 단추로 한다.
  */
-function Shell({ inline, onClose, children }: { inline: boolean; onClose: () => void; children: React.ReactNode }) {
+function Shell({ inline, children }: { inline: boolean; children: React.ReactNode }) {
   if (inline) {
     return <section className="mb-3 rounded-2xl border border-slate-200 bg-white p-3.5">{children}</section>;
   }
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-3 py-4" onClick={onClose}>
-      <div className="w-full max-w-[1700px] rounded-2xl bg-white p-4 shadow-xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-3 py-4">
+      <div className="w-full max-w-[1700px] rounded-2xl bg-white p-4 shadow-xl">
         {children}
       </div>
     </div>

@@ -24,8 +24,8 @@ export default function CustomerHistoryModal({ customerName, onClose }: Props) {
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
 
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4" onClick={onClose}>
-      <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">{customerName} 상담 이력</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">

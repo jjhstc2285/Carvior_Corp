@@ -417,8 +417,8 @@ export default function AdModule({ role }: { role: Role }) {
       {formOpen && <AdContractForm onSaved={() => void load()} onClose={() => setFormOpen(false)} />}
 
       {addingTo && (
-        <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-6 sm:p-10" onClick={() => setAddingTo(null)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-6 sm:p-10">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
             <h3 className="text-base font-bold text-slate-800">
               {addingTo.platform} {addingTo.productName} — 차량 넣기
             </h3>
@@ -526,8 +526,8 @@ function AdContractForm({ onSaved, onClose }: { onSaved: () => void; onClose: ()
   );
 
   return (
-    <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-6 sm:p-10" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-6 sm:p-10">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
         <h3 className="text-base font-bold text-slate-800">광고 계약 등록</h3>
         <p className="mt-1 text-xs text-slate-500">
           상품은 대당 금액으로 적습니다. 22만원 상품이면 <b>220,000</b>원, 약정은 <b>분기 90대</b>입니다.

@@ -65,8 +65,8 @@ export default function DealerRankingModal({ onClose }: { onClose: () => void })
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-6" onClick={onClose}>
-      <div className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-6">
+      <div className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="flex items-center gap-1.5 text-base font-bold text-slate-800">

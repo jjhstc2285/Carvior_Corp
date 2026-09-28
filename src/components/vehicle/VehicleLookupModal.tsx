@@ -92,8 +92,8 @@ export default function VehicleLookupModal({ onClose }: { onClose: () => void })
    * 화면이 아니라 그 요소를 기준으로 잡힌다. 그래서 헤더 안에 갇혀 찌그러졌다.
    */
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-10" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-10">
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">차량 조회</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
