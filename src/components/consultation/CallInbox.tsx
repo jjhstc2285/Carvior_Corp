@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import dayjs from 'dayjs';
 import {
+  CalendarCheck,
   Car,
   ChevronDown,
   ChevronRight,
@@ -12,6 +14,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { matchVehicles, type CallMatch } from '../../lib/callMatch';
+import { parseVisit } from '../../lib/visitParse';
 import type { ManagedVehicle } from '../../types';
 
 /**
@@ -53,7 +56,14 @@ interface Dismissed {
 
 interface Props {
   /** 상담 등록 창을 연다 — 통화 내용과 손님번호, 고른 차를 실어 보낸다 */
-  onStart: (seed: { content: string; customerPhone: string; vehicle?: ManagedVehicle }) => void;
+  onStart: (seed: {
+    content: string;
+    customerPhone: string;
+    vehicle?: ManagedVehicle;
+    /** 통화에서 집어낸 방문 약속 — 사람이 다시 옮겨 적지 않게 */
+    visitDate?: string;
+    visitTime?: string;
+  }) => void;
 }
 
 const LS_OPEN = 'callInboxOpen';
@@ -337,6 +347,8 @@ function CallRow({
 }) {
   /* 통화에 나온 차 — 요약과 전문을 합쳐서 찾는다 */
   const matches: CallMatch[] = matchVehicles(call.text, vehicles).slice(0, 4);
+  /* "내일 3시쯤 방문할게요" — 통화한 날을 기준으로 센다 */
+  const visit = parseVisit(call.text, call.at);
   const outbound = call.direction === 'outbound';
   // 전사가 아직 도는 중이면 내용이 비어 있다. 조금 뒤에 다시 부르면 채워진다
   const pending = call.lines.length === 0 && call.state !== 'transcribed';
@@ -366,7 +378,14 @@ function CallRow({
           {expanded ? '접기' : '통화 내용'}
         </button>
         <button
-          onClick={() => onStart({ content: call.text, customerPhone: call.customerPhone })}
+          onClick={() =>
+            onStart({
+              content: call.text,
+              customerPhone: call.customerPhone,
+              visitDate: visit?.date,
+              visitTime: visit?.time,
+            })
+          }
           className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
         >
           상담으로 옮기기
@@ -388,7 +407,15 @@ function CallRow({
           {matches.map(m => (
             <button
               key={m.vehicle.id}
-              onClick={() => onStart({ content: call.text, customerPhone: call.customerPhone, vehicle: m.vehicle })}
+              onClick={() =>
+                onStart({
+                  content: call.text,
+                  customerPhone: call.customerPhone,
+                  vehicle: m.vehicle,
+                  visitDate: visit?.date,
+                  visitTime: visit?.time,
+                })
+              }
               title={`${m.reason} 로 찾았습니다 — 눌러서 이 차로 상담을 엽니다`}
               className="flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100"
             >
@@ -397,6 +424,17 @@ function CallRow({
             </button>
           ))}
         </div>
+      )}
+
+      {/* 방문 약속 — 옮기면 이대로 방문 예정일·시각 칸에 들어간다 */}
+      {visit && (visit.date || visit.time) && (
+        <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <CalendarCheck size={12} className="text-emerald-500" />
+          <span className="font-bold text-emerald-700">
+            방문 {visit.date && dayjs(visit.date).format('M/D(ddd)')} {visit.time}
+          </span>
+          <span className="text-slate-400">&ldquo;{visit.quote}&rdquo;</span>
+        </p>
       )}
 
       {expanded && (
@@ -449,6 +487,7 @@ function LiveCall({
   onStart: Props['onStart'];
 }) {
   const matches = matchVehicles(call.text, vehicles).slice(0, 4);
+  const visit = parseVisit(call.text, call.at);
 
   return (
     <div className="border-t border-red-100 bg-red-50/40 px-4 py-3">
@@ -458,12 +497,30 @@ function LiveCall({
         <span className="font-mono text-sm font-semibold text-slate-800">{call.customerPhone}</span>
         {call.managerName && <span className="text-xs text-slate-500">담당 {call.managerName}</span>}
         <button
-          onClick={() => onStart({ content: call.text, customerPhone: call.customerPhone })}
+          onClick={() =>
+            onStart({
+              content: call.text,
+              customerPhone: call.customerPhone,
+              visitDate: visit?.date,
+              visitTime: visit?.time,
+            })
+          }
           className="ml-auto rounded-md bg-indigo-600 px-2 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
         >
           상담으로 옮기기
         </button>
       </div>
+
+      {/* 통화 중에 약속이 잡히면 바로 뜬다 — 끊고 나서 다시 들을 일이 없다 */}
+      {visit && (visit.date || visit.time) && (
+        <p className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-1 text-[11px]">
+          <CalendarCheck size={12} className="text-emerald-600" />
+          <span className="font-bold text-emerald-800">
+            방문 약속 {visit.date && dayjs(visit.date).format('M/D(ddd)')} {visit.time}
+          </span>
+          <span className="text-emerald-600/70">&ldquo;{visit.quote}&rdquo;</span>
+        </p>
+      )}
 
       {/* 말에서 짚인 차 — 통화 중에 바로 눌러 연다 */}
       {matches.length > 0 && (
@@ -473,7 +530,15 @@ function LiveCall({
           {matches.map(m => (
             <button
               key={m.vehicle.id}
-              onClick={() => onStart({ content: call.text, customerPhone: call.customerPhone, vehicle: m.vehicle })}
+              onClick={() =>
+                onStart({
+                  content: call.text,
+                  customerPhone: call.customerPhone,
+                  vehicle: m.vehicle,
+                  visitDate: visit?.date,
+                  visitTime: visit?.time,
+                })
+              }
               title={`${m.reason} 로 찾았습니다`}
               className="flex items-center gap-1 rounded-md border border-red-300 bg-white px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
             >

@@ -26,7 +26,15 @@ interface Props {
    *
    * 차를 눌러서 열면 차량번호·차명이, 채널톡 통화를 옮기면 통화 내용과 손님번호가 실려 온다.
    */
-  preset?: { vehicleNumber?: string; vehicleName?: string; content?: string; customerPhone?: string };
+  preset?: {
+    vehicleNumber?: string;
+    vehicleName?: string;
+    content?: string;
+    customerPhone?: string;
+    /** 통화에서 집어낸 방문 약속 — 사람이 다시 옮겨 적지 않게 */
+    visitDate?: string;
+    visitTime?: string;
+  };
   onClose: () => void;
 }
 
@@ -53,8 +61,8 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const [installmentAmount, setInstallmentAmount] = useState(
     editing?.installmentAmount ? String(editing.installmentAmount) : '',
   );
-  const [visitDate, setVisitDate] = useState(editing?.visitDate ?? '');
-  const [visitTime, setVisitTime] = useState(editing?.visitTime ?? '');
+  const [visitDate, setVisitDate] = useState(editing?.visitDate ?? preset?.visitDate ?? '');
+  const [visitTime, setVisitTime] = useState(editing?.visitTime ?? preset?.visitTime ?? '');
   const [nextContactDate, setNextContactDate] = useState(editing?.nextContactDate ?? '');
   const [error, setError] = useState<string | null>(null);
   const [priceOpen, setPriceOpen] = useState(false);

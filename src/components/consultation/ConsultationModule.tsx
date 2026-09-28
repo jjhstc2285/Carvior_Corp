@@ -117,7 +117,15 @@ export default function ConsultationModule({ role, kind }: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [priceOpen, setPriceOpen] = useState<string | null>(null);
   const [preset, setPreset] = useState<
-    { vehicleNumber?: string; vehicleName?: string; content?: string; customerPhone?: string } | undefined
+    | {
+        vehicleNumber?: string;
+        vehicleName?: string;
+        content?: string;
+        customerPhone?: string;
+        visitDate?: string;
+        visitTime?: string;
+      }
+    | undefined
   >();
   const [editing, setEditing] = useState<ConsultationRecord | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<string | null>(null);
@@ -263,6 +271,8 @@ export default function ConsultationModule({ role, kind }: Props) {
               customerPhone: seed.customerPhone,
               vehicleNumber: seed.vehicle?.vehicleNumber,
               vehicleName: seed.vehicle?.vehicleModel,
+              visitDate: seed.visitDate,
+              visitTime: seed.visitTime,
             });
             setFormOpen(true);
           }}
