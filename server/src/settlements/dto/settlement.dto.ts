@@ -142,6 +142,15 @@ export class UpdatePurchaseDto {
   @IsOptional() @Money() insuranceFee?: number;
   @IsOptional() @Money() dealerLoanFee?: number;
   @IsOptional() @Money() settlementAmount?: number;
+  /**
+   * 계약서 사진 경로 — 줄바꿈으로 이어 담는다.
+   *
+   * 이 줄이 빠져 있었다. 들어오는 값은 DTO에 적힌 칸만 받고 나머지는 400으로 되돌리는데,
+   * 화면은 고칠 때도 이 칸을 늘 같이 보낸다 — 그래서 매입 정산 수정이 통째로 거절당했다.
+   * 상품화 비용을 적어도 안 들어가던 게 이것 때문이다. 만드는 칸을 늘릴 때는 고치는 쪽도
+   * 같이 봐야 한다.
+   */
+  @IsOptional() @IsString() contractPhotos?: string;
   @IsOptional() @IsString() @MaxLength(60) newCarName?: string;
   @IsOptional() @IsString() employeeId?: string;
 
