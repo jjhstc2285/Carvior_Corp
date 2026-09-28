@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AttendanceRequestKind, NotificationType, RequestStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, formatDateOnlyOrNull, monthRange, nowTimeKst, todayKst, toDateOnly } from '../common/date.util';
 import type { AddIpDto, CreateAttendanceRequestDto, CreateCorrectionDto } from './dto/attendance.dto';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { PushService } from '../push/push.service';
+import { ipAllowed } from './ip-match';
 
 const KIND_LABEL: Record<AttendanceRequestKind, string> = {
   ANNUAL_LEAVE: '연차',
@@ -44,6 +45,8 @@ const PLACE_EXEMPT_POSITIONS = ['사무장'];
 
 @Injectable()
 export class AttendanceService {
+  private readonly logger = new Logger(AttendanceService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
@@ -155,8 +158,10 @@ export class AttendanceService {
    */
   private async assertClockInAllowed(clientIp: string, deviceToken?: string, fingerprint?: string): Promise<void> {
     const whitelist = await this.prisma.ipWhitelist.findMany({ select: { ip: true } });
-    if (whitelist.length > 0 && !whitelist.some((w) => w.ip === clientIp)) {
+    if (!ipAllowed(whitelist.map((w) => w.ip), clientIp)) {
       // code를 같이 내려준다 — 화면이 문구를 뒤져서 원인을 알아내지 않아도 되게.
+      // 공유기가 IP를 새로 받으면 여기서 막히므로, 관리자가 바로 열 수 있게 현재 IP를 같이 준다.
+      this.logger.warn(`화이트리스트에 없는 IP에서 출근 시도: ${clientIp}`);
       throw new ForbiddenException({
         code: 'IP_NOT_ALLOWED',
         message: `사무실 네트워크에서만 출근 등록이 가능합니다. (현재 IP: ${clientIp})`,
@@ -260,7 +265,7 @@ export class AttendanceService {
     if (!fingerprint) return { recovered: false as const };
 
     const whitelist = await this.prisma.ipWhitelist.findMany({ select: { ip: true } });
-    if (whitelist.length === 0 || !whitelist.some((w) => w.ip === clientIp)) {
+    if (whitelist.length === 0 || !ipAllowed(whitelist.map((w) => w.ip), clientIp)) {
       return { recovered: false as const };
     }
 

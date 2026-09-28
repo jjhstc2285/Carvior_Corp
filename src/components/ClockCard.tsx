@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
+import { ipAllowed } from '../lib/ipMatch';
 import { useStore } from '../store';
 import { useCurrentIp } from '../lib/useCurrentIp';
 import { ApiError } from '../lib/api';
@@ -71,12 +72,13 @@ export default function ClockCard() {
   const isAdmin = employee.role === 'ADMIN';
 
   const whitelistEnabled = state.ipWhitelist.length > 0 && !isAdmin;
-  const ipAllowed = !whitelistEnabled || (!!ip && state.ipWhitelist.includes(ip));
+  // 목록에는 대역(123.45.67.*)도 들어 있다 — 글자 그대로 맞춰 보면 안 된다
+  const ipOk = !whitelistEnabled || (!!ip && ipAllowed(state.ipWhitelist, ip));
 
   const clockedIn = !!record?.clockIn;
   const clockedOut = !!record?.clockOut;
 
-  const canClockIn = !clockedIn && (isAdmin || (!ipLoading && ipAllowed));
+  const canClockIn = !clockedIn && (isAdmin || (!ipLoading && ipOk));
   const canClockOut = clockedIn && !clockedOut;
 
   const nowMin = toMinutes(dayjs().format('HH:mm'));
@@ -111,7 +113,7 @@ export default function ClockCard() {
             <p>퇴근 : {record?.clockOut ?? '-'}</p>
           </div>
 
-          {whitelistEnabled && !ipAllowed && !ipLoading && (
+          {whitelistEnabled && !ipOk && !ipLoading && (
             <p className="mt-2 max-w-xs text-xs text-red-500">
               현재 IP({ip ?? '확인 불가'})는 출근 등록이 허용된 IP가 아닙니다. 관리자에게 문의해주세요.
             </p>

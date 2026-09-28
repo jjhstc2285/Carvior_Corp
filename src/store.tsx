@@ -125,6 +125,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
 
+    /*
+      한 곳이 막혀도 나머지는 보여준다.
+
+      예전에는 열한 개를 Promise.all 로 묶어서, 그중 하나(상담·정산 어느 하나)가 500 이면
+      화면 전체가 '데이터를 불러오지 못했습니다'로 비었다. 그러면 출근 단추까지 사라진다 —
+      상담 목록이 안 나오는 것과 출근을 못 찍는 것은 무게가 다르다.
+
+      못 받은 목록은 빈 채로 두고, 무엇이 막혔는지만 알린다.
+    */
+    const failed: string[] = [];
+    const get = async <T,>(label: string, run: () => Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await run();
+      } catch {
+        failed.push(label);
+        return fallback;
+      }
+    };
+
     try {
       // 화면 전체가 한 번에 뜨는 게 자연스러워서 병렬로 모두 받아온다.
       // 관리자 전용 목록(IP 화이트리스트)은 직원일 때 아예 요청하지 않는다(403 방지).
@@ -141,17 +160,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         parkingVehicles,
         ipWhitelist,
       ] = await Promise.all([
+        // 직원 명단과 오늘 기록은 없으면 아무것도 못 한다 — 이 둘만 막히면 오류로 본다
         api<Employee[]>('/employees'),
         api<AttendanceRecord[]>(`/attendance/records?month=${month}`),
-        api<CorrectionRequest[]>('/attendance/corrections'),
-        api<AttendanceRequest[]>('/attendance/requests'),
-        api<AppNotification[]>('/attendance/notifications'),
-        api<SettlementRecord[]>('/settlements/basic'),
-        api<BrokerageSettlement[]>('/settlements/brokerage'),
-        api<PurchaseSettlement[]>('/settlements/purchase'),
-        api<ConsultationRecord[]>('/consultations'),
-        api<ParkingVehicle[]>('/parking'),
-        isAdmin ? api<{ ip: string }[]>('/attendance/ip-whitelist') : Promise.resolve([]),
+        get('정정 요청', () => api<CorrectionRequest[]>('/attendance/corrections'), []),
+        get('근태 신청', () => api<AttendanceRequest[]>('/attendance/requests'), []),
+        get('알림', () => api<AppNotification[]>('/attendance/notifications'), []),
+        get('정산', () => api<SettlementRecord[]>('/settlements/basic'), []),
+        get('알선·수출 정산', () => api<BrokerageSettlement[]>('/settlements/brokerage'), []),
+        get('매입 정산', () => api<PurchaseSettlement[]>('/settlements/purchase'), []),
+        get('상담', () => api<ConsultationRecord[]>('/consultations'), []),
+        get('주차장', () => api<ParkingVehicle[]>('/parking'), []),
+        isAdmin ? get('IP 목록', () => api<{ ip: string }[]>('/attendance/ip-whitelist'), []) : Promise.resolve([]),
       ]);
 
       // 응답이 늦게 도착한 이전 요청이 최신 상태를 덮어쓰지 않게 한다.
@@ -171,6 +191,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ipWhitelist: ipWhitelist.map((w) => w.ip),
         currentEmployeeId: user.id,
       });
+
+      // 막힌 목록이 있으면 그것만 알린다 — 출퇴근은 그대로 찍을 수 있다
+      setError(failed.length > 0 ? `${failed.join(' · ')}을(를) 불러오지 못했습니다.` : null);
     } catch (e) {
       if (myReq !== reqId.current) return;
       setError(e instanceof ApiError ? e.message : '데이터를 불러오지 못했습니다.');
@@ -278,7 +301,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       addWhitelistIp: (ip) => run(() => api('/attendance/ip-whitelist', { method: 'POST', body: { ip } })),
       removeWhitelistIp: (ip) =>
-        run(() => api(`/attendance/ip-whitelist/${encodeURIComponent(ip)}`, { method: 'DELETE' })),
+        // 대역에 든 빗금이 주소 칸에서 막히므로 물음표 뒤로 보낸다
+        run(() => api(`/attendance/ip-whitelist?ip=${encodeURIComponent(ip)}`, { method: 'DELETE' })),
 
       upsertSettlement: ({ id, ...body }) =>
         run(() =>

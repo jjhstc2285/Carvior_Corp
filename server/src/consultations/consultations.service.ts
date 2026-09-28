@@ -144,14 +144,31 @@ export class ConsultationsService {
     };
   }
 
-  /** 상담에 뜬 차들의 제시일자 — 차량번호로 맞춰 붙인다 */
+  /**
+   * 상담에 뜬 차들의 제시일자 — 차량번호로 맞춰 붙인다.
+   *
+   * 상담이 천 건이 넘어서 번호를 한 번에 밀어 넣으면 질의가 지나치게 커진다. 오백 개씩
+   * 끊어 묻는다. 여기서 막히더라도 상담 목록은 나와야 한다 — 날짜 하나 못 붙였다고 화면
+   * 전체가 비면 그게 더 큰 일이다.
+   */
   private async offerDatesOf(plates: string[]): Promise<Map<string, string | null>> {
-    if (plates.length === 0) return new Map();
-    const rows = await this.prisma.managedVehicle.findMany({
-      where: { vehicleNumber: { in: [...new Set(plates)] } },
-      select: { vehicleNumber: true, offerDate: true },
-    });
-    return new Map(rows.map((r) => [normalizePlate(r.vehicleNumber), formatDateOnlyOrNull(r.offerDate)]));
+    const unique = [...new Set(plates.filter(Boolean))];
+    const out = new Map<string, string | null>();
+    if (unique.length === 0) return out;
+
+    try {
+      const CHUNK = 500;
+      for (let i = 0; i < unique.length; i += CHUNK) {
+        const rows = await this.prisma.managedVehicle.findMany({
+          where: { vehicleNumber: { in: unique.slice(i, i + CHUNK) } },
+          select: { vehicleNumber: true, offerDate: true },
+        });
+        for (const r of rows) out.set(normalizePlate(r.vehicleNumber), formatDateOnlyOrNull(r.offerDate));
+      }
+    } catch (e) {
+      this.logger.warn(`제시일자를 붙이지 못했습니다: ${(e as Error).message}`);
+    }
+    return out;
   }
 
   async findAll(params: { q?: string; status?: ConsultationStatus; employeeId?: string; kind?: ConsultationKind }) {

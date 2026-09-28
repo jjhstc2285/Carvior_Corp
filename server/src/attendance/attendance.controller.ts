@@ -155,6 +155,18 @@ export class AttendanceController {
     return this.attendance.addIp(dto);
   }
 
+  /*
+    대역(123.45.67.0/24)은 주소 칸에 넣으면 빗금이 걸린다 — 앞단 Apache가 %2F 를 막아서
+    404로 떨어진다. 지울 값은 물음표 뒤로 받는다.
+  */
+  @Roles(Role.ADMIN)
+  @Delete('ip-whitelist')
+  @HttpCode(204)
+  async removeIpByQuery(@Query('ip') ip: string) {
+    await this.attendance.removeIp(ip);
+  }
+
+  /** 예전 화면이 쓰던 길 — 한 개짜리 IP는 그대로 지워진다 */
   @Roles(Role.ADMIN)
   @Delete('ip-whitelist/:ip')
   @HttpCode(204)
