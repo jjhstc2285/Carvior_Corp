@@ -35,6 +35,8 @@ interface Row {
   panelCount: number;
   work: string;
   amount: number;
+  /** 손으로 고친 줄 — 메모에 남겨서 나중에 왜 다른지 알 수 있게 한다 */
+  edited?: boolean;
 }
 
 interface Result {
@@ -66,7 +68,18 @@ export default function PanelInvoiceModal({ onClose, onApplied }: { onClose: () 
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /*
+    청구서에 찍힌 총액.
+
+    줄마다 적힌 금액을 다 더해도 청구서 총액과 안 맞는 달이 있다 — 판을 몇 개로 셌는지가
+    현장과 판금집이 달라서다. 그걸 한 줄씩 따져 맞추는 건 사람이 할 일이 아니라서,
+    총액을 적어 두고 차액이 얼마인지 보이게만 한다. 어디에 얹을지는 보는 사람이 정한다.
+  */
+  const [invoiceTotal, setInvoiceTotal] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const patch = (index: number, next: Partial<Row>) =>
+    setRows(prev => prev.map((r, i) => (i === index ? { ...r, ...next, edited: true } : r)));
 
   const read = async (files: FileList | null) => {
     const file = files?.[0];
@@ -109,7 +122,23 @@ export default function PanelInvoiceModal({ onClose, onApplied }: { onClose: () 
     setBusy(true);
     setError(null);
     try {
-      setResult(await api<Result>('/settlements/purchase/panel-invoice', { method: 'POST', body: { vendor, rows } }));
+      /*
+        손으로 고친 줄은 그렇다고 남긴다.
+
+        총액을 맞추려고 금액을 조정한 건이 섞이는데, 표시가 없으면 나중에 청구서와
+        견줄 때 어디가 왜 다른지 아무도 모른다.
+      */
+      const body = {
+        vendor,
+        rows: rows.map(r => ({
+          vehicleNumber: r.vehicleNumber,
+          vehicleName: r.vehicleName,
+          panelCount: r.panelCount,
+          work: r.edited ? `${r.work} (금액 조정)` : r.work,
+          amount: r.amount,
+        })),
+      };
+      setResult(await api<Result>('/settlements/purchase/panel-invoice', { method: 'POST', body }));
       await onApplied();
     } catch (e) {
       setError(e instanceof Error ? e.message : '반영하지 못했습니다.');
@@ -119,6 +148,9 @@ export default function PanelInvoiceModal({ onClose, onApplied }: { onClose: () 
   };
 
   const sum = rows.reduce((s, r) => s + r.amount, 0);
+  const stated = Number(invoiceTotal.replace(/[^\d]/g, '')) || 0;
+  /** 청구서 총액과 줄 합계의 차이 — 양수면 줄에 덜 적힌 것이다 */
+  const gap = stated > 0 ? stated - sum : 0;
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-6">
@@ -163,10 +195,45 @@ export default function PanelInvoiceModal({ onClose, onApplied }: { onClose: () 
 
         {rows.length > 0 && !result && (
           <>
-            <p className="mt-3 text-xs text-slate-500">
-              <b className="text-slate-700">{rows.length}줄</b> · 합계{' '}
-              <b className="text-slate-700">{withCommas(String(sum))}</b>원
-            </p>
+            {/*
+              줄 합계와 청구서 총액을 나란히 둔다.
+
+              판을 몇 개로 셌는지가 현장과 판금집이 달라서 안 맞는 달이 있다. 어디가
+              틀렸는지 한 줄씩 따지는 건 사람이 할 일이 아니라, 차액만 보여주고 금액은
+              손으로 고치게 둔다.
+            */}
+            <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <span className="text-xs text-slate-500">
+                읽은 줄 <b className="text-sm text-slate-700">{rows.length}</b>
+              </span>
+              <span className="text-xs text-slate-500">
+                줄 합계 <b className="text-sm text-slate-800">{withCommas(String(sum))}</b>원
+              </span>
+              <label className="text-xs text-slate-500">
+                청구서 총액
+                <input
+                  value={withCommas(invoiceTotal)}
+                  onChange={e => setInvoiceTotal(e.target.value.replace(/[^\d]/g, ''))}
+                  inputMode="numeric"
+                  placeholder="10,945,000"
+                  className="mt-1 block w-32 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
+                />
+              </label>
+              {stated > 0 && (
+                <span
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${
+                    gap === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                  }`}
+                >
+                  {gap === 0 ? '✓ 딱 맞습니다' : `차액 ${gap > 0 ? '+' : ''}${withCommas(String(gap))}원`}
+                </span>
+              )}
+              {gap !== 0 && (
+                <span className="text-[11px] text-slate-400">
+                  금액 칸을 고치거나, 얹을 줄의 <b>[차액]</b> 을 누르세요
+                </span>
+              )}
+            </div>
             <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-slate-200">
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-slate-50 text-left text-slate-400">
@@ -176,17 +243,42 @@ export default function PanelInvoiceModal({ onClose, onApplied }: { onClose: () 
                     <th className="px-2.5 py-1.5 text-right font-medium">판수</th>
                     <th className="px-2.5 py-1.5 font-medium">작업내용</th>
                     <th className="px-2.5 py-1.5 text-right font-medium">금액</th>
+                    <th className="px-1 py-1.5" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {rows.map((r, i) => (
-                    <tr key={i}>
-                      <td className="whitespace-nowrap px-2.5 py-1 font-mono text-slate-700">{r.vehicleNumber}</td>
+                    <tr key={i} className={r.edited ? 'bg-amber-50/50' : ''}>
+                      {/* 번호가 틀리게 읽힌 줄도 여기서 고친다 — 못 붙은 채로 넘기면 그 차만 원가가 빈다 */}
+                      <td className="px-2.5 py-1">
+                        <input
+                          value={r.vehicleNumber}
+                          onChange={e => patch(i, { vehicleNumber: e.target.value })}
+                          className="w-24 rounded border border-transparent bg-transparent px-1 py-0.5 font-mono text-slate-700 hover:border-slate-200 focus:border-indigo-400 focus:bg-white focus:outline-none"
+                        />
+                      </td>
                       <td className="whitespace-nowrap px-2.5 py-1 text-slate-600">{r.vehicleName}</td>
                       <td className="px-2.5 py-1 text-right text-slate-500">{r.panelCount || '–'}</td>
                       <td className="px-2.5 py-1 text-slate-500">{r.work}</td>
-                      <td className="whitespace-nowrap px-2.5 py-1 text-right font-semibold text-slate-800">
-                        {withCommas(String(r.amount))}
+                      <td className="whitespace-nowrap px-2.5 py-1 text-right">
+                        <input
+                          value={withCommas(String(r.amount))}
+                          onChange={e => patch(i, { amount: Number(e.target.value.replace(/[^\d]/g, '')) || 0 })}
+                          inputMode="numeric"
+                          className="w-24 rounded border border-transparent bg-transparent px-1 py-0.5 text-right font-semibold text-slate-800 hover:border-slate-200 focus:border-indigo-400 focus:bg-white focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-1 py-1">
+                        {/* 차액을 이 줄에 몰아 얹는다 — 어디에 얹을지는 보는 사람이 안다 */}
+                        {gap !== 0 && (
+                          <button
+                            onClick={() => patch(i, { amount: Math.max(0, r.amount + gap) })}
+                            title={`차액 ${withCommas(String(gap))}원을 이 줄에 얹습니다`}
+                            className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 hover:bg-amber-100"
+                          >
+                            차액
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
