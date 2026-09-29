@@ -460,7 +460,7 @@ export class PurchaseIntakeService {
     await this.assertExists(id);
     const before = await this.prisma.purchaseIntake.findUnique({
       where: { id },
-      select: { checkedMileage: true, inspector: true },
+      select: { checkedMileage: true, inspector: true, checkedItems: true, panelCount: true, dentCount: true, wheelCount: true },
     });
     const vehicleNumber = dto.vehicleNumber !== undefined ? normalizePlate(dto.vehicleNumber) : undefined;
 
@@ -535,7 +535,46 @@ export class PurchaseIntakeService {
     if (dto.checkedMileage !== undefined && dto.checkedMileage !== before?.checkedMileage) {
       await this.alertMileageGap(row);
     }
+
+    this.announceInspected(before, row);
     return this.toView(row);
+  }
+
+  /**
+   * 실차 검차를 마쳤다고 알린다.
+   *
+   * 검차가 끝나야 판금집에 넘길 수 있고, 판금이 끝나야 상품화가 켜진다. 검차한 사람과
+   * 발주하는 사람이 달라서, 지금은 끝난 걸 알리려고 다시 전화를 한다.
+   *
+   * 처음 적을 때만 보낸다. 이 자리는 매입 내용을 고칠 때마다 도는데, 이미 검차한 건까지
+   * 다시 알리면 같은 말이 하루에도 몇 번씩 뜬다.
+   */
+  private announceInspected(
+    before: { checkedItems: string | null; panelCount: number; dentCount: number; wheelCount: number } | null,
+    row: { vehicleNumber: string; vehicleName: string; checkedItems: string | null; panelCount: number; dentCount: number; wheelCount: number },
+  ): void {
+    const filled = (v: { checkedItems: string | null; panelCount: number; dentCount: number; wheelCount: number } | null) =>
+      !!v && (!!(v.checkedItems ?? '').trim() || v.panelCount > 0 || v.dentCount > 0 || v.wheelCount > 0);
+    if (filled(before) || !filled(row)) return;
+
+    // 센 개수가 곧 판금집에 넘길 내용이다 — 숫자를 같이 적어야 보고 바로 움직인다
+    const counts = [
+      row.panelCount > 0 ? `판 ${row.panelCount}` : '',
+      row.dentCount > 0 ? `덴트 ${row.dentCount}` : '',
+      row.wheelCount > 0 ? `휠 ${row.wheelCount}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    this.telegram.notify(
+      [
+        '🔍 <b>실차 검차 완료</b>',
+        `<b>${row.vehicleNumber}</b> ${row.vehicleName}`,
+        counts || '이상 없음',
+        '',
+        '➡️ 다음: 판금집 발주 · 상품화',
+      ].join('\n'),
+    );
   }
 
   /**

@@ -9,6 +9,7 @@ import { parseConsultationSheet } from './sheet-import';
 import type { AuthUser } from '../auth/current-user.decorator';
 import { formatDateOnly, formatDateOnlyOrNull, toDateOnly, toDateOnlyOrNull } from '../common/date.util';
 import type { CreateConsultationDto, UpdateConsultationDto } from './dto/consultation.dto';
+import { TelegramService } from '../telegram/telegram.module';
 
 /**
  * 출고 준비를 해야 하는 팀.
@@ -51,7 +52,37 @@ export class ConsultationsService {
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
     private readonly push: PushService,
+    private readonly telegram: TelegramService,
   ) {}
+
+  /**
+   * 방문 약속이 잡혔다고 알린다.
+   *
+   * 손님이 온다는 건 차를 빼 두고 키를 챙겨 둬야 한다는 뜻이다. 약속은 상담 받는
+   * 사람이 잡는데 차를 빼는 건 현장이라, 지금은 잡아 놓고 따로 전화를 한다.
+   *
+   * 날이 새로 잡히거나 바뀔 때만 보낸다.
+   */
+  private announceVisit(
+    before: { visitDate: Date | null } | null,
+    row: { vehicleNumber: string; vehicleName: string; visitDate: Date | null; visitTime: string; customerPhone: string },
+  ): void {
+    if (!row.visitDate) return;
+    const same = before?.visitDate && before.visitDate.getTime() === row.visitDate.getTime();
+    if (same) return;
+
+    const day = formatDateOnly(row.visitDate);
+    const car = `${row.vehicleNumber}${row.vehicleName ? ` ${row.vehicleName}` : ''}`;
+    this.telegram.notify(
+      [
+        '🗓 <b>방문 예약</b>',
+        `<b>${car}</b>`,
+        `${day}${row.visitTime ? ` ${row.visitTime}` : ''}`,
+        '',
+        '➡️ 다음: 차 빼두기 · 키 준비',
+      ].join('\n'),
+    );
+  }
 
   /**
    * 판매완료를 알린다.
@@ -89,6 +120,17 @@ export class ConsultationsService {
         date: today,
       });
       void this.push.sendToEmployees(ids, { title: `출고 예정 — ${car}`, body: '광고를 내리고 출고 준비를 해주세요.' });
+
+      /*
+        공지방에도 띄운다.
+
+        앱 알림은 출고 챙기는 팀과 관리자에게만 간다. 그런데 계약이 됐다는 건 광고
+        내리는 사람도, 주차 옮기는 사람도, 키 내주는 사람도 알아야 한다 — 자리마다
+        해야 할 일이 생긴다.
+      */
+      this.telegram.notify(
+        ['🤝 <b>계약 체결</b>', `<b>${car}</b>`, '', '➡️ 다음: 광고 내리기 · 정산 · 매도 찍기 · 주차 비우기'].join('\n'),
+      );
     } catch (e) {
       this.logger.warn(`출고 예정 알림을 보내지 못했습니다(${row.vehicleNumber}): ${(e as Error).message}`);
     }
@@ -242,6 +284,7 @@ export class ConsultationsService {
       await this.clearParkingSpot(row.vehicleNumber);
       await this.notifyRelease(row);
     }
+    this.announceVisit(null, row);
     return this.toView(row);
   }
 
@@ -279,6 +322,7 @@ export class ConsultationsService {
       await this.clearParkingSpot(row.vehicleNumber);
       if (before.status !== ConsultationStatus.SOLD) await this.notifyRelease(row);
     }
+    this.announceVisit(before, row);
     return this.toView(row);
   }
 
@@ -458,7 +502,8 @@ export class ConsultationsService {
   private async assertExists(id: string) {
     const exists = await this.prisma.consultation.findUnique({
       where: { id },
-      select: { id: true, status: true },
+      // 방문일도 같이 본다 — 날이 새로 잡혔는지 가리려면 고치기 전 값을 알아야 한다
+      select: { id: true, status: true, visitDate: true },
     });
     if (!exists) throw new NotFoundException('상담 내역을 찾을 수 없습니다.');
     return exists;
