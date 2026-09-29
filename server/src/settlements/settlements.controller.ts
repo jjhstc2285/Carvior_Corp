@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Body,
   Controller,
   Delete,
@@ -41,6 +42,16 @@ if (!existsSync(CONTRACT_DIR)) mkdirSync(CONTRACT_DIR, { recursive: true });
 /** 계약팀은 남의 정산도 본다 — 빈칸을 채우는 게 그 팀 일이다. */
 const CONTRACT_TEAM = '계약팀';
 import { assertOfficeManager } from '../auth/office-manager';
+import { CHIEF_APPROVER } from './approvers';
+
+/** 청구서 한 줄 — 화면이 엑셀을 읽어 이 모양으로 보낸다 */
+interface PanelInvoiceRow {
+  vehicleNumber: string;
+  vehicleName?: string;
+  panelCount?: number;
+  work?: string;
+  amount: number;
+}
 
 @Controller('settlements')
 export class SettlementsController {
@@ -212,6 +223,27 @@ export class SettlementsController {
   syncFromBrokerage(@CurrentUser() user: AuthUser) {
     assertOfficeManager(user);
     return this.settlements.syncAllFromBrokerage();
+  }
+
+
+  /**
+   * 판금집 청구서 반영.
+   *
+   * 대산에서 달마다 보내는 엑셀을 화면에서 읽어 줄로 보내면, 차량번호로 맞춰 매입 정산의
+   * 판금·덴트 칸에 꽂는다. 서른 줄을 손으로 옮기면 몇 건은 빠지고, 빠진 건 원가가 낮게
+   * 잡힌 채로 결재까지 간다.
+   *
+   * 본부장과 관리자만 쓴다. 남의 정산 원가를 한 번에 고치는 일이다.
+   */
+  @Post('purchase/panel-invoice')
+  panelInvoice(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { vendor?: string; rows?: PanelInvoiceRow[] },
+  ) {
+    if (user.role !== Role.ADMIN && user.name !== CHIEF_APPROVER) {
+      throw new ForbiddenException('판금 청구서는 본부장만 넣을 수 있습니다.');
+    }
+    return this.settlements.applyPanelInvoice((dto.vendor ?? '대산').trim(), dto.rows ?? []);
   }
 
   /**

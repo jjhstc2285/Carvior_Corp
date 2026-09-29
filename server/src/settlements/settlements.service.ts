@@ -164,6 +164,108 @@ export class SettlementsService {
     return { ...row, date: formatDateOnly(row.date), netProfit: netProfit(row) };
   }
 
+
+  /**
+   * 판금집 청구서를 매입 정산에 꽂는다.
+   *
+   * 대산에서 달마다 엑셀로 청구서를 보낸다 — 날짜·차명·차량번호·판수·작업내용·금액이
+   * 한 줄씩 서른 줄쯤 온다. 지금은 그걸 보면서 정산을 한 건씩 열어 판금 금액을 옮겨
+   * 친다. 서른 번을 옮기면 몇 건은 빠지고, 빠진 건 원가가 낮게 잡힌 채로 결재까지 간다.
+   *
+   * 차량번호로 맞춰 붙인다. 못 찾은 줄은 붙이지 않고 그대로 돌려준다 — 비슷한 차에
+   * 억지로 붙이면 남의 차 원가에 남의 판금비가 얹힌다.
+   *
+   * 이미 결재가 올라간 건은 건드리지 않는다. 승인한 뒤에 금액이 바뀌면 무엇을 보고
+   * 찍었는지가 남지 않는다.
+   */
+  async applyPanelInvoice(
+    vendor: string,
+    rows: { vehicleNumber: string; vehicleName?: string; panelCount?: number; work?: string; amount: number }[],
+  ) {
+    const wanted = rows.filter((r) => r.amount > 0 && (r.vehicleNumber ?? '').trim());
+    if (wanted.length === 0) return { applied: [], skipped: [], locked: [] };
+
+    // 전체 번호로 먼저, 안 되면 뒤 네 자리로 — 뒤 네 자리가 둘 이상 걸리면 붙이지 않는다
+    const settlements = await this.prisma.purchaseSettlement.findMany({
+      // 잠김 여부는 저장된 값이 아니라 결재 시각으로 낸다 — 고치는 규칙을 한 곳에만 둔다
+      select: {
+        id: true,
+        vehicleNumber: true,
+        vehicleName: true,
+        submittedAt: true,
+        chiefApprovedAt: true,
+        ceoApprovedAt: true,
+        ...OWNER_NAME,
+      },
+    });
+    const byPlate = new Map(settlements.map((s) => [normalizePlate(s.vehicleNumber), s]));
+    const byTail = new Map<string, typeof settlements>();
+    for (const s of settlements) {
+      const tail = normalizePlate(s.vehicleNumber).slice(-4);
+      if (tail.length === 4) byTail.set(tail, [...(byTail.get(tail) ?? []), s]);
+    }
+
+    const applied: { vehicleNumber: string; vehicleName: string; amount: number }[] = [];
+    const skipped: { vehicleNumber: string; reason: string }[] = [];
+    const locked: { vehicleNumber: string }[] = [];
+
+    for (const row of wanted) {
+      const plate = normalizePlate(row.vehicleNumber);
+      const exact = byPlate.get(plate);
+      const tailHits = byTail.get(plate.slice(-4)) ?? [];
+      const found = exact ?? (tailHits.length === 1 ? tailHits[0] : null);
+
+      if (!found) {
+        skipped.push({
+          vehicleNumber: row.vehicleNumber,
+          reason: tailHits.length > 1 ? '뒤 4자리가 같은 차가 여럿입니다' : '매입 정산에 없는 차입니다',
+        });
+        continue;
+      }
+      if (isLocked(stageOf(found, needsChief(found.employee?.name)))) {
+        locked.push({ vehicleNumber: found.vehicleNumber });
+        continue;
+      }
+
+      /*
+        같은 업체의 판금 줄이 이미 있으면 갈아끼운다.
+
+        청구서를 다시 받아 두 번 넣는 일이 있다(수정 청구서가 온다). 더하면 두 배가
+        되고, 두 배가 된 건 결재까지 가서야 눈에 띈다.
+      */
+      const memo = [row.work, row.panelCount ? `판 ${row.panelCount}` : ''].filter(Boolean).join(' · ').slice(0, 191);
+      const mine = await this.prisma.purchasePrepCost.findFirst({
+        where: { settlementId: found.id, kind: 'DENT', vendor },
+      });
+
+      if (mine) {
+        await this.prisma.purchasePrepCost.update({
+          where: { id: mine.id },
+          data: { amount: row.amount, memo },
+        });
+      } else {
+        const last = await this.prisma.purchasePrepCost.findFirst({
+          where: { settlementId: found.id },
+          orderBy: { sortOrder: 'desc' },
+          select: { sortOrder: true },
+        });
+        await this.prisma.purchasePrepCost.create({
+          data: {
+            settlementId: found.id,
+            kind: 'DENT',
+            vendor,
+            amount: row.amount,
+            memo,
+            sortOrder: (last?.sortOrder ?? -1) + 1,
+          },
+        });
+      }
+      applied.push({ vehicleNumber: found.vehicleNumber, vehicleName: found.vehicleName, amount: row.amount });
+    }
+
+    return { applied, skipped, locked };
+  }
+
   async removeBasic(id: string) {
     await this.assert('settlement', id);
     await this.prisma.settlement.delete({ where: { id } });

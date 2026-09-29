@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
-import { Check, Download, Lock, Pencil, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
+import { Check, Download, FileSpreadsheet, Lock, Pencil, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
+import PanelInvoiceModal from './PanelInvoiceModal';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 import { percentLabel } from '../../lib/money';
 import { canSeeAllSettlements } from '../../lib/permissions';
@@ -112,6 +113,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
    */
   /** 한 달치를 지우는 건 무거운 일이라 사무장·대표만. 서버도 같은 기준으로 다시 본다. */
   const canClear = role === 'ADMIN' || ['대표', '사무장'].some(k => (me?.position ?? '').includes(k));
+  /* 판금집 청구서 넣는 창 */
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
   const approverRole: 'CHIEF' | 'CEO' | null =
     me?.name === '안원용' ? 'CHIEF' : me?.name === '유진욱' ? 'CEO' : null;
   const seesAll = canSeeAllSettlements({ role }, myDepartment);
@@ -426,6 +429,18 @@ export default function PurchaseSettlementTab({ role }: Props) {
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download size={14} /> 엑셀 다운로드
           </button>
+          {/*
+            판금 청구서를 그대로 넣는다. 남의 정산 원가를 한 번에 고치는 일이라
+            본부장과 관리자만 — 서버도 같은 기준으로 다시 본다.
+          */}
+          {(role === 'ADMIN' || approverRole === 'CHIEF') && (
+            <button
+              onClick={() => setInvoiceOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <FileSpreadsheet size={14} /> 판금 청구서
+            </button>
+          )}
           <button onClick={() => { setEditing(null); setFormOpen(true); }}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700">
             <Plus size={14} /> 매입 정산 추가
@@ -597,6 +612,15 @@ export default function PurchaseSettlementTab({ role }: Props) {
           </table>
         </div>
       </div>
+      )}
+
+      {invoiceOpen && (
+        <PanelInvoiceModal
+          onClose={() => setInvoiceOpen(false)}
+          onApplied={async () => {
+            await refresh();
+          }}
+        />
       )}
 
       {formOpen && (
