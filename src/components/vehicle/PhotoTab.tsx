@@ -51,7 +51,8 @@ export default function PhotoTab() {
 
   /* 새로 찍은 묶음을 만들 때 쓰는 값 */
   const [pickOpen, setPickOpen] = useState(false);
-  const [newPlate, setNewPlate] = useState('');
+  /* 고른 차 — 번호만 들고 있으면 차명·주차장을 다시 찾아야 한다 */
+  const [picked, setPicked] = useState<{ vehicleNumber: string; vehicleModel: string; lot: string } | null>(null);
   const [newDate, setNewDate] = useState(() => dayjs().format('YYYY-MM-DD'));
 
   const load = useCallback(async () => {
@@ -86,7 +87,6 @@ export default function PhotoTab() {
   }, [sets, query]);
 
   const createSet = async () => {
-    const picked = parked.find(v => v.vehicleNumber === newPlate);
     if (!picked) {
       void alertError('차를 골라 주세요', '주차장에 있는 차 중에서 고릅니다.');
       return;
@@ -97,7 +97,7 @@ export default function PhotoTab() {
         body: { vehicleNumber: picked.vehicleNumber, vehicleName: picked.vehicleModel, shotOn: newDate },
       });
       setPickOpen(false);
-      setNewPlate('');
+      setPicked(null);
       await load();
     } catch (e) {
       void alertError('묶음을 만들지 못했습니다', e instanceof Error ? e.message : '');
@@ -144,21 +144,7 @@ export default function PhotoTab() {
       {/* 차와 날을 먼저 정한다 — 사진은 그 아래에 붙는다 */}
       {pickOpen && (
         <div className="flex flex-wrap items-end gap-2 rounded-xl border border-indigo-200 bg-indigo-50/50 px-3 py-2.5">
-          <label className="text-xs text-slate-500">
-            차량 <span className="text-slate-400">(주차장에 있는 차)</span>
-            <select
-              value={newPlate}
-              onChange={e => setNewPlate(e.target.value)}
-              className="mt-1 block w-64 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-indigo-400"
-            >
-              <option value="">— 고르세요 —</option>
-              {parked.map(v => (
-                <option key={v.id} value={v.vehicleNumber}>
-                  {v.vehicleNumber} {v.vehicleModel} · {v.lot}
-                </option>
-              ))}
-            </select>
-          </label>
+          <VehiclePicker parked={parked} picked={picked} onPick={setPicked} />
           <label className="text-xs text-slate-500">
             찍은 날
             <input
@@ -346,6 +332,105 @@ function PhotoSlot({
         onChange={e => void upload(e.target.files)}
         className="hidden"
       />
+    </div>
+  );
+}
+
+/**
+ * 찍을 차 고르기 — 쳐서 찾는다.
+ *
+ * 처음에는 목록 상자였는데, 주차장에 선 차가 백 대가 넘으면 그 안에서 눈으로 찾는 게
+ * 번호를 옮겨 치는 것보다 오래 걸린다. 그렇다고 번호를 직접 치게 두면 한 글자 틀린
+ * 묶음이 생기고 그건 나중에 아무도 못 찾는다.
+ *
+ * 그래서 치되 고르게 한다. 번호 뒤 네 자리든 차명이든 쳐서 좁히고, 뜬 것 중에 누른다.
+ * 실제로 부르는 이름이 사람마다 달라서(번호로 부르는 사람, 차명으로 부르는 사람) 둘 다
+ * 받는다.
+ */
+function VehiclePicker({
+  parked,
+  picked,
+  onPick,
+}: {
+  parked: { id: string; vehicleNumber: string; vehicleModel: string; lot: string }[];
+  picked: { vehicleNumber: string; vehicleModel: string; lot: string } | null;
+  onPick: (v: { vehicleNumber: string; vehicleModel: string; lot: string } | null) => void;
+}) {
+  const [q, setQ] = useState('');
+
+  const hits = useMemo(() => {
+    const key = q.trim().toLowerCase();
+    if (!key) return [];
+    return parked
+      .filter(
+        v =>
+          v.vehicleNumber.toLowerCase().includes(key) ||
+          v.vehicleModel.toLowerCase().includes(key) ||
+          v.lot.toLowerCase().includes(key),
+      )
+      // 한 화면에 담기는 만큼만. 더 뜨면 더 치라는 뜻이다
+      .slice(0, 8);
+  }, [parked, q]);
+
+  /* 이미 골랐으면 고른 것만 보여준다 — 목록이 계속 떠 있으면 무엇을 골랐는지 흐려진다 */
+  if (picked) {
+    return (
+      <div className="text-xs text-slate-500">
+        차량
+        <div className="mt-1 flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-2.5 py-1.5">
+          <span className="font-mono text-sm font-bold text-slate-800">{picked.vehicleNumber}</span>
+          <span className="text-sm text-slate-600">{picked.vehicleModel}</span>
+          <span className="text-[11px] text-slate-400">{picked.lot}</span>
+          <button
+            onClick={() => {
+              onPick(null);
+              setQ('');
+            }}
+            title="다시 고릅니다"
+            className="ml-1 rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-500"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative text-xs text-slate-500">
+      차량 <span className="text-slate-400">(번호 뒤 4자리 또는 차명)</span>
+      <span className="relative mt-1 block">
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          autoFocus
+          placeholder="2530 · 카니발 · 배양동"
+          className="w-72 rounded-lg border border-slate-200 bg-white py-1.5 pl-7 pr-2.5 text-sm outline-none focus:border-indigo-400"
+        />
+      </span>
+
+      {q.trim() && (
+        <ul className="absolute z-10 mt-1 max-h-64 w-72 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+          {hits.length === 0 && (
+            <li className="px-3 py-2 text-xs text-slate-400">
+              주차장에 그런 차가 없습니다. 주차장 관리에 먼저 등록해 주세요.
+            </li>
+          )}
+          {hits.map(v => (
+            <li key={v.id}>
+              <button
+                onClick={() => onPick({ vehicleNumber: v.vehicleNumber, vehicleModel: v.vehicleModel, lot: v.lot })}
+                className="flex w-full items-baseline gap-2 px-3 py-2 text-left hover:bg-indigo-50"
+              >
+                <span className="font-mono text-sm font-semibold text-slate-700">{v.vehicleNumber}</span>
+                <span className="text-sm text-slate-600">{v.vehicleModel}</span>
+                <span className="ml-auto text-[11px] text-slate-400">{v.lot}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
