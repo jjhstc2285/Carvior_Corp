@@ -3,8 +3,9 @@ import { useVehicles } from './useVehicles';
 import ExpenseTab from './ExpenseTab';
 import ParkingPolicyTab from './ParkingPolicyTab';
 import WashTab from './WashTab';
+import PhotoTab from './PhotoTab';
 
-type TabKey = 'policy' | 'expense' | 'wash';
+type TabKey = 'policy' | 'expense' | 'wash' | 'photo';
 
 /*
   외부 이동 차량 목록을 뺐다.
@@ -16,6 +17,7 @@ type TabKey = 'policy' | 'expense' | 'wash';
 /* 주유·배터리가 앞이다 — 하루에도 몇 번 적는 건 이쪽이고, 배치 기준은 가끔 고친다 */
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'expense', label: '주유 · 배터리 비용' },
+  { key: 'photo', label: '상품화 차량 사진' },
   { key: 'wash', label: '외부주차장 세차' },
   { key: 'policy', label: '주차 배치 기준' },
 ];
@@ -33,6 +35,8 @@ export default function VehicleModule() {
             '값·차종·연료·판매유형으로 어느 주차장에 세울지가 정해집니다. 매입할 때 들어온 값이 채워져 있고, 고치면 추천이 바로 바뀝니다.'}
           {tab === 'expense' &&
             '차량번호 뒤 4자리만 넣으면 차량명이 채워집니다. 등록한 이력은 나중에 고치거나 지울 수 있어요.'}
+          {tab === 'photo' &&
+            '상품화가 끝난 차를 여섯 방향으로 찍어 둡니다. 손님이 사진을 달라고 할 때도, 나중에 흠집을 두고 다툴 때도 이 사진이 기준이 됩니다.'}
           {tab === 'wash' &&
             '외부 주차장에 세워 둔 차를 한 대당 만 원에 닦아 주십니다. 주 두 번 오시기로 했으니, 온 날을 찍어 두면 달이 끝났을 때 청구서와 맞춰 볼 수 있습니다.'}
         </p>
@@ -57,6 +61,7 @@ export default function VehicleModule() {
 
       {tab === 'policy' && <ParkingPolicyTab api={api} />}
       {tab === 'expense' && <ExpenseTab api={api} />}
+      {tab === 'photo' && <PhotoTab />}
       {tab === 'wash' && <WashTab />}
     </div>
   );
