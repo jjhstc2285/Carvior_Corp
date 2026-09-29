@@ -42,6 +42,34 @@ interface PhotoSet {
   photos: Partial<Record<SlotKey, string>>;
 }
 
+
+/**
+ * 사진 한 장을 올리고 그 칸에 붙인다.
+ *
+ * 올리기와 붙이기가 두 번의 요청이라, 여러 장을 넣을 때 한꺼번에 던지면 같은 묶음을
+ * 동시에 만들려다 부딪친다. 부르는 쪽에서 한 장씩 차례로 기다린다.
+ */
+async function putPhoto(set: PhotoSet, slot: SlotKey, file: File): Promise<void> {
+  const form = new FormData();
+  form.append('file', file);
+  const { url } = await api<{ url: string }>('/vehicle-photos/upload', { method: 'POST', formData: form });
+  await api('/vehicle-photos/photos', {
+    method: 'POST',
+    body: { vehicleNumber: set.vehicleNumber, vehicleName: set.vehicleName, shotOn: set.shotOn, slot, url },
+  });
+}
+
+/**
+ * 고른 사진을 찍은 차례대로 세운다.
+ *
+ * 갤러리에서 여섯 장을 고르면 브라우저가 주는 차례는 고른 차례도, 찍은 차례도 아니다
+ * (이름 순으로 오기도 한다). 파일에 적힌 찍은 시각으로 세운다 — 앞에서 찍고 뒤로 도는
+ * 차례가 그대로 전면·후면·좌·우가 된다.
+ */
+function inShotOrder(files: File[]): File[] {
+  return [...files].sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name));
+}
+
 export default function PhotoTab() {
   const { state } = useStore();
   const [sets, setSets] = useState<PhotoSet[]>([]);
@@ -187,9 +215,65 @@ export default function PhotoTab() {
 /** 한 차·한 날의 여섯 칸 */
 function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () => Promise<void>; onRemove: () => void }) {
   const filled = SLOTS.filter(s => set.photos[s.key]).length;
+  const [busy, setBusy] = useState(false);
+  const [over, setOver] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const manyRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * 여러 장을 한 번에 넣는다.
+   *
+   * 차 한 대를 돌면서 여섯 장을 이어 찍는다. 갤러리에서 여섯 장을 고르거나 여섯 장을
+   * 통째로 끌어다 놓으면, 찍은 차례대로 빈 칸에 차례로 들어간다 — 한 칸씩 여섯 번
+   * 누르는 건 차 앞에 서서 할 일이 아니다.
+   *
+   * 이미 넣은 칸은 건드리지 않는다. 덮어쓰면 잘 찍어 둔 걸 모르고 날린다.
+   */
+  const putMany = async (files: File[]) => {
+    const empty = SLOTS.filter(slot => !set.photos[slot.key]);
+    if (empty.length === 0) {
+      setNote('빈 칸이 없습니다. 바꿀 칸의 사진을 먼저 지워 주세요.');
+      return;
+    }
+
+    const ordered = inShotOrder(files.filter(f => f.type.startsWith('image/')));
+    if (ordered.length === 0) return;
+
+    setBusy(true);
+    setNote(null);
+    try {
+      // 한 장씩 차례로 — 한꺼번에 던지면 같은 묶음을 동시에 만들려다 부딪친다
+      for (let i = 0; i < Math.min(ordered.length, empty.length); i += 1) {
+        await putPhoto(set, empty[i].key, ordered[i]);
+      }
+      if (ordered.length > empty.length) {
+        setNote(`빈 칸이 ${empty.length}개라 ${ordered.length - empty.length}장은 안 넣었습니다.`);
+      }
+      await onChanged();
+    } catch (e) {
+      void alertError('사진을 올리지 못했습니다', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+      if (manyRef.current) manyRef.current.value = '';
+    }
+  };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4">
+    <section
+      onDragOver={e => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={e => {
+        e.preventDefault();
+        setOver(false);
+        void putMany([...e.dataTransfer.files]);
+      }}
+      className={`rounded-2xl border bg-white p-4 transition-colors ${
+        over ? 'border-indigo-400 bg-indigo-50/40' : 'border-slate-200'
+      }`}
+    >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="font-mono text-sm font-bold text-slate-800">{set.vehicleNumber}</span>
         <span className="text-sm text-slate-600">{set.vehicleName}</span>
@@ -203,14 +287,39 @@ function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () =>
         </span>
         {set.recordedBy && <span className="text-[11px] text-slate-400">{set.recordedBy}</span>}
 
+        {/* 여섯 장을 한 번에 — 갤러리에서 찍은 차례대로 고르면 빈 칸에 차례로 들어간다 */}
+        <button
+          onClick={() => manyRef.current?.click()}
+          disabled={busy}
+          title="갤러리에서 여러 장을 골라 빈 칸에 차례로 넣습니다"
+          className="ml-auto flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:text-slate-300"
+        >
+          {busy ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />}
+          {busy ? '올리는 중' : '여러 장'}
+        </button>
         <button
           onClick={onRemove}
           title="이 묶음을 지웁니다"
-          className="ml-auto rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+          className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
         >
           <Trash2 size={14} />
         </button>
+        <input
+          ref={manyRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={e => void putMany([...(e.target.files ?? [])])}
+          className="hidden"
+        />
       </div>
+
+      {note && <p className="mb-2 text-[11px] font-medium text-amber-700">{note}</p>}
+      {over && (
+        <p className="mb-2 rounded-lg bg-indigo-100 px-2.5 py-1.5 text-[11px] font-bold text-indigo-700">
+          놓으면 찍은 차례대로 빈 칸에 들어갑니다
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {SLOTS.map(slot => (
@@ -240,29 +349,14 @@ function PhotoSlot({
 }) {
   const url = set.photos[slot];
   const [busy, setBusy] = useState(false);
+  const [over, setOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const upload = async (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
+  const upload = async (file: File | undefined) => {
+    if (!file?.type.startsWith('image/')) return;
     setBusy(true);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const { url: uploaded } = await api<{ url: string }>('/vehicle-photos/upload', {
-        method: 'POST',
-        formData: form,
-      });
-      await api('/vehicle-photos/photos', {
-        method: 'POST',
-        body: {
-          vehicleNumber: set.vehicleNumber,
-          vehicleName: set.vehicleName,
-          shotOn: set.shotOn,
-          slot,
-          url: uploaded,
-        },
-      });
+      await putPhoto(set, slot, file);
       await onChanged();
     } catch (e) {
       void alertError('사진을 올리지 못했습니다', e instanceof Error ? e.message : '');
@@ -288,7 +382,27 @@ function PhotoSlot({
   return (
     <div>
       <p className="mb-1 text-[11px] font-medium text-slate-500">{label}</p>
-      <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+      {/*
+        이 칸에만 끌어다 놓는다. 한 장을 바꿔 끼울 때 쓴다 — 여섯 장을 통째로 넣는 건
+        묶음 어디에나 놓으면 된다.
+      */}
+      <div
+        onDragOver={e => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={e => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOver(false);
+          void upload(e.dataTransfer.files[0]);
+        }}
+        className={`relative aspect-[4/3] overflow-hidden rounded-lg border bg-slate-50 transition-colors ${
+          over ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200'
+        }`}
+      >
         {url ? (
           <>
             <Image
@@ -329,7 +443,7 @@ function PhotoSlot({
         type="file"
         accept="image/*"
         capture="environment"
-        onChange={e => void upload(e.target.files)}
+        onChange={e => void upload(e.target.files?.[0])}
         className="hidden"
       />
     </div>
