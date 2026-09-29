@@ -82,3 +82,17 @@ export function stageOf(
 export function isLocked(stage: SettlementStage): boolean {
   return stage === 'CHIEF' || stage === 'DONE';
 }
+
+/**
+ * 판금 청구서를 넣을 수 있는 사람.
+ *
+ * 남의 정산 원가를 한 번에 고치고, 총액이 안 맞으면 금액을 손으로 맞추는 자리다.
+ * 관리자 권한으로 열어 두지 않는다 — 관리자가 하나 더 생기면 그 사람도 같이 열린다.
+ * 위 승인자들과 같은 이유로 이름 두 개로 못 박는다.
+ */
+export const PANEL_INVOICE_EDITORS = ['안원용', '테스트관리자'];
+
+/** 이 사람이 판금 청구서를 넣을 수 있는가 */
+export function canEditPanelInvoice(name: string | null | undefined): boolean {
+  return PANEL_INVOICE_EDITORS.includes((name ?? '').trim());
+}

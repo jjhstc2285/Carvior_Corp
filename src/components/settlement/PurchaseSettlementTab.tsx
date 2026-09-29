@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { Check, Download, FileSpreadsheet, Lock, Pencil, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import PanelInvoiceModal from './PanelInvoiceModal';
+import { canEditPanelInvoice } from '../../lib/panelInvoice';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 import { percentLabel } from '../../lib/money';
 import { canSeeAllSettlements } from '../../lib/permissions';
@@ -430,10 +431,11 @@ export default function PurchaseSettlementTab({ role }: Props) {
             <Download size={14} /> 엑셀 다운로드
           </button>
           {/*
-            판금 청구서를 그대로 넣는다. 남의 정산 원가를 한 번에 고치는 일이라
-            본부장과 관리자만 — 서버도 같은 기준으로 다시 본다.
+            판금 청구서를 그대로 넣는다. 남의 정산 원가를 한 번에 고치고 총액이 안 맞으면
+            금액을 손으로 맞추는 자리라, 이름으로 못 박은 두 사람만 연다 — 서버도 같은
+            기준으로 다시 본다(화면만 가리면 요청을 직접 보낼 수 있다).
           */}
-          {(role === 'ADMIN' || approverRole === 'CHIEF') && (
+          {canEditPanelInvoice(me?.name) && (
             <button
               onClick={() => setInvoiceOpen(true)}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
