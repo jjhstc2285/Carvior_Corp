@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { AlertTriangle, Check, ChevronRight, Download, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { useTableSort, type SortColumn } from '../table/useTableSort';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
@@ -55,6 +56,36 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
     .filter(v => statusFilter === 'all' || v.status === statusFilter)
     .filter(v => !query.trim() || v.vehicleNumber.includes(query.trim()) || v.vehicleModel.includes(query.trim()))
     .sort((a, b) => rankOf(a.lot) - rankOf(b.lot) || a.lot.localeCompare(b.lot) || a.zone.localeCompare(b.zone));
+
+  /*
+    제목줄을 눌러 정렬한다.
+
+    목록이 길어지면 찾는 방법이 눈으로 훑는 것밖에 없었다. 재검이 급한 차부터 보거나
+    담당자끼리 모아 보려면 칸을 눌러서 세울 수 있어야 한다.
+
+    안 누르면 원래 차례 그대로다 — 주차장·구역 순으로 서 있는 게 자리를 찾아갈 때는
+    제일 편하다.
+  */
+  const COLUMNS: SortColumn<(typeof filtered)[number]>[] = [
+    { key: 'lot', label: '주차장', value: v => v.lot },
+    { key: 'zone', label: '구역', value: v => v.zone },
+    { key: 'slot', label: '위치', value: v => v.slot },
+    { key: 'vehicleNumber', label: '차량번호', value: v => v.vehicleNumber },
+    { key: 'vehicleModel', label: '차량명', value: v => v.vehicleModel },
+    {
+      key: 'reinspect',
+      label: '재검',
+      // 남은 날이 적을수록 급하다. 기한이 없는 차는 빈 값이라 뒤로 밀린다
+      value: v => v.reinspect?.daysLeft ?? null,
+      title: '눌러서 정렬합니다 — 남은 날이 적은 차부터',
+    },
+    { key: 'employee', label: '담당자', value: v => employeeOf(v.employeeId)?.name ?? '' },
+    { key: 'status', label: '상태', value: v => PARKING_STATUS_LABEL[v.status] },
+    { key: 'updatedAt', label: '최근 수정', value: v => v.updatedAt },
+    { key: 'actions', label: '관리', align: 'text-right' },
+  ];
+  const sorter = useTableSort(COLUMNS);
+  const rows = sorter.apply(filtered);
 
   /**
    * 재검이 필요한 차.
@@ -259,24 +290,13 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                <th className="px-5 py-2.5 font-medium">주차장</th>
-                <th className="px-5 py-2.5 font-medium">구역</th>
-                <th className="px-5 py-2.5 font-medium">위치</th>
-                <th className="px-5 py-2.5 font-medium">차량번호</th>
-                <th className="px-5 py-2.5 font-medium">차량명</th>
-                <th className="px-5 py-2.5 font-medium">재검</th>
-                <th className="px-5 py-2.5 font-medium">담당자</th>
-                <th className="px-5 py-2.5 font-medium">상태</th>
-                <th className="px-5 py-2.5 font-medium">최근 수정</th>
-                <th className="px-5 py-2.5 font-medium text-right">관리</th>
-              </tr>
+              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">{sorter.headers()}</tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
                 <tr><td colSpan={10} className="px-5 py-10 text-center text-sm text-slate-400">조건에 맞는 차량이 없습니다.</td></tr>
               )}
-              {filtered.map(v => (
+              {rows.map(v => (
                 <tr key={v.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
                   <td className="px-5 py-2.5 text-slate-600">{v.lot}</td>
                   <td className="px-5 py-2.5 text-slate-600">{v.zone}</td>
