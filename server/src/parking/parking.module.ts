@@ -35,6 +35,7 @@ import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { PushModule } from '../push/push.module';
 import { PushService } from '../push/push.service';
+import { TelegramService } from '../telegram/telegram.module';
 
 // ── DTO ──────────────────────────────
 
@@ -102,6 +103,7 @@ export class ParkingService {
     private readonly config: ConfigService,
     private readonly realtime: RealtimeGateway,
     private readonly push: PushService,
+    private readonly telegram: TelegramService,
   ) {}
 
   // ── 구글 시트 한 번 가져오기 ──────────────────────────────
@@ -388,6 +390,26 @@ export class ParkingService {
     if (duplicate) {
       throw new BadRequestException(
         `${dto.vehicleNumber} 차량이 이미 ${duplicate.lot} ${duplicate.zone} ${duplicate.slot}에 등록돼 있습니다.`,
+      );
+    }
+
+    /*
+      이 칸에 차가 이미 있었는지 먼저 본다.
+
+      새로 들어온 차는 공지방에 알린다 — 어느 주차장에 뭐가 들어왔는지 모르면 상담을
+      받다가 "그 차 어디 있어요"를 다시 물어야 한다. 이미 있던 칸을 고친 것까지 알리면
+      메모만 바꿔도 알림이 가서 아무도 안 보게 된다.
+    */
+    const before = await this.prisma.parkingVehicle.findUnique({
+      where: { lot_zone_slot: { lot: dto.lot, zone: dto.zone, slot: dto.slot } },
+      select: { vehicleNumber: true },
+    });
+    if (before?.vehicleNumber !== dto.vehicleNumber) {
+      this.telegram.notify(
+        `🅿️ <b>주차 등록</b>
+<b>${dto.vehicleNumber}</b> ${dto.vehicleModel}
+` +
+          `자리: ${dto.lot} ${dto.zone} ${dto.slot}`,
       );
     }
 

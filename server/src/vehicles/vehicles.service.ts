@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { ConsultationStatus, Prisma, VehicleExpenseKind } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { TelegramService } from "../telegram/telegram.module";
 import {
   formatDateOnly,
   formatDateOnlyOrNull,
@@ -33,7 +34,54 @@ import type {
 
 @Injectable()
 export class VehiclesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly telegram: TelegramService,
+  ) {}
+
+  /**
+   * 바뀐 것 중 온 직원이 알아야 하는 것만 공지방에 띄운다.
+   *
+   * 상품화가 끝났는지, 광고가 내려갔는지, 차가 팔렸는지 — 지금은 화면에 들어가 봐야
+   * 안다. 매입팀이 상품화를 끝내도 상담 받는 사람은 모르고, 차가 팔려도 주차 옮기는
+   * 사람은 모른다. 그래서 같은 걸 카톡으로 다시 묻는다.
+   *
+   * 금액은 안 보낸다. 이 방은 전 직원이 보는 자리다.
+   */
+  private announceChange(
+    before: { prepared: boolean; advertised: boolean; soldDate: Date | null },
+    after: { vehicleNumber: string; vehicleModel: string; prepared: boolean; advertised: boolean; soldDate: Date | null },
+  ): void {
+    const car = `<b>${after.vehicleNumber}</b> ${after.vehicleModel}`;
+
+    // 판 것이 먼저다. 팔린 차는 상품화도 광고도 더는 볼 일이 없다
+    if (!before.soldDate && after.soldDate) {
+      this.telegram.notify(`🚗 <b>판매완료</b>
+${car}
+
+주차 자리를 비우고 광고를 내려 주세요.`);
+      return;
+    }
+
+    if (!before.prepared && after.prepared) {
+      this.telegram.notify(`✨ <b>상품화 완료</b>
+${car}
+
+이제 손님에게 보여줄 수 있습니다.`);
+    } else if (before.prepared && !after.prepared) {
+      this.telegram.notify(`↩️ <b>상품화 해제</b>
+${car}`);
+    }
+
+    // 상품화를 끄면 광고도 같이 꺼진다 — 그건 위에서 이미 알렸으니 겹쳐 보내지 않는다
+    if (before.advertised !== after.advertised && before.prepared === after.prepared) {
+      this.telegram.notify(
+        after.advertised ? `📢 <b>광고 등록</b>
+${car}` : `🔻 <b>광고 내림</b>
+${car}`,
+      );
+    }
+  }
 
   /**
    * 날짜를 YYYY-MM-DD 로 내려보낸다.
@@ -452,7 +500,10 @@ export class VehiclesService {
             : {}),
         },
       })
-      .then((row) => this.toView(row));
+      .then((row) => {
+        this.announceChange(current, row);
+        return this.toView(row);
+      });
   }
 
   /** 차량을 지우면 그 차의 주유·배터리 이력도 함께 사라진다(FK Cascade). */

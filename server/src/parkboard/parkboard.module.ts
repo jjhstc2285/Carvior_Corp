@@ -2,6 +2,7 @@ import { Controller, Get, Injectable, Logger, Module, Query } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly } from '../common/date.util';
 import { matchSlots, missingFromBoard, plateKey, tailOf, type BoardSlot, type StockVehicle } from './parkboard.rules';
+import { KeyWatcher } from './key-watcher';
 
 /**
  * 주차위치 현황판 읽어오기.
@@ -70,6 +71,11 @@ export class ParkBoardService {
   }
 
   /** 방 안의 아무 가지나 하나 읽는다 — 없으면 null */
+  /** 지켜보는 쪽이 다른 칸도 읽을 수 있게 연다 — 읽기 전용이다 */
+  async rawNode<T>(node: string): Promise<T | null> {
+    return this.fetchNode<T>(node);
+  }
+
   private async fetchNode<T>(node: string): Promise<T | null> {
     const url = `${boardUrl()}/kd_rooms/${encodeURIComponent(boardCode())}/${node}.json`;
     const ac = new AbortController();
@@ -297,7 +303,8 @@ export class ParkBoardController {
 
 @Module({
   controllers: [ParkBoardController],
-  providers: [ParkBoardService],
+  // 키 불출을 지켜보다 공지방에 알린다 — 저쪽은 웹훅을 안 주므로 이쪽에서 물어본다
+  providers: [ParkBoardService, KeyWatcher],
   exports: [ParkBoardService],
 })
 export class ParkBoardModule {}
