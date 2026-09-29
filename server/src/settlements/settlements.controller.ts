@@ -248,6 +248,30 @@ export class SettlementsController {
     return this.settlements.applyPanelInvoice((dto.vendor ?? '대산').trim(), dto.rows ?? []);
   }
 
+
+  /**
+   * 이미 적어둔 성능비에 부가세를 올린다.
+   *
+   * 성능비는 부가세를 따로 붙여 청구해 오는데 그동안 공급가만 적힌 건이 쌓였다.
+   * 한꺼번에 곱하지 않는다 — 이미 부가세가 붙은 건이 섞여 있으면 두 배가 되고, 그건
+   * 결재까지 가서야 눈에 띈다. 목록을 먼저 내주고 고른 것만 올린다.
+   */
+  @Get('purchase/performance-costs')
+  performanceCosts(@CurrentUser() user: AuthUser) {
+    if (!canEditPanelInvoice(user.name)) {
+      throw new ForbiddenException('성능비를 한 번에 고칠 수 있는 계정이 아닙니다.');
+    }
+    return this.settlements.performanceCosts();
+  }
+
+  @Post('purchase/performance-vat')
+  performanceVat(@CurrentUser() user: AuthUser, @Body() dto: { ids?: string[] }) {
+    if (!canEditPanelInvoice(user.name)) {
+      throw new ForbiddenException('성능비를 한 번에 고칠 수 있는 계정이 아닙니다.');
+    }
+    return this.settlements.applyPerformanceVat(dto.ids ?? []);
+  }
+
   /**
    * 계약서 사진 올리기 — 정산을 저장하기 전에 먼저 올리고 경로를 받아 함께 보낸다.
    *

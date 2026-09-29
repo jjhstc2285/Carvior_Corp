@@ -266,6 +266,79 @@ export class SettlementsService {
     return { applied, skipped, locked };
   }
 
+
+  /**
+   * 이미 적어둔 성능비 줄을 훑어 본다.
+   *
+   * 성능비는 부가세를 따로 붙여 청구해 오는데, 그동안 공급가만 적힌 건이 쌓였다.
+   * 한꺼번에 곱해 버리면 이미 부가세가 붙은 건이 두 배가 되고, 그건 결재까지 가서야
+   * 눈에 띈다 — 그래서 고치지 않고 보여주기만 한다. 무엇을 고칠지는 사람이 고른다.
+   *
+   * 결재가 끝난 건은 아예 내려주지 않는다. 골라 봐야 못 고친다.
+   */
+  async performanceCosts() {
+    const costs = await this.prisma.purchasePrepCost.findMany({
+      where: { kind: 'PERFORMANCE', amount: { gt: 0 } },
+      include: {
+        settlement: {
+          select: {
+            vehicleNumber: true,
+            vehicleName: true,
+            date: true,
+            submittedAt: true,
+            chiefApprovedAt: true,
+            ceoApprovedAt: true,
+            ...OWNER_NAME,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    return costs
+      .filter((c) => !isLocked(stageOf(c.settlement, needsChief(c.settlement.employee?.name))))
+      .map((c) => ({
+        id: c.id,
+        vehicleNumber: c.settlement.vehicleNumber,
+        vehicleName: c.settlement.vehicleName,
+        date: formatDateOnly(c.settlement.date),
+        vendor: c.vendor,
+        memo: c.memo,
+        amount: c.amount,
+        // 부가세를 붙인 값 — 화면이 견줘 보여준다
+        withVat: Math.round(c.amount * 1.1),
+      }));
+  }
+
+  /**
+   * 고른 성능비 줄에 부가세를 올린다.
+   *
+   * 무엇을 했는지 메모에 남긴다. 남기지 않으면 나중에 청구서와 견줄 때 이 건이 원래
+   * 그 값이었는지 우리가 올린 값인지 알 수가 없다.
+   */
+  async applyPerformanceVat(ids: string[]) {
+    if (ids.length === 0) return { updated: 0 };
+
+    const costs = await this.prisma.purchasePrepCost.findMany({
+      where: { id: { in: ids }, kind: 'PERFORMANCE' },
+      select: { id: true, amount: true, memo: true },
+    });
+
+    let updated = 0;
+    for (const c of costs) {
+      await this.prisma.purchasePrepCost.update({
+        where: { id: c.id },
+        data: {
+          amount: Math.round(c.amount * 1.1),
+          memo: [c.memo, '부가세 반영'].filter(Boolean).join(' · ').slice(0, 191),
+        },
+      });
+      updated += 1;
+    }
+    return { updated };
+  }
+
   async removeBasic(id: string) {
     await this.assert('settlement', id);
     await this.prisma.settlement.delete({ where: { id } });
