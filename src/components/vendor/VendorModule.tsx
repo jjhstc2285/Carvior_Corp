@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { Phone, Plus, Trash2 } from 'lucide-react';
+import { Phone, Plus, Smartphone, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { VENDOR_CATEGORIES, type Vendor, type VendorContact } from '../../types';
 import EmployeeAvatar from '../EmployeeAvatar';
+import ContactExportModal from './ContactExportModal';
 
 /**
  * 거래처 대장.
@@ -29,6 +30,8 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
   const [rows, setRows] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  /* 연락처를 휴대폰에 넣는 창 */
+  const [exportOpen, setExportOpen] = useState(false);
   const [category, setCategory] = useState<string>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   /** 담당자를 펼쳐 둔 업체 — 여덟 명씩 늘어놓으면 표를 못 읽는다 */
@@ -154,15 +157,29 @@ export default function VendorModule({ role }: { role: 'EMPLOYEE' | 'ADMIN' }) {
             {!canEdit && ' 고치는 건 관리자만 할 수 있습니다.'}
           </p>
         </div>
-        {canEdit && (
+        <div className="flex shrink-0 items-center gap-2">
+          {/*
+            번호는 다 여기 있는데 정작 전화는 휴대폰으로 건다. 옮겨 적지 않게 파일로 내준다.
+            지우는 게 아니라 읽어 가는 일이라 보는 사람이면 누구나 쓸 수 있게 둔다.
+          */}
           <button
-            onClick={() => void addRow()}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            onClick={() => setExportOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
           >
-            <Plus size={15} /> 거래처 추가
+            <Smartphone size={15} /> 휴대폰에 넣기
           </button>
-        )}
+          {canEdit && (
+            <button
+              onClick={() => void addRow()}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              <Plus size={15} /> 거래처 추가
+            </button>
+          )}
+        </div>
       </div>
+
+      {exportOpen && <ContactExportModal onClose={() => setExportOpen(false)} />}
 
       {/* 분류로 먼저 좁힌다 — 번호를 찾을 때는 '어느 쪽 업체인지'가 먼저 떠오른다 */}
       <div className="mb-2 flex flex-wrap gap-1.5">
