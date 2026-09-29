@@ -86,6 +86,7 @@ model Employee {
   dismissedCalls DismissedCall[]
   washVisits WashVisit[]
   photoSets VehiclePhotoSet[]
+  condolences Condolence[]
 }
 
 model EmployeePhone {
@@ -1681,4 +1682,56 @@ model VehiclePhoto {
 
   // 한 방향에 한 장. 다시 올리면 갈아끼운다
   @@unique([setId, slot])
+}
+
+// ─────────────────────────────────────────────
+// ⑱ 경조사비
+// ─────────────────────────────────────────────
+
+enum CondolenceKind {
+  FUNERAL // 장례 — 부의
+  WEDDING // 결혼 — 축의
+  HOLIDAY // 명절 세트 — 추석·설에 돌리는 것
+  ETC // 돌잔치·개업 같은 나머지
+}
+
+// 경조사비 대장.
+//
+// 지금은 카톡으로 주고받고 만다. "김재웅 20만원 플러스 화환" 같은 말이 흩어져 있어서,
+// 연말에 얼마를 썼는지도 모르고 다음에 같은 자리에서 얼마를 내야 하는지도 모른다.
+// 받은 데 또 안 내는 일도, 두 번 내는 일도 여기서 생긴다.
+//
+// 화환은 금액과 따로 둔다. 대표님이 "전부 화환은 추가"라고 하셨듯 늘 얹는 것이라
+// 한 칸에 합쳐 두면 축의금이 얼마였는지가 사라진다.
+model Condolence {
+  id   String         @id @default(cuid())
+  kind CondolenceKind
+
+  // 누구 일인가. 우리 직원일 수도, 거래처 대표일 수도 있다
+  person String @db.VarChar(40)
+  // 그 사람과 어떤 사이인지 — '거래처 대표', '직원', '타상사'
+  relation String @default("") @db.VarChar(30)
+  // 당사자와의 관계 — '본인', '부친', '모친', '친누나'. 부고에 적힌 그대로 받는다
+  subject String @default("") @db.VarChar(30)
+
+  // 언제 있었던 일인가. 부고·청첩장에 적힌 날
+  eventOn DateTime @db.Date
+
+  // 낸 돈. 화환값은 여기 안 넣는다
+  amount Int @default(0)
+  // 화환을 보냈는지와 그 값 — 보통 45,000원이지만 다를 수 있다
+  wreath      Boolean @default(false)
+  wreathPrice Int     @default(0)
+
+  place String @default("") @db.VarChar(80)
+  memo  String @default("") @db.VarChar(191)
+
+  recordedById String?
+  recordedBy   Employee? @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventOn])
+  @@index([kind])
 }

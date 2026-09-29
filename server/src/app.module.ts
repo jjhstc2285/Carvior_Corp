@@ -21,6 +21,7 @@ import { CarviorModule } from './carvior/carvior.module';
 import { ChannelTalkModule } from './channeltalk/channeltalk.module';
 import { WashModule } from './wash/wash.module';
 import { VehiclePhotosModule } from './vehicle-photos/vehicle-photos.module';
+import { CondolenceModule } from './condolence/condolence.module';
 import { DealerFeesModule } from './dealer-fees/dealer-fees.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { AdsModule } from './ads/ads.module';
@@ -53,6 +54,7 @@ import { RolesGuard } from './auth/roles.guard';
     ChannelTalkModule,
     WashModule,
     VehiclePhotosModule,
+    CondolenceModule,
     CleaningModule,
     DealerFeesModule,
     ApprovalsModule,

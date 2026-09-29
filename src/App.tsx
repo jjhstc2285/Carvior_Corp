@@ -49,6 +49,7 @@ import WorkLogModule from './components/workLog/WorkLogModule';
 import VehicleModule from './components/vehicle/VehicleModule';
 import ChatModule from './components/chat/ChatModule';
 import CleaningModule from './components/cleaning/CleaningModule';
+import CondolenceModule from './components/condolence/CondolenceModule';
 import PurchaseIntakeModule from './components/purchaseIntake/PurchaseIntakeModule';
 import StockFinanceModule from './components/vehicle/StockFinanceModule';
 import DealerFeeModule from './components/dealerFee/DealerFeeModule';
@@ -63,7 +64,7 @@ import PayrollModule from './components/payroll/PayrollModule';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
   attendance: '출퇴근 관리',
-  workLog: '업무 일지(작업 일지)',
+  workLog: '업무 일지',
   approval: '결재 관리',
   consultation: '상담 관리',
   settlement: '정산 관리',
@@ -77,6 +78,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   payroll: '인건비',
   dealerFee: '신차영업소 상조회비',
   cleaning: '청소 관리 대장',
+  condolence: '경조사비 대장',
   chat: '메시지',
 };
 
@@ -87,6 +89,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'vehicle') return <VehicleModule />;
   if (module === 'chat') return <ChatModule role={role} />;
   if (module === 'cleaning') return <CleaningModule role={role} />;
+  if (module === 'condolence') return <CondolenceModule />;
   if (module === 'purchaseIntake') return <PurchaseIntakeModule />;
   if (module === 'stockFinance') return <StockFinanceModule />;
   if (module === 'vendor') return <VendorModule role={role} />;

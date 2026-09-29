@@ -14,4 +14,5 @@ export type ModuleKey =
   | 'property'
   | 'payroll'
   | 'cleaning'
+  | 'condolence'
   | 'chat';
