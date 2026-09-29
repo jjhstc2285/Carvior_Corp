@@ -617,10 +617,7 @@ export class PurchaseIntakeService {
 
       if (policy?.prepared === true && before?.prepared !== true) {
         this.telegram.notify(
-          `✨ <b>상품화 완료</b>
-<b>${vehicleNumber}</b> ${model}
-
-이제 손님에게 보여줄 수 있습니다.`,
+          [`✨ <b>상품화 완료</b>`, `<b>${vehicleNumber}</b> ${model}`, '', '➡️ 다음: 캐피탈에 제시'].join('\n'),
         );
       }
     } catch (e) {

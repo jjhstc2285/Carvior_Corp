@@ -49,36 +49,61 @@ export class VehiclesService {
    * 금액은 안 보낸다. 이 방은 전 직원이 보는 자리다.
    */
   private announceChange(
-    before: { prepared: boolean; advertised: boolean; soldDate: Date | null },
-    after: { vehicleNumber: string; vehicleModel: string; prepared: boolean; advertised: boolean; soldDate: Date | null },
+    before: { prepared: boolean; advertised: boolean; offerDate: Date | null; transferDate: Date | null; soldDate: Date | null },
+    after: {
+      vehicleNumber: string;
+      vehicleModel: string;
+      prepared: boolean;
+      advertised: boolean;
+      offerDate: Date | null;
+      transferDate: Date | null;
+      soldDate: Date | null;
+    },
   ): void {
     const car = `<b>${after.vehicleNumber}</b> ${after.vehicleModel}`;
+    const became = (b: Date | null, a: Date | null) => !b && !!a;
 
-    // 판 것이 먼저다. 팔린 차는 상품화도 광고도 더는 볼 일이 없다
-    if (!before.soldDate && after.soldDate) {
-      this.telegram.notify(`🚗 <b>판매완료</b>
-${car}
+    /*
+      판 것이 먼저다.
 
-주차 자리를 비우고 광고를 내려 주세요.`);
+      팔린 차는 상품화도 제시도 광고도 더는 볼 일이 없다. 같은 저장에 여러 칸이 바뀌어도
+      이 한 줄만 나간다 — 판 차 얘기에 "이제 광고하세요"가 섞이면 읽는 사람이 헷갈린다.
+    */
+    if (became(before.soldDate, after.soldDate)) {
+      this.telegram.notify(
+        [`🚗 <b>판매완료</b>`, car, '', '➡️ 다음: 주차 자리 비우기 · 광고 내리기'].join('\n'),
+      );
       return;
     }
 
     if (!before.prepared && after.prepared) {
-      this.telegram.notify(`✨ <b>상품화 완료</b>
-${car}
-
-이제 손님에게 보여줄 수 있습니다.`);
+      this.telegram.notify([`✨ <b>상품화 완료</b>`, car, '', '➡️ 다음: 캐피탈에 제시'].join('\n'));
     } else if (before.prepared && !after.prepared) {
-      this.telegram.notify(`↩️ <b>상품화 해제</b>
-${car}`);
+      this.telegram.notify([`↩️ <b>상품화 해제</b>`, car].join('\n'));
+    }
+
+    if (became(before.offerDate, after.offerDate)) {
+      this.telegram.notify([`📋 <b>제시 완료</b>`, car, '', '➡️ 다음: 광고 올리기'].join('\n'));
     }
 
     // 상품화를 끄면 광고도 같이 꺼진다 — 그건 위에서 이미 알렸으니 겹쳐 보내지 않는다
     if (before.advertised !== after.advertised && before.prepared === after.prepared) {
       this.telegram.notify(
-        after.advertised ? `📢 <b>광고 등록</b>
-${car}` : `🔻 <b>광고 내림</b>
-${car}`,
+        after.advertised
+          ? [`📢 <b>광고 등록</b>`, car, '', '➡️ 이제 손님을 받습니다'].join('\n')
+          : [`🔻 <b>광고 내림</b>`, car].join('\n'),
+      );
+    }
+
+    /*
+      이전을 하면 그날부터 재검 기한이 돈다.
+
+      재검은 놓치면 과태료가 붙는데, 이전한 사람과 재검 챙기는 사람이 달라서 그냥 흘러간다.
+      시작된 날에 한 번 알려 두면 주차장 화면의 빨간 칸이 뜨기 전에 챙길 수 있다.
+    */
+    if (became(before.transferDate, after.transferDate)) {
+      this.telegram.notify(
+        [`📝 <b>이전 완료</b>`, car, '', '➡️ 오늘부터 재검 기한이 시작됩니다'].join('\n'),
       );
     }
   }
