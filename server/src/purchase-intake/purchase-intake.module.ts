@@ -31,6 +31,7 @@ import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { isValidPlate, normalizePlate, plateTailOf } from '../vehicles/vehicle.rules';
 import { inferBodyType } from '../vehicles/body-type';
 import { CarviorModule, CarviorService, type CarviorContract } from '../carvior/carvior.module';
+import { TelegramService } from '../telegram/telegram.module';
 
 /** 카비어는 만원, 매입 관리는 원으로 적는다. */
 const WON_PER_MANWON = 10000;
@@ -170,6 +171,7 @@ export class PurchaseIntakeService {
     private readonly carvior: CarviorService,
     private readonly realtime: RealtimeGateway,
     private readonly push: PushService,
+    private readonly telegram: TelegramService,
   ) {}
 
   /**
@@ -593,11 +595,34 @@ export class PurchaseIntakeService {
           : {}),
       };
 
+      /*
+        상품화가 켜졌는지 보고 공지방에 알린다.
+
+        상품화는 차량관리가 아니라 여기(매입 관리 실차 검차)에서 켜진다. 차량관리 쪽에만
+        알림을 달아 뒀더니 아무것도 안 떴다 — 실제로 켜는 자리에 달아야 한다.
+
+        켜질 때만 알린다. 매입 내용을 고칠 때마다 이 함수가 도는데, 이미 켜진 차까지
+        다시 알리면 같은 말이 하루에도 몇 번씩 뜬다.
+      */
+      const before = await this.prisma.managedVehicle.findUnique({
+        where: { vehicleNumber },
+        select: { prepared: true },
+      });
+
       await this.prisma.managedVehicle.upsert({
         where: { vehicleNumber },
         create: { vehicleNumber, plateTail: plateTailOf(vehicleNumber), ...derived },
         update: derived,
       });
+
+      if (policy?.prepared === true && before?.prepared !== true) {
+        this.telegram.notify(
+          `✨ <b>상품화 완료</b>
+<b>${vehicleNumber}</b> ${model}
+
+이제 손님에게 보여줄 수 있습니다.`,
+        );
+      }
     } catch (e) {
       this.logger.warn(`차량관리 등록 실패(${vehicleNumber}): ${(e as Error).message}`);
     }
