@@ -164,6 +164,24 @@ export default function PrepCostEditor({ rows, onChange, vendors, contacts, chec
                         placeholder="3.5"
                         className={`${INPUT} w-24 text-right`}
                       />
+                      {/*
+                        성능비는 부가세를 따로 붙여 청구해 온다. 적은 값이 공급가면 눌러서
+                        올린다 — 자동으로 곱하지 않는 이유는, 부가세가 이미 붙은 값을 적는
+                        날도 있어서다. 곱해 두면 그런 건이 한 번 더 부풀고, 그건 원가가
+                        틀어진 뒤에야 드러난다.
+                      */}
+                      {kind === 'PERFORMANCE' && moneyToNumber(row.amount) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            patchRow(index, { amount: String(Math.round(moneyToNumber(row.amount) * 1.1)) })
+                          }
+                          title={`부가세 10%를 더합니다 — ${withCommas(String(Math.round(moneyToNumber(row.amount) * 1.1)))}원`}
+                          className="shrink-0 rounded-md border border-slate-200 px-1.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"
+                        >
+                          ×1.1
+                        </button>
+                      )}
                       <input
                         value={row.memo}
                         onChange={e => patchRow(index, { memo: e.target.value })}
