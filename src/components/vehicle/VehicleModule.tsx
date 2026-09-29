@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useVehicles } from './useVehicles';
 import ExpenseTab from './ExpenseTab';
 import ParkingPolicyTab from './ParkingPolicyTab';
+import WashTab from './WashTab';
 
-type TabKey = 'policy' | 'expense';
+type TabKey = 'policy' | 'expense' | 'wash';
 
 /*
   외부 이동 차량 목록을 뺐다.
@@ -15,6 +16,7 @@ type TabKey = 'policy' | 'expense';
 /* 주유·배터리가 앞이다 — 하루에도 몇 번 적는 건 이쪽이고, 배치 기준은 가끔 고친다 */
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'expense', label: '주유 · 배터리 비용' },
+  { key: 'wash', label: '외부주차장 세차' },
   { key: 'policy', label: '주차 배치 기준' },
 ];
 
@@ -31,6 +33,8 @@ export default function VehicleModule() {
             '값·차종·연료·판매유형으로 어느 주차장에 세울지가 정해집니다. 매입할 때 들어온 값이 채워져 있고, 고치면 추천이 바로 바뀝니다.'}
           {tab === 'expense' &&
             '차량번호 뒤 4자리만 넣으면 차량명이 채워집니다. 등록한 이력은 나중에 고치거나 지울 수 있어요.'}
+          {tab === 'wash' &&
+            '외부 주차장에 세워 둔 차를 한 대당 만 원에 닦아 주십니다. 주 두 번 오시기로 했으니, 온 날을 찍어 두면 달이 끝났을 때 청구서와 맞춰 볼 수 있습니다.'}
         </p>
       </div>
 
@@ -53,6 +57,7 @@ export default function VehicleModule() {
 
       {tab === 'policy' && <ParkingPolicyTab api={api} />}
       {tab === 'expense' && <ExpenseTab api={api} />}
+      {tab === 'wash' && <WashTab />}
     </div>
   );
 }

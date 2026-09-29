@@ -84,6 +84,7 @@ model Employee {
   @@unique([provider, providerId])
   @@index([name])
   dismissedCalls DismissedCall[]
+  washVisits WashVisit[]
 }
 
 model EmployeePhone {
@@ -1565,4 +1566,60 @@ model DismissedCall {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────
+// ⑯ 외부주차장 세차
+// ─────────────────────────────────────────────
+
+// 세차하러 오신 날.
+//
+// 외부 주차장에 세워 둔 차를 한 대당 만 원에 닦아 주신다. 주 두 번 오시기로 했는데
+// 실제로 몇 번 왔는지는 아무도 안 세고 있었다 — 달이 끝나고 청구서를 받으면 그게
+// 맞는지 따질 근거가 없다.
+//
+// 대수는 그날 주차장에 있던 차를 세어 채워 두고, 다르면 손으로 고친다. 청구서와
+// 우리 장부가 갈릴 때 어느 쪽이 맞는지는 사람이 봐야 안다.
+model WashVisit {
+  id   String   @id @default(cuid())
+  date DateTime @db.Date
+
+  // 어느 주차장에 왔는지. 외부 주차장이 일곱 군데라 한 덩어리로 묶으면 어디를 빠뜨렸는지 모른다
+  lot String @db.VarChar(40)
+
+  // 그날 닦은 대수 — 한 대당 만 원이 붙는 값이다
+  carCount Int @default(0)
+
+  memo String @default("") @db.VarChar(191)
+
+  recordedById String?
+  recordedBy   Employee? @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 같은 날 같은 주차장에 두 번 적히지 않게
+  @@unique([date, lot])
+  @@index([date])
+}
+
+// 달마다 치르는 값.
+//
+// 매달 30일에 한 번에 낸다. 얼마를 냈고 냈는지 안 냈는지만 남긴다 —
+// 대수와 단가는 방문 기록에서 나오지만, 실제로 치른 값은 흥정이 붙어 다를 수 있다.
+model WashSettlement {
+  id    String @id @default(cuid())
+  month String @unique @db.VarChar(7) // YYYY-MM
+
+  // 청구 대수 — 비워 두면 그 달 방문 기록에서 센다
+  carCount Int @default(0)
+  // 한 대당 값. 바뀔 수 있어서 그 달에 적용한 값을 같이 남긴다
+  unitPrice Int @default(10000)
+
+  paid   Boolean   @default(false)
+  paidOn DateTime? @db.Date
+  memo   String    @default("") @db.VarChar(191)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

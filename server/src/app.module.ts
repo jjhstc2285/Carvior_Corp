@@ -19,6 +19,7 @@ import { PushModule } from './push/push.module';
 import { PurchaseIntakeModule } from './purchase-intake/purchase-intake.module';
 import { CarviorModule } from './carvior/carvior.module';
 import { ChannelTalkModule } from './channeltalk/channeltalk.module';
+import { WashModule } from './wash/wash.module';
 import { DealerFeesModule } from './dealer-fees/dealer-fees.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { AdsModule } from './ads/ads.module';
@@ -49,6 +50,7 @@ import { RolesGuard } from './auth/roles.guard';
     PurchaseIntakeModule,
     CarviorModule,
     ChannelTalkModule,
+    WashModule,
     CleaningModule,
     DealerFeesModule,
     ApprovalsModule,
