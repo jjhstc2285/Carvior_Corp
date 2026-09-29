@@ -280,6 +280,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
       '주유(원)': costOf(s).fuel,
       '배터리(원)': costOf(s).battery,
       '주차(원)': costOf(s).parking,
+      '외부주차장 세차(원)': costOf(s).wash,
       '소모품 수리(원)': costOf(s).repair,
       '기타(원)': costOf(s).etc,
       '차량비용 합계(원)': costOf(s).total,
@@ -484,7 +485,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
                         className="text-sky-700"
                         title={
                           costOf(s).count > 0
-                            ? `주유 ${NUM(costOf(s).fuel)} / 배터리 ${NUM(costOf(s).battery)} / 주차 ${NUM(costOf(s).parking)} / 소모품 수리 ${NUM(costOf(s).repair)} / 기타 ${NUM(costOf(s).etc)} (${costOf(s).count}건)`
+                            ? `주유 ${NUM(costOf(s).fuel)} / 배터리 ${NUM(costOf(s).battery)} / 주차 ${NUM(costOf(s).parking)} / 외부세차 ${NUM(costOf(s).wash)} / 소모품 수리 ${NUM(costOf(s).repair)} / 기타 ${NUM(costOf(s).etc)} (${costOf(s).count}건)`
                             : '차량관리에 등록된 이력이 없습니다.'
                         }
                       >

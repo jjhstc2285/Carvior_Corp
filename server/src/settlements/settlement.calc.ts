@@ -266,6 +266,8 @@ export interface VehicleCostSummary {
   fuel: number; // 원
   battery: number; // 원
   parking: number; // 원
+  /** 외부 주차장에서 세워 둔 차를 닦아 주시는 값 — 상품화의 광택·세차와 다르다 */
+  wash: number; // 원
   repair: number; // 원 — 소모품·수리
   etc: number; // 원 — 기타
   total: number; // 원
@@ -276,6 +278,7 @@ export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
   fuel: 0,
   battery: 0,
   parking: 0,
+  wash: 0,
   repair: 0,
   etc: 0,
   total: 0,

@@ -594,6 +594,7 @@ export interface VehicleCostSummary {
   fuel: number; // 주유
   battery: number; // 배터리
   parking: number; // 주차
+  wash: number; // 외부주차장 세차
   repair: number; // 소모품·수리
   etc: number; // 기타
   total: number;
@@ -604,6 +605,7 @@ export const EMPTY_VEHICLE_COST: VehicleCostSummary = {
   fuel: 0,
   battery: 0,
   parking: 0,
+  wash: 0,
   repair: 0,
   etc: 0,
   total: 0,
@@ -1175,11 +1177,19 @@ export interface ManagedVehicle {
   updatedAt: string;
 }
 
-export type VehicleExpenseKind = 'FUEL' | 'BATTERY' | 'REPAIR' | 'ETC';
+export type VehicleExpenseKind = 'FUEL' | 'BATTERY' | 'WASH' | 'REPAIR' | 'ETC';
 
 export const VEHICLE_EXPENSE_KIND_LABEL: Record<VehicleExpenseKind, string> = {
   FUEL: '주유',
   BATTERY: '배터리',
+  /*
+    외부 주차장에서 세워 둔 차를 계속 닦아 주시는 분께 드리는 돈.
+
+    상품화의 '광택·세차'와 이름이 겹치면 안 된다 — 그쪽은 팔려고 한 번 제대로 맡기는
+    일이고 매입 정산에 들어가지만, 이건 세워 두는 동안 달마다 나가는 관리비다.
+    붙는 자리가 달라서 한 칸에 섞이면 원가가 틀어진다.
+  */
+  WASH: '외부주차장 세차',
   REPAIR: '소모품 수리',
   ETC: '기타',
 };
@@ -1189,10 +1199,21 @@ export const VEHICLE_EXPENSE_KIND_LABEL: Record<VehicleExpenseKind, string> = {
  * 항목 이름만으로는 무엇에 쓴 돈인지 알 수 없는 것들이다 —
  * 같은 '소모품 수리'라도 타이어인지 썬팅인지가 나중에 정산에서 갈린다.
  */
-export const VEHICLE_EXPENSE_MEMO_KINDS: VehicleExpenseKind[] = ['REPAIR', 'ETC'];
+export const VEHICLE_EXPENSE_MEMO_KINDS: VehicleExpenseKind[] = ['WASH', 'REPAIR', 'ETC'];
 
 /** 무엇을 적으면 되는지 보여주는 예시 — 실제로 자주 올라오는 항목들이다. */
 export const VEHICLE_EXPENSE_MEMO_PLACEHOLDER = '사이드미러, 블랙박스, 썬팅, 타이어, 와이퍼, 케미칼류, 유리';
+
+/**
+ * 종류에 따라 다른 예시를 보여준다.
+ *
+ * 세차 칸에 '사이드미러, 블랙박스'가 떠 있으면 무엇을 적으라는 건지 알 수 없다 —
+ * 예시는 그 자리에서 실제로 적는 말이어야 쓸모가 있다.
+ */
+export function expenseMemoPlaceholder(kind: VehicleExpenseKind): string {
+  if (kind === 'WASH') return '몇 대, 어느 주차장 — 예: 배양동 12대';
+  return VEHICLE_EXPENSE_MEMO_PLACEHOLDER;
+}
 
 // 주유 비고 — 배터리에는 쓰지 않는다
 export type VehicleUsageNote = 'IN_PREP' | 'TEST_DRIVE' | 'SOLD';

@@ -1,12 +1,12 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import dayjs from 'dayjs';
-import { BatteryCharging, Fuel, MoreHorizontal, Plus, Trash2, Wrench } from 'lucide-react';
+import { BatteryCharging, Droplets, Fuel, MoreHorizontal, Plus, Trash2, Wrench } from 'lucide-react';
 import { PLATE_MESSAGE, formatWon } from '../../lib/vehicle';
 import { toMoneyValue, withCommas } from '../../lib/money';
 import {
   VEHICLE_EXPENSE_KIND_LABEL,
   VEHICLE_EXPENSE_MEMO_KINDS,
-  VEHICLE_EXPENSE_MEMO_PLACEHOLDER,
+  expenseMemoPlaceholder,
   VEHICLE_USAGE_NOTE_LABEL,
   type ManagedVehicle,
   type VehicleExpenseKind,
@@ -22,12 +22,13 @@ const NOTE_KEYS = Object.keys(VEHICLE_USAGE_NOTE_LABEL) as VehicleUsageNote[];
  * 화면에서 직접 등록하는 종류. 주차비(PARKING)는 주차장 관리에서 자동으로 쌓이므로
  * 여기 목록에는 없다 — 라벨 목록을 그대로 쓰면 손으로 못 넣는 종류까지 버튼이 생긴다.
  */
-const KIND_KEYS: VehicleExpenseKind[] = ['FUEL', 'BATTERY', 'REPAIR', 'ETC'];
+const KIND_KEYS: VehicleExpenseKind[] = ['FUEL', 'BATTERY', 'WASH', 'REPAIR', 'ETC'];
 
 /** 종류별 배지 색 — 목록에서 한눈에 갈리게 */
 const KIND_BADGE: Record<VehicleExpenseKind, string> = {
   FUEL: 'bg-orange-50 text-orange-600',
   BATTERY: 'bg-sky-50 text-sky-600',
+  WASH: 'bg-cyan-50 text-cyan-700',
   REPAIR: 'bg-violet-50 text-violet-600',
   ETC: 'bg-slate-100 text-slate-600',
 };
@@ -38,6 +39,7 @@ const takesMemo = (kind: VehicleExpenseKind) => VEHICLE_EXPENSE_MEMO_KINDS.inclu
 function KindIcon({ kind, size = 14 }: { kind: VehicleExpenseKind; size?: number }) {
   if (kind === 'FUEL') return <Fuel size={size} />;
   if (kind === 'BATTERY') return <BatteryCharging size={size} />;
+  if (kind === 'WASH') return <Droplets size={size} />;
   if (kind === 'ETC') return <MoreHorizontal size={size} />;
   return <Wrench size={size} />;
 }
@@ -211,7 +213,7 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
                 <input
                   value={memo}
                   onChange={e => setMemo(e.target.value)}
-                  placeholder={VEHICLE_EXPENSE_MEMO_PLACEHOLDER}
+                  placeholder={expenseMemoPlaceholder(kind)}
                   className="min-w-56 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
                 />
               )}
@@ -368,7 +370,7 @@ function ExpenseRow({ log, onEdit, onRemove }: RowProps) {
         </td>
         <td className="px-3 py-2">
           {takesMemo(log.kind) ? (
-            <input value={memo} onChange={e => setMemo(e.target.value)} placeholder={VEHICLE_EXPENSE_MEMO_PLACEHOLDER}
+            <input value={memo} onChange={e => setMemo(e.target.value)} placeholder={expenseMemoPlaceholder(log.kind)}
               className="w-48 rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-indigo-400" />
           ) : (
             <span className="text-slate-300">—</span>
