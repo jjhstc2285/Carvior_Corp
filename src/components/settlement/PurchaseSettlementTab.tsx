@@ -211,7 +211,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
   };
 
   /* 제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다 */
-  const cols = useColumnOrder('purchaseSettlementColOrder', COLUMNS);
+  const cols = useColumnOrder('purchaseSettlementColOrder', COLUMNS, { dense: true });
 
   const filtered = scoped
     .filter(s => allMonths || s.date.startsWith(month))
@@ -333,33 +333,33 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+      <div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">총 건수</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">{totals.count}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
+          <p className="text-xl font-bold text-slate-800">{totals.count}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">매입가 합계</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">{MAN(totals.purchase)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
+          <p className="text-xl font-bold text-slate-800">{MAN(totals.purchase)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">상품화총비용 합계</p>
-          <p className="mt-1 text-2xl font-bold text-amber-600">{MAN(totals.prep)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
+          <p className="text-xl font-bold text-amber-600">{MAN(totals.prep)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">정산금액 합계</p>
-          <p className="mt-1 text-2xl font-bold text-indigo-600">{MAN(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
+          <p className="text-xl font-bold text-indigo-600">{MAN(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">차량비용 합계</p>
-          <p className="mt-1 text-2xl font-bold text-sky-600">{NUM(totals.vehicleCost)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
-          <p className="mt-0.5 text-[11px] text-slate-400">주유·배터리·주차·소모품 수리·기타 자동 반영</p>
+          <p className="text-xl font-bold text-sky-600">{NUM(totals.vehicleCost)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
+          <p className="text-[10px] text-slate-400">주유·배터리·주차·세차·수리 자동 반영</p>
         </div>
       </div>
 
       {/* 위 '상품화총비용 합계'를 항목 6개로 쪼갠 것 — 세로 합이 그 카드 숫자와 같다 */}
-      <div className="mb-4 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/40">
-        <div className="flex items-baseline justify-between border-b border-amber-200/70 px-4 py-2">
+      <div className="mb-2.5 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/40">
+        <div className="flex items-baseline justify-between border-b border-amber-200/70 px-3 py-1.5">
           <span className="text-xs font-bold text-amber-800">상품화총비용 항목별</span>
           <span className="text-[11px] text-amber-700/80">
             합계 {MAN(totals.prep)}원 · {totals.count}건 기준
@@ -367,7 +367,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
         <div className="grid grid-cols-3 divide-x divide-y divide-amber-200/60 sm:grid-cols-6 sm:divide-y-0">
           {PREP_COST_KINDS.map(k => (
-            <div key={k} className="px-3 py-2.5 text-center">
+            <div key={k} className="px-2 py-1.5 text-center">
               <p className="text-[11px] font-medium text-amber-800/80">{PREP_COST_LABEL[k]}</p>
               <p className={`mt-0.5 text-base font-bold ${totals.prepByKind[k] ? 'text-amber-700' : 'text-amber-700/25'}`}>
                 {MAN(totals.prepByKind[k])}
@@ -477,10 +477,16 @@ export default function PurchaseSettlementTab({ role }: Props) {
         />
       ) : (
       <div className="rounded-2xl border border-slate-200 bg-white">
-        <div className="overflow-x-auto">
+        {/*
+          세로로도 옆으로도 이 안에서만 구른다.
+
+          정산이 백 줄이 넘는 달이 있는데, 그때 제목줄이 화면 위로 올라가 버리면 지금
+          보는 숫자가 매입가인지 정산금액인지 세어 가며 읽게 된다. 제목줄을 붙여 둔다.
+        */}
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full min-w-[1520px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+            <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_#e2e8f0]">
+              <tr className="text-left text-xs text-slate-400">
                 {cols.headers()}
               </tr>
             </thead>

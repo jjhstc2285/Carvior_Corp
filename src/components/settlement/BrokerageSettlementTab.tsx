@@ -129,7 +129,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
     kind 가 없던 시절에 적은 건이 있어서, 안 적힌 건은 알선으로 본다 — 그때는 알선뿐이었다.
   */
   /* 제목줄을 끌어 열 순서를 바꾼다 — 알선과 수출이 차례를 따로 기억한다 */
-  const cols = useColumnOrder(`settlementColOrder-${kind}`, COLUMNS);
+  const cols = useColumnOrder(`settlementColOrder-${kind}`, COLUMNS, { dense: true });
 
   const ofKind = state.brokerageSettlements.filter(s => (s.kind ?? 'BROKERAGE') === kind);
   const scoped = seesAll ? ofKind : ofKind.filter(s => s.employeeId === state.currentEmployeeId);
@@ -307,10 +307,11 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
         />
       ) : (
       <div className="rounded-2xl border border-slate-200 bg-white">
-        <div className="overflow-x-auto">
+        {/* 제목줄을 붙여 둔다 — 줄이 길어지면 무슨 칸을 보는지 세어 가며 읽게 된다 */}
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full min-w-[1180px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+            <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_#e2e8f0]">
+              <tr className="text-left text-xs text-slate-400">
                 {cols.headers()}
               </tr>
             </thead>

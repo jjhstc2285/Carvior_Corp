@@ -24,7 +24,18 @@ export interface Column {
   headClass?: string;
 }
 
-export function useColumnOrder(storageKey: string, columns: Column[]) {
+/**
+ * 빽빽하게 볼지.
+ *
+ * 칸이 스무 개 넘는 표는 여백이 곧 가로 스크롤이다 — 한 줄이 화면을 넘어가면 무슨
+ * 차를 보고 있었는지 놓친다. 칸 수가 적은 표는 그대로 둔다(빽빽하면 읽기 나쁘다).
+ */
+export interface OrderOptions {
+  dense?: boolean;
+}
+
+export function useColumnOrder(storageKey: string, columns: Column[], options: OrderOptions = {}) {
+  const pad = options.dense ? 'px-1.5' : 'px-2.5';
   const keys = () => columns.map(c => c.key);
 
   const [order, setOrder] = useState<string[]>(() => {
@@ -103,7 +114,7 @@ export function useColumnOrder(storageKey: string, columns: Column[]) {
           }}
           title={col.title ? `${col.title}
 — 끌어서 순서를 바꿉니다` : '끌어서 순서를 바꿉니다'}
-          className={`select-none px-2.5 py-2.5 font-medium transition-colors ${col.align ?? ''} ${col.headClass ?? ''} ${
+          className={`select-none ${pad} ${options.dense ? 'py-1.5' : 'py-2.5'} font-medium transition-colors ${col.align ?? ''} ${col.headClass ?? ''} ${
             col.nowrap === false ? '' : 'whitespace-nowrap'
           } ${mark} ${
             dragging
@@ -133,7 +144,7 @@ export function useColumnOrder(storageKey: string, columns: Column[]) {
       return (
         <td
           key={key}
-          className={`px-2.5 py-1.5 ${col?.align ?? ''} ${col?.nowrap === false ? '' : 'whitespace-nowrap'} ${
+          className={`${pad} ${options.dense ? 'py-1' : 'py-1.5'} ${col?.align ?? ''} ${col?.nowrap === false ? '' : 'whitespace-nowrap'} ${
             dragKey === key ? 'bg-indigo-50/40' : ''
           } ${rowClass}`}
         >

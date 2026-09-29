@@ -27,7 +27,7 @@ export default function SettlementModule({ role }: Props) {
   const current = TABS.find(t => t.key === tab)!;
 
   return (
-    <div className="mx-auto max-w-368 px-4 py-6 sm:px-6 sm:py-8">
+    <div className="mx-auto max-w-[1700px] px-3 py-4 sm:px-5">
       <div className="mb-4">
         <h1 className="text-xl font-bold text-slate-900">{role === 'EMPLOYEE' ? '내 정산 현황' : '정산 관리'}</h1>
         <p className="mt-1 text-sm text-slate-500">{current.desc}</p>
