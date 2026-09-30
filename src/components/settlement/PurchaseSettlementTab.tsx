@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, FileSpreadsheet, Lock, Pencil, Percent, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
@@ -252,6 +252,40 @@ export default function PurchaseSettlementTab({ role }: Props) {
     return lines.map(c => `${c.vendor || '미지정'} ${MAN(c.amount)}`).join(' / ');
   };
 
+  /*
+    그 달 청구서 총액.
+
+    줄 합계와 청구서 총액이 안 맞는 달이 있는데, 맞추자고 차액을 남의 차에 얹으면 그 차
+    원가와 순이익이 틀어진 채로 결재까지 간다. 그래서 차에는 나눠 붙이지 않고 받은 총액을
+    적어 두고, 판금·덴트 합계만 이 값으로 덮어쓴다.
+
+    달을 고른 때만 본다 — 전체 기간은 어느 달 총액인지 가릴 수 없다.
+  */
+  const [invoiceTotals, setInvoiceTotals] = useState<{ vendor: string; amount: number; writer: string }[]>([]);
+  const loadInvoiceTotals = useCallback(async () => {
+    if (allMonths) {
+      setInvoiceTotals([]);
+      return;
+    }
+    try {
+      setInvoiceTotals(
+        await api<{ vendor: string; amount: number; writer: string }[]>(
+          `/settlements/purchase/panel-invoice/totals?month=${month}`,
+        ),
+      );
+    } catch {
+      // 못 불러와도 목록은 그대로 보여준다 — 합계만 줄에서 더한 값으로 돌아간다
+      setInvoiceTotals([]);
+    }
+  }, [allMonths, month]);
+
+  useEffect(() => {
+    void loadInvoiceTotals();
+  }, [loadInvoiceTotals]);
+
+  /** 적어 둔 총액이 있으면 판금·덴트는 그 합이다 */
+  const statedDent = invoiceTotals.reduce((sum, t) => sum + t.amount, 0);
+
   const totals = useMemo(() => ({
     count: filtered.length,
     purchase: filtered.reduce((sum, s) => sum + s.purchasePrice, 0),
@@ -265,6 +299,14 @@ export default function PurchaseSettlementTab({ role }: Props) {
       return acc;
     }, { ...EMPTY_PREP_BREAKDOWN }),
   }), [filtered]);
+
+  /**
+   * 화면에 띄우는 상품화총비용.
+   *
+   * 판금·덴트를 청구서 총액으로 덮어썼으면 그만큼 총비용도 같이 움직여야 한다 — 항목
+   * 여섯 칸을 더한 값이 위 카드와 달라지면 어느 쪽이 맞는지 아무도 모른다.
+   */
+  const prepShown = statedDent > 0 ? totals.prep - totals.prepByKind.DENT + statedDent : totals.prep;
 
   const handleExport = () => {
     // 엑셀에서 더하고 곱할 수 있게 문자열이 아니라 숫자로 넣는다. 전부 원 단위다.
@@ -344,7 +386,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">상품화총비용 합계</p>
-          <p className="text-xl font-bold text-amber-600">{MAN(totals.prep)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
+          <p className="text-xl font-bold text-amber-600">{MAN(prepShown)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">정산금액 합계</p>
@@ -362,18 +404,38 @@ export default function PurchaseSettlementTab({ role }: Props) {
         <div className="flex items-baseline justify-between border-b border-amber-200/70 px-3 py-1.5">
           <span className="text-xs font-bold text-amber-800">상품화총비용 항목별</span>
           <span className="text-[11px] text-amber-700/80">
-            합계 {MAN(totals.prep)}원 · {totals.count}건 기준
+            합계 {MAN(prepShown)}원 · {totals.count}건 기준
           </span>
         </div>
         <div className="grid grid-cols-3 divide-x divide-y divide-amber-200/60 sm:grid-cols-6 sm:divide-y-0">
-          {PREP_COST_KINDS.map(k => (
-            <div key={k} className="px-2 py-1.5 text-center">
-              <p className="text-[11px] font-medium text-amber-800/80">{PREP_COST_LABEL[k]}</p>
-              <p className={`mt-0.5 text-base font-bold ${totals.prepByKind[k] ? 'text-amber-700' : 'text-amber-700/25'}`}>
-                {MAN(totals.prepByKind[k])}
-              </p>
-            </div>
-          ))}
+          {PREP_COST_KINDS.map(k => {
+            /*
+              판금·덴트는 청구서 총액을 적어 뒀으면 그 값으로 덮어쓴다.
+
+              줄 합계와 안 맞아도 차액을 차에 나눠 붙이지 않기로 했다 — 차마다의 원가는
+              청구서에 적힌 그대로 두고, 합계만 받은 총액으로 본다. 어디서 온 숫자인지
+              모르면 안 되니 적은 사람과 줄 합계를 같이 띄운다.
+            */
+            const stated = k === 'DENT' && statedDent > 0;
+            const value = stated ? statedDent : totals.prepByKind[k];
+            return (
+              <div key={k} className="px-2 py-1.5 text-center">
+                <p className="text-[11px] font-medium text-amber-800/80">{PREP_COST_LABEL[k]}</p>
+                <p className={`mt-0.5 text-base font-bold ${value ? 'text-amber-700' : 'text-amber-700/25'}`}>
+                  {MAN(value)}
+                </p>
+                {stated && (
+                  <p
+                    className="text-[10px] font-medium text-amber-700/70"
+                    title={`${invoiceTotals.map(t => `${t.vendor} ${t.amount.toLocaleString()}원${t.writer ? ` · ${t.writer}` : ''}`).join(' / ')}
+줄에서 더한 값은 ${totals.prepByKind.DENT.toLocaleString()}원입니다`}
+                  >
+                    청구서 총액
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -651,9 +713,12 @@ export default function PurchaseSettlementTab({ role }: Props) {
             dent: (s.prepCosts ?? []).filter(c => c.kind === 'DENT').reduce((sum, c) => sum + c.amount, 0),
           }))}
           myName={me?.name}
+          month={month}
+          savedTotals={invoiceTotals}
           onClose={() => setInvoiceOpen(false)}
           onApplied={async () => {
             await refresh();
+            await loadInvoiceTotals();
           }}
         />
       )}

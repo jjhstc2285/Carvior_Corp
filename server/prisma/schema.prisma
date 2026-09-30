@@ -1735,3 +1735,33 @@ model Condolence {
   @@index([eventOn])
   @@index([kind])
 }
+
+/**
+ * 판금집이 보낸 청구서 총액.
+ *
+ * 줄마다 붙인 금액을 다 더해도 청구서 총액과 안 맞는 달이 있다 — 판을 몇 개로 셌는지가
+ * 현장과 판금집이 다르고, 청구서에는 있는데 우리 매입 정산에는 없는 차도 섞여 온다.
+ * 어느 차가 틀렸는지 한 줄씩 따지는 건 사람이 할 일이 아니다.
+ *
+ * 그래서 차에 나눠 붙이지 않는다. 받은 총액을 그대로 적어 두고, 판금·덴트 합계는 이
+ * 값으로 덮어쓴다. 차마다의 원가는 청구서에 적힌 금액 그대로 남는다 — 맞추자고 남의
+ * 차 원가를 올리면 그 차 순이익이 틀어진 채로 결재까지 간다.
+ *
+ * 달과 업체로 한 줄이다. 대산과 KS를 따로 적으면 둘을 더한 값이 판금·덴트 총액이 된다.
+ */
+model PanelInvoiceTotal {
+  id String @id @default(cuid())
+
+  month  String @db.VarChar(7) // YYYY-MM
+  vendor String @db.VarChar(20) // 대산 / KS
+  amount Int    @default(0) // 청구서에 찍힌 총액(원)
+
+  /** 적은 사람 — 이름 두 개로 못 박은 그 사람들이다. 나중에 누가 적었는지 묻는다 */
+  writer String @default("") @db.VarChar(30)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([month, vendor])
+  @@index([month])
+}

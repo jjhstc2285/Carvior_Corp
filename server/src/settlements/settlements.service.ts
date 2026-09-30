@@ -268,6 +268,39 @@ export class SettlementsService {
 
 
   /**
+   * 청구서 총액을 적어 둔다.
+   *
+   * 줄 합계와 청구서 총액이 안 맞는 달이 있다. 맞추자고 차액을 남의 차에 얹으면 그 차
+   * 원가와 순이익이 틀어진 채로 결재까지 간다 — 그래서 차에는 나눠 붙이지 않는다.
+   * 받은 총액을 그대로 적어 두고, 판금·덴트 합계는 화면에서 이 값으로 덮어쓴다.
+   *
+   * 0을 적으면 지운다 — 잘못 적은 달을 되돌릴 방법이 있어야 한다.
+   */
+  async savePanelInvoiceTotal(month: string, vendor: string, amount: number, writer: string) {
+    const key = { month_vendor: { month, vendor } };
+
+    if (amount <= 0) {
+      await this.prisma.panelInvoiceTotal.deleteMany({ where: { month, vendor } });
+      return { month, vendor, amount: 0 };
+    }
+
+    return this.prisma.panelInvoiceTotal.upsert({
+      where: key,
+      update: { amount, writer },
+      create: { month, vendor, amount, writer },
+    });
+  }
+
+  /** 그 달에 적어 둔 청구서 총액 — 업체마다 한 줄이다 */
+  async panelInvoiceTotals(month: string) {
+    return this.prisma.panelInvoiceTotal.findMany({
+      where: { month },
+      orderBy: { vendor: 'asc' },
+      select: { month: true, vendor: true, amount: true, writer: true, updatedAt: true },
+    });
+  }
+
+  /**
    * 이미 적어둔 성능비 줄을 훑어 본다.
    *
    * 성능비는 부가세를 따로 붙여 청구해 오는데, 그동안 공급가만 적힌 건이 쌓였다.

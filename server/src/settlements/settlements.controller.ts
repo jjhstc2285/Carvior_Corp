@@ -238,14 +238,47 @@ export class SettlementsController {
    * 같이 열린다.
    */
   @Post('purchase/panel-invoice')
-  panelInvoice(
+  async panelInvoice(
     @CurrentUser() user: AuthUser,
-    @Body() dto: { vendor?: string; rows?: PanelInvoiceRow[] },
+    @Body()
+    dto: {
+      vendor?: string;
+      rows?: PanelInvoiceRow[];
+      /** 청구서를 넣는 달(YYYY-MM). 총액을 적어 둘 때 쓴다 */
+      month?: string;
+      /** 청구서에 찍힌 총액. 차에 나눠 붙이지 않고 적어만 둔다 — 합계를 이 값으로 덮어쓴다 */
+      invoiceTotal?: number;
+    },
   ) {
     if (!canEditPanelInvoice(user.name)) {
       throw new ForbiddenException('판금 청구서를 넣을 수 있는 계정이 아닙니다.');
     }
-    return this.settlements.applyPanelInvoice((dto.vendor ?? '대산').trim(), dto.rows ?? []);
+    const vendor = (dto.vendor ?? '대산').trim();
+    const applied = await this.settlements.applyPanelInvoice(vendor, dto.rows ?? []);
+
+    /*
+      총액은 적어만 둔다.
+
+      줄 합계와 안 맞아도 차액을 차에 나눠 붙이지 않는다 — 맞추자고 남의 차 원가를 올리면
+      그 차 순이익이 틀어진 채로 결재까지 간다. 적어 둔 총액으로 판금·덴트 합계를 덮어쓴다.
+    */
+    const month = (dto.month ?? '').trim();
+    if (/^\d{4}-\d{2}$/.test(month)) {
+      await this.settlements.savePanelInvoiceTotal(
+        month,
+        vendor,
+        Math.max(0, Math.round(dto.invoiceTotal ?? 0)),
+        user.name,
+      );
+    }
+    return applied;
+  }
+
+  /** 그 달에 적어 둔 청구서 총액 — 판금·덴트 합계를 이걸로 덮어쓴다 */
+  @Get('purchase/panel-invoice/totals')
+  panelInvoiceTotals(@Query('month') month = '') {
+    if (!/^\d{4}-\d{2}$/.test(month.trim())) return [];
+    return this.settlements.panelInvoiceTotals(month.trim());
   }
 
 

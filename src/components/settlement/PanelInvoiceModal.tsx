@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { FileSpreadsheet, Loader2, Plus, X } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -52,12 +52,18 @@ const plateKey = (v: string) => v.replace(/\s/g, '');
 export default function PanelInvoiceModal({
   targets,
   myName,
+  month,
+  savedTotals = [],
   onClose,
   onApplied,
 }: {
   targets: PanelInvoiceTarget[];
   /** 내 이름 — 거래처별로 나뉘어 온 파일에서 내 장을 먼저 고른다 */
   myName?: string | null;
+  /** 지금 보고 있는 달(YYYY-MM) — 청구서 총액을 이 달로 적어 둔다 */
+  month: string;
+  /** 이 달에 이미 적어 둔 총액 — 업체를 고르면 그 값이 칸에 들어온다 */
+  savedTotals?: { vendor: string; amount: number }[];
   onClose: () => void;
   onApplied: () => void;
 }) {
@@ -107,6 +113,17 @@ export default function PanelInvoiceModal({
     const hits = byTail.get(key.slice(-4)) ?? [];
     return hits.length === 1 ? hits[0] : null;
   };
+
+  /*
+    업체를 고르면 그 업체로 적어 둔 총액을 칸에 띄운다.
+
+    지난달에 적어 둔 값을 모른 채 다시 적으면 덮어써진다 — 무엇이 적혀 있었는지 보고
+    고치는 편이 안전하다.
+  */
+  useEffect(() => {
+    const saved = savedTotals.find(t => t.vendor === vendor.trim());
+    setInvoiceTotal(saved ? String(saved.amount) : '');
+  }, [vendor, savedTotals]);
 
   const patch = (index: number, next: Partial<Row>) =>
     setRows(prev => prev.map((r, i) => (i === index ? { ...r, ...next, edited: true } : r)));
@@ -163,6 +180,15 @@ export default function PanelInvoiceModal({
       */
       const body = {
         vendor,
+        month,
+        /*
+          청구서 총액은 적어만 둔다.
+
+          줄 합계와 안 맞아도 차액을 차에 나눠 붙이지 않는다 — 맞추자고 남의 차 원가를
+          올리면 그 차 순이익이 틀어진 채로 결재까지 간다. 적어 둔 총액이 그대로 판금·덴트
+          합계가 된다.
+        */
+        invoiceTotal: stated,
         rows: rows
           .filter(r => plateKey(r.vehicleNumber) && r.amount > 0)
           .map(r => ({
@@ -225,7 +251,7 @@ export default function PanelInvoiceModal({
         </div>
         <p className="mt-1 text-xs leading-relaxed text-slate-500">
           판금집에서 받은 엑셀을 그대로 넣으면 차량번호로 맞춰 매입 정산의 <b>판금·덴트</b> 칸에 꽂습니다. 정산에 없는
-          차는 <b>붙을 곳 없음</b>으로 띄웁니다 — 총액을 맞추려면 다른 차로 옮기거나 금액을 고치세요.
+          차는 <b>붙을 곳 없음</b>으로 띄웁니다. <b>청구서 총액</b>을 적으면 그 값이 이 달 판금·덴트 총액이 됩니다.
         </p>
 
         <div className="mt-3 flex flex-wrap items-end gap-2">
@@ -353,11 +379,10 @@ export default function PanelInvoiceModal({
               >
                 <Plus size={12} /> 줄 추가
               </button>
-              {gap !== 0 && (
-                <span className="w-full text-[11px] text-slate-400">
-                  금액 칸을 고치거나, 얹을 줄의 <b>[차액]</b> 을 누르세요
-                </span>
-              )}
+              <span className="w-full text-[11px] leading-relaxed text-slate-400">
+                적어 둔 <b>청구서 총액이 곧 판금·덴트 총액</b>이 됩니다 — 줄 합계와 달라도 차액을 차에 나눠 붙이지
+                않습니다. 줄 금액이 잘못 읽혔으면 금액 칸에서 고치세요.
+              </span>
             </div>
 
             {/* 붙을 곳이 없는 줄 — 그대로 넣으면 그만큼 총액이 빈다 */}
@@ -438,16 +463,6 @@ export default function PanelInvoiceModal({
                           />
                         </td>
                         <td className="whitespace-nowrap px-1 py-1">
-                          {/* 차액을 이 줄에 몰아 얹는다 — 어디에 얹을지는 보는 사람이 안다 */}
-                          {gap !== 0 && (
-                            <button
-                              onClick={() => patch(i, { amount: Math.max(0, r.amount + gap) })}
-                              title={`차액 ${withCommas(String(gap))}원을 이 줄에 얹습니다`}
-                              className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 hover:bg-amber-100"
-                            >
-                              차액
-                            </button>
-                          )}
                           <button
                             onClick={() => removeRow(i)}
                             title="이 줄은 빼고 넣습니다"
