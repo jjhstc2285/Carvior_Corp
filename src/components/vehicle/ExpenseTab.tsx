@@ -21,8 +21,14 @@ const NOTE_KEYS = Object.keys(VEHICLE_USAGE_NOTE_LABEL) as VehicleUsageNote[];
 /**
  * 화면에서 직접 등록하는 종류. 주차비(PARKING)는 주차장 관리에서 자동으로 쌓이므로
  * 여기 목록에는 없다 — 라벨 목록을 그대로 쓰면 손으로 못 넣는 종류까지 버튼이 생긴다.
+ *
+ * 외부주차장 세차(WASH)도 뺐다. 그건 옆 탭에서 달마다 대장으로 적는 돈이라, 여기서도
+ * 적을 수 있으면 같은 돈이 두 번 잡힌다 — 어느 쪽이 맞는지 아무도 모르게 된다.
  */
-const KIND_KEYS: VehicleExpenseKind[] = ['FUEL', 'BATTERY', 'WASH', 'REPAIR', 'ETC'];
+const KIND_KEYS: VehicleExpenseKind[] = ['FUEL', 'BATTERY', 'REPAIR', 'ETC'];
+
+/** 지난 기록에는 세차가 남아 있다 — 적지는 못해도 지워 보긴 해야 한다 */
+const WASH_KIND: VehicleExpenseKind = 'WASH';
 
 /** 종류별 배지 색 — 목록에서 한눈에 갈리게 */
 const KIND_BADGE: Record<VehicleExpenseKind, string> = {
@@ -124,7 +130,8 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
   const filtered = useMemo(
     () =>
       expenses
-        .filter(e => kindFilter === 'ALL' || e.kind === kindFilter)
+        // 세차는 옆 탭에서 세는 돈이라 이 합계에 섞지 않는다. 지난 기록은 세차 칩으로 본다
+        .filter(e => (kindFilter === 'ALL' ? e.kind !== WASH_KIND : e.kind === kindFilter))
         .filter(e => !month || e.date.startsWith(month)),
     [expenses, kindFilter, month],
   );
@@ -247,7 +254,12 @@ export default function ExpenseTab({ api }: { api: VehiclesApi }) {
       </form>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        {(['ALL', ...KIND_KEYS] as const).map(k => (
+        {([
+          'ALL' as const,
+          ...KIND_KEYS,
+          // 예전에 여기로 적어 둔 세차가 있으면 그것만 따로 볼 수 있게 남긴다
+          ...(expenses.some(e => e.kind === WASH_KIND) ? [WASH_KIND] : []),
+        ]).map(k => (
           <button
             key={k}
             onClick={() => setKindFilter(k)}

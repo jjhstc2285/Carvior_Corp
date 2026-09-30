@@ -78,9 +78,25 @@ export default function WashTab() {
     void load();
   }, [load]);
 
-  /** 지금 그 주차장에 서 있는 차 — 찍을 때 대수로 채운다 */
+  /** 지금 그 주차장에 서 있는 차 */
   const carsInLot = useMemo(
     () => state.parkingVehicles.filter(v => v.lot === lot && !v.soldDate).length,
+    [state.parkingVehicles, lot],
+  );
+
+  /*
+    그날 그 주차장에 있던 차.
+
+    지금 서 있는 차로 채우면 지난 날을 찍어도 오늘 대수가 박힌다 — 8일을 찍든 20일을
+    찍든 같은 숫자가 나온다. 그 사이 판 차는 그날엔 있었던 차다.
+
+    판 날로 되돌린다: 그 날짜보다 나중에 팔린 차는 그날 있었던 것으로 센다. 언제 들어온
+    차인지는 주차 배치에 안 남아서, 그날 이후 들어온 차까지 세어질 수 있다 — 그래서
+    아래 목록에서 손으로 고칠 수 있게 뒀다. 현장이 아는 숫자가 맞는 숫자다.
+  */
+  const carsInLotOn = useCallback(
+    (date: string) =>
+      state.parkingVehicles.filter(v => v.lot === lot && (!v.soldDate || v.soldDate > date)).length,
     [state.parkingVehicles, lot],
   );
 
@@ -95,11 +111,26 @@ export default function WashTab() {
       if (found) {
         await api(`/wash/visits/${found.id}`, { method: 'DELETE' });
       } else {
-        await api('/wash/visits', { method: 'POST', body: { date, lot, carCount: carsInLot } });
+        await api('/wash/visits', { method: 'POST', body: { date, lot, carCount: carsInLotOn(date) } });
       }
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : '기록하지 못했습니다.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 그날 대수를 고친다 — 같은 날·같은 주차장은 덮어쓴다 */
+  const patchVisit = async (v: Visit, carCount: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      // 메모를 같이 보낸다 — 안 보내면 서버가 빈 값으로 덮어쓴다
+      await api('/wash/visits', { method: 'POST', body: { date: v.date, lot: v.lot, carCount, memo: v.memo } });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '대수를 고치지 못했습니다.');
     } finally {
       setBusy(false);
     }
@@ -220,10 +251,61 @@ export default function WashTab() {
             );
           })}
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">
-          날짜를 누르면 세차하러 온 날로 찍힙니다. 대수는 그때 이 주차장에 서 있던 차로 채워지고, 다르면 아래에서 고칩니다.
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+          날짜를 누르면 세차하러 온 날로 찍힙니다. 대수는 <b>그날 기준</b>으로 채웁니다 — 그 뒤에 판 차는 그날엔 있던
+          차라 같이 셉니다. 들어온 날은 주차 배치에 안 남아서 실제와 다를 수 있으니, 아래에서 그날 대수를 고치세요.
         </p>
       </div>
+
+      {/*
+        찍은 날마다 대수를 고친다.
+
+        그날 몇 대였는지는 현장이 안다. 고칠 자리가 없으면 자동으로 채운 숫자가 그대로
+        청구 대수가 되고, 그 값으로 청구서와 맞춰 보게 된다.
+      */}
+      {lotVisits.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-bold text-slate-800">{month.format('M월')} 온 날 · 대수</h3>
+          <ul className="mt-2 divide-y divide-slate-50">
+            {[...lotVisits]
+              .sort((a, b) => a.date.localeCompare(b.date))
+              .map(v => (
+                <li key={v.id} className="flex items-center gap-2 py-1.5">
+                  <span className="w-28 text-xs font-medium text-slate-600">
+                    {dayjs(v.date).format('M월 D일 (ddd)')}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    defaultValue={v.carCount}
+                    onBlur={e => {
+                      const next = Number(e.target.value) || 0;
+                      if (next !== v.carCount) void patchVisit(v, next);
+                    }}
+                    disabled={busy}
+                    className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-indigo-400"
+                  />
+                  <span className="text-xs text-slate-400">대</span>
+                  {/* 자동으로 센 값과 다르면 손으로 고친 줄이다 */}
+                  {v.carCount !== carsInLotOn(v.date) && (
+                    <span className="text-[10px] text-slate-300">그날 기준 {carsInLotOn(v.date)}대</span>
+                  )}
+                  <span className="ml-auto text-[11px] text-slate-400">{v.recordedBy}</span>
+                  <button
+                    onClick={() => void toggle(v.date)}
+                    disabled={busy}
+                    className="rounded px-1.5 py-0.5 text-[11px] text-slate-400 hover:bg-slate-100 hover:text-red-500"
+                  >
+                    지우기
+                  </button>
+                </li>
+              ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-slate-400">
+            청구 대수는 이 중 <b>제일 큰 값</b>으로 잡습니다 — 같은 차를 여덟 번 닦았다고 여덟 대가 되지 않습니다.
+          </p>
+        </div>
+      )}
 
       {/* 달마다 치르는 값 */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
