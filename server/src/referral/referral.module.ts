@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Injectable, Module, Post, Query } from '@nestjs/common';
 import { BadRequestException } from '@nestjs/common';
-import { ConsultationKind } from '@prisma/client';
+import { ConsultationKind, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager } from '../auth/office-manager';
@@ -29,7 +29,13 @@ const MONTH = /^\d{4}-\d{2}$/;
 export class ReferralService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async month(month: string) {
+  /**
+   * @param withProfit 회사에 얼마가 남는지까지 보여줄지.
+   *
+   * 딜러가 얼마를 받는지는 정산을 돌리는 사람이 봐야 하지만, 회사에 얼마가 남는지는
+   * 경영 숫자다. 화면에서 열만 감추면 주소로 그대로 받아 볼 수 있으니 값 자체를 안 담는다.
+   */
+  async month(month: string, withProfit: boolean) {
     const range = monthRange(month);
 
     /*
@@ -95,6 +101,7 @@ export class ReferralService {
         teamSales,
       });
 
+      const { companyProfit, ...shown } = result;
       return {
         employeeId: p.id,
         name: p.name,
@@ -108,7 +115,8 @@ export class ReferralService {
         baseSalaryOverride: row?.baseSalary ?? 0,
         targetAchieved: row?.targetAchieved ?? false,
         memo: row?.memo ?? '',
-        ...result,
+        ...shown,
+        ...(withProfit ? { companyProfit } : {}),
       };
     });
 
@@ -118,11 +126,15 @@ export class ReferralService {
     return {
       month,
       teamSales,
+      /** 회사에 남는 돈을 담아 보냈는가 — 화면이 열을 띄울지 이걸로 가른다 */
+      withProfit,
       rows,
       totals: {
         sales: rows.reduce((s, r) => s + r.sales, 0),
         payout: rows.reduce((s, r) => s + r.payout, 0),
-        companyProfit: rows.reduce((s, r) => s + r.companyProfit, 0),
+        ...(withProfit
+          ? { companyProfit: rows.reduce((s, r) => s + (r.companyProfit ?? 0), 0) }
+          : {}),
       },
       rules: {
         effectiveFrom: INCENTIVE_EFFECTIVE_FROM,
@@ -137,6 +149,7 @@ export class ReferralService {
   /** 한 사람 줄을 적어 둔다 — 안 적은 칸은 그대로 둔다 */
   async save(
     month: string,
+    withProfit: boolean,
     dto: {
       employeeId: string;
       sales?: number;
@@ -159,7 +172,7 @@ export class ReferralService {
       update: data,
       create: { month, employeeId: dto.employeeId, ...data },
     });
-    return this.month(month);
+    return this.month(month, withProfit);
   }
 }
 
@@ -177,7 +190,7 @@ export class ReferralController {
   month(@CurrentUser() user: AuthUser, @Query('month') month = '') {
     assertOfficeManager(user);
     if (!MONTH.test(month.trim())) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
-    return this.referral.month(month.trim());
+    return this.referral.month(month.trim(), user.role === Role.ADMIN);
   }
 
   @Post('incentive')
@@ -198,7 +211,7 @@ export class ReferralController {
     const month = (dto.month ?? '').trim();
     if (!MONTH.test(month)) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
     if (!dto.employeeId) throw new BadRequestException('누구 줄인지 없습니다.');
-    return this.referral.save(month, { ...dto, employeeId: dto.employeeId });
+    return this.referral.save(month, user.role === Role.ADMIN, { ...dto, employeeId: dto.employeeId });
   }
 }
 

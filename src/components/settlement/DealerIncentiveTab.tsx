@@ -38,14 +38,17 @@ interface Row {
   overridingRate: number;
   overridingBlocked: boolean;
   payout: number;
-  companyProfit: number;
+  /** 회사에 남는 돈 — 관리자만 받는다. 아니면 아예 안 담겨 온다 */
+  companyProfit?: number;
 }
 
 interface Sheet {
   month: string;
   teamSales: number;
+  /** 회사에 남는 돈을 받아 왔는가 — 관리자가 아니면 false 이고 값도 안 온다 */
+  withProfit: boolean;
   rows: Row[];
-  totals: { sales: number; payout: number; companyProfit: number };
+  totals: { sales: number; payout: number; companyProfit?: number };
   rules: {
     effectiveFrom: string;
     baseSalaryDefault: number;
@@ -149,7 +152,7 @@ export default function DealerIncentiveTab() {
 
       {/* 그 달 합계 */}
       {sheet && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className={`grid grid-cols-2 gap-2 ${sheet.withProfit ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
           <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
             <p className="text-xs font-medium text-slate-400">월 알선 총액</p>
             <p className="mt-1 text-xl font-bold text-slate-800">{withCommas(String(sheet.totals.sales))}</p>
@@ -158,10 +161,15 @@ export default function DealerIncentiveTab() {
             <p className="text-xs font-medium text-indigo-700/80">딜러 실수령 합계</p>
             <p className="mt-1 text-xl font-bold text-indigo-700">{withCommas(String(sheet.totals.payout))}</p>
           </div>
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 px-3.5 py-2.5">
-            <p className="text-xs font-medium text-emerald-700/80">회사 순수익</p>
-            <p className="mt-1 text-xl font-bold text-emerald-700">{withCommas(String(sheet.totals.companyProfit))}</p>
-          </div>
+          {/* 회사에 얼마가 남는지는 경영 숫자다 — 관리자에게만 온다 */}
+          {sheet.withProfit && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 px-3.5 py-2.5">
+              <p className="text-xs font-medium text-emerald-700/80">회사 순수익</p>
+              <p className="mt-1 text-xl font-bold text-emerald-700">
+                {withCommas(String(sheet.totals.companyProfit ?? 0))}
+              </p>
+            </div>
+          )}
           <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
             <p className="text-xs font-medium text-slate-400">팀원 알선 합계</p>
             <p className="mt-1 text-xl font-bold text-slate-800">{withCommas(String(sheet.teamSales))}</p>
@@ -182,13 +190,13 @@ export default function DealerIncentiveTab() {
               <th className="px-3 py-2.5 text-right font-medium">인센티브</th>
               <th className="px-3 py-2.5 text-right font-medium">관리 수당</th>
               <th className="px-3 py-2.5 text-right font-medium">실수령액</th>
-              <th className="px-3 py-2.5 text-right font-medium">회사 순수익</th>
+              {sheet?.withProfit && <th className="px-3 py-2.5 text-right font-medium">회사 순수익</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {rows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-12 text-center text-sm text-slate-400">
+                <td colSpan={sheet?.withProfit ? 9 : 8} className="px-3 py-12 text-center text-sm text-slate-400">
                   알선팀이 없습니다. 직원 설정에서 <b>알선 타이틀</b>을 달아 주세요.
                 </td>
               </tr>
@@ -304,13 +312,15 @@ export default function DealerIncentiveTab() {
                 <td className="whitespace-nowrap px-3 py-2 text-right text-base font-bold text-indigo-700">
                   {withCommas(String(r.payout))}
                 </td>
-                <td
-                  className={`whitespace-nowrap px-3 py-2 text-right font-semibold ${
-                    r.companyProfit >= 0 ? 'text-emerald-700' : 'text-red-600'
-                  }`}
-                >
-                  {withCommas(String(r.companyProfit))}
-                </td>
+                {sheet?.withProfit && (
+                  <td
+                    className={`whitespace-nowrap px-3 py-2 text-right font-semibold ${
+                      (r.companyProfit ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-600'
+                    }`}
+                  >
+                    {withCommas(String(r.companyProfit ?? 0))}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
