@@ -92,6 +92,13 @@ if [ "$DO_API" -eq 1 ]; then
   log "API 빌드"
   npm run build
 
+  # 빌드 결과가 없는데 재시작하면 pm2가 MODULE_NOT_FOUND로 끝없이 다시 띄운다.
+  # 실제로 그렇게 재시작이 752회까지 올라간 적이 있다 — 없으면 여기서 멈춘다.
+  if [ ! -f dist/main.js ]; then
+    echo "server/dist/main.js 가 없습니다. 빌드가 실패했으니 재시작하지 않습니다." >&2
+    exit 1
+  fi
+
   log "API 재시작"
   if pm2 describe "$PM2_APP" >/dev/null 2>&1; then
     pm2 restart "$PM2_APP" --update-env
