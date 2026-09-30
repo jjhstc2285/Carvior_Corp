@@ -261,7 +261,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
 
     달을 고른 때만 본다 — 전체 기간은 어느 달 총액인지 가릴 수 없다.
   */
-  const [invoiceTotals, setInvoiceTotals] = useState<{ vendor: string; kind: string; amount: number; writer: string }[]>([]);
+  const [invoiceTotals, setInvoiceTotals] = useState<
+    { vendor: string; kind: string; amount: number; count: number; writer: string }[]
+  >([]);
   const loadInvoiceTotals = useCallback(async () => {
     if (allMonths) {
       setInvoiceTotals([]);
@@ -269,7 +271,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
     }
     try {
       setInvoiceTotals(
-        await api<{ vendor: string; kind: string; amount: number; writer: string }[]>(
+        await api<{ vendor: string; kind: string; amount: number; count: number; writer: string }[]>(
           `/settlements/purchase/panel-invoice/totals?month=${month}`,
         ),
       );
@@ -441,7 +443,12 @@ export default function PurchaseSettlementTab({ role }: Props) {
                     className="text-[10px] font-medium text-amber-700/70"
                     title={`${invoiceTotals
                       .filter(t => t.kind === k)
-                      .map(t => `${t.vendor} ${t.amount.toLocaleString()}원${t.writer ? ` · ${t.writer}` : ''}`)
+                      .map(
+                        t =>
+                          `${t.vendor} ${t.amount.toLocaleString()}원${t.count ? ` · ${t.count}건` : ''}${
+                            t.writer ? ` · ${t.writer}` : ''
+                          }`,
+                      )
                       .join(' / ')}
 줄에서 더한 값은 ${totals.prepByKind[k].toLocaleString()}원입니다`}
                   >

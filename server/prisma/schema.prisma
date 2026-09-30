@@ -1764,6 +1764,14 @@ model PanelInvoiceTotal {
   kind String @default("DENT") @db.VarChar(20)
   amount Int    @default(0) // 청구서에 찍힌 총액(원)
 
+  /**
+   * 몇 건인가.
+   *
+   * 클리닉처럼 달마다 열몇 건씩 붙는 비용은 금액만 적어두면 다음 달에 늘었는지 줄었는지
+   * 견줄 데가 없다. 건수를 같이 적어 두면 건당 얼마였는지가 남는다. 0이면 안 적은 것이다.
+   */
+  count Int @default(0)
+
   /** 적은 사람 — 이름 두 개로 못 박은 그 사람들이다. 나중에 누가 적었는지 묻는다 */
   writer String @default("") @db.VarChar(30)
 

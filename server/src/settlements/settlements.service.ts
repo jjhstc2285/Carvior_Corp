@@ -181,6 +181,8 @@ export class SettlementsService {
   async applyPanelInvoice(
     vendor: string,
     rows: { vehicleNumber: string; vehicleName?: string; panelCount?: number; work?: string; amount: number }[],
+    /** 어느 칸에 꽂을지 — 광택 청구서를 넣었는데 판금 칸에 들어가면 안 된다 */
+    kind: PrepCostKind = 'DENT',
   ) {
     const wanted = rows.filter((r) => r.amount > 0 && (r.vehicleNumber ?? '').trim());
     if (wanted.length === 0) return { applied: [], skipped: [], locked: [] };
@@ -235,7 +237,7 @@ export class SettlementsService {
       */
       const memo = [row.work, row.panelCount ? `판 ${row.panelCount}` : ''].filter(Boolean).join(' · ').slice(0, 191);
       const mine = await this.prisma.purchasePrepCost.findFirst({
-        where: { settlementId: found.id, kind: 'DENT', vendor },
+        where: { settlementId: found.id, kind, vendor },
       });
 
       if (mine) {
@@ -252,7 +254,7 @@ export class SettlementsService {
         await this.prisma.purchasePrepCost.create({
           data: {
             settlementId: found.id,
-            kind: 'DENT',
+            kind,
             vendor,
             amount: row.amount,
             memo,
@@ -321,7 +323,14 @@ export class SettlementsService {
    *
    * 0을 적으면 지운다 — 잘못 적은 달을 되돌릴 방법이 있어야 한다.
    */
-  async savePanelInvoiceTotal(month: string, vendor: string, amount: number, writer: string, kind = 'DENT') {
+  async savePanelInvoiceTotal(
+    month: string,
+    vendor: string,
+    amount: number,
+    writer: string,
+    kind = 'DENT',
+    count = 0,
+  ) {
     /*
       달·업체·항목으로 한 줄이다.
 
@@ -333,13 +342,13 @@ export class SettlementsService {
 
     if (amount <= 0) {
       await this.prisma.panelInvoiceTotal.deleteMany({ where: { month, vendor, kind } });
-      return { month, vendor, kind, amount: 0 };
+      return { month, vendor, kind, amount: 0, count: 0 };
     }
 
     return this.prisma.panelInvoiceTotal.upsert({
       where: key,
-      update: { amount, writer },
-      create: { month, vendor, amount, writer, kind },
+      update: { amount, writer, count },
+      create: { month, vendor, amount, writer, kind, count },
     });
   }
 
@@ -348,7 +357,7 @@ export class SettlementsService {
     return this.prisma.panelInvoiceTotal.findMany({
       where: { month },
       orderBy: { vendor: 'asc' },
-      select: { month: true, vendor: true, kind: true, amount: true, writer: true, updatedAt: true },
+      select: { month: true, vendor: true, kind: true, amount: true, count: true, writer: true, updatedAt: true },
     });
   }
 

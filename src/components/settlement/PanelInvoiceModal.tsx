@@ -78,7 +78,7 @@ export default function PanelInvoiceModal({
   /** 지금 보고 있는 달(YYYY-MM) — 청구서 총액을 이 달로 적어 둔다 */
   month: string;
   /** 이 달에 이미 적어 둔 총액 — 업체를 고르면 그 값이 칸에 들어온다 */
-  savedTotals?: { vendor: string; kind: string; amount: number }[];
+  savedTotals?: { vendor: string; kind: string; amount: number; count?: number }[];
   onClose: () => void;
   onApplied: () => void;
 }) {
@@ -108,6 +108,13 @@ export default function PanelInvoiceModal({
     총액을 적어 두고 차액이 얼마인지 보이게만 한다. 어디에 얹을지는 보는 사람이 정한다.
   */
   const [invoiceTotal, setInvoiceTotal] = useState('');
+  /*
+    몇 건인가.
+
+    클리닉처럼 달마다 열몇 건씩 붙는 비용은 금액만 적어두면 다음 달에 늘었는지 줄었는지
+    견줄 데가 없다. 적어 두면 건당 얼마였는지가 남는다 — 안 적어도 된다.
+  */
+  const [invoiceCount, setInvoiceCount] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   /*
@@ -145,6 +152,7 @@ export default function PanelInvoiceModal({
   useEffect(() => {
     const saved = savedTotals.find(t => t.vendor === vendor.trim() && t.kind === kind);
     setInvoiceTotal(saved ? String(saved.amount) : '');
+    setInvoiceCount(saved?.count ? String(saved.count) : '');
   }, [vendor, kind, savedTotals]);
 
   const patch = (index: number, next: Partial<Row>) =>
@@ -278,6 +286,7 @@ export default function PanelInvoiceModal({
           합계가 된다.
         */
         invoiceTotal: stated,
+        invoiceCount: Number(invoiceCount) || 0,
         kind,
         rows: rows
           .filter(r => plateKey(r.vehicleNumber) && r.amount > 0)
@@ -373,6 +382,7 @@ export default function PanelInvoiceModal({
               <option value="대산" />
               <option value="KS" />
               <option value="광택집" />
+              <option value="클리닉" />
             </datalist>
           </label>
           <button
@@ -488,6 +498,7 @@ export default function PanelInvoiceModal({
                   >
                     {t.vendor} · {PREP_COST_LABEL[t.kind as PrepCostKind] ?? t.kind}{' '}
                     <b>{withCommas(String(t.amount))}</b>원
+                    {!!t.count && <span className="text-slate-400"> · {t.count}건</span>}
                   </button>
                 </li>
               ))}
@@ -532,9 +543,28 @@ export default function PanelInvoiceModal({
                 className="mt-1 block w-36 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
               />
             </label>
-            <span className="flex-1 text-[11px] leading-relaxed text-slate-400">
+            {/* 클리닉처럼 달마다 열몇 건씩 붙는 건 건수를 같이 적어 둔다 — 건당 얼마였는지가 남는다 */}
+            <label className="text-xs text-slate-500">
+              건수 <span className="text-slate-300">(선택)</span>
+              <input
+                value={invoiceCount}
+                onChange={e => setInvoiceCount(e.target.value.replace(/[^\d]/g, ''))}
+                inputMode="numeric"
+                placeholder="12"
+                className="mt-1 block w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
+              />
+            </label>
+            {Number(invoiceCount) > 0 && stated > 0 && (
+              <span className="pb-2 text-[11px] text-slate-500">
+                건당 <b>{withCommas(String(Math.round(stated / Number(invoiceCount))))}</b>원
+              </span>
+            )}
+            <span className="w-full text-[11px] leading-relaxed text-slate-400">
               사진으로 온 청구서는 아직 읽지 못합니다. <b>원본을 올려 두고 총액만</b> 적으세요 —
               적은 금액이 그대로 이 달 <b>{PREP_COST_LABEL[kind]}</b> 총액이 됩니다. 차마다의 원가는 건드리지 않습니다.
+              <br />
+              같은 항목에 업체를 나눠 적으면 <b>더해집니다</b> — 광택집과 클리닉을 따로 적으면 둘을 더한 값이
+              광택·세차 총액이 됩니다.
             </span>
           </div>
         )}

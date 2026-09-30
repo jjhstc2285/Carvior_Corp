@@ -57,6 +57,7 @@ if (!existsSync(PANEL_INVOICE_DIR)) mkdirSync(PANEL_INVOICE_DIR, { recursive: tr
 const CONTRACT_TEAM = '계약팀';
 import { assertOfficeManager } from '../auth/office-manager';
 import { canEditPanelInvoice } from './approvers';
+import type { PrepCostKind } from '@prisma/client';
 
 /** 상품화 비용 항목 — 청구서가 어느 칸으로 들어갈지 가른다(스키마의 PrepCostKind와 같다) */
 const PREP_KINDS = ['POLISH_WASH', 'DENT', 'PERFORMANCE', 'DELIVERY', 'REPAIR', 'DIAGNOSIS'];
@@ -267,13 +268,16 @@ export class SettlementsController {
       invoiceTotal?: number;
       /** 어느 항목인가 — 판금(DENT) / 광택(POLISH_WASH) … 광택은 사진으로 와서 총액만 적는다 */
       kind?: string;
+      /** 몇 건인가 — 클리닉처럼 달마다 열몇 건씩 붙는 건 건수를 같이 적어 둔다 */
+      invoiceCount?: number;
     },
   ) {
     if (!canEditPanelInvoice(user.name)) {
       throw new ForbiddenException('판금 청구서를 넣을 수 있는 계정이 아닙니다.');
     }
     const vendor = (dto.vendor ?? '대산').trim();
-    const applied = await this.settlements.applyPanelInvoice(vendor, dto.rows ?? []);
+    const kind = PREP_KINDS.includes(dto.kind ?? '') ? (dto.kind as PrepCostKind) : 'DENT';
+    const applied = await this.settlements.applyPanelInvoice(vendor, dto.rows ?? [], kind);
 
     /*
       총액은 적어만 둔다.
@@ -288,7 +292,8 @@ export class SettlementsController {
         vendor,
         Math.max(0, Math.round(dto.invoiceTotal ?? 0)),
         user.name,
-        PREP_KINDS.includes(dto.kind ?? '') ? (dto.kind as string) : 'DENT',
+        kind,
+        Math.max(0, Math.round(dto.invoiceCount ?? 0)),
       );
     }
     return applied;
