@@ -70,6 +70,11 @@ export class UpdateEmployeeDto {
   @IsEnum(Role)
   role?: Role;
 
+  /** 알선팀 타이틀 — LEADER / PRO / JUNIOR, 비우면 알선팀이 아니다 */
+  @IsOptional()
+  @IsIn(['', 'LEADER', 'PRO', 'JUNIOR'], { message: '알선 타이틀이 올바르지 않습니다.' })
+  referralTitle?: string;
+
   @IsOptional()
   @IsBoolean()
   active?: boolean;

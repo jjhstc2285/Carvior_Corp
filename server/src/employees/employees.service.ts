@@ -143,6 +143,8 @@ export class EmployeesService {
         ...(dto.position !== undefined ? { position: dto.position } : {}),
         ...(dto.department !== undefined ? { department: dto.department } : {}),
         ...(dto.role !== undefined ? { role: dto.role } : {}),
+        // 알선팀 타이틀 — 이 줄이 없으면 화면에서 골라도 아무 일도 안 일어난다
+        ...(dto.referralTitle !== undefined ? { referralTitle: dto.referralTitle } : {}),
         ...(dto.active !== undefined ? { active: dto.active } : {}),
         ...(dto.phones
           ? { phones: { deleteMany: {}, create: dto.phones.map((number, sortOrder) => ({ number, sortOrder })) } }
