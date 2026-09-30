@@ -163,12 +163,17 @@ export default function WashTab() {
   const expected = Math.round((month.daysInMonth() / 7) * PER_WEEK);
 
   /*
-    청구 대수는 방문마다 센 대수 중 제일 큰 값으로 잡는다.
+    청구 대수는 온 날마다 닦은 대수를 모두 더한 값이다.
 
-    더하면 안 된다 — 같은 차를 여덟 번 닦았다고 여덟 대가 되지 않는다. 한 달에 한 번
-    대당 만 원이니, 그 달에 맡긴 차가 몇 대였는지가 값이다.
+    한 대를 한 번 닦을 때마다 만 원이다 — 9월에 여덟 번 오셔서 18·19·21·18·21·19…
+    이면 그 합이 그 달 대수고, 거기에 만 원을 곱한 값이 청구액이다. 그 달에 맡긴 차가
+    몇 대인지가 아니라 몇 번 닦았는지로 센다.
+
+    주차장이 여럿이면 다 더한다 — 청구서는 달마다 한 장으로 온다.
   */
-  const countedCars = Math.max(0, ...visits.map(v => v.carCount));
+  const countedCars = visits.reduce((sum, v) => sum + v.carCount, 0);
+  /** 이 주차장만 — 아래 목록에 소계로 띄운다 */
+  const lotCars = lotVisits.reduce((sum, v) => sum + v.carCount, 0);
   const carCount = settlement?.carCount || countedCars;
   const unitPrice = settlement?.unitPrice || DEFAULT_UNIT;
   const amount = carCount * unitPrice;
@@ -265,7 +270,14 @@ export default function WashTab() {
       */}
       {lotVisits.length > 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <h3 className="text-sm font-bold text-slate-800">{month.format('M월')} 온 날 · 대수</h3>
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h3 className="text-sm font-bold text-slate-800">{month.format('M월')} 온 날 · 대수</h3>
+            {/* 이 주차장 소계 — 청구는 달 전체로 하지만 어디서 나온 값인지는 여기서 본다 */}
+            <span className="text-xs text-slate-500">
+              {lotVisits.length}번 · {lotCars}대 ·{' '}
+              <b className="text-slate-700">{withCommas(String(lotCars * unitPrice))}원</b>
+            </span>
+          </div>
           <ul className="mt-2 divide-y divide-slate-50">
             {[...lotVisits]
               .sort((a, b) => a.date.localeCompare(b.date))
@@ -306,7 +318,7 @@ export default function WashTab() {
               ))}
           </ul>
           <p className="mt-2 text-[11px] text-slate-400">
-            청구 대수는 이 중 <b>제일 큰 값</b>으로 잡습니다 — 같은 차를 여덟 번 닦았다고 여덟 대가 되지 않습니다.
+            청구 대수는 온 날 대수를 <b>모두 더한 값</b>입니다 — 한 대를 한 번 닦을 때마다 값이 붙습니다.
           </p>
         </div>
       )}
@@ -317,6 +329,12 @@ export default function WashTab() {
           <Droplets size={15} className="text-cyan-500" />
           <h3 className="text-sm font-bold text-slate-800">{month.format('M월')} 정산</h3>
           <span className="text-[11px] text-slate-400">매달 30일 결제</span>
+          {/* 그 달 전체 — 주차장이 여럿이면 다 더한 값이다 */}
+          {visits.length > 0 && (
+            <span className="text-[11px] text-slate-500">
+              {visits.length}번 방문 · 더하면 {countedCars}대
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -364,7 +382,7 @@ export default function WashTab() {
             <p className="text-xl font-bold text-cyan-700">{withCommas(String(amount))}원</p>
             <p className="text-[10px] text-slate-400">
               {carCount}대 × {withCommas(String(unitPrice))}원
-              {!settlement?.carCount && countedCars > 0 && ' · 온 날 중 제일 많았던 날 기준'}
+              {!settlement?.carCount && countedCars > 0 && ` · ${visits.length}번 온 날 대수를 더한 값`}
             </p>
           </div>
 
@@ -387,7 +405,8 @@ export default function WashTab() {
         */}
         {!!settlement?.carCount && countedCars > 0 && settlement.carCount !== countedCars && (
           <p className="mt-2 text-[11px] text-amber-700">
-            찍힌 기록으로는 {countedCars}대인데 {settlement.carCount}대로 적혀 있습니다. 청구서를 한 번 보세요.
+            찍힌 기록을 더하면 {countedCars}대({visits.length}번)인데 {settlement.carCount}대로 적혀 있습니다.
+            청구서를 한 번 보세요.
           </p>
         )}
       </div>
