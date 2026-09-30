@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import dayjs from 'dayjs';
 import { Lock, Plus, Trash2, Wallet } from 'lucide-react';
 import { api, ApiError, getPayrollPass, setPayrollPass } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
@@ -27,8 +28,22 @@ const INPUT =
 const BURDENS = ['본인all', '세금 all 회사부담', '공제없음'];
 
 /** 실 이체 = 급여 − 회사공제 − 본인공제 + 식대 */
-function netOf(r: PayrollEntry): number {
-  return r.monthlyPay - r.companyDeduction - r.selfDeduction + r.mealAllowance;
+function netOf(r: PayrollEntry, meal: number): number {
+  return r.monthlyPay - r.companyDeduction - r.selfDeduction + meal;
+}
+
+/** 그 달 식비 — 서버가 근태를 세어 내려준다 */
+interface MealRow {
+  name: string;
+  days: number;
+  amount: number;
+}
+interface Meal {
+  month: string;
+  perDay: number;
+  inBy: string;
+  outFrom: string;
+  rows: MealRow[];
 }
 
 export default function PayrollModule() {
@@ -36,6 +51,14 @@ export default function PayrollModule() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showInactive, setShowInactive] = useState(false);
+  /*
+    식비는 적는 값이 아니라 근태에서 나오는 값이다.
+
+    9시 30분까지 찍고 6시를 넘겨 찍은 날만 하루 9,000원. 달마다 달라서 어느 달인지 같이
+    고른다 — 지난달 급여를 낼 때 이번 달 근태로 세면 안 된다.
+  */
+  const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
+  const [meal, setMeal] = useState<Meal | null>(null);
 
   // 잠금 — 번호를 받기 전에는 아무것도 안 보여준다
   const [locked, setLocked] = useState(!getPayrollPass());
@@ -124,6 +147,30 @@ export default function PayrollModule() {
     }
   };
 
+  /* 근태에서 식비를 받아온다 — 달을 바꾸거나 잠금이 풀리면 다시 받는다 */
+  const loadMeal = useCallback(async () => {
+    if (locked || denied) return;
+    try {
+      setMeal(await api<Meal>(`/payroll/meal?month=${month}`));
+    } catch {
+      // 못 받아오면 식대는 0으로 둔다 — 모르는 값을 준 것으로 세지 않는다
+      setMeal(null);
+    }
+  }, [locked, denied, month]);
+
+  useEffect(() => {
+    void loadMeal();
+  }, [loadMeal]);
+
+  /** 이름으로 찾는 그 사람 식비 */
+  const mealOf = useCallback(
+    (name: string): MealRow => {
+      const hit = meal?.rows.find(x => x.name === name.trim());
+      return hit ?? { name, days: 0, amount: 0 };
+    },
+    [meal],
+  );
+
   const shown = rows.filter(r => showInactive || r.active);
 
   const totals = useMemo(() => {
@@ -133,10 +180,11 @@ export default function PayrollModule() {
       pay: live.reduce((s, r) => s + r.monthlyPay, 0),
       company: live.reduce((s, r) => s + r.companyDeduction, 0),
       self: live.reduce((s, r) => s + r.selfDeduction, 0),
-      meal: live.reduce((s, r) => s + r.mealAllowance, 0),
-      net: live.reduce((s, r) => s + netOf(r), 0),
+      meal: live.reduce((s, r) => s + mealOf(r.name).amount, 0),
+      net: live.reduce((s, r) => s + netOf(r, mealOf(r.name).amount), 0),
+      days: live.reduce((s, r) => s + mealOf(r.name).days, 0),
     };
-  }, [rows]);
+  }, [rows, mealOf]);
 
   if (denied) {
     return (
@@ -189,14 +237,29 @@ export default function PayrollModule() {
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             급여에서 공제를 빼고 식대를 더한 <b>실 이체액</b>을 자동으로 냅니다 — 금액을 고치면 바로 따라갑니다.
+            <br />
+            식대는 근태에서 냅니다 — <b>{meal?.inBy ?? '09:30'}까지 찍고 {meal?.outFrom ?? '18:00'}을 넘겨 찍은 날</b>만
+            하루 {(meal?.perDay ?? 9000).toLocaleString()}원입니다.
           </p>
         </div>
-        <button
-          onClick={() => void addRow()}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          <Plus size={15} /> 직원 추가
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* 어느 달 근태로 식비를 낼지 — 지난달 급여를 이번 달 근태로 세면 안 된다 */}
+          <label className="text-xs text-slate-500">
+            식대 기준 달
+            <input
+              type="month"
+              value={month}
+              onChange={e => setMonth(e.target.value)}
+              className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400"
+            />
+          </label>
+          <button
+            onClick={() => void addRow()}
+            className="flex items-center gap-1.5 self-end rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            <Plus size={15} /> 직원 추가
+          </button>
+        </div>
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -224,6 +287,9 @@ export default function PayrollModule() {
         <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
           <p className="text-xs font-medium text-slate-400">식대 합계</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">{totals.meal.toLocaleString()}</p>
+          <p className="text-[11px] text-slate-400">
+            {dayjs(month).format('M월')} · {totals.days}일 · 하루 {(meal?.perDay ?? 9000).toLocaleString()}원
+          </p>
         </div>
       </div>
 
@@ -327,23 +393,28 @@ export default function PayrollModule() {
                     />
                   </td>
 
-                  <td className="px-2.5 py-1.5">
-                    <input
-                      defaultValue={withCommas(String(r.mealAllowance || ''))}
-                      onBlur={e => {
-                        const next = Number(digitsOnly(e.target.value)) || 0;
-                        if (next !== r.mealAllowance) void patch(r, { mealAllowance: next });
-                      }}
-                      disabled={busyId === r.id}
-                      inputMode="numeric"
-                      placeholder="0"
-                      className={`${INPUT} w-24 text-right`}
-                    />
+                  {/*
+                    식대는 적는 칸이 아니다 — 근태에서 나온다.
+
+                    9시 30분까지 찍고 6시를 넘겨 찍은 날만 하루 9,000원이다. 며칠치인지
+                    같이 띄운다: 금액만 보면 왜 저 값인지 물어볼 데가 없다.
+                  */}
+                  <td className="whitespace-nowrap px-2.5 py-1.5 text-right">
+                    <span className={`text-sm font-semibold ${mealOf(r.name).amount ? 'text-slate-800' : 'text-slate-300'}`}>
+                      {mealOf(r.name).amount.toLocaleString()}
+                    </span>
+                    <span className="ml-1 text-[11px] text-slate-400">{mealOf(r.name).days}일</span>
+                    {/* 전에 손으로 적어둔 값이 다르면 같이 보여준다 — 말없이 바뀌면 안 된다 */}
+                    {r.mealAllowance > 0 && r.mealAllowance !== mealOf(r.name).amount && (
+                      <p className="text-[10px] text-slate-300" title="예전에 손으로 적어둔 식대입니다. 이제 근태로 냅니다">
+                        적어둔 값 {r.mealAllowance.toLocaleString()}
+                      </p>
+                    )}
                   </td>
 
                   {/* 실 이체는 적는 칸이 아니다 — 위 숫자를 고치면 따라온다 */}
                   <td className="whitespace-nowrap px-2.5 py-1.5 text-right font-bold text-indigo-700">
-                    {netOf(r).toLocaleString()}
+                    {netOf(r, mealOf(r.name).amount).toLocaleString()}
                   </td>
 
                   <td className="px-2.5 py-1.5">
@@ -381,6 +452,9 @@ export default function PayrollModule() {
       <p className="mt-2 text-[11px] text-slate-400">
         칸을 고치고 <b>칸 밖을 누르면 바로 저장</b>됩니다. <b>실 이체 = 급여 − 회사공제 − 본인공제 + 식대</b> 로
         자동 계산되니 그 칸은 적지 않습니다.
+        <br />
+        <b>식대</b>도 적는 칸이 아닙니다 — 근태에서 냅니다. {meal?.inBy ?? '09:30'}까지 찍고 {meal?.outFrom ?? '18:00'}을
+        넘겨 찍은 날만 하루 {(meal?.perDay ?? 9000).toLocaleString()}원으로 세고, 한쪽만 찍힌 날은 세지 않습니다.
         <br />
         그만둔 분은 지우지 말고 <b>지급중 체크를 풀어</b> 주세요 — 지난 달 인건비도 기록입니다.
       </p>

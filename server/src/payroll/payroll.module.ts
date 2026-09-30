@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -13,10 +14,12 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
+import { monthRange } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { CEO_APPROVER } from '../settlements/approvers';
 
@@ -50,6 +53,17 @@ function isTestAccount(user: AuthUser): boolean {
 function canOpenPayroll(user: AuthUser): boolean {
   return viewerNames().includes(user.name.trim()) || isTestAccount(user);
 }
+
+/*
+  밥값.
+
+  하루 9,000원. 아침에 9시 30분까지 찍고 저녁 6시를 넘겨 찍은 날만 센다 — 늦게 온 날과
+  일찍 간 날은 안 준다. 한쪽만 찍힌 날도 안 센다: 안 찍힌 시각은 확인할 방법이 없는데,
+  모르는 걸 준 것으로 세면 그만큼이 매달 조용히 나간다.
+*/
+export const MEAL_PER_DAY = 9000;
+export const MEAL_IN_BY = '09:30';
+export const MEAL_OUT_FROM = '18:00';
 
 /** 통행증은 여덟 시간만 산다 — 하루 일과가 끝나면 다시 받는다 */
 const PASS_HOURS = 8;
@@ -122,6 +136,36 @@ export class PayrollService {
     await this.prisma.payrollEntry.delete({ where: { id } });
   }
 
+  /**
+   * 그 달 식비 — 사람마다 며칠치인가.
+   *
+   * 급여표의 이름과 직원 이름을 맞춘다. 근태 계정이 없는 사람은 0일이다(며칠 나왔는지
+   * 알 방법이 없다). 'HH:mm' 은 앞자리를 0으로 채워 넣으므로 글자로 견줘도 시각 순서다.
+   */
+  async mealAllowances(month: string) {
+    const records = await this.prisma.attendanceRecord.findMany({
+      where: { date: monthRange(month) },
+      select: { clockIn: true, clockOut: true, employee: { select: { name: true } } },
+    });
+
+    const days = new Map<string, number>();
+    for (const r of records) {
+      if (!r.clockIn || !r.clockOut) continue;
+      if (r.clockIn > MEAL_IN_BY || r.clockOut < MEAL_OUT_FROM) continue;
+      const name = r.employee.name.trim();
+      days.set(name, (days.get(name) ?? 0) + 1);
+    }
+
+    const entries = await this.prisma.payrollEntry.findMany({ select: { name: true } });
+    const rows = entries.map((e) => {
+      const name = e.name.trim();
+      const count = days.get(name) ?? 0;
+      return { name, days: count, amount: count * MEAL_PER_DAY, matched: days.has(name) };
+    });
+
+    return { month, perDay: MEAL_PER_DAY, inBy: MEAL_IN_BY, outFrom: MEAL_OUT_FROM, rows };
+  }
+
   private dataOf(dto: UpsertPayrollDto, _creating: boolean) {
     return {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
@@ -177,6 +221,26 @@ export class PayrollController {
   findAll(@CurrentUser() user: AuthUser, @Headers('x-payroll-pass') pass: string) {
     assertOpen(user, pass);
     return this.payroll.findAll();
+  }
+
+  /**
+   * 그 달 식비.
+   *
+   * 9시 30분까지 찍고 6시 넘겨 찍은 날만 하루 9,000원으로 센다. 급여와 같은 자리에서
+   * 보는 값이라 같은 번호로 잠근다.
+   */
+  @Get('meal')
+  meal(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-payroll-pass') pass: string,
+    @Query('month') month = '',
+  ) {
+    assertOpen(user, pass);
+    const want = month.trim();
+    if (!/^\d{4}-\d{2}$/.test(want)) {
+      throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
+    }
+    return this.payroll.mealAllowances(want);
   }
 
   @Post()
