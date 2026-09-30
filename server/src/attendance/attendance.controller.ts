@@ -17,15 +17,24 @@ import { todayKst } from '../common/date.util';
 export class AttendanceController {
   constructor(private readonly attendance: AttendanceService) {}
 
-  /** 직원은 자기 것만, 관리자는 employeeId를 지정하거나 전체를 본다. */
+  /**
+   * 그 달 출퇴근 기록 — 다 같이 본다.
+   *
+   * 예전에는 직원이 자기 것만 봤다. 그런데 출결 현황을 같이 보기로 하면서 남의 기록이
+   * 없으면 화면이 반쪽이 된다 — 순위도 못 내고 달력도 나 혼자만 찍힌다.
+   *
+   * 출퇴근은 같은 사무실에서 서로 보고 있는 일이라 가리는 값이 아니라고 봤다. 가려야 할
+   * 것은 사유가 적히는 쪽(정정 요청)이고 그건 그대로 본인·관리자만 본다.
+   *
+   * employeeId 를 주면 그 사람 것만 준다.
+   */
   @Get('records')
   records(
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() _user: AuthUser,
     @Query('month') month?: string,
     @Query('employeeId') employeeId?: string,
   ) {
-    const scope = user.role === Role.ADMIN ? employeeId : user.id;
-    return this.attendance.findRecords(month ?? todayKst().slice(0, 7), scope);
+    return this.attendance.findRecords(month ?? todayKst().slice(0, 7), employeeId);
   }
 
   /** 지금 근무 중인 사람 — 누구인지만 준다. 전 직원이 본다. */
@@ -91,13 +100,18 @@ export class AttendanceController {
   // ── 연차 / 외근 신청 ──
 
   @Get('requests')
+  /*
+    연차·반차·외근 신청도 같이 본다.
+
+    출결 현황이 이걸 봐야 '쉬기로 한 날'과 '안 찍은 날'을 가른다 — 없으면 연차 쓴 사람이
+    결석으로 잡힌다. 누가 언제 쉬는지는 어차피 같이 알아야 일정을 짠다.
+  */
   requests(
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() _user: AuthUser,
     @Query('status') status?: RequestStatus,
     @Query('employeeId') employeeId?: string,
   ) {
-    const scope = user.role === Role.ADMIN ? employeeId : user.id;
-    return this.attendance.findAttendanceRequests(scope, status);
+    return this.attendance.findAttendanceRequests(employeeId, status);
   }
 
   @Post('requests')

@@ -19,6 +19,7 @@ import AttendanceRequestModal from './AttendanceRequestModal';
 import ClockCard from './ClockCard';
 import StatusBar from './StatusBar';
 import CalendarView from './CalendarView';
+import MonthlyDashboard from './MonthlyDashboard';
 
 const REQUEST_STATUS_LABEL: Record<string, string> = {
   pending: '승인 대기',
@@ -281,6 +282,14 @@ export default function EmployeeView() {
           </ul>
         )}
       </section>
+
+      {/*
+        회사 전체 출결 현황.
+
+        내 것만 보이면 순위도 달력도 나 혼자다 — 출퇴근은 같은 사무실에서 서로 보고 있는
+        일이고, 잘 찍는 사람이 드러나는 게 이 표의 목적이다. 관리자 화면과 같은 것을 본다.
+      */}
+      <MonthlyDashboard />
 
       {requestDate && (
         <CorrectionRequestModal
