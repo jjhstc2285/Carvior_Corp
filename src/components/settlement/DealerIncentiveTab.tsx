@@ -60,6 +60,20 @@ interface Sheet {
 
 const MAN = (won: number) => `${Math.round(won / 10_000).toLocaleString()}만`;
 
+/**
+ * 그 구간이 어디부터 어디까지인가.
+ *
+ * 요율만 보면 왜 그 요율인지 모른다 — 800만을 한 사람과 1,000만을 한 사람이 다른 요율을
+ * 받는 이유가 구간 경계에 있어서, 경계를 같이 보여준다.
+ */
+function tierRange(tiers: { tier: string; min: number }[], tier: string): string {
+  const sorted = [...tiers].sort((a, b) => a.min - b.min);
+  const i = sorted.findIndex(t => t.tier === tier);
+  if (i < 0) return '';
+  const next = sorted[i + 1];
+  return next ? `${MAN(sorted[i].min)}~${MAN(next.min)}` : `${MAN(sorted[i].min)}~`;
+}
+
 export default function DealerIncentiveTab() {
   const [month, setMonth] = useState(() => dayjs().startOf('month'));
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -278,12 +292,21 @@ export default function DealerIncentiveTab() {
                   >
                     {r.tier}
                   </span>
-                  <p className="text-[10px] text-slate-400">{Math.round(r.rate * 100)}%</p>
+                  <p className="text-[10px] text-slate-400">
+                    {Math.round(r.rate * 100)}%
+                    {sheet && <span className="ml-1 text-slate-300">{tierRange(sheet.rules.tiers, r.tier)}</span>}
+                  </p>
                 </td>
 
+                {/* 셈을 그대로 적는다 — 금액만 있으면 왜 저 값인지 물어볼 데가 없다 */}
                 <td className="whitespace-nowrap px-3 py-2 text-right">
                   <span className="font-semibold text-slate-800">{withCommas(String(r.incentive))}</span>
-                  <p className="text-[10px] text-slate-400">초과 {withCommas(String(r.excess))}</p>
+                  <p className="text-[10px] text-slate-400">
+                    ({withCommas(String(r.sales))} − {withCommas(String(r.baseSalary))})
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    = {withCommas(String(r.excess))} × {Math.round(r.rate * 100)}%
+                  </p>
                 </td>
 
                 {/* 팀장만 받는다 — 본인 실적이 모자란 달은 못 받는다 */}
