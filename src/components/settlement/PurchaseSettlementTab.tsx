@@ -644,6 +644,13 @@ export default function PurchaseSettlementTab({ role }: Props) {
 
       {invoiceOpen && (
         <PanelInvoiceModal
+          /* 붙일 수 있는 차 — 청구서 줄이 어디에 꽂힐지를 넣기 전에 보여준다 */
+          targets={scoped.map(s => ({
+            vehicleNumber: s.vehicleNumber,
+            vehicleName: s.vehicleName,
+            dent: (s.prepCosts ?? []).filter(c => c.kind === 'DENT').reduce((sum, c) => sum + c.amount, 0),
+          }))}
+          myName={me?.name}
           onClose={() => setInvoiceOpen(false)}
           onApplied={async () => {
             await refresh();
