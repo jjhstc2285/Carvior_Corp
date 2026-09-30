@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import BasicSettlementTab from './BasicSettlementTab';
 import BrokerageSettlementTab from './BrokerageSettlementTab';
 import PurchaseSettlementTab from './PurchaseSettlementTab';
 import DealerIncentiveTab from './DealerIncentiveTab';
@@ -8,7 +7,14 @@ interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
 }
 
-type Tab = 'brokerage' | 'export' | 'purchase' | 'basic' | 'incentive';
+/*
+  간편 정산 탭을 내렸다.
+
+  매입 정산이 자리를 잡으면서 쓰는 사람이 없어졌다 — 탭이 남아 있으면 새로 들어온
+  사람이 어느 쪽에 적어야 하는지 헷갈린다. 화면만 내렸고 적어둔 건과 서버는 그대로다.
+  다시 쓸 일이 생기면 탭 한 줄만 되살리면 된다.
+*/
+type Tab = 'brokerage' | 'export' | 'purchase' | 'incentive';
 
 /**
  * 알선과 수출은 표를 따로 둔다.
@@ -20,7 +26,6 @@ const TABS: { key: Tab; label: string; desc: string }[] = [
   { key: 'brokerage', label: '알선 정산', desc: '총 진행 판매금액·실차주입금을 넣으면 수익금과 판매 수익이 자동 계산됩니다.' },
   { key: 'export', label: '수출 정산', desc: '수출 건만 모아 봅니다. 적는 칸과 계산은 알선 정산과 같습니다.' },
   { key: 'purchase', label: '매입 정산', desc: '상품화 항목을 넣으면 상품화총비용과 매입+상품화총비용이 자동 계산됩니다.' },
-  { key: 'basic', label: '간편 정산', desc: '매입가·상품화비용·판매금액·수수료만 넣는 기존 간단 양식입니다.' },
   {
     key: 'incentive',
     label: '딜러 인센티브',
@@ -54,7 +59,6 @@ export default function SettlementModule({ role }: Props) {
       {tab === 'brokerage' && <BrokerageSettlementTab role={role} kind="BROKERAGE" />}
       {tab === 'export' && <BrokerageSettlementTab role={role} kind="EXPORT" />}
       {tab === 'purchase' && <PurchaseSettlementTab role={role} />}
-      {tab === 'basic' && <BasicSettlementTab role={role} />}
       {tab === 'incentive' && <DealerIncentiveTab />}
     </div>
   );
