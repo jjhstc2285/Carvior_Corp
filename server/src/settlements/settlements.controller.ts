@@ -39,6 +39,20 @@ const ALLOWED_PHOTO = /^image\/(jpeg|png|webp|heic|heif)$/;
 
 if (!existsSync(CONTRACT_DIR)) mkdirSync(CONTRACT_DIR, { recursive: true });
 
+/*
+  청구서 원본을 두는 곳.
+
+  엑셀로 오는 달도 있고 카톡 사진으로 오는 달도 있다. 둘 다 받는다 — 무엇으로 왔든
+  나중에 다시 볼 것은 원본 하나다. PDF도 받는다(프린트해 스캔해 보내는 달이 있다).
+*/
+const PANEL_INVOICE_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'panel-invoice');
+const INVOICE_FILE_MAX = 10;
+const MAX_INVOICE_SIZE = 20 * 1024 * 1024;
+const ALLOWED_INVOICE =
+  /^(image\/(jpeg|png|webp|heic|heif)|application\/pdf|application\/vnd\.ms-excel|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|text\/csv|application\/octet-stream)$/;
+
+if (!existsSync(PANEL_INVOICE_DIR)) mkdirSync(PANEL_INVOICE_DIR, { recursive: true });
+
 /** 계약팀은 남의 정산도 본다 — 빈칸을 채우는 게 그 팀 일이다. */
 const CONTRACT_TEAM = '계약팀';
 import { assertOfficeManager } from '../auth/office-manager';
@@ -272,6 +286,70 @@ export class SettlementsController {
       );
     }
     return applied;
+  }
+
+  /**
+   * 청구서 원본 올리기 — 엑셀이든 카톡 사진이든 그대로 둔다.
+   *
+   * 원본 파일명은 주소에 안 쓴다. 한글 이름이 깨지고 경로에 넣기 위험한 글자가 섞여
+   * 들어온다 — 보여줄 이름만 따로 적어 둔다.
+   */
+  @Post('purchase/panel-invoice/files')
+  @UseInterceptors(
+    FilesInterceptor('files', INVOICE_FILE_MAX, {
+      storage: diskStorage({
+        destination: PANEL_INVOICE_DIR,
+        filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
+      }),
+      limits: { fileSize: MAX_INVOICE_SIZE, files: INVOICE_FILE_MAX },
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_INVOICE.test(file.mimetype)) {
+          cb(new BadRequestException('사진·엑셀·PDF만 올릴 수 있습니다.'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadPanelInvoiceFiles(
+    @CurrentUser() user: AuthUser,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() dto: { month?: string; vendor?: string },
+  ) {
+    if (!canEditPanelInvoice(user.name)) {
+      throw new ForbiddenException('판금 청구서를 넣을 수 있는 계정이 아닙니다.');
+    }
+    if (!files?.length) throw new BadRequestException('올릴 파일이 없습니다.');
+
+    const month = (dto.month ?? '').trim();
+    if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
+
+    return this.settlements.savePanelInvoiceFiles(month, (dto.vendor ?? '대산').trim(), user.name,
+      files.map((f) => ({
+        // Apache가 /uploads 를 정적으로 내주므로 이 경로가 곧 보이는 주소가 된다
+        url: `/uploads/panel-invoice/${f.filename}`,
+        name: Buffer.from(f.originalname, 'latin1').toString('utf8'),
+        mime: f.mimetype,
+        size: f.size,
+      })),
+    );
+  }
+
+  /** 그 달에 올려 둔 청구서 원본 */
+  @Get('purchase/panel-invoice/files')
+  panelInvoiceFiles(@Query('month') month = '') {
+    if (!/^\d{4}-\d{2}$/.test(month.trim())) return [];
+    return this.settlements.panelInvoiceFiles(month.trim());
+  }
+
+  /** 잘못 올린 파일을 목록에서 내린다 */
+  @Delete('purchase/panel-invoice/files/:id')
+  @HttpCode(204)
+  async removePanelInvoiceFile(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    if (!canEditPanelInvoice(user.name)) {
+      throw new ForbiddenException('판금 청구서를 넣을 수 있는 계정이 아닙니다.');
+    }
+    await this.settlements.removePanelInvoiceFile(id);
   }
 
   /** 그 달에 적어 둔 청구서 총액 — 판금·덴트 합계를 이걸로 덮어쓴다 */

@@ -504,7 +504,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
               onClick={() => setInvoiceOpen(true)}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
-              <FileSpreadsheet size={14} /> 판금 청구서
+              <FileSpreadsheet size={14} /> 청구서 기입하기
             </button>
           )}
           {/* 예전에 공급가만 적어둔 성능비를 한 번에 올린다 — 같은 두 사람만 */}

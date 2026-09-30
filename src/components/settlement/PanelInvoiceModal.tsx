@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { FileSpreadsheet, Loader2, Plus, X } from 'lucide-react';
+import dayjs from 'dayjs';
+import { FileSpreadsheet, ImageIcon, Loader2, Paperclip, Plus, Trash2, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { withCommas } from '../../lib/money';
 import { readPanelInvoice, type PanelInvoiceRead } from '../../lib/panelInvoice';
@@ -39,6 +40,19 @@ interface Row {
   origin?: string;
   /** 손으로 더한 줄 — 청구서에 없던 줄이다 */
   added?: boolean;
+}
+
+/** 올려 둔 청구서 원본 — 엑셀로 오는 달도 있고 카톡 사진으로 오는 달도 있다 */
+export interface PanelInvoiceFile {
+  id: string;
+  month: string;
+  vendor: string;
+  url: string;
+  name: string;
+  mime: string;
+  size: number;
+  writer: string;
+  createdAt: string;
 }
 
 interface Result {
@@ -136,28 +150,95 @@ export default function PanelInvoiceModal({
 
   const removeRow = (index: number) => setRows(prev => prev.filter((_, i) => i !== index));
 
+  /*
+    올린 청구서 원본.
+
+    엑셀로 오는 달도 있고 카톡 사진으로 오는 달도 있다. 넣고 나면 파일은 각자 컴퓨터에만
+    남아서, 나중에 "그 달 청구서 원본 어디 있냐"는 말이 나오면 찾을 데가 없다.
+  */
+  const [saved, setSaved] = useState<PanelInvoiceFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const loadFiles = useCallback(async () => {
+    try {
+      setSaved(await api<PanelInvoiceFile[]>(`/settlements/purchase/panel-invoice/files?month=${month}`));
+    } catch {
+      // 목록을 못 받아와도 넣는 일은 되어야 한다
+      setSaved([]);
+    }
+  }, [month]);
+
+  useEffect(() => {
+    void loadFiles();
+  }, [loadFiles]);
+
+  /** 원본을 보관한다 — 엑셀이든 사진이든 올린 그대로 둔다 */
+  const upload = async (files: File[]) => {
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      for (const f of files) form.append('files', f);
+      form.append('month', month);
+      form.append('vendor', vendor.trim());
+      setSaved(
+        await api<PanelInvoiceFile[]>('/settlements/purchase/panel-invoice/files', {
+          method: 'POST',
+          formData: form,
+        }),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '파일을 올리지 못했습니다.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const dropFile = async (id: string) => {
+    try {
+      await api(`/settlements/purchase/panel-invoice/files/${id}`, { method: 'DELETE' });
+      setSaved(prev => prev.filter(f => f.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '파일을 내리지 못했습니다.');
+    }
+  };
+
+  /** 엑셀인가 — 사진·PDF는 읽지 않고 보관만 한다 */
+  const isSheet = (f: File) => /\.(xlsx|xls|csv)$/i.test(f.name);
+
+  /*
+    청구서를 고른다.
+
+    엑셀이면 읽어서 표로 띄우고, 사진·PDF면 보관만 한다. 무엇으로 왔든 원본은 다 올려
+    둔다 — 나중에 금액을 물어볼 때 볼 것은 원본이다.
+  */
   const read = async (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
+    const picked = Array.from(files ?? []);
+    if (picked.length === 0) return;
     setError(null);
     setResult(null);
-    try {
-      const book = XLSX.read(await file.arrayBuffer());
-      const got = readPanelInvoice(book, myName);
 
-      if (got.sheets.length === 0) {
-        setError('읽을 줄이 없습니다. 차량번호와 금액 칸이 있는지 확인해 주세요.');
+    const sheetFile = picked.find(isSheet);
+    if (sheetFile) {
+      try {
+        const book = XLSX.read(await sheetFile.arrayBuffer());
+        const got = readPanelInvoice(book, myName);
+
+        if (got.sheets.length === 0) {
+          setError('읽을 줄이 없습니다. 차량번호와 금액 칸이 있는지 확인해 주세요.');
+        }
+        setSheets(got.sheets);
+        setSheetName(got.picked);
+        setRows(got.sheets.find(x => x.name === got.picked)?.rows ?? []);
+        setLooked(got.looked);
+        setFileName(sheetFile.name);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '엑셀을 읽지 못했습니다.');
       }
-      setSheets(got.sheets);
-      setSheetName(got.picked);
-      setRows(got.sheets.find(x => x.name === got.picked)?.rows ?? []);
-      setLooked(got.looked);
-      setFileName(file.name);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '엑셀을 읽지 못했습니다.');
-    } finally {
-      if (inputRef.current) inputRef.current.value = '';
     }
+
+    await upload(picked);
+    if (inputRef.current) inputRef.current.value = '';
   };
 
   /** 다른 장을 고른다 — 손으로 고쳐 둔 것은 그 장 것이라 같이 버린다 */
@@ -244,7 +325,7 @@ export default function PanelInvoiceModal({
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-6">
       <div className="w-full max-w-4xl rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">판금 청구서 넣기</h3>
+          <h3 className="text-base font-bold text-slate-800">청구서 기입하기</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
@@ -273,7 +354,7 @@ export default function PanelInvoiceModal({
             onClick={() => inputRef.current?.click()}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
           >
-            <FileSpreadsheet size={14} /> 엑셀 고르기
+            <Paperclip size={14} /> {uploading ? '올리는 중…' : '청구서 고르기'}
           </button>
           {fileName && <span className="text-xs text-slate-400">{fileName}</span>}
           {/*
@@ -302,11 +383,59 @@ export default function PanelInvoiceModal({
           <input
             ref={inputRef}
             type="file"
-            accept=".xlsx,.xls,.csv"
+            accept=".xlsx,.xls,.csv,.pdf,image/*"
+            multiple
             onChange={e => void read(e.target.files)}
             className="hidden"
           />
         </div>
+
+        {/*
+          올려 둔 원본.
+
+          금액이 왜 저렇게 적혔는지 물어볼 때 볼 것은 원본이다. 사진은 눌러서 바로 열고,
+          잘못 올린 건 내린다.
+        */}
+        {saved.length > 0 && (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
+            <p className="text-[11px] font-bold text-slate-500">
+              {dayjs(month).format('M월')} 올려 둔 청구서 {saved.length}건
+            </p>
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {saved.map(f => (
+                <li
+                  key={f.id}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1"
+                >
+                  <a
+                    href={f.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 hover:text-indigo-600"
+                    title={`${f.vendor} · ${f.writer || '올린 사람 없음'} · ${dayjs(f.createdAt).format('M/D HH:mm')}`}
+                  >
+                    {f.mime.startsWith('image/') ? (
+                      <img src={f.url} alt="" className="h-7 w-7 rounded object-cover" />
+                    ) : (
+                      <span className="flex h-7 w-7 items-center justify-center rounded bg-slate-100 text-slate-400">
+                        {/\.(xlsx|xls|csv)$/i.test(f.name) ? <FileSpreadsheet size={13} /> : <ImageIcon size={13} />}
+                      </span>
+                    )}
+                    <span className="max-w-[160px] truncate">{f.name || '청구서'}</span>
+                    <span className="text-[10px] text-slate-400">{f.vendor}</span>
+                  </a>
+                  <button
+                    onClick={() => void dropFile(f.id)}
+                    title="목록에서 내립니다"
+                    className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-red-500"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
 

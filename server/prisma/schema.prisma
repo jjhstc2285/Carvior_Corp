@@ -1765,3 +1765,31 @@ model PanelInvoiceTotal {
   @@unique([month, vendor])
   @@index([month])
 }
+
+/**
+ * 판금집이 보낸 청구서 파일.
+ *
+ * 엑셀로 오는 달도 있고 카톡 사진으로 오는 달도 있다. 넣고 나면 파일은 각자 컴퓨터에만
+ * 남아, 나중에 "그 달 청구서 원본 어디 있냐"는 말이 나오면 찾을 데가 없다.
+ *
+ * 올린 파일을 달·업체로 묶어 둔다. 금액이 왜 저렇게 적혔는지 물어볼 때 볼 것은 원본이다.
+ */
+model PanelInvoiceFile {
+  id String @id @default(cuid())
+
+  month  String @db.VarChar(7) // YYYY-MM
+  vendor String @db.VarChar(20) // 대산 / KS
+
+  url  String @db.VarChar(255) // /uploads/panel-invoice/… — Apache가 그대로 내준다
+  name String @default("") @db.VarChar(120) // 올릴 때 파일 이름. 화면에 보여줄 때만 쓴다
+  mime String @default("") @db.VarChar(80)
+  size Int    @default(0)
+
+  /** 올린 사람 — 나중에 누가 올렸는지 묻는다 */
+  writer String @default("") @db.VarChar(30)
+
+  createdAt DateTime @default(now())
+
+  @@index([month])
+  @@index([month, vendor])
+}

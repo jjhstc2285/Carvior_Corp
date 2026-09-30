@@ -291,6 +291,51 @@ export class SettlementsService {
     });
   }
 
+  /**
+   * 올린 청구서 원본을 적어 둔다.
+   *
+   * 엑셀로 오는 달도 있고 카톡 사진으로 오는 달도 있다. 넣고 나면 파일은 각자 컴퓨터에만
+   * 남아서, 나중에 "그 달 청구서 원본 어디 있냐"는 말이 나오면 찾을 데가 없다.
+   */
+  async savePanelInvoiceFiles(
+    month: string,
+    vendor: string,
+    writer: string,
+    files: { url: string; name: string; mime: string; size: number }[],
+  ) {
+    if (files.length === 0) return [];
+    await this.prisma.panelInvoiceFile.createMany({
+      data: files.map((f) => ({
+        month,
+        vendor,
+        writer,
+        url: f.url,
+        name: f.name.slice(0, 120),
+        mime: f.mime.slice(0, 80),
+        size: f.size,
+      })),
+    });
+    return this.panelInvoiceFiles(month);
+  }
+
+  /** 그 달에 올려 둔 청구서 원본 — 최근 것부터 */
+  async panelInvoiceFiles(month: string) {
+    return this.prisma.panelInvoiceFile.findMany({
+      where: { month },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * 잘못 올린 파일을 내린다.
+   *
+   * 디스크의 파일까지 지우지는 않는다 — 지우다 실패하면 목록에는 없는데 주소로는 열리는
+   * 상태가 된다. 목록에서 내리는 것으로 충분하다.
+   */
+  async removePanelInvoiceFile(id: string) {
+    await this.prisma.panelInvoiceFile.deleteMany({ where: { id } });
+  }
+
   /** 그 달에 적어 둔 청구서 총액 — 업체마다 한 줄이다 */
   async panelInvoiceTotals(month: string) {
     return this.prisma.panelInvoiceTotal.findMany({
