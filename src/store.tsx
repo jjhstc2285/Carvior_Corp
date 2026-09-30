@@ -166,7 +166,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         get('정정 요청', () => api<CorrectionRequest[]>('/attendance/corrections'), []),
         get('근태 신청', () => api<AttendanceRequest[]>('/attendance/requests'), []),
         get('알림', () => api<AppNotification[]>('/attendance/notifications'), []),
-        get('정산', () => api<SettlementRecord[]>('/settlements/basic'), []),
+        /*
+          간편 정산은 화면에서 내렸다 — 부르지 않는다.
+
+          로그인할 때마다 표 하나를 통째로 받아오는데 그걸 쓰는 화면이 없다. 서버는
+          그 표를 읽어 JSON으로 만들고, 그 일을 사람 수만큼 한다.
+          되살릴 일이 생기면 이 줄을 원래대로 돌리면 된다.
+        */
+        Promise.resolve<SettlementRecord[]>([]),
         get('알선·수출 정산', () => api<BrokerageSettlement[]>('/settlements/brokerage'), []),
         get('매입 정산', () => api<PurchaseSettlement[]>('/settlements/purchase'), []),
         get('상담', () => api<ConsultationRecord[]>('/consultations'), []),
