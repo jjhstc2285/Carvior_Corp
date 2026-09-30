@@ -286,6 +286,10 @@ export default function WashTab() {
                     className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-indigo-400"
                   />
                   <span className="text-xs text-slate-400">대</span>
+                  {/* 그날 값 — 대수만 보면 얼마짜리 날인지 셈을 다시 해야 한다 */}
+                  <span className="text-xs font-medium text-slate-500">
+                    {withCommas(String(v.carCount * unitPrice))}원
+                  </span>
                   {/* 자동으로 센 값과 다르면 손으로 고친 줄이다 */}
                   {v.carCount !== carsInLotOn(v.date) && (
                     <span className="text-[10px] text-slate-300">그날 기준 {carsInLotOn(v.date)}대</span>
@@ -316,12 +320,24 @@ export default function WashTab() {
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
+          {/*
+            칸 밖을 눌렀을 때 저장한다.
+
+            한 글자 칠 때마다 저장하면 저장이 끝나기 전에 값이 되돌아와 숫자가 튄다 —
+            25를 적으려다 2가 적히는 식이다. 다른 화면과 같은 방식으로 맞춘다.
+          */}
           <label className="text-xs text-slate-500">
             청구 대수
             <input
+              key={`count-${ym}-${carCount}`}
               type="number"
-              value={carCount || ''}
-              onChange={e => void patchSettlement({ carCount: Number(e.target.value) || 0 })}
+              min={0}
+              defaultValue={carCount || ''}
+              onBlur={e => {
+                const next = Number(e.target.value) || 0;
+                if (next !== carCount) void patchSettlement({ carCount: next });
+              }}
+              disabled={busy}
               placeholder={String(countedCars)}
               className="mt-1 block w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
             />
@@ -330,9 +346,15 @@ export default function WashTab() {
           <label className="text-xs text-slate-500">
             한 대당
             <input
+              key={`unit-${ym}-${unitPrice}`}
               type="number"
-              value={unitPrice}
-              onChange={e => void patchSettlement({ unitPrice: Number(e.target.value) || 0 })}
+              min={0}
+              defaultValue={unitPrice}
+              onBlur={e => {
+                const next = Number(e.target.value) || 0;
+                if (next !== unitPrice) void patchSettlement({ unitPrice: next });
+              }}
+              disabled={busy}
               className="mt-1 block w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
             />
           </label>
@@ -340,6 +362,10 @@ export default function WashTab() {
           <div className="pb-1">
             <p className="text-xs text-slate-400">청구액</p>
             <p className="text-xl font-bold text-cyan-700">{withCommas(String(amount))}원</p>
+            <p className="text-[10px] text-slate-400">
+              {carCount}대 × {withCommas(String(unitPrice))}원
+              {!settlement?.carCount && countedCars > 0 && ' · 온 날 중 제일 많았던 날 기준'}
+            </p>
           </div>
 
           <button
