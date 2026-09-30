@@ -2,12 +2,13 @@ import { useState } from 'react';
 import BasicSettlementTab from './BasicSettlementTab';
 import BrokerageSettlementTab from './BrokerageSettlementTab';
 import PurchaseSettlementTab from './PurchaseSettlementTab';
+import DealerIncentiveTab from './DealerIncentiveTab';
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
 }
 
-type Tab = 'brokerage' | 'export' | 'purchase' | 'basic';
+type Tab = 'brokerage' | 'export' | 'purchase' | 'basic' | 'incentive';
 
 /**
  * 알선과 수출은 표를 따로 둔다.
@@ -20,6 +21,11 @@ const TABS: { key: Tab; label: string; desc: string }[] = [
   { key: 'export', label: '수출 정산', desc: '수출 건만 모아 봅니다. 적는 칸과 계산은 알선 정산과 같습니다.' },
   { key: 'purchase', label: '매입 정산', desc: '상품화 항목을 넣으면 상품화총비용과 매입+상품화총비용이 자동 계산됩니다.' },
   { key: 'basic', label: '간편 정산', desc: '매입가·상품화비용·판매금액·수수료만 넣는 기존 간단 양식입니다.' },
+  {
+    key: 'incentive',
+    label: '딜러 인센티브',
+    desc: '기본급을 깔고, 월 알선 총액이 기본급을 넘은 만큼에 구간 요율을 곱해 냅니다. 대표·사무장·본부장만 봅니다.',
+  },
 ];
 
 export default function SettlementModule({ role }: Props) {
@@ -49,6 +55,7 @@ export default function SettlementModule({ role }: Props) {
       {tab === 'export' && <BrokerageSettlementTab role={role} kind="EXPORT" />}
       {tab === 'purchase' && <PurchaseSettlementTab role={role} />}
       {tab === 'basic' && <BasicSettlementTab role={role} />}
+      {tab === 'incentive' && <DealerIncentiveTab />}
     </div>
   );
 }

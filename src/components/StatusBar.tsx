@@ -7,6 +7,7 @@ import { alertError } from '../lib/alert';
 import { IDLE_AWAY_MINUTES } from '../hooks/useAutoAwayStatus';
 import type { Employee } from '../types';
 import EmployeeAvatar from './EmployeeAvatar';
+import ReferralTitleBadge from './ReferralTitleBadge';
 import { Popover } from 'antd';
 
 /**
@@ -69,7 +70,11 @@ function PersonCard({ employee }: { employee: Employee }) {
       <p className="flex items-center gap-2 border-b border-slate-100 pb-2">
         <EmployeeAvatar name={employee.name} size={28} />
         <span>
-          <span className="block text-sm font-bold text-slate-800">{employee.name}</span>
+          <span className="flex items-center gap-1 text-sm font-bold text-slate-800">
+            {/* 알선팀은 이름 왼쪽에 타이틀이 붙는다 — 누가 팀장인지 여기서 보인다 */}
+            <ReferralTitleBadge title={employee.referralTitle} />
+            {employee.name}
+          </span>
           <span className="block text-[11px] text-slate-400">{employee.position}</span>
         </span>
       </p>
@@ -278,6 +283,7 @@ export default function StatusBar() {
                       >
                         {/* 열 몇 명이 한 줄로 늘어서 있어 이름만으로는 눈이 안 잡힌다 */}
                         <EmployeeAvatar name={e.name} size={22} />
+                        <ReferralTitleBadge title={e.referralTitle} />
                         <span className="font-semibold text-slate-800">{e.name}</span>
                         <span className="text-slate-400">{e.position}</span>
                         {label(e) && (

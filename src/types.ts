@@ -24,7 +24,31 @@ export interface Employee {
   statusEmoji?: string | null;
   statusText?: string | null;
   statusAt?: string | null;
+  /** 알선팀 타이틀 — 비어 있으면 알선팀이 아니다 */
+  referralTitle?: ReferralTitle | '';
 }
+
+/**
+ * 알선팀 타이틀.
+ *
+ * 직책과 다르다. 직책은 회사 안에서의 자리고, 이건 알선팀 안에서의 등급이라 실적으로
+ * 오르내린다. 이름 왼쪽에 붙여 누가 팀장인지 한눈에 보이게 한다.
+ */
+export const REFERRAL_TITLES = ['LEADER', 'PRO', 'JUNIOR'] as const;
+export type ReferralTitle = (typeof REFERRAL_TITLES)[number];
+
+export const REFERRAL_TITLE_LABEL: Record<ReferralTitle, string> = {
+  LEADER: '팀장',
+  PRO: '프로',
+  JUNIOR: '주니어',
+};
+
+/** 배지 색 — 팀장이 제일 눈에 걸려야 한다 */
+export const REFERRAL_TITLE_CLASS: Record<ReferralTitle, string> = {
+  LEADER: 'bg-indigo-600 text-white',
+  PRO: 'bg-amber-100 text-amber-800',
+  JUNIOR: 'bg-slate-100 text-slate-500',
+};
 
 /**
  * 'pending' — 오늘이거나 앞으로의 날인데 아직 출퇴근을 안 찍은 상태.

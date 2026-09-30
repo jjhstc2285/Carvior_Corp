@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { Role } from '@prisma/client';
 
 export class CreateEmployeeDto {
@@ -28,6 +28,16 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsEnum(Role)
   role?: Role;
+
+  /**
+   * 알선팀 타이틀 — LEADER / PRO / JUNIOR, 비우면 알선팀이 아니다.
+   *
+   * 직책과 다르다. 직책은 회사 안에서의 자리고 이건 알선팀 안에서의 등급이라 실적으로
+   * 오르내린다.
+   */
+  @IsOptional()
+  @IsIn(['', 'LEADER', 'PRO', 'JUNIOR'], { message: '알선 타이틀이 올바르지 않습니다.' })
+  referralTitle?: string;
 
   @IsOptional()
   @IsBoolean()

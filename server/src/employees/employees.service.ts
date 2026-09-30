@@ -19,6 +19,8 @@ export interface EmployeeView {
   statusEmoji: string | null;
   statusText: string | null;
   statusAt: string | null;
+  /** 알선팀 타이틀 — LEADER / PRO / JUNIOR. 비어 있으면 알선팀이 아니다 */
+  referralTitle: string;
 }
 
 @Injectable()
@@ -35,6 +37,8 @@ export class EmployeesService {
     department: true,
     role: true,
     active: true,
+    // 알선팀 타이틀 — 이름 옆에 붙어 누가 팀장인지 한눈에 보이게 한다
+    referralTitle: true,
     statusEmoji: true,
     statusText: true,
     statusAt: true,
@@ -51,6 +55,7 @@ export class EmployeesService {
     statusEmoji: string | null;
     statusText: string | null;
     statusAt: Date | null;
+    referralTitle: string;
     phones: { number: string }[];
   }): EmployeeView {
     return {

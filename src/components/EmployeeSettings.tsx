@@ -3,8 +3,9 @@ import { RotateCcw, UserMinus, Users2 } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../lib/alert';
 import { useStore } from '../store';
-import { DEPARTMENTS, type Employee } from '../types';
+import { DEPARTMENTS, REFERRAL_TITLES, REFERRAL_TITLE_LABEL, type Employee } from '../types';
 import EmployeeAvatar from './EmployeeAvatar';
+import ReferralTitleBadge from './ReferralTitleBadge';
 
 /**
  * 직원 관리 — 퇴사 처리와 복직.
@@ -53,6 +54,19 @@ export default function EmployeeSettings() {
       await alertSuccess(`${employee.name}님을 ${active ? '복직' : '퇴사'} 처리했습니다`);
     } catch (e) {
       void alertError('처리하지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** 알선팀 타이틀 — 실적으로 오르내리는 값이라 여기서 바로 바꾼다 */
+  const setTitle = async (employee: Employee, referralTitle: string) => {
+    setBusyId(employee.id);
+    try {
+      await api(`/employees/${employee.id}`, { method: 'PATCH', body: { referralTitle } });
+      await refresh();
+    } catch (e) {
+      void alertError('타이틀을 바꾸지 못했습니다', e instanceof ApiError ? e.message : '');
     } finally {
       setBusyId(null);
     }
@@ -135,6 +149,7 @@ export default function EmployeeSettings() {
                   <th className="px-3 py-2 font-medium">직급</th>
                   <th className="px-3 py-2 font-medium">휴대번호</th>
                   <th className="px-3 py-2 font-medium">팀</th>
+                  <th className="px-3 py-2 font-medium">알선 타이틀</th>
                   <th className="px-3 py-2 font-medium">권한</th>
                   <th className="px-3 py-2 text-right font-medium">관리</th>
                 </tr>
@@ -148,6 +163,7 @@ export default function EmployeeSettings() {
                     <td className="px-3 py-2 font-medium">
                       <span className="flex items-center gap-2">
                         <EmployeeAvatar name={e.name} size={26} />
+                        <ReferralTitleBadge title={e.referralTitle} />
                         <span className={e.active ? '' : 'opacity-60'}>{e.name}</span>
                         {!e.active && (
                           <span className="rounded bg-slate-200 px-1 text-[10px] font-bold text-slate-500">퇴사</span>
@@ -180,6 +196,22 @@ export default function EmployeeSettings() {
                         <option value="">팀 없음</option>
                         {DEPARTMENTS.map(d => (
                           <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </td>
+                    {/* 알선팀 안에서의 등급 — 이름 왼쪽에 붙고, 인센티브 정산이 이 값으로 팀장을 가른다 */}
+                    <td className="px-3 py-2">
+                      <select
+                        value={e.referralTitle ?? ''}
+                        onChange={ev => void setTitle(e, ev.target.value)}
+                        disabled={busyId === e.id}
+                        className="rounded-lg border border-slate-200 px-1.5 py-1 text-xs outline-none focus:border-indigo-400 disabled:opacity-50"
+                      >
+                        <option value="">없음</option>
+                        {REFERRAL_TITLES.map(t => (
+                          <option key={t} value={t}>
+                            {REFERRAL_TITLE_LABEL[t]}
+                          </option>
                         ))}
                       </select>
                     </td>

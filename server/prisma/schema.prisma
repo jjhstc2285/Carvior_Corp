@@ -53,6 +53,17 @@ model Employee {
   statusText  String?   @db.VarChar(40)
   statusAt    DateTime?
 
+  /**
+   * 알선팀 타이틀 — LEADER(팀장) / PRO(프로 딜러) / JUNIOR(주니어).
+   *
+   * 직책(position)과 다르다. 직책은 회사 안에서의 자리고, 이건 알선팀 안에서의 등급이라
+   * 실적으로 오르내린다. 이름 옆에 붙어 누가 팀장인지 한눈에 보이게 하고, 인센티브
+   * 정산에서 팀장 오버라이딩을 누구에게 줄지도 이 값으로 가른다.
+   *
+   * 비어 있으면 알선팀이 아니다.
+   */
+  referralTitle String @default("") @db.VarChar(10)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -67,6 +78,7 @@ model Employee {
   consultations        Consultation[]
   settlements          Settlement[]
   brokerageSettlements BrokerageSettlement[]
+  dealerIncentives     DealerIncentive[]
   purchaseSettlements  PurchaseSettlement[]
   parkingVehicles      ParkingVehicle[]
   vehiclePosts         VehiclePost[]
@@ -1814,4 +1826,48 @@ model PanelInvoiceFile {
 
   @@index([month])
   @@index([month, vendor])
+}
+
+/**
+ * 알선 딜러 인센티브 — 달마다 한 사람에 한 줄.
+ *
+ * 기본급을 깔고, 월 알선 총액이 기본급을 넘은 만큼에 구간 요율을 곱해 인센티브를 낸다.
+ * 요율은 초과분이 아니라 '월 알선 총액'이 어느 구간인지로 고른다 — 800만을 한 사람과
+ * 1,000만을 한 사람은 같은 초과분에도 다른 요율을 받는다.
+ *
+ * 계산에 쓰는 값만 저장한다. 인센티브·실수령액·회사 순수익은 저장하지 않는다 —
+ * 저장해 두면 요율표를 고쳤을 때 지난 달 숫자와 어긋난다. 볼 때마다 다시 낸다.
+ */
+model DealerIncentive {
+  id String @id @default(cuid())
+
+  month      String @db.VarChar(7) // YYYY-MM
+  employeeId String
+
+  /**
+   * 월 알선 총액(원).
+   *
+   * 그 달 그 사람 알선 정산의 '정산받을금액'을 더해 채워 두지만, 정산에 안 올라온 건이
+   * 있어 손으로 고칠 수 있다. 0이면 아직 안 적은 것이라 집계값을 쓴다.
+   */
+  sales Int @default(0)
+
+  /** 근속 연차 — 0~5년. 기본급이 여기서 나온다(0년 200만 … 5년 300만) */
+  years Int @default(0)
+
+  /** 기본급을 따로 정했으면 그 값(원). 0이면 근속표대로 */
+  baseSalary Int @default(0)
+
+  /** 팀장 오버라이딩을 5%로 줄 달인가 — 목표를 채웠으면 켠다 */
+  targetAchieved Boolean @default(false)
+
+  memo String @default("") @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([month, employeeId])
+  @@index([month])
 }
