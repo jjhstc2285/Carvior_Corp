@@ -322,16 +322,23 @@ export class SettlementsService {
    * 0을 적으면 지운다 — 잘못 적은 달을 되돌릴 방법이 있어야 한다.
    */
   async savePanelInvoiceTotal(month: string, vendor: string, amount: number, writer: string, kind = 'DENT') {
-    const key = { month_vendor: { month, vendor } };
+    /*
+      달·업체·항목으로 한 줄이다.
+
+      업체만으로 찾으면 같은 집에 판금과 광택을 같이 맡겼을 때 뒤에 적은 것이 앞의 것을
+      갈아끼운다 — 한 줄을 적을 때마다 앞 줄이 하나씩 사라진다. 지울 때도 같다:
+      항목을 안 따지면 광택 총액을 비웠는데 그 집 판금 총액까지 날아간다.
+    */
+    const key = { month_vendor_kind: { month, vendor, kind } };
 
     if (amount <= 0) {
-      await this.prisma.panelInvoiceTotal.deleteMany({ where: { month, vendor } });
+      await this.prisma.panelInvoiceTotal.deleteMany({ where: { month, vendor, kind } });
       return { month, vendor, kind, amount: 0 };
     }
 
     return this.prisma.panelInvoiceTotal.upsert({
       where: key,
-      update: { amount, writer, kind },
+      update: { amount, writer },
       create: { month, vendor, amount, writer, kind },
     });
   }

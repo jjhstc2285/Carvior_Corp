@@ -1770,7 +1770,13 @@ model PanelInvoiceTotal {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([month, vendor])
+  /*
+    달 · 업체 · 항목으로 한 줄이다.
+
+    업체만으로 묶으면 같은 집에 판금과 광택을 같이 맡겼을 때 뒤에 적은 것이 앞의 것을
+    갈아끼운다 — 한 줄을 적을 때마다 앞 줄이 하나씩 사라진다.
+  */
+  @@unique([month, vendor, kind])
   @@index([month])
 }
 

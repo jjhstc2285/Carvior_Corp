@@ -462,6 +462,42 @@ export default function PanelInvoiceModal({
           </div>
         )}
 
+        {/*
+          그 달에 적어 둔 총액.
+
+          무엇이 적혀 있는지 안 보이면, 업체·항목을 잘못 고른 채 적어 앞 줄을 덮어써도
+          모른다. 적힌 것을 먼저 보여준다 — 고칠 것은 눌러서 그 자리로 간다.
+        */}
+        {savedTotals.length > 0 && (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <p className="text-[11px] font-bold text-slate-500">{dayjs(month).format('M월')} 적어 둔 총액</p>
+            <ul className="mt-1 flex flex-wrap gap-1.5">
+              {savedTotals.map(t => (
+                <li key={`${t.vendor}-${t.kind}`}>
+                  <button
+                    onClick={() => {
+                      setVendor(t.vendor);
+                      setKind(t.kind as PrepCostKind);
+                    }}
+                    title="눌러서 이 줄을 고칩니다"
+                    className={`rounded-lg px-2 py-1 text-[11px] font-medium ring-1 ring-inset ${
+                      t.vendor === vendor.trim() && t.kind === kind
+                        ? 'bg-indigo-50 text-indigo-700 ring-indigo-200'
+                        : 'bg-slate-50 text-slate-600 ring-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {t.vendor} · {PREP_COST_LABEL[t.kind as PrepCostKind] ?? t.kind}{' '}
+                    <b>{withCommas(String(t.amount))}</b>원
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-[10px] text-slate-400">
+              업체와 항목이 같은 줄에 적으면 <b>덮어씁니다</b>. 다른 청구서는 업체나 항목을 바꿔 적으세요.
+            </p>
+          </div>
+        )}
+
         {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
 
         {/* 못 읽었을 때 — 어느 시트에서 무슨 칸을 봤는지 그대로 보여준다 */}
