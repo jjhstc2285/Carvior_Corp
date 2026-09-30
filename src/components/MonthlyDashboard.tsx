@@ -7,6 +7,7 @@ import type { AttendanceStatus } from '../types';
 import StatusBadge from './StatusBadge';
 import StatsCards from './StatsCards';
 import CalendarView from './CalendarView';
+import AllCalendarView from './AllCalendarView';
 
 const STATUS_OPTIONS: { value: AttendanceStatus | 'all'; label: string }[] = [
   { value: 'all', label: '전체 상태' },
@@ -180,7 +181,24 @@ export default function MonthlyDashboard() {
             />
           </div>
         ) : (
-          <p className="px-5 py-10 text-center text-sm text-slate-400">캘린더 보기는 직원을 한 명 선택하면 볼 수 있어요.</p>
+          /*
+            직원을 안 고르면 전체를 한 판에 본다.
+
+            한 사람씩 골라야 캘린더가 나왔다 — "그날 누가 늦었나"를 보려고 스무 명을 한 명씩
+            누를 사람은 없다. 날마다 세어 띄우고, 누구인지는 칸에 올리면 나온다.
+          */
+          <div className="p-5">
+            <p className="mb-3 text-sm font-semibold text-slate-700">
+              전체 직원 · {monthDayjs.format('YYYY년 M월')}
+              {department !== 'all' && <span className="ml-1 font-medium text-slate-400">· {department}</span>}
+            </p>
+            <AllCalendarView
+              month={monthDayjs}
+              employees={scopedEmployees}
+              records={state.records}
+              requests={state.attendanceRequests}
+            />
+          </div>
         )}
       </div>
     </section>

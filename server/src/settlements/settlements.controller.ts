@@ -58,6 +58,9 @@ const CONTRACT_TEAM = '계약팀';
 import { assertOfficeManager } from '../auth/office-manager';
 import { canEditPanelInvoice } from './approvers';
 
+/** 상품화 비용 항목 — 청구서가 어느 칸으로 들어갈지 가른다(스키마의 PrepCostKind와 같다) */
+const PREP_KINDS = ['POLISH_WASH', 'DENT', 'PERFORMANCE', 'DELIVERY', 'REPAIR', 'DIAGNOSIS'];
+
 /** 청구서 한 줄 — 화면이 엑셀을 읽어 이 모양으로 보낸다 */
 interface PanelInvoiceRow {
   vehicleNumber: string;
@@ -262,6 +265,8 @@ export class SettlementsController {
       month?: string;
       /** 청구서에 찍힌 총액. 차에 나눠 붙이지 않고 적어만 둔다 — 합계를 이 값으로 덮어쓴다 */
       invoiceTotal?: number;
+      /** 어느 항목인가 — 판금(DENT) / 광택(POLISH_WASH) … 광택은 사진으로 와서 총액만 적는다 */
+      kind?: string;
     },
   ) {
     if (!canEditPanelInvoice(user.name)) {
@@ -283,6 +288,7 @@ export class SettlementsController {
         vendor,
         Math.max(0, Math.round(dto.invoiceTotal ?? 0)),
         user.name,
+        PREP_KINDS.includes(dto.kind ?? '') ? (dto.kind as string) : 'DENT',
       );
     }
     return applied;

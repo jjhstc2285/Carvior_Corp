@@ -1753,7 +1753,15 @@ model PanelInvoiceTotal {
   id String @id @default(cuid())
 
   month  String @db.VarChar(7) // YYYY-MM
-  vendor String @db.VarChar(20) // 대산 / KS
+  vendor String @db.VarChar(20) // 대산 / KS / 광택집
+
+  /**
+   * 어느 항목의 청구서인가 — DENT(판금·덴트) / POLISH_WASH(광택·세차) / PERFORMANCE …
+   *
+   * 판금만 청구서로 오는 게 아니다. 광택은 사진으로 오고 아직 읽을 방법이 없어 총액만
+   * 적는데, 그 금액이 판금 칸에 얹히면 안 된다.
+   */
+  kind String @default("DENT") @db.VarChar(20)
   amount Int    @default(0) // 청구서에 찍힌 총액(원)
 
   /** 적은 사람 — 이름 두 개로 못 박은 그 사람들이다. 나중에 누가 적었는지 묻는다 */

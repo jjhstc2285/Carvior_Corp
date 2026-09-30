@@ -5,6 +5,7 @@ import { FileSpreadsheet, ImageIcon, Loader2, Paperclip, Plus, Trash2, X } from 
 import { api } from '../../lib/api';
 import { withCommas } from '../../lib/money';
 import { readPanelInvoice, type PanelInvoiceRead } from '../../lib/panelInvoice';
+import { PREP_COST_KINDS, PREP_COST_LABEL, type PrepCostKind } from '../../types';
 
 /**
  * 판금집 청구서 넣기.
@@ -77,11 +78,18 @@ export default function PanelInvoiceModal({
   /** 지금 보고 있는 달(YYYY-MM) — 청구서 총액을 이 달로 적어 둔다 */
   month: string;
   /** 이 달에 이미 적어 둔 총액 — 업체를 고르면 그 값이 칸에 들어온다 */
-  savedTotals?: { vendor: string; amount: number }[];
+  savedTotals?: { vendor: string; kind: string; amount: number }[];
   onClose: () => void;
   onApplied: () => void;
 }) {
   const [vendor, setVendor] = useState('대산');
+  /*
+    어느 항목의 청구서인가.
+
+    판금만 청구서로 오는 게 아니다. 광택은 사진으로 오고 아직 읽을 방법이 없어 총액만
+    적는데, 그 금액이 판금 칸에 얹히면 안 된다.
+  */
+  const [kind, setKind] = useState<PrepCostKind>('DENT');
   const [rows, setRows] = useState<Row[]>([]);
   const [fileName, setFileName] = useState('');
   /** 읽힌 장들과 지금 보는 장 — 대산 파일은 거래처마다 한 장씩 백 장이 넘는다 */
@@ -135,9 +143,9 @@ export default function PanelInvoiceModal({
     고치는 편이 안전하다.
   */
   useEffect(() => {
-    const saved = savedTotals.find(t => t.vendor === vendor.trim());
+    const saved = savedTotals.find(t => t.vendor === vendor.trim() && t.kind === kind);
     setInvoiceTotal(saved ? String(saved.amount) : '');
-  }, [vendor, savedTotals]);
+  }, [vendor, kind, savedTotals]);
 
   const patch = (index: number, next: Partial<Row>) =>
     setRows(prev => prev.map((r, i) => (i === index ? { ...r, ...next, edited: true } : r)));
@@ -270,6 +278,7 @@ export default function PanelInvoiceModal({
           합계가 된다.
         */
         invoiceTotal: stated,
+        kind,
         rows: rows
           .filter(r => plateKey(r.vehicleNumber) && r.amount > 0)
           .map(r => ({
@@ -336,6 +345,21 @@ export default function PanelInvoiceModal({
         </p>
 
         <div className="mt-3 flex flex-wrap items-end gap-2">
+          {/* 어느 칸으로 들어갈지 — 광택 청구서가 판금 칸에 얹히면 안 된다 */}
+          <label className="text-xs text-slate-500">
+            항목
+            <select
+              value={kind}
+              onChange={e => setKind(e.target.value as PrepCostKind)}
+              className="mt-1 block w-32 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400"
+            >
+              {PREP_COST_KINDS.map(k => (
+                <option key={k} value={k}>
+                  {PREP_COST_LABEL[k]}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="text-xs text-slate-500">
             업체
             <input
@@ -348,6 +372,7 @@ export default function PanelInvoiceModal({
             <datalist id="panel-invoice-vendors">
               <option value="대산" />
               <option value="KS" />
+              <option value="광택집" />
             </datalist>
           </label>
           <button
@@ -450,6 +475,31 @@ export default function PanelInvoiceModal({
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/*
+          줄이 없어도 총액만 적어 넣는다.
+
+          광택 청구서는 사진으로 온다 — 읽을 방법이 아직 없다. 한 줄씩 옮겨 적자고 손을
+          빌릴 일이 아니라, 원본을 올려 두고 총액만 적는다. 차마다의 원가는 안 건드린다.
+        */}
+        {rows.length === 0 && !result && (
+          <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+            <label className="text-xs text-slate-500">
+              청구서 총액
+              <input
+                value={withCommas(invoiceTotal)}
+                onChange={e => setInvoiceTotal(e.target.value.replace(/[^\d]/g, ''))}
+                inputMode="numeric"
+                placeholder="3,200,000"
+                className="mt-1 block w-36 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
+              />
+            </label>
+            <span className="flex-1 text-[11px] leading-relaxed text-slate-400">
+              사진으로 온 청구서는 아직 읽지 못합니다. <b>원본을 올려 두고 총액만</b> 적으세요 —
+              적은 금액이 그대로 이 달 <b>{PREP_COST_LABEL[kind]}</b> 총액이 됩니다. 차마다의 원가는 건드리지 않습니다.
+            </span>
           </div>
         )}
 
@@ -645,11 +695,11 @@ export default function PanelInvoiceModal({
           {!result && (
             <button
               onClick={() => void apply()}
-              disabled={busy || rows.length === 0}
+              disabled={busy || (rows.length === 0 && stated <= 0)}
               className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-slate-300"
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
-              {busy ? '반영 중…' : `${rows.length}건 반영`}
+              {busy ? '반영 중…' : rows.length > 0 ? `${rows.length}건 반영` : '총액 반영'}
             </button>
           )}
         </div>
