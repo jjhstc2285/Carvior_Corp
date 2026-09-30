@@ -28,6 +28,17 @@ export default function PurchaseIntakeModule() {
   const periodLabel = period === 'month' ? dayjs(month).format('M월') : period === 'half' ? half.label : '전체';
 
   const total = api.items.reduce((sum, r) => sum + r.totalAmount, 0);
+  /*
+    매입가와 구전을 갈라 본다.
+
+    총 매입금액 하나만 띄우면 그 안에 구전이 얼마인지 알 수 없다. 구전은 차값이 아니라
+    사람에게 주는 돈이고, 지급방식에 따라 원천징수까지 따라붙는다 — 한 덩어리로 묶어
+    두면 얼마를 누구에게 줬는지 세어볼 자리가 없다.
+  */
+  const purchaseTotal = api.items.reduce((sum, r) => sum + r.purchaseAmount, 0);
+  const brokerTotal = api.items.reduce((sum, r) => sum + r.brokerFee, 0);
+  /** 구전을 준 건이 몇 대인가 — 안 준 건이 섞여 있어 대수로는 못 나눈다 */
+  const brokerCount = api.items.filter(r => r.brokerFee > 0).length;
   // 매입만 봐서는 부가세가 안 나온다 — 그 차들이 얼마에 팔렸는지까지 맞춰봐야 한다.
   const saleTotal = api.items.reduce((sum, r) => sum + (r.salePrice ?? 0), 0);
   const vat = vatBalance(total, saleTotal);
@@ -151,7 +162,7 @@ export default function PurchaseIntakeModule() {
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">{periodLabel} 매입 대수</p>
           <p className="mt-1 text-xl font-bold text-slate-800 sm:text-2xl">
@@ -164,6 +175,27 @@ export default function PurchaseIntakeModule() {
           <p className="mt-1 text-xl font-bold text-indigo-600 sm:text-2xl">
             {NUM(total) || 0}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          {/* 한 덩어리로 두면 그 안에 구전이 얼마인지 알 수 없다 */}
+          <p className="text-[11px] text-slate-400">
+            매입가 {NUM(purchaseTotal) || 0} · 구전 {NUM(brokerTotal) || 0}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-xs font-medium text-slate-400">실매입금액 (차값)</p>
+          <p className="mt-1 text-xl font-bold text-slate-800 sm:text-2xl">
+            {NUM(purchaseTotal) || 0}
+            <span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-xs font-medium text-slate-400">구전 합계</p>
+          <p className="mt-1 text-xl font-bold text-amber-600 sm:text-2xl">
+            {NUM(brokerTotal) || 0}
+            <span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          <p className="text-[11px] text-slate-400">
+            {api.items.length}대 중 {brokerCount}대 지급
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
