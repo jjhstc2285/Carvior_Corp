@@ -8,6 +8,8 @@ import { IDLE_AWAY_MINUTES } from '../hooks/useAutoAwayStatus';
 import type { Employee } from '../types';
 import EmployeeAvatar from './EmployeeAvatar';
 import ReferralTitleBadge from './ReferralTitleBadge';
+import AttendanceRankBadge from './AttendanceRankBadge';
+import { attendanceRanking } from '../lib/attendanceRank';
 import { Popover } from 'antd';
 
 /**
@@ -128,6 +130,18 @@ export default function StatusBar() {
   useEffect(() => {
     void loadBoard();
   }, [loadBoard]);
+
+  /*
+    이번 달 출퇴근 성실도.
+
+    표를 펴 보는 사람만 알던 값이라 이름 옆에 단다 — 잘 찍는 사람이 드러나는 게 안 찍는
+    사람을 나무라는 것보다 낫다. 기록은 이미 받아둔 이번 달 것을 그대로 쓴다.
+  */
+  const ranking = useMemo(
+    () => attendanceRanking(state.employees, state.records, state.attendanceRequests, dayjs().format('YYYY-MM')),
+    [state.employees, state.records, state.attendanceRequests],
+  );
+  const rankOf = useCallback((id: string) => ranking.find(r => r.employeeId === id) ?? null, [ranking]);
 
   const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
 
@@ -284,6 +298,7 @@ export default function StatusBar() {
                         {/* 열 몇 명이 한 줄로 늘어서 있어 이름만으로는 눈이 안 잡힌다 */}
                         <EmployeeAvatar name={e.name} size={22} />
                         <ReferralTitleBadge title={e.referralTitle} />
+                        <AttendanceRankBadge row={rankOf(e.id)} />
                         <span className="font-semibold text-slate-800">{e.name}</span>
                         <span className="text-slate-400">{e.position}</span>
                         {label(e) && (

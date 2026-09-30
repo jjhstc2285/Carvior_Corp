@@ -8,6 +8,9 @@ import StatusBadge from './StatusBadge';
 import StatsCards from './StatsCards';
 import CalendarView from './CalendarView';
 import AllCalendarView from './AllCalendarView';
+import AttendanceRankBadge from './AttendanceRankBadge';
+import EmployeeAvatar from './EmployeeAvatar';
+import { attendanceRanking, RANK_MARK } from '../lib/attendanceRank';
 
 const STATUS_OPTIONS: { value: AttendanceStatus | 'all'; label: string }[] = [
   { value: 'all', label: '전체 상태' },
@@ -47,6 +50,20 @@ export default function MonthlyDashboard() {
     }
     return list;
   }, [month]);
+
+  /*
+    그 달 출퇴근 성실도 순위.
+
+    부서를 걸어도 순위는 회사 전체로 낸다 — 세 명짜리 부서에서 1등한 것과 스무 명 중
+    1등한 것이 같은 왕관이면 표가 뜻을 잃는다.
+  */
+  const ranking = useMemo(
+    () => attendanceRanking(state.employees, state.records, state.attendanceRequests, month),
+    [state.employees, state.records, state.attendanceRequests, month],
+  );
+  const rankOf = (id: string) => ranking.find(r => r.employeeId === id) ?? null;
+  /** 표를 받은 사람들 — 3등까지와 개근 */
+  const honored = ranking.filter(r => RANK_MARK[r.rank] || r.perfect);
 
   const scopedEmployees = state.employees.filter(e =>
     (department === 'all' || e.department === department) &&
@@ -136,6 +153,41 @@ export default function MonthlyDashboard() {
 
       <StatsCards counts={counts} total={allRows.length} />
 
+      {/*
+        이 달 출퇴근 순위.
+
+        표를 펴 보는 사람만 알던 값이다. 이름을 누르면 그 사람만 걸러 본다 —
+        왕관을 보고 "얼마나 잘 찍었나" 궁금해진 자리에서 바로 열리는 게 맞다.
+      */}
+      {honored.length > 0 && (
+        <div className="mb-3 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/40">
+          <div className="flex items-baseline justify-between border-b border-amber-200/70 px-3 py-1.5">
+            <span className="text-xs font-bold text-amber-800">{dayjs(month).format('M월')} 출퇴근</span>
+            <span className="text-[11px] text-amber-700/80">
+              정상 하루 1점 · 지각·조퇴 0.5점 깎음 · 안 찍은 날 1점 깎음 (연차·외근은 안 셉니다)
+            </span>
+          </div>
+          <ul className="flex flex-wrap gap-1.5 p-2.5">
+            {honored.map(r => (
+              <li key={r.employeeId}>
+                <button
+                  onClick={() => setEmployeeId(r.employeeId)}
+                  title={`${r.normal}일 정상 · 지각 ${r.late} · 조퇴 ${r.earlyLeave} · 누락 ${r.missing} — 눌러서 이 사람만 봅니다`}
+                  className={`flex items-center gap-1.5 rounded-full border bg-white py-1 pl-1 pr-2.5 text-xs hover:bg-amber-50 ${
+                    employeeId === r.employeeId ? 'border-amber-400 ring-2 ring-amber-200' : 'border-amber-200'
+                  }`}
+                >
+                  <EmployeeAvatar name={r.name} size={20} />
+                  <AttendanceRankBadge row={r} />
+                  <span className="font-semibold text-slate-800">{r.name}</span>
+                  <span className="text-slate-400">정상 {r.normal}일</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-slate-200 bg-white">
         {view === 'list' ? (
           <div className="overflow-x-auto">
@@ -161,7 +213,17 @@ export default function MonthlyDashboard() {
                     <tr key={`${row.employeeId}-${row.date}-${i}`} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
                       <td className="px-5 py-2.5 text-slate-600">{dayjs(row.date).format('M월 D일 (ddd)')}</td>
                       <td className="px-5 py-2.5 text-slate-500">{emp.department}</td>
-                      <td className="px-5 py-2.5 font-medium text-slate-700">{emp.name}</td>
+                      {/* 이름을 누르면 그 사람만 본다 — 위에서 고르러 올라가지 않는다 */}
+                      <td className="px-5 py-2.5">
+                        <button
+                          onClick={() => setEmployeeId(row.employeeId)}
+                          title="눌러서 이 사람만 봅니다"
+                          className="flex items-center gap-1.5 font-medium text-slate-700 hover:text-indigo-600"
+                        >
+                          <AttendanceRankBadge row={rankOf(row.employeeId)} />
+                          {emp.name}
+                        </button>
+                      </td>
                       <td className="px-5 py-2.5 text-slate-500">{record?.clockIn ?? '-'}</td>
                       <td className="px-5 py-2.5 text-slate-500">{record?.clockOut ?? '-'}</td>
                       <td className="px-5 py-2.5"><StatusBadge status={row.status} /></td>
