@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager } from '../auth/office-manager';
 import { monthRange } from '../common/date.util';
+import { brokerageProfit } from '../settlements/settlement.calc';
 import {
   BASE_SALARY_DEFAULT,
   INCENTIVE_EFFECTIVE_FROM,
@@ -52,14 +53,26 @@ export class ReferralService {
       }),
       this.prisma.brokerageSettlement.findMany({
         where: { kind: ConsultationKind.BROKERAGE, date: range },
-        select: { employeeId: true, settlementAmount: true },
+        select: {
+          employeeId: true,
+          cashCommission: true,
+          installmentFee: true,
+          insuranceFee: true,
+          etcCost: true,
+        },
       }),
     ]);
 
-    /** 그 달 사람마다 알선 정산에서 더해진 금액 */
+    /*
+      그 달 사람마다 올린 수익금 합계.
+
+      정산받을금액이 아니라 수익금으로 센다 — 정산받을금액은 이 표가 주는 돈이라
+      그걸로 다시 구간을 고르면 준 돈으로 줄 돈을 정하는 셈이 된다.
+      수익금 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업(알선 정산과 같은 식이다).
+    */
     const autoSales = new Map<string, number>();
     for (const s of settlements) {
-      autoSales.set(s.employeeId, (autoSales.get(s.employeeId) ?? 0) + s.settlementAmount);
+      autoSales.set(s.employeeId, (autoSales.get(s.employeeId) ?? 0) + brokerageProfit(s));
     }
 
     const extraIds = [...autoSales.keys()].filter((id) => !titled.some((t) => t.id === id));
