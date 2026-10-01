@@ -3,7 +3,7 @@ import { RotateCcw, UserMinus, Users2 } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../lib/alert';
 import { useStore } from '../store';
-import { DEPARTMENTS, REFERRAL_TITLES, REFERRAL_TITLE_LABEL, type Employee } from '../types';
+import { DEPARTMENTS, REFERRAL_TITLES, REFERRAL_TITLE_EMOJI, REFERRAL_TITLE_LABEL, type Employee } from '../types';
 import EmployeeAvatar from './EmployeeAvatar';
 import ReferralTitleBadge from './ReferralTitleBadge';
 
@@ -96,7 +96,19 @@ export default function EmployeeSettings() {
   const setDepartment = async (employee: Employee, department: string) => {
     setBusyId(employee.id);
     try {
-      await api(`/employees/${employee.id}`, { method: 'PATCH', body: { department: department || null } });
+      await api(`/employees/${employee.id}`, {
+        method: 'PATCH',
+        body: {
+          department: department || null,
+          /*
+            알선팀을 떠나면 타이틀도 같이 내린다.
+
+            남겨 두면 광고팀 사람 이름 앞에 팀장 표가 붙은 채로 돌아다닌다 — 고칠 칸은
+            알선팀일 때만 보이니 되돌릴 방법도 없다.
+          */
+          ...(department !== '알선팀' && employee.referralTitle ? { referralTitle: '' } : {}),
+        },
+      });
       await load();
       // 작업일지가 이 값으로 팀을 가르니 전역 목록도 같이 받아둔다.
       await refresh();
@@ -183,8 +195,8 @@ export default function EmployeeSettings() {
                   >
                     <td className="px-3 py-2 font-medium">
                       <span className="flex items-center gap-2">
-                        <EmployeeAvatar name={e.name} size={26} />
                         <ReferralTitleBadge title={e.referralTitle} />
+                        <EmployeeAvatar name={e.name} size={26} />
                         <span className={e.active ? '' : 'opacity-60'}>{e.name}</span>
                         {!e.active && (
                           <span className="rounded bg-slate-200 px-1 text-[10px] font-bold text-slate-500">퇴사</span>
@@ -233,19 +245,26 @@ export default function EmployeeSettings() {
                     </td>
                     {/* 알선팀 안에서의 등급 — 이름 왼쪽에 붙고, 인센티브 정산이 이 값으로 팀장을 가른다 */}
                     <td className="px-3 py-2">
-                      <select
-                        value={e.referralTitle ?? ''}
-                        onChange={ev => void setTitle(e, ev.target.value)}
-                        disabled={busyId === e.id}
-                        className="rounded-lg border border-slate-200 px-1.5 py-1 text-xs outline-none focus:border-indigo-400 disabled:opacity-50"
-                      >
-                        <option value="">없음</option>
-                        {REFERRAL_TITLES.map(t => (
-                          <option key={t} value={t}>
-                            {REFERRAL_TITLE_LABEL[t]}
-                          </option>
-                        ))}
-                      </select>
+                      {/* 알선팀에만 다는 표다 — 팀이 아니면 고를 일이 없다 */}
+                      {e.department === '알선팀' ? (
+                        <select
+                          value={e.referralTitle ?? ''}
+                          onChange={ev => void setTitle(e, ev.target.value)}
+                          disabled={busyId === e.id}
+                          className="rounded-lg border border-slate-200 px-1.5 py-1 text-xs outline-none focus:border-indigo-400 disabled:opacity-50"
+                        >
+                          <option value="">없음</option>
+                          {REFERRAL_TITLES.map(t => (
+                            <option key={t} value={t}>
+                              {REFERRAL_TITLE_EMOJI[t]} {REFERRAL_TITLE_LABEL[t]}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-[11px] text-slate-300" title="팀을 알선팀으로 바꾸면 고를 수 있습니다">
+                          알선팀만
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-xs">{e.role === 'ADMIN' ? '관리자' : '직원'}</td>
                     <td className="px-3 py-2 text-right">

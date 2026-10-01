@@ -43,11 +43,16 @@ export const REFERRAL_TITLE_LABEL: Record<ReferralTitle, string> = {
   JUNIOR: '주니어',
 };
 
-/** 배지 색 — 팀장이 제일 눈에 걸려야 한다 */
-export const REFERRAL_TITLE_CLASS: Record<ReferralTitle, string> = {
-  LEADER: 'bg-indigo-600 text-white',
-  PRO: 'bg-amber-100 text-amber-800',
-  JUNIOR: 'bg-slate-100 text-slate-500',
+/**
+ * 이름 앞에 붙는 그림.
+ *
+ * 글자로 달면 이름 앞이 글자 두 겹이 되어 정작 이름이 안 읽힌다. 한 자리만 쓰고 멀리서도
+ * 갈리는 그림으로 둔다 — 주니어는 애기, 프로는 정장, 팀장은 차려입은 사람이다.
+ */
+export const REFERRAL_TITLE_EMOJI: Record<ReferralTitle, string> = {
+  LEADER: '🕴️',
+  PRO: '🧑‍💼',
+  JUNIOR: '👶',
 };
 
 /**

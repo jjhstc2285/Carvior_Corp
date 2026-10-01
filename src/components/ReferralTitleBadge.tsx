@@ -1,13 +1,15 @@
-import { REFERRAL_TITLE_CLASS, REFERRAL_TITLE_LABEL, type ReferralTitle } from '../types';
+import { REFERRAL_TITLE_EMOJI, REFERRAL_TITLE_LABEL, type ReferralTitle } from '../types';
 
 /**
- * 알선팀 타이틀 배지 — 이름 왼쪽에 붙는다.
+ * 알선팀 타이틀 — 이름 왼쪽, 아바타보다 앞에 붙는다.
  *
- * 직책과 다르다. 직책은 회사 안에서의 자리고, 이건 알선팀 안에서의 등급이라 실적으로
- * 오르내린다. 누가 팀장인지 목록에서 바로 보이게 이름 앞에 둔다.
+ * 글자가 아니라 그림이다. 이름 앞에 '주니어' 같은 글자를 달면 글자가 두 겹이 되어 정작
+ * 이름이 안 읽힌다. 한 자리만 쓰고 멀리서도 갈리는 그림으로 둔다.
  *
- * 타이틀이 없으면 아무것도 그리지 않는다 — 알선팀이 아닌 사람 이름 앞에 빈 자리를
- * 만들면 줄이 어긋나 보인다.
+ * 무엇을 뜻하는지는 손을 올리면 글자로 나온다 — 그림만으로는 처음 보는 사람이 모른다.
+ *
+ * 타이틀이 없으면 아무것도 그리지 않는다. 알선팀이 아닌 사람 이름 앞에 빈 자리를 만들면
+ * 줄이 어긋나 보인다.
  */
 export default function ReferralTitleBadge({
   title,
@@ -18,15 +20,16 @@ export default function ReferralTitleBadge({
   size?: 'sm' | 'md';
 }) {
   const key = (title ?? '').trim() as ReferralTitle;
-  if (!REFERRAL_TITLE_LABEL[key]) return null;
+  const emoji = REFERRAL_TITLE_EMOJI[key];
+  if (!emoji) return null;
 
   return (
     <span
-      className={`shrink-0 rounded font-bold ${REFERRAL_TITLE_CLASS[key]} ${
-        size === 'sm' ? 'px-1 py-px text-[10px]' : 'px-1.5 py-0.5 text-[11px]'
-      }`}
+      className={`shrink-0 leading-none ${size === 'sm' ? 'text-[13px]' : 'text-base'}`}
+      title={`알선팀 ${REFERRAL_TITLE_LABEL[key]}`}
+      aria-label={REFERRAL_TITLE_LABEL[key]}
     >
-      {REFERRAL_TITLE_LABEL[key]}
+      {emoji}
     </span>
   );
 }
