@@ -142,23 +142,42 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const [intake, setIntake] = useState<PurchaseIntake | null>(null);
   const [intakeBusy, setIntakeBusy] = useState<string | null>(null);
 
-  const openIntake = async (plate: string) => {
+  const openIntake = async (v: ManagedVehicle) => {
+    const plate = v.vehicleNumber;
     setIntakeBusy(plate);
     try {
       const rows = await callApi<PurchaseIntake[]>(`/purchase-intake?q=${encodeURIComponent(plate)}`);
       // 같은 차를 되사온 건이 있을 수 있다 — 최근 것이 지금 들고 있는 차다
       const hit = rows.find(r => r.vehicleNumber.replace(/\s/g, '') === plate.replace(/\s/g, '')) ?? rows[0];
-      if (!hit) {
-        void alertError('매입 관리에 없는 차입니다', `${plate} 로 등록된 매입 건을 찾지 못했습니다.`);
-        return;
-      }
-      setIntake(hit);
+
+      /*
+        매입 건이 없으면 새로 적는다.
+
+        예전에 엑셀로 올라왔거나 매입을 거치지 않고 들어온 차가 있다. "없습니다" 하고
+        돌려보내면 매입 관리로 옮겨 가 번호부터 다시 쳐야 한다 — 차는 눈앞에 있는데
+        적을 자리만 없는 꼴이다. 아는 값은 채워서 띄운다.
+      */
+      setIntake(
+        hit ?? ({
+          id: '',
+          date: dayjs().format('YYYY-MM-DD'),
+          vehicleNumber: plate,
+          vehicleName: v.vehicleModel,
+          modelYear: v.modelYear,
+          mileage: v.mileage,
+          fuel: v.fuel,
+          firstRegisteredOn: v.firstRegisteredOn,
+          // 차에 적힌 값은 만원이고 매입 관리는 원이다
+          purchaseAmount: (v.priceManwon ?? 0) * 10_000,
+        } as PurchaseIntake),
+      );
     } catch (e) {
       void alertError('매입 내역을 불러오지 못했습니다', e instanceof ApiError ? e.message : '');
     } finally {
       setIntakeBusy(null);
     }
   };
+
   const { state } = useStore();
 
   /**
@@ -510,7 +529,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                   {/* 번호를 누르면 그 차 매입 창이 열린다 — 연식·주행거리를 거기서 채운다 */}
                   <td className="px-3 py-2.5">
                     <button
-                      onClick={() => void openIntake(v.vehicleNumber)}
+                      onClick={() => void openIntake(v)}
                       disabled={intakeBusy === v.vehicleNumber}
                       title="눌러서 매입 정보를 고칩니다"
                       className="font-mono font-semibold text-slate-800 hover:text-indigo-600 disabled:opacity-50"
@@ -669,7 +688,12 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
           editing={intake}
           onSave={async input => {
             try {
-              await callApi(`/purchase-intake/${intake.id}`, { method: 'PATCH', body: input });
+              // id 가 없으면 매입 관리에 없던 차다 — 새로 등록한다
+              if (intake.id) {
+                await callApi(`/purchase-intake/${intake.id}`, { method: 'PATCH', body: input });
+              } else {
+                await callApi('/purchase-intake', { method: 'POST', body: input });
+              }
               await reload();
               return null;
             } catch (e) {
