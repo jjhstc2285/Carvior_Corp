@@ -52,7 +52,7 @@ interface Sheet {
   rules: {
     effectiveFrom: string;
     baseSalaryDefault: number;
-    tiers: { tier: string; min: number; rate: number }[];
+    tiers: { tier: string; over: number; rate: number }[];
     tenure: number[];
     leader: { baseSalary: number; defaultRate: number; targetRate: number; minPersonalSales: number };
   };
@@ -63,15 +63,16 @@ const MAN = (won: number) => `${Math.round(won / 10_000).toLocaleString()}만`;
 /**
  * 그 구간이 어디부터 어디까지인가.
  *
- * 요율만 보면 왜 그 요율인지 모른다 — 800만을 한 사람과 1,000만을 한 사람이 다른 요율을
- * 받는 이유가 구간 경계에 있어서, 경계를 같이 보여준다.
+ * 경계는 '초과'다 — 300만을 한 사람은 20%, 300만을 넘겨야 25%다. 요율만 보면 왜 그
+ * 요율인지 모르니 경계를 같이 적는다.
  */
-function tierRange(tiers: { tier: string; min: number }[], tier: string): string {
-  const sorted = [...tiers].sort((a, b) => a.min - b.min);
+function tierRange(tiers: { tier: string; over: number }[], tier: string): string {
+  const sorted = [...tiers].sort((a, b) => a.over - b.over);
   const i = sorted.findIndex(t => t.tier === tier);
   if (i < 0) return '';
   const next = sorted[i + 1];
-  return next ? `${MAN(sorted[i].min)}~${MAN(next.min)}` : `${MAN(sorted[i].min)}~`;
+  const from = sorted[i].over > 0 ? `${MAN(sorted[i].over)} 초과` : '200만~';
+  return next ? `${from}~${MAN(next.over)}` : `${from}~`;
 }
 
 export default function DealerIncentiveTab() {
@@ -146,7 +147,8 @@ export default function DealerIncentiveTab() {
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {[...sheet.rules.tiers].reverse().map(t => (
               <li key={t.tier} className="rounded-lg bg-slate-50 px-2 py-1 text-slate-600 ring-1 ring-inset ring-slate-200">
-                {t.tier} · {MAN(t.min)}~ · <b className="text-slate-800">{Math.round(t.rate * 100)}%</b>
+                {t.tier} · {tierRange(sheet.rules.tiers, t.tier)} ·{' '}
+                <b className="text-slate-800">{Math.round(t.rate * 100)}%</b>
               </li>
             ))}
           </ul>

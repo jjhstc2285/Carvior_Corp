@@ -20,19 +20,30 @@ export const BASE_SALARY_DEFAULT = 2_000_000;
 /**
  * 달성 구간과 요율.
  *
- * 월 알선 총액이 min 이상이면 그 구간이다. 위에서부터 큰 구간으로 내려보며 찾는다.
+ * 경계는 '초과'다. 300만을 한 사람은 20%, 300만을 넘겨 400만을 한 사람이 25%다 —
+ * 딱 300만에서 25%로 올라가지 않는다. 표에 적힌 예시가 그 기준이다.
+ *
+ *   250만 → 50만 × 20% = 10만
+ *   300만 → 100만 × 20% = 20만
+ *   400만 → 200만 × 25% = 50만
+ *   1,000만 → 800만 × 50% = 400만
+ *   1,500만 → 1,300만 × 55% = 715만
+ *
+ * 위에서부터 큰 구간으로 내려보며 찾는다.
  */
-export const INCENTIVE_TIERS: { tier: string; min: number; rate: number }[] = [
-  { tier: '8구간(폭발)', min: 10_000_000, rate: 0.55 },
-  { tier: '7구간', min: 8_000_000, rate: 0.5 },
-  { tier: '6구간', min: 7_000_000, rate: 0.45 },
-  { tier: '5구간', min: 6_000_000, rate: 0.4 },
-  { tier: '4구간', min: 5_000_000, rate: 0.35 },
-  { tier: '3구간', min: 4_000_000, rate: 0.3 },
-  { tier: '2구간', min: 3_000_000, rate: 0.25 },
-  { tier: '1구간', min: 2_000_000, rate: 0.2 },
-  { tier: '미달', min: 0, rate: 0 },
+export const INCENTIVE_TIERS: { tier: string; over: number; rate: number }[] = [
+  { tier: '8구간(폭발)', over: 10_000_000, rate: 0.55 },
+  { tier: '7구간', over: 8_000_000, rate: 0.5 },
+  { tier: '6구간', over: 7_000_000, rate: 0.45 },
+  { tier: '5구간', over: 6_000_000, rate: 0.4 },
+  { tier: '4구간', over: 5_000_000, rate: 0.35 },
+  { tier: '3구간', over: 4_000_000, rate: 0.3 },
+  { tier: '2구간', over: 3_000_000, rate: 0.25 },
+  { tier: '1구간', over: 0, rate: 0.2 },
 ];
+
+/** 이 아래는 인센티브가 없다 — 기본급만 간다 */
+export const INCENTIVE_FLOOR = 2_000_000;
 
 /** 근속 연차별 기본급(원). 5년까지 오르고 그 뒤로는 5년 값이다 */
 export const TENURE_BASE_SALARY = [2_000_000, 2_200_000, 2_400_000, 2_600_000, 2_800_000, 3_000_000];
@@ -54,8 +65,10 @@ export const REFERRAL_TITLES = ['LEADER', 'PRO', 'JUNIOR'] as const;
 export type ReferralTitle = (typeof REFERRAL_TITLES)[number];
 
 export function tierOf(sales: number): { tier: string; rate: number } {
-  const hit = INCENTIVE_TIERS.find((t) => sales >= t.min);
-  return hit ?? { tier: '미달', rate: 0 };
+  // 200만을 못 넘긴 달은 구간 자체가 없다
+  if (sales < INCENTIVE_FLOOR) return { tier: '미달', rate: 0 };
+  const hit = INCENTIVE_TIERS.find((t) => sales > t.over);
+  return hit ?? { tier: '1구간', rate: 0.2 };
 }
 
 /** 근속 연차로 기본급을 낸다. 5년을 넘으면 5년 값에서 멈춘다 */
