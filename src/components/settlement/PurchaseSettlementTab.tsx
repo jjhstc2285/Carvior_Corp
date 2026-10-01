@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, FileSpreadsheet, Lock, Pencil, Percent, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
+import EmployeeAvatar from '../EmployeeAvatar';
 import PanelInvoiceModal from './PanelInvoiceModal';
 import PerformanceVatModal from './PerformanceVatModal';
 import { canEditPanelInvoice } from '../../lib/panelInvoice';
@@ -85,6 +86,15 @@ const COLUMNS: Column[] = [
   { key: 'status', label: '상태' },
   { key: 'actions', label: '관리', align: 'text-right' },
 ];
+
+/**
+ * 매입 정산 인센티브.
+ *
+ * 그 달에 결재까지 끝난 건이 스무 건을 넘으면 건당 2만 원이 붙는다. 올려만 두고 승인이
+ * 안 난 건은 안 센다 — 끝까지 간 것만 일한 것으로 본다.
+ */
+const PURCHASE_BONUS_MIN = 20;
+const PURCHASE_BONUS_PER_CASE = 20_000;
 
 export default function PurchaseSettlementTab({ role }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
@@ -219,6 +229,39 @@ export default function PurchaseSettlementTab({ role }: Props) {
     .filter(s => !seesAll || employeeFilter === 'all' || s.employeeId === employeeFilter)
     .filter(s => !query.trim() || s.vehicleNumber.includes(query.trim()) || s.vehicleName.includes(query.trim()))
     .sort((a, b) => b.date.localeCompare(a.date));
+
+  /*
+    담당자 칩.
+
+    이름을 목록에서 골라 고르게 하면 누가 있는지 펼쳐 봐야 알고, 각자 몇 건인지는 아예
+    안 보인다. 알선 정산처럼 얼굴을 늘어놓고 눌러서 고른다.
+
+    승인까지 간 건수를 같이 센다. 그 달에 결재가 끝난 건이 스무 건을 넘으면 건당 2만 원이
+    붙는다 — 적다 만 건이나 올려만 둔 건은 안 센다. 끝까지 간 것만 일한 것으로 본다.
+  */
+  const owners = useMemo(() => {
+    const month = filtered;
+    const counted = new Map<string, { count: number; done: number }>();
+    for (const s of month) {
+      const prev = counted.get(s.employeeId) ?? { count: 0, done: 0 };
+      counted.set(s.employeeId, {
+        count: prev.count + 1,
+        done: prev.done + (s.stage === 'DONE' ? 1 : 0),
+      });
+    }
+    return state.employees
+      .filter(e => e.active !== false && (e.department === '계약팀' || counted.has(e.id)))
+      .map(e => {
+        const c = counted.get(e.id) ?? { count: 0, done: 0 };
+        return {
+          employee: e,
+          ...c,
+          /** 승인 스무 건을 넘기면 건당 2만 원 */
+          bonus: c.done >= PURCHASE_BONUS_MIN ? c.done * PURCHASE_BONUS_PER_CASE : 0,
+        };
+      })
+      .sort((a, b) => b.done - a.done || b.count - a.count || a.employee.name.localeCompare(b.employee.name));
+  }, [filtered, state.employees]);
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
 
@@ -461,6 +504,52 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
       </div>
 
+      {/*
+        담당자 칩 — 누가 몇 건을 끝냈는지 한 줄에서 본다.
+
+        승인까지 간 건수가 스무 건을 넘으면 건당 2만 원이 붙는다. 금액이 붙은 사람은
+        초록으로 띄운다 — 눈에 안 띄면 세어 볼 일이 없다.
+      */}
+      {seesAll && owners.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setEmployeeFilter('all')}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              employeeFilter === 'all'
+                ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            전체 <span className="ml-0.5 font-bold">{scoped.filter(s => allMonths || s.date.startsWith(month)).length}</span>
+          </button>
+          {owners.map(({ employee, count, done, bonus }) => (
+            <button
+              key={employee.id}
+              onClick={() => setEmployeeFilter(v => (v === employee.id ? 'all' : employee.id))}
+              title={`${employee.name} ${employee.position} · ${count}건 중 결재완료 ${done}건${
+                bonus > 0 ? ` · 인센티브 ${NUM(bonus)}원` : ` · 결재완료 ${PURCHASE_BONUS_MIN}건부터 건당 ${NUM(PURCHASE_BONUS_PER_CASE)}원`
+              }`}
+              className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs transition-colors ${
+                employeeFilter === employee.id
+                  ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              } ${count === 0 ? 'opacity-50' : ''}`}
+            >
+              <EmployeeAvatar name={employee.name} size={22} />
+              <span className="font-semibold text-slate-800">{employee.name}</span>
+              <span className="text-slate-400">{employee.position}</span>
+              <span className="font-bold text-indigo-600">{count}</span>
+              {done > 0 && <span className="text-[11px] text-slate-400">완료 {done}</span>}
+              {bonus > 0 && (
+                <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                  +{NUM(bonus)}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="차량번호·차량명 검색"
           className="w-52 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
@@ -481,14 +570,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
           <option value="IN_PROGRESS">진행중</option>
           <option value="COMPLETED">정산완료</option>
         </select>
-        {/* 남의 것까지 보는 사람에게만 쓸모가 있다 — 자기 것만 보이면 고를 게 없다 */}
-        {seesAll && (
-          <select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-            <option value="all">전체 담당자</option>
-            {state.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-        )}
+
         <div className="ml-auto flex items-center gap-2">
           {/* 알선 정산에 적어둔 판매금액·이전비를 지난 것까지 한 번에 끌어온다 */}
           {canClear && (

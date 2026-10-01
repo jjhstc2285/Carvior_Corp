@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useStore } from '../../store';
+import { canSeeAllSettlements } from '../../lib/permissions';
 import BrokerageSettlementTab from './BrokerageSettlementTab';
 import PurchaseSettlementTab from './PurchaseSettlementTab';
 import DealerIncentiveTab from './DealerIncentiveTab';
@@ -35,7 +37,21 @@ const TABS: { key: Tab; label: string; desc: string }[] = [
 
 export default function SettlementModule({ role }: Props) {
   const [tab, setTab] = useState<Tab>('brokerage');
-  const current = TABS.find(t => t.key === tab)!;
+
+  /*
+    매입 정산은 계약팀과 관리자만 본다.
+
+    남의 매입가·상품화 비용·순이익이 한 줄씩 늘어선 표다. 알선·수출은 자기 건을 적는
+    자리라 다 열어두지만, 이쪽은 적는 사람이 계약팀이고 보는 뜻도 거기 있다.
+
+    화면에서 탭만 감추는 건 막은 게 아니다 — 서버도 같은 기준으로 가린다.
+  */
+  const { state } = useStore();
+  const me = state.employees.find(e => e.id === state.currentEmployeeId);
+  const seesPurchase = canSeeAllSettlements({ role }, me?.department);
+
+  const tabs = TABS.filter(t => t.key !== 'purchase' || seesPurchase);
+  const current = tabs.find(t => t.key === tab) ?? tabs[0];
 
   return (
     <div className="mx-auto max-w-[1700px] px-3 py-4 sm:px-5">
@@ -45,7 +61,7 @@ export default function SettlementModule({ role }: Props) {
       </div>
 
       <div className="mb-5 flex w-fit rounded-lg bg-slate-100 p-0.5 text-sm">
-        {TABS.map(t => (
+        {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -58,7 +74,7 @@ export default function SettlementModule({ role }: Props) {
 
       {tab === 'brokerage' && <BrokerageSettlementTab role={role} kind="BROKERAGE" />}
       {tab === 'export' && <BrokerageSettlementTab role={role} kind="EXPORT" />}
-      {tab === 'purchase' && <PurchaseSettlementTab role={role} />}
+      {tab === 'purchase' && seesPurchase && <PurchaseSettlementTab role={role} />}
       {tab === 'incentive' && <DealerIncentiveTab />}
     </div>
   );

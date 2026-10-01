@@ -195,6 +195,12 @@ export class SettlementsController {
     return this.settlements.prepVendors();
   }
 
+  /**
+   * 매입 정산 목록 — 계약팀과 관리자만.
+   *
+   * 남의 매입가·상품화 비용·순이익이 한 줄씩 늘어선 표다. 적는 사람이 계약팀이고 보는
+   * 뜻도 거기 있다. 화면에서 탭을 감추는 것만으로는 막은 게 아니라 여기서도 가린다.
+   */
   @Get('purchase')
   findPurchase(
     @CurrentUser() user: AuthUser,
@@ -203,6 +209,9 @@ export class SettlementsController {
     @Query('month') month?: string,
     @Query('employeeId') employeeId?: string,
   ) {
+    if (user.role !== Role.ADMIN && user.department !== CONTRACT_TEAM) {
+      throw new ForbiddenException('매입 정산은 계약팀과 관리자만 볼 수 있습니다.');
+    }
     return this.settlements.findPurchase({ q, status, month, employeeId: this.scope(user, employeeId) });
   }
 
