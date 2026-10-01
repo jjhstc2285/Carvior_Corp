@@ -52,27 +52,33 @@ export class ReferralService {
         orderBy: { name: 'asc' },
       }),
       this.prisma.brokerageSettlement.findMany({
-        where: { kind: ConsultationKind.BROKERAGE, date: range },
+        where: { date: range },
         select: {
           employeeId: true,
+          kind: true,
           cashCommission: true,
           installmentFee: true,
           insuranceFee: true,
           etcCost: true,
+          settlementAmount: true,
         },
       }),
     ]);
 
     /*
-      그 달 사람마다 올린 수익금 합계.
+      그 달 사람마다 올린 금액.
 
-      정산받을금액이 아니라 수익금으로 센다 — 정산받을금액은 이 표가 주는 돈이라
-      그걸로 다시 구간을 고르면 준 돈으로 줄 돈을 정하는 셈이 된다.
+      알선은 수익금으로 센다 — 정산받을금액은 이 표가 주는 돈이라, 그걸로 다시 구간을
+      고르면 준 돈으로 줄 돈을 정하는 셈이 된다.
       수익금 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업(알선 정산과 같은 식이다).
+
+      수출은 정산받을금액으로 센다. 수출은 수익을 나누는 방식이 달라서 같은 식으로 셀 수
+      없고, 그쪽은 받을 금액이 곧 그 사람이 만든 몫이다.
     */
     const autoSales = new Map<string, number>();
     for (const s of settlements) {
-      autoSales.set(s.employeeId, (autoSales.get(s.employeeId) ?? 0) + brokerageProfit(s));
+      const amount = s.kind === ConsultationKind.EXPORT ? s.settlementAmount : brokerageProfit(s);
+      autoSales.set(s.employeeId, (autoSales.get(s.employeeId) ?? 0) + amount);
     }
 
     const extraIds = [...autoSales.keys()].filter((id) => !titled.some((t) => t.id === id));

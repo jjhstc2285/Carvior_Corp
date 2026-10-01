@@ -318,9 +318,6 @@ export class ParkBoardController {
 /** 몇 분마다 물어볼지 — 키는 하루에 몇 번 오가는 일이라 촘촘할 까닭이 없다 */
 const POLL_MINUTES = 3;
 
-/** 이 시간이 지나도 안 들어오면 알린다 — 화면의 빨간 칸과 같은 기준이다 */
-const OVERDUE_HOURS = 2;
-
 interface KeyRow {
   id: string;
   at: string;
@@ -345,7 +342,6 @@ export class KeyWatcher implements OnModuleInit, OnModuleDestroy {
   /** 이미 들어왔다고 알린 키 */
   private returned = new Set<string>();
   /** 늦었다고 이미 알린 키 — 세 시간째마다 다시 보내지 않는다 */
-  private warned = new Set<string>();
   /** 이미 알린 불출 요청 */
   private requested = new Set<string>();
   /** 첫 바퀴인가 — 그때는 읽기만 한다 */
@@ -370,7 +366,7 @@ export class KeyWatcher implements OnModuleInit, OnModuleDestroy {
     this.timer.unref?.();
     // 뜨자마자 한 번 읽어서 지금 상태를 기억해 둔다(알리지는 않는다)
     void this.tick();
-    this.logger.log(`키 불출 알림 ${POLL_MINUTES}분마다 · 미반납 ${OVERDUE_HOURS}시간`);
+    this.logger.log(`키 불출 알림 ${POLL_MINUTES}분마다`);
   }
 
   onModuleDestroy(): void {
@@ -420,25 +416,17 @@ export class KeyWatcher implements OnModuleInit, OnModuleDestroy {
 
       if (r.returned && !this.returned.has(r.id)) {
         this.returned.add(r.id);
-        this.warned.delete(r.id);
         this.telegram.notify(`✅ <b>키 반납</b>\n${car}${r.dealer ? `\n${r.dealer}` : ''}`);
         continue;
       }
 
-      // 아직 안 들어온 키. 두 시간이 지났으면 한 번만 알린다
-      if (!r.returned && !this.warned.has(r.id)) {
-        const out = Date.parse(r.at);
-        if (!Number.isFinite(out)) continue;
-        const hours = (now - out) / 3_600_000;
-        if (hours < OVERDUE_HOURS) continue;
+      /*
+        키가 안 들어왔다고 공지방에 알리지 않는다.
 
-        this.warned.add(r.id);
-        this.telegram.notify(
-          `⚠️ <b>키 미반납 ${Math.floor(hours)}시간 경과</b>\n${car}\n` +
-            `가져간 사람: ${r.dealer || '(이름 없음)'}${r.company ? ` · ${r.company}` : ''}\n\n` +
-            '연락해 보세요.',
-        );
-      }
+        시승이 길어지거나 하루 맡기는 일이 흔해서 두 시간만 지나도 울린다. 그러면 정작
+        봐야 하는 알림까지 같이 안 보게 된다 — 공지방은 '누가 봐도 지금 움직여야 하는 것'만
+        띄운다. 안 들어온 키는 키불출판에 그대로 남아 있고, 챙길 사람은 그 화면을 본다.
+      */
     }
   }
 

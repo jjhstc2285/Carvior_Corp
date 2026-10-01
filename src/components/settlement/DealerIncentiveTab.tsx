@@ -355,7 +355,8 @@ export default function DealerIncentiveTab() {
       <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-400">
         <Trophy size={13} className="mt-0.5 shrink-0 text-amber-400" />
         <span>
-          월 알선 총액은 그 달 <b>알선 정산의 정산받을금액</b>을 더해 채웁니다 — 정산에 안 올라온 건이 있으면 칸에 직접
+          월 알선 총액은 그 달 <b>알선 정산의 수익금</b>(현금 수수료 + 할부 피 + 보험 피 + 차대금업)과{' '}
+          <b>수출 정산의 정산받을금액</b>을 더해 채웁니다 — 정산에 안 올라온 건이 있으면 칸에 직접
           적으세요(적으면 그 값이 이깁니다). 요율은 <b>월 알선 총액</b>이 어느 구간인지로 고르고, 그 요율을 기본급을 넘은 만큼에 먹입니다.
           <br />
           인센티브·실수령액은 저장하지 않고 볼 때마다 다시 냅니다 — 저장해 두면 요율표를 고쳤을 때 지난 달 숫자와
