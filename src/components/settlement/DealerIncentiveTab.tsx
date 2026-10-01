@@ -143,7 +143,7 @@ export default function DealerIncentiveTab() {
       {/* 요율표 — 무엇을 보고 낸 값인지 같은 화면에서 확인한다 */}
       {showRules && sheet && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
-          <p className="font-bold text-slate-700">달성 구간 (기본급을 넘은 초과분 기준)</p>
+          <p className="font-bold text-slate-700">달성 구간 (월 알선 총액 기준)</p>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {[...sheet.rules.tiers].reverse().map(t => (
               <li key={t.tier} className="rounded-lg bg-slate-50 px-2 py-1 text-slate-600 ring-1 ring-inset ring-slate-200">
@@ -356,7 +356,7 @@ export default function DealerIncentiveTab() {
         <Trophy size={13} className="mt-0.5 shrink-0 text-amber-400" />
         <span>
           월 알선 총액은 그 달 <b>알선 정산의 정산받을금액</b>을 더해 채웁니다 — 정산에 안 올라온 건이 있으면 칸에 직접
-          적으세요(적으면 그 값이 이깁니다). 요율은 총액이 아니라 <b>기본급을 넘은 만큼(초과분)</b>이 어느 구간인지로 고릅니다.
+          적으세요(적으면 그 값이 이깁니다). 요율은 <b>월 알선 총액</b>이 어느 구간인지로 고르고, 그 요율을 기본급을 넘은 만큼에 먹입니다.
           <br />
           인센티브·실수령액은 저장하지 않고 볼 때마다 다시 냅니다 — 저장해 두면 요율표를 고쳤을 때 지난 달 숫자와
           어긋납니다.

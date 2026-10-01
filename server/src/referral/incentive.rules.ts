@@ -20,14 +20,15 @@ export const BASE_SALARY_DEFAULT = 2_000_000;
 /**
  * 달성 구간과 요율.
  *
- * 구간은 '기본급을 넘은 만큼'으로 고른다 — 월 알선 총액이 아니다. 912만을 한 사람은
- * 기본급 200만을 뺀 712만이 어느 구간인지로 보고, 712만은 700만을 넘었으니 6구간(45%)이다.
+ * 구간은 '월 알선 총액'으로 고르고, 요율은 기본급을 넘은 만큼에 먹인다.
+ * 안내표가 그 식이다 — 700만을 한 사람은 200만 + (500만 × 40%) = 400만이다.
  *
- * 경계는 '초과'다. 700만인 사람은 5구간이고, 700만을 넘겨야 6구간이다.
+ * 경계는 '초과'다. 300만을 한 사람은 20%, 300만을 넘겨야 25%다.
  *
- *   총액 250만 → 초과 50만 → 1구간 20% → 10만
- *   총액 912만 → 초과 712만 → 6구간 45% → 320만
- *   총액 1,500만 → 초과 1,300만 → 8구간 55% → 715만
+ *   250만 → 200만 + (50만 × 20%) = 210만
+ *   700만 → 200만 + (500만 × 40%) = 400만
+ *   1,000만 → 200만 + (800만 × 50%) = 600만
+ *   1,500만 → 200만 + (1,300만 × 55%) = 915만
  *
  * 위에서부터 큰 구간으로 내려보며 찾는다.
  */
@@ -64,10 +65,10 @@ export const TEAM_LEADER = {
 export const REFERRAL_TITLES = ['LEADER', 'PRO', 'JUNIOR'] as const;
 export type ReferralTitle = (typeof REFERRAL_TITLES)[number];
 
-export function tierOf(excess: number): { tier: string; rate: number } {
-  // 기본급을 못 넘긴 달은 구간 자체가 없다
-  if (excess <= 0) return { tier: '미달', rate: 0 };
-  const hit = INCENTIVE_TIERS.find((t) => excess > t.over);
+export function tierOf(sales: number): { tier: string; rate: number } {
+  // 200만을 못 넘긴 달은 구간 자체가 없다
+  if (sales < INCENTIVE_FLOOR) return { tier: '미달', rate: 0 };
+  const hit = INCENTIVE_TIERS.find((t) => sales > t.over);
   return hit ?? { tier: '1구간', rate: 0.2 };
 }
 
@@ -125,13 +126,8 @@ export function computeIncentive(input: IncentiveInput): IncentiveResult {
     모자란 만큼을 빼지도 않는다 — 기본급은 깔아주는 돈이라 빼기 시작하면 기본급이 아니다.
   */
   const excess = Math.max(0, sales - baseSalary);
-  /*
-    구간은 초과분으로 고른다.
-
-    총액으로 고르면 기본급이 다른 두 사람이 같은 일을 하고도 다른 요율을 받는다 —
-    받아 가는 몫을 정하는 건 '기본급을 넘겨 얼마나 더 벌어왔나'다.
-  */
-  const { tier, rate } = tierOf(excess);
+  // 구간은 총액으로 고르고, 요율은 초과분에 먹인다 — 안내표가 그 식이다
+  const { tier, rate } = tierOf(sales);
   const incentive = Math.round(excess * rate);
 
   /*
