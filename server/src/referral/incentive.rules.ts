@@ -20,27 +20,35 @@ export const BASE_SALARY_DEFAULT = 2_000_000;
 /**
  * 달성 구간과 요율.
  *
- * 구간은 '월 알선 총액'으로 고르고, 요율은 기본급을 넘은 만큼에 먹인다.
- * 안내표가 그 식이다 — 700만을 한 사람은 200만 + (500만 × 40%) = 400만이다.
+ * 안내표에 적힌 달성액에 '닿으면' 그 요율이 되고, 다음 달성액에 닿기 전까지 그대로다.
+ * 800만을 하면 45%이고, 944만을 해도 아직 1,000만이 아니니 45%다 — 1,000만에 닿아야
+ * 50%가 된다.
  *
- * 경계는 '초과'다. 300만을 한 사람은 20%, 300만을 넘겨야 25%다.
+ * 안내표 아홉 줄이 그대로 나온다(기본급 200만 기준):
  *
  *   250만 → 200만 + (50만 × 20%) = 210만
+ *   300만 → 200만 + (100만 × 20%) = 220만
+ *   400만 → 200만 + (200만 × 25%) = 250만
+ *   500만 → 200만 + (300만 × 30%) = 290만
+ *   600만 → 200만 + (400만 × 35%) = 340만
  *   700만 → 200만 + (500만 × 40%) = 400만
- *   1,000만 → 200만 + (800만 × 50%) = 600만
- *   1,500만 → 200만 + (1,300만 × 55%) = 915만
+ *   800만 → 200만 + (600만 × 45%) = 470만
+ * 1,000만 → 200만 + (800만 × 50%) = 600만
+ * 1,500만 → 200만 + (1,300만 × 55%) = 915만
+ *
+ * 300만에는 요율이 안 바뀐다 — 표에서 250만과 300만이 둘 다 20%다.
  *
  * 위에서부터 큰 구간으로 내려보며 찾는다.
  */
-export const INCENTIVE_TIERS: { tier: string; over: number; rate: number }[] = [
-  { tier: '8구간(폭발)', over: 10_000_000, rate: 0.55 },
-  { tier: '7구간', over: 8_000_000, rate: 0.5 },
-  { tier: '6구간', over: 7_000_000, rate: 0.45 },
-  { tier: '5구간', over: 6_000_000, rate: 0.4 },
-  { tier: '4구간', over: 5_000_000, rate: 0.35 },
-  { tier: '3구간', over: 4_000_000, rate: 0.3 },
-  { tier: '2구간', over: 3_000_000, rate: 0.25 },
-  { tier: '1구간', over: 0, rate: 0.2 },
+export const INCENTIVE_TIERS: { tier: string; from: number; rate: number }[] = [
+  { tier: '8구간(폭발)', from: 15_000_000, rate: 0.55 },
+  { tier: '7구간', from: 10_000_000, rate: 0.5 },
+  { tier: '6구간', from: 8_000_000, rate: 0.45 },
+  { tier: '5구간', from: 7_000_000, rate: 0.4 },
+  { tier: '4구간', from: 6_000_000, rate: 0.35 },
+  { tier: '3구간', from: 5_000_000, rate: 0.3 },
+  { tier: '2구간', from: 4_000_000, rate: 0.25 },
+  { tier: '1구간', from: 2_000_000, rate: 0.2 },
 ];
 
 /** 이 아래는 인센티브가 없다 — 기본급만 간다 */
@@ -66,10 +74,10 @@ export const REFERRAL_TITLES = ['LEADER', 'PRO', 'JUNIOR'] as const;
 export type ReferralTitle = (typeof REFERRAL_TITLES)[number];
 
 export function tierOf(sales: number): { tier: string; rate: number } {
-  // 200만을 못 넘긴 달은 구간 자체가 없다
+  // 200만에 못 닿은 달은 구간 자체가 없다
   if (sales < INCENTIVE_FLOOR) return { tier: '미달', rate: 0 };
-  const hit = INCENTIVE_TIERS.find((t) => sales > t.over);
-  return hit ?? { tier: '1구간', rate: 0.2 };
+  const hit = INCENTIVE_TIERS.find((t) => sales >= t.from);
+  return hit ?? { tier: '미달', rate: 0 };
 }
 
 /** 근속 연차로 기본급을 낸다. 5년을 넘으면 5년 값에서 멈춘다 */
