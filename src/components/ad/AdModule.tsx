@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import { useStore } from '../../store';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { VEHICLE_POST_SITES, type AdContract, type Role } from '../../types';
@@ -28,7 +29,17 @@ export default function AdModule({ role }: { role: Role }) {
   const [plates, setPlates] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const isAdmin = role === 'ADMIN';
+  /*
+    계약을 치는 건 광고팀이다.
+
+    관리자만 열어 뒀더니 정작 계약을 적는 사람이 단추를 못 봤다 — 광고팀 팀장이 들어와도
+    등록 자리가 없었다. 플랫폼과 약정 대수를 아는 사람이 적는 게 맞다.
+
+    서버도 같은 기준으로 다시 본다. 화면에서 단추만 숨기는 건 막은 게 아니다.
+  */
+  const { state } = useStore();
+  const me = state.employees.find(e => e.id === state.currentEmployeeId);
+  const isAdmin = role === 'ADMIN' || me?.department === '광고팀';
 
   const load = useCallback(async () => {
     setLoading(true);

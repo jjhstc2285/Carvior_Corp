@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   Injectable,
@@ -17,8 +18,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
-import { NotificationType } from '@prisma/client';
+import { NotificationType, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { formatDateOnly, todayKst, toDateOnly } from '../common/date.util';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeModule } from '../realtime/realtime.module';
@@ -30,7 +32,7 @@ import { AdReportController, AdReportService } from './ad-report';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-/** 광고를 맡은 팀 — 알림이 이 팀과 관리자에게 간다 */
+/** 광고를 맡은 팀 — 알림이 이 팀과 관리자에게 가고, 계약을 적는 것도 이 팀이다 */
 const AD_TEAM = '광고팀';
 
 // ── DTO ──────────────────────────────
@@ -418,6 +420,20 @@ export class AdReminderService implements OnModuleInit, OnModuleDestroy {
  * 전 직원이 본다 — 어느 플랫폼에 몇 대가 남았는지는 매물을 올리는 사람이면 다 알아야 한다.
  * 알림은 광고팀과 관리자에게 간다.
  */
+/**
+ * 계약을 적을 수 있는 사람 — 광고팀과 관리자.
+ *
+ * 보는 건 전 직원이다(어느 플랫폼에 몇 대가 남았는지는 매물 올리는 사람이면 다 알아야
+ * 한다). 적는 건 다르다 — 금액과 약정 대수가 걸린 문서라 아무나 고칠 일이 아니다.
+ *
+ * 그동안 화면에서만 단추를 가리고 서버는 누구나 쓸 수 있었다. 주소를 아는 사람은 그대로
+ * 보낼 수 있으니 여기서 한 번 더 본다.
+ */
+function assertAdEditor(user: AuthUser): void {
+  if (user.role === Role.ADMIN || user.department === AD_TEAM) return;
+  throw new ForbiddenException('광고 계약은 광고팀과 관리자만 등록·수정할 수 있습니다.');
+}
+
 @Controller('ads')
 export class AdsController {
   constructor(
@@ -436,29 +452,34 @@ export class AdsController {
   }
 
   @Post()
-  create(@Body() dto: CreateAdContractDto) {
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateAdContractDto) {
+    assertAdEditor(user);
     return this.ads.create(dto);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateAdContractDto) {
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateAdContractDto) {
+    assertAdEditor(user);
     return this.ads.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id') id: string) {
+  async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    assertAdEditor(user);
     await this.ads.remove(id);
   }
 
   @Post(':id/postings')
-  addPostings(@Param('id') id: string, @Body() dto: AddPostingDto) {
+  addPostings(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AddPostingDto) {
+    assertAdEditor(user);
     return this.ads.addPostings(id, dto);
   }
 
   @Delete('postings/:id')
   @HttpCode(204)
-  async removePosting(@Param('id') id: string) {
+  async removePosting(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    assertAdEditor(user);
     await this.ads.removePosting(id);
   }
 
