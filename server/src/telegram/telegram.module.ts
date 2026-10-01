@@ -62,7 +62,18 @@ export class TelegramService implements OnModuleInit {
    */
   notify(text: string): void {
     if (!this.configured || !text.trim()) return;
-    void this.send(text).catch((e: Error) => this.logger.warn(`공지를 보내지 못했습니다(방 ${this.chatId}): ${e.message}`));
+    void this.send(text).catch((e: Error) => {
+      /*
+        'fetch failed' 만 적으면 왜 못 갔는지 알 수 없다.
+
+        노드는 진짜 이유를 cause 에 숨겨 둔다 — 주소를 못 찾았는지(ENOTFOUND), 길이 없는지
+        (EHOSTUNREACH), 막혔는지(ECONNREFUSED)가 거기 있다. 그게 있어야 네트워크를 볼지
+        열쇠를 볼지 갈린다.
+      */
+      const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
+      const why = cause?.code ?? cause?.message ?? '';
+      this.logger.warn(`공지를 보내지 못했습니다(방 ${this.chatId}): ${e.message}${why ? ` — ${why}` : ''}`);
+    });
   }
 
   private async send(text: string): Promise<void> {

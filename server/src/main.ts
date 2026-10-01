@@ -1,9 +1,22 @@
+import { setDefaultResultOrder } from 'node:dns';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import compression from 'compression';
 import { AppModule } from './app.module';
+
+/*
+  바깥으로 나갈 때 IPv4 를 먼저 쓴다.
+
+  노드 18부터는 DNS가 준 차례 그대로 쓴다. 텔레그램(api.telegram.org)은 IPv6 주소를 같이
+  주는데 이 상자에는 IPv6 길이 없어서, 그 주소를 먼저 잡으면 연결이 통째로 실패한다 —
+  로그에는 이유 없이 'fetch failed' 한 줄만 남는다. 카비어처럼 IPv4만 있는 곳은 멀쩡해서
+  "텔레그램만 안 된다"로 보인다.
+
+  IPv4를 먼저 보게 하면 그 길로 나간다. IPv6를 쓰게 되는 날에는 이 줄을 빼면 된다.
+*/
+setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
