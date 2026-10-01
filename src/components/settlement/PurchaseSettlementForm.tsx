@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
@@ -83,6 +83,12 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     !!editing && editing.settlementAmount !== (editing.grandTotal ?? editing.settlementAmount),
   );
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
+
+  /** 계약팀 — 지금 적힌 담당자가 계약팀이 아니어도 그 사람은 남긴다 */
+  const contractTeam = useMemo(
+    () => state.employees.filter(e => e.department === '계약팀' || e.id === employeeId),
+    [state.employees, employeeId],
+  );
   const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
   /** 계약서 사진 — 줄바꿈으로 이어 담은 경로 */
   const [contractPhotos, setContractPhotos] = useState(editing?.contractPhotos ?? '');
@@ -238,7 +244,16 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           <DateField label="정산일자" value={date} onChange={setDate} />
           <TextField label="차량명" value={vehicleName} onChange={setVehicleName} placeholder="그랜저 GN7" required />
           <TextField label="차량번호" value={vehicleNumber} onChange={setVehicleNumber} placeholder="12가3456" required />
-          <EmployeeField label="담당자" value={employeeId} onChange={setEmployeeId} employees={state.employees} />
+          {/*
+            담당자는 계약팀에서 고른다.
+
+            매입 정산을 적는 건 계약팀이다. 전 직원을 늘어놓으면 스무 명 넘는 목록에서
+            네 명을 찾아야 하고, 엉뚱한 사람 앞으로 정산이 가도 바로 안 보인다.
+
+            이미 적힌 사람이 계약팀이 아니면(팀을 옮겼거나 예전 건) 그 사람은 남겨 둔다 —
+            목록에서 사라지면 저장할 때 담당자가 바뀐다.
+          */}
+          <EmployeeField label="담당자" value={employeeId} onChange={setEmployeeId} employees={contractTeam} />
 
           <MoneyField label="매입가" value={purchasePrice} onChange={setPurchasePrice} required />
           <MoneyField label="구전" value={brokerFee} onChange={setBrokerFee} />
