@@ -1,3 +1,5 @@
+import { request as httpsRequest } from 'node:https';
+import { resolve4 } from 'node:dns/promises';
 import { Controller, Global, Injectable, Logger, Module, OnModuleInit, Post } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
@@ -17,11 +19,22 @@ import { Role } from '@prisma/client';
  * 보내다 실패해도 하던 일은 그대로 간다. 차를 파는 일이 알림 때문에 막히면 안 된다.
  */
 
-const API = 'https://api.telegram.org';
+const HOST = 'api.telegram.org';
+
+/**
+ * 이름을 못 찾을 때 두드려 볼 주소.
+ *
+ * 텔레그램이 공개한 대역의 대표 주소들이다. 이름 풀이가 막히는 상자가 있어 마지막 수단으로
+ * 둔다 — 주소는 바뀔 수 있으니 이름이 풀리면 그쪽이 먼저다.
+ */
+const FALLBACK_IPS = ['149.154.167.220', '149.154.175.50', '149.154.165.120'];
 
 @Injectable()
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
+
+  /** 지난번에 통한 주소 — 다음부터 먼저 두드린다 */
+  private lastGoodIp: string | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -76,29 +89,89 @@ export class TelegramService implements OnModuleInit {
     });
   }
 
+  /**
+   * 방에 보낸다.
+   *
+   * fetch 를 안 쓴다. 같은 상자에서 curl 로는 붙는데(302) fetch 만 ETIMEDOUT 으로 죽었다 —
+   * 프록시도 없고 IPv4 우선도 걸어 뒀는데도 그랬다. 무엇이 다른지 더 파기보다, 오래
+   * 검증된 https 모듈로 직접 말한다.
+   *
+   * 주소도 우리가 찾는다. 텔레그램은 IP 를 여럿 두는데 그중 하나가 막혀 있으면 그 하나만
+   * 잡고 죽을 이유가 없다 — 찾아둔 주소를 차례로 두드려 되는 곳으로 보낸다. 되는 주소는
+   * 기억해 두고 다음부터 먼저 쓴다(매번 다 두드리면 공지가 느려진다).
+   */
   private async send(text: string): Promise<void> {
-    const res = await fetch(`${API}/bot${this.token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      /*
-        10초 안에 안 되면 접는다.
-
-        길이 막히면 운영체제가 포기할 때까지 2분쯤 붙들고 있는다. 그동안 다음 공지가 줄을
-        서고, 알림이 몰리는 시간대에는 그게 쌓인다. 공지는 늦으면 쓸모가 없는 값이라
-        오래 기다릴 이유가 없다 — 못 보냈으면 로그에 남기고 넘어간다.
-      */
-      signal: AbortSignal.timeout(10_000),
-      body: JSON.stringify({
-        chat_id: this.chatId,
-        text,
-        parse_mode: 'HTML',
-        // 링크 미리보기가 뜨면 짧은 알림이 화면 반을 차지한다
-        disable_web_page_preview: true,
-      }),
+    const body = JSON.stringify({
+      chat_id: this.chatId,
+      text,
+      parse_mode: 'HTML',
+      // 링크 미리보기가 뜨면 짧은 알림이 화면 반을 차지한다
+      disable_web_page_preview: true,
     });
-    if (!res.ok) {
-      throw new Error(`${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}`);
+
+    const ips = await this.addresses();
+    let last: Error | null = null;
+    for (const ip of ips) {
+      try {
+        await this.post(ip, body);
+        this.lastGoodIp = ip;
+        return;
+      } catch (e) {
+        last = e as Error;
+      }
     }
+    throw last ?? new Error('보낼 주소를 찾지 못했습니다');
+  }
+
+  /** 되는 주소를 앞에 두고 나머지를 뒤에 붙인다 */
+  private async addresses(): Promise<string[]> {
+    const found = await resolve4(HOST).catch(() => [] as string[]);
+    const all = found.length > 0 ? found : FALLBACK_IPS;
+    if (!this.lastGoodIp) return all;
+    return [this.lastGoodIp, ...all.filter((ip) => ip !== this.lastGoodIp)];
+  }
+
+  /**
+   * 주소 하나로 보낸다.
+   *
+   * 주소로 붙되 이름은 텔레그램 것으로 말한다(Host 와 TLS 이름). 안 그러면 저쪽이 어느
+   * 집을 찾는지 몰라 끊는다.
+   */
+  private post(ip: string, body: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const req = httpsRequest(
+        {
+          host: ip,
+          port: 443,
+          // TLS 가 볼 이름 — 주소로 붙었으니 이름은 따로 알려줘야 한다
+          servername: HOST,
+          path: `/bot${this.token}/sendMessage`,
+          method: 'POST',
+          headers: {
+            host: HOST,
+            'content-type': 'application/json',
+            'content-length': Buffer.byteLength(body),
+          },
+          /* 공지는 늦으면 쓸모가 없다 — 8초를 넘기면 다음 주소로 넘어간다 */
+          timeout: 8000,
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () => {
+            const status = res.statusCode ?? 0;
+            if (status >= 200 && status < 300) {
+              resolve();
+              return;
+            }
+            reject(new Error(`${status} ${Buffer.concat(chunks).toString('utf8').slice(0, 200)}`));
+          });
+        },
+      );
+      req.on('timeout', () => req.destroy(new Error(`${ip} 응답 없음(8초)`)));
+      req.on('error', (e: Error) => reject(new Error(`${ip} ${e.message}`)));
+      req.end(body);
+    });
   }
 
   /**
