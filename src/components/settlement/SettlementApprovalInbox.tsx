@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { Check, Stamp } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Stamp } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
 import { useAuth } from '../../authStore';
@@ -41,6 +41,9 @@ interface Pending {
   stage?: SettlementStage;
   chiefRequired?: boolean;
 }
+
+/** 접어뒀는지 기억하는 자리 — 사람마다 쓰는 브라우저에 남는다 */
+const FOLD_KEY = 'settlementApprovalFolded';
 
 export default function SettlementApprovalInbox() {
   const { user } = useAuth();
@@ -111,13 +114,39 @@ export default function SettlementApprovalInbox() {
     }
   };
 
+  /*
+    접었다 편다.
+
+    결재할 게 열 건씩 쌓이면 대시보드 반을 차지해서 아래 칸들이 안 보인다. 그렇다고 아예
+    없애면 "찾으러 들어가야 하는 결재는 밀린다"는 애초 뜻이 사라진다 — 제목줄에 건수를
+    남겨 두고 몸통만 접는다.
+
+    접은 채로 두면 다음에 들어와도 접혀 있다. 내가 접어둔 걸 기억하지 못하면 매번 다시
+    접어야 한다.
+
+    다만 내 차례가 있으면 접혀 있어도 제목줄에 빨갛게 남는다 — 접어서 안 보이는 것과
+    할 일이 없는 것은 다르다.
+  */
+  const [open, setOpen] = useState(() => localStorage.getItem(FOLD_KEY) !== 'folded');
+  const toggle = () => {
+    setOpen(v => {
+      localStorage.setItem(FOLD_KEY, v ? 'folded' : 'open');
+      return !v;
+    });
+  };
+
   if (rows.length === 0) return null;
 
   const mine = rows.filter(myTurn).length;
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white">
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+      <button
+        onClick={toggle}
+        className={`flex w-full flex-wrap items-center gap-2 px-5 py-3.5 text-left hover:bg-slate-50 ${
+          open ? 'border-b border-slate-100' : ''
+        }`}
+      >
         <Stamp size={15} className="text-indigo-700" />
         <h2 className="text-sm font-bold text-slate-800">정산 결재 {rows.length}건</h2>
         {mine > 0 && (
@@ -125,9 +154,12 @@ export default function SettlementApprovalInbox() {
             내 차례 {mine}건
           </span>
         )}
-      </div>
+        <span className="ml-auto text-slate-400">
+          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </span>
+      </button>
 
-      <ul className="divide-y divide-slate-50">
+      <ul className={`divide-y divide-slate-50 ${open ? '' : 'hidden'}`}>
         {rows.map(s => (
           <li key={`${s.kind}-${s.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3">
             <span
