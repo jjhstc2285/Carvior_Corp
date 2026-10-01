@@ -532,8 +532,41 @@ export class VehiclesService {
   }
 
   /** 차량을 지우면 그 차의 주유·배터리 이력도 함께 사라진다(FK Cascade). */
+  /**
+   * 차를 지운다 — 아무것도 안 붙은 빈 줄만.
+   *
+   * 번호를 잘못 적어 생긴 유령 차가 목록에 남는다(69로6983 을 69오6983 으로 적는 식).
+   * 차명도 매입가도 없이 떠 있어 제시 대상 수만 부풀린다.
+   *
+   * 다만 지우면 주유·배터리 이력이 같이 날아간다. 그래서 무엇 하나라도 적힌 차는 막는다 —
+   * 지우는 건 되돌릴 수 없고, 되돌릴 수 없는 일은 좁게 열어 두는 편이 낫다.
+   * 진짜로 지워야 하는 차라면 적힌 것을 먼저 지우게 된다. 그 과정에서 한 번 더 생각한다.
+   */
   async remove(id: string) {
-    await this.findOne(id);
+    const row = await this.findOne(id);
+
+    const marks = [
+      row.offerDate && '제시일자',
+      row.transferDate && '이전일자',
+      row.soldDate && '매도일자',
+      row.stockAmount > 0 && '재고금액',
+      row.repayDate && '상환일자',
+      row.prepared && '상품화',
+      row.priceManwon > 0 && '매입가',
+      row.vehicleModel.trim() && '차명',
+    ].filter(Boolean) as string[];
+
+    if (marks.length > 0) {
+      throw new BadRequestException(
+        `${marks.join(' · ')}가 적혀 있어 지울 수 없습니다. 비어 있는 줄만 지웁니다.`,
+      );
+    }
+
+    const expenses = await this.prisma.vehicleExpenseLog.count({ where: { vehicleId: id } });
+    if (expenses > 0) {
+      throw new BadRequestException(`주유·배터리 이력이 ${expenses}건 있어 지울 수 없습니다.`);
+    }
+
     await this.prisma.managedVehicle.delete({ where: { id } });
   }
 

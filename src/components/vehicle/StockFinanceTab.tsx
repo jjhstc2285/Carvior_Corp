@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { Download, Search, Upload } from 'lucide-react';
+import { Download, Search, Trash2, Upload } from 'lucide-react';
 import {
   CAPITAL_COMPANIES,
   MAX_AGE_YEARS,
@@ -16,7 +16,7 @@ import { digitsOnly, withCommas } from '../../lib/money';
 import { useStore } from '../../store';
 import type { ManagedVehicle, PurchaseIntake } from '../../types';
 import { api as callApi, ApiError } from '../../lib/api';
-import { alertError } from '../../lib/alert';
+import { alertError, confirmDanger } from '../../lib/alert';
 import PurchaseIntakeForm from '../purchaseIntake/PurchaseIntakeForm';
 import type { VehiclesApi } from './useVehicles';
 import UnregisteredSoldPanel from './UnregisteredSoldPanel';
@@ -175,6 +175,35 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       void alertError('매입 내역을 불러오지 못했습니다', e instanceof ApiError ? e.message : '');
     } finally {
       setIntakeBusy(null);
+    }
+  };
+
+  /*
+    빈 줄을 지운다.
+
+    번호를 잘못 적어 생긴 유령 차가 목록에 남는다(69로6983 을 69오6983 으로 적는 식).
+    차명도 매입가도 없이 떠 있으면서 제시 대상 수만 부풀린다.
+
+    아무것도 안 적힌 줄에만 단추를 띄운다 — 지우면 주유·배터리 이력까지 같이 날아가고
+    되돌릴 수 없다. 서버가 같은 기준으로 한 번 더 본다.
+  */
+  const isBlank = (v: ManagedVehicle) =>
+    !v.vehicleModel.trim() &&
+    !v.priceManwon &&
+    !v.offerDate &&
+    !v.transferDate &&
+    !v.soldDate &&
+    !v.stockAmount &&
+    !v.repayDate &&
+    !v.prepared;
+
+  const dropVehicle = async (v: ManagedVehicle) => {
+    if (!(await confirmDanger(`${v.vehicleNumber} 를 목록에서 지울까요?`, '빈 줄만 지웁니다. 되돌릴 수 없습니다.'))) return;
+    try {
+      await callApi(`/vehicles/${v.id}`, { method: 'DELETE' });
+      await reload();
+    } catch (e) {
+      void alertError('지우지 못했습니다', e instanceof ApiError ? e.message : '');
     }
   };
 
@@ -657,6 +686,16 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
                         {eligibility.reason}
                       </span>
+                    )}
+                    {/* 아무것도 안 적힌 줄만 — 잘못 적어 생긴 유령 차를 여기서 치운다 */}
+                    {isOfficeManager && isBlank(v) && (
+                      <button
+                        onClick={() => void dropVehicle(v)}
+                        title="빈 줄입니다. 목록에서 지웁니다"
+                        className="ml-1.5 rounded p-0.5 align-middle text-slate-300 hover:bg-slate-100 hover:text-red-500"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     )}
                   </td>
 
