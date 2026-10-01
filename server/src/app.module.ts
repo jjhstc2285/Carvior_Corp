@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { join } from 'node:path';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
@@ -35,7 +36,14 @@ import { RolesGuard } from './auth/roles.guard';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    /*
+      .env 를 서버 폴더에서 찾는다.
+
+      기본값은 '현재 작업 폴더의 .env' 다. 그래서 pm2 를 다른 자리에서 띄우면 못 읽고,
+      열쇠가 통째로 빈 채로 뜬다 — 공지가 안 나가고 "토큰이 없습니다" 가 뜨던 게 그것이다.
+      어디서 띄우든 같은 파일을 보게 한다(dist 바로 위가 server 폴더다).
+    */
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: [join(__dirname, '..', '.env'), '.env'] }),
     PrismaModule,
     RedisModule,
     AuthModule,
