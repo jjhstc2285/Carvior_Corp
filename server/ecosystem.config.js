@@ -49,6 +49,17 @@ module.exports = {
       restart_delay: 3000,
       env: {
         NODE_ENV: 'production',
+        /*
+          IPv4 로 먼저 나간다.
+
+          이 상자에는 IPv6 길이 없는데 텔레그램은 IPv6 주소를 같이 준다. 그 주소를 먼저
+          잡으면 연결이 타임아웃으로 죽는다 — curl -4 는 붙고 curl -6 은 2ms 만에 떨어지는
+          것이 그 증거다.
+
+          node_args 로도 줘 봤지만 실제로 뜬 프로세스에는 안 붙어 있었다(ps 로 확인).
+          NODE_OPTIONS 는 노드가 뜰 때 스스로 읽으므로 누가 띄우든 걸린다.
+        */
+        NODE_OPTIONS: '--dns-result-order=ipv4first',
       },
       error_file: 'logs/error.log',
       out_file: 'logs/out.log',
