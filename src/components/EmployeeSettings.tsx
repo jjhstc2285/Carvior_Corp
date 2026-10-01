@@ -59,6 +59,27 @@ export default function EmployeeSettings() {
     }
   };
 
+  /**
+   * 직급을 고친다.
+   *
+   * 지금까지 글자로만 찍혀 있어 고칠 데가 없었다 — 승진하거나 잘못 적힌 직급을 바꾸려면
+   * 손댈 자리가 없었다. 돈 장부(상조회비·부동산)를 직급으로 가르므로 틀린 채로 두면
+   * 봐야 할 사람이 못 보거나 안 볼 사람이 본다.
+   */
+  const setPosition = async (employee: Employee, position: string) => {
+    const next = position.trim();
+    if (!next || next === employee.position) return;
+    setBusyId(employee.id);
+    try {
+      await api(`/employees/${employee.id}`, { method: 'PATCH', body: { position: next } });
+      await refresh();
+    } catch (e) {
+      void alertError('직급을 바꾸지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   /** 알선팀 타이틀 — 실적으로 오르내리는 값이라 여기서 바로 바꾼다 */
   const setTitle = async (employee: Employee, referralTitle: string) => {
     setBusyId(employee.id);
@@ -170,7 +191,18 @@ export default function EmployeeSettings() {
                         )}
                       </span>
                     </td>
-                    <td className="px-3 py-2">{e.position}</td>
+                    {/* 직급으로 갈리는 화면이 있다(상조회비·부동산) — 틀린 채로 두면 안 된다 */}
+                    <td className="px-3 py-2">
+                      <input
+                        key={`pos-${e.id}-${e.position}`}
+                        defaultValue={e.position}
+                        onBlur={ev => void setPosition(e, ev.target.value)}
+                        disabled={busyId === e.id}
+                        list="employee-positions"
+                        placeholder="매니저"
+                        className="w-24 rounded-lg border border-slate-200 px-1.5 py-1 text-xs outline-none focus:border-indigo-400 disabled:opacity-50"
+                      />
+                    </td>
                     {/* 번호가 두 개인 분이 있어 쉼표로 받는다 */}
                     <td className="px-3 py-2">
                       <input
@@ -239,6 +271,12 @@ export default function EmployeeSettings() {
                 ))}
               </tbody>
             </table>
+            {/* 자주 쓰는 직급 — 목록에 없으면 그냥 적는다 */}
+            <datalist id="employee-positions">
+              {['대표', '본부장', '사무장', '차장', '과장', '대리', '매니저', '주임', '사원'].map(p => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
           </div>
 
           <p className="mt-2 text-[11px] text-slate-400">
