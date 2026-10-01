@@ -80,6 +80,14 @@ export class TelegramService implements OnModuleInit {
     const res = await fetch(`${API}/bot${this.token}/sendMessage`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
+      /*
+        10초 안에 안 되면 접는다.
+
+        길이 막히면 운영체제가 포기할 때까지 2분쯤 붙들고 있는다. 그동안 다음 공지가 줄을
+        서고, 알림이 몰리는 시간대에는 그게 쌓인다. 공지는 늦으면 쓸모가 없는 값이라
+        오래 기다릴 이유가 없다 — 못 보냈으면 로그에 남기고 넘어간다.
+      */
+      signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
         chat_id: this.chatId,
         text,
