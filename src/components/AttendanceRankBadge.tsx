@@ -1,4 +1,4 @@
-import { RANK_MARK, type AttendanceRankRow } from '../lib/attendanceRank';
+import { hoursLabel, RANK_MARK, type AttendanceRankRow } from '../lib/attendanceRank';
 
 /**
  * 출퇴근 성실도 표 — 이름 옆에 붙는다.
@@ -20,7 +20,9 @@ export default function AttendanceRankBadge({
 
   const mark = RANK_MARK[row.rank];
   const pad = size === 'sm' ? 'px-1 py-px text-[10px]' : 'px-1.5 py-0.5 text-[11px]';
-  const detail = `${row.normal}일 정상 · 지각 ${row.late} · 조퇴 ${row.earlyLeave} · 누락 ${row.missing}`;
+  const detail =
+    `${hoursLabel(row.minutes)} · ${row.days}일` +
+    ` (정상 ${row.normal} · 지각 ${row.late} · 조퇴 ${row.earlyLeave} · 누락 ${row.missing})`;
 
   if (mark) {
     return (

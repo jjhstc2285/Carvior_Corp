@@ -10,7 +10,7 @@ import CalendarView from './CalendarView';
 import AllCalendarView from './AllCalendarView';
 import AttendanceRankBadge from './AttendanceRankBadge';
 import EmployeeAvatar from './EmployeeAvatar';
-import { attendanceRanking, RANK_MARK } from '../lib/attendanceRank';
+import { attendanceRanking, hoursLabel } from '../lib/attendanceRank';
 
 const STATUS_OPTIONS: { value: AttendanceStatus | 'all'; label: string }[] = [
   { value: 'all', label: '전체 상태' },
@@ -62,8 +62,13 @@ export default function MonthlyDashboard() {
     [state.employees, state.records, state.attendanceRequests, month],
   );
   const rankOf = (id: string) => ranking.find(r => r.employeeId === id) ?? null;
-  /** 표를 받은 사람들 — 3등까지와 개근 */
-  const honored = ranking.filter(r => RANK_MARK[r.rank] || r.perfect);
+  /*
+    순위 줄에는 다 띄운다.
+
+    표를 받은 셋만 띄우면 나머지는 자기가 몇 시간 일했는지 볼 데가 없다 — 순위를 붙인
+    까닭이 서로 보이게 하려는 것인데 셋만 보이면 그게 안 된다.
+  */
+  const honored = ranking;
 
   const scopedEmployees = state.employees.filter(e =>
     (department === 'all' || e.department === department) &&
@@ -164,7 +169,7 @@ export default function MonthlyDashboard() {
           <div className="flex items-baseline justify-between border-b border-amber-200/70 px-3 py-1.5">
             <span className="text-xs font-bold text-amber-800">{dayjs(month).format('M월')} 출퇴근</span>
             <span className="text-[11px] text-amber-700/80">
-              정상 하루 1점 · 지각·조퇴 0.5점 깎음 · 안 찍은 날 1점 깎음 (연차·외근은 안 셉니다)
+              찍힌 출퇴근 시각을 그대로 더해 매깁니다 (기본 9:30~18:30) · 연차·외근은 깎지 않습니다
             </span>
           </div>
           <ul className="flex flex-wrap gap-1.5 p-2.5">
@@ -172,7 +177,7 @@ export default function MonthlyDashboard() {
               <li key={r.employeeId}>
                 <button
                   onClick={() => setEmployeeId(r.employeeId)}
-                  title={`${r.normal}일 정상 · 지각 ${r.late} · 조퇴 ${r.earlyLeave} · 누락 ${r.missing} — 눌러서 이 사람만 봅니다`}
+                  title={`${hoursLabel(r.minutes)} · ${r.days}일 · 정상 ${r.normal} · 지각 ${r.late} · 조퇴 ${r.earlyLeave} · 누락 ${r.missing} — 눌러서 이 사람만 봅니다`}
                   className={`flex items-center gap-1.5 rounded-full border bg-white py-1 pl-1 pr-2.5 text-xs hover:bg-amber-50 ${
                     employeeId === r.employeeId ? 'border-amber-400 ring-2 ring-amber-200' : 'border-amber-200'
                   }`}
@@ -180,7 +185,8 @@ export default function MonthlyDashboard() {
                   <EmployeeAvatar name={r.name} size={20} />
                   <AttendanceRankBadge row={r} />
                   <span className="font-semibold text-slate-800">{r.name}</span>
-                  <span className="text-slate-400">정상 {r.normal}일</span>
+                  <span className="font-medium text-slate-600">{hoursLabel(r.minutes)}</span>
+                  <span className="text-slate-400">{r.days}일</span>
                 </button>
               </li>
             ))}

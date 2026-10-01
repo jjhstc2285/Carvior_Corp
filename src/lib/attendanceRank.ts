@@ -3,37 +3,54 @@ import type { AttendanceRecord, AttendanceRequest, Employee } from '../types';
 import { approvedRequestKind, computeStatus, isWorkday } from './attendance';
 
 /**
- * 그 달 출퇴근 성실도 순위.
+ * 그 달 출퇴근 순위 — 일한 시간을 더해서 매긴다.
  *
- * 누가 제때 오고 제때 가는지는 근태 표에 다 있는데, 표를 펴 보는 사람만 안다. 이름 옆에
- * 달아 두면 매일 눈에 띈다 — 잘 찍는 사람이 드러나는 게 안 찍는 사람을 나무라는 것보다 낫다.
+ * 처음에는 '정상 출근한 날 수'로 셌는데, 달이 막 시작된 날에는 모두가 하루씩이라 전원이
+ * 1위가 됐다. 날 수로는 여덟 시에 나와 여섯 시 반까지 있은 사람과 아홉 시 반에 나와
+ * 똑같이 퇴근한 사람이 갈리지 않는다.
  *
- * 승인받은 연차·반차·외근은 세지 않는다. 쉬기로 하고 쉰 날을 결석으로 세면, 연차를 쓴
- * 사람이 순위에서 밀려 연차를 안 쓰게 된다 — 그건 이 순위가 바라는 바가 아니다.
+ * 찍힌 시각 그대로 더한다. 기본 근무는 9:30~18:30 이고, 일찍 나오거나 늦게까지 있은
+ * 만큼이 그대로 쌓인다.
  *
- * 아직 오지 않은 날도 세지 않는다. 안 찍은 게 아니라 아직 안 온 날이다.
+ * 승인받은 연차·반차·외근은 시간이 안 쌓이지만 깎지도 않는다 — 쉬기로 하고 쉰 날을
+ * 손해로 만들면 연차를 안 쓰게 된다.
  */
 
-/** 점수 — 정상 하루에 1점, 지각·조퇴는 반 점씩 깎고, 안 찍은 날은 한 점 깎는다 */
-const LATE_PENALTY = 0.5;
-const MISSING_PENALTY = 1;
+/** 기본 근무 — 화면에 기준을 적을 때 쓴다 */
+export const WORK_START = '09:30';
+export const WORK_END = '18:30';
+
+/** "HH:mm" → 자정부터 몇 분. 꼴이 아니면 null */
+function minutesOf(time: string | null | undefined): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((time ?? '').trim());
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
 
 export interface AttendanceRankRow {
   employeeId: string;
   name: string;
-  /** 정상으로 다 찍은 날 */
+  /** 그 달 일한 시간(분) — 출근·퇴근이 둘 다 찍힌 날만 쌓인다 */
+  minutes: number;
+  /** 시간이 쌓인 날 수 */
+  days: number;
   normal: number;
   late: number;
   earlyLeave: number;
   /** 근무일인데 찍힌 게 없는 날 */
   missing: number;
-  /** 센 근무일 — 연차·외근처럼 안 세는 날은 빠져 있다 */
-  counted: number;
-  score: number;
-  /** 1부터. 점수가 같으면 같은 등수다 */
+  /** 1부터. 일한 시간이 같으면 같은 등수다 */
   rank: number;
-  /** 한 번도 안 늦고 안 빠졌는가 — 순위보다 이쪽이 더 값지다 */
+  /** 한 번도 안 늦고 안 빠졌는가 — 순위와는 따로 본다 */
   perfect: boolean;
+}
+
+/** 분 → "32시간 10분" */
+export function hoursLabel(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}분`;
+  return m === 0 ? `${h}시간` : `${h}시간 ${m}분`;
 }
 
 export function attendanceRanking(
@@ -49,13 +66,14 @@ export function attendanceRanking(
 
   const days: string[] = [];
   for (let d = start; !d.isAfter(end, 'day'); d = d.add(1, 'day')) {
-    const date = d.format('YYYY-MM-DD');
-    if (isWorkday(date)) days.push(date);
+    days.push(d.format('YYYY-MM-DD'));
   }
 
   const rows = employees
     .filter(e => e.active)
     .map(e => {
+      let minutes = 0;
+      let worked = 0;
       let normal = 0;
       let late = 0;
       let earlyLeave = 0;
@@ -63,9 +81,22 @@ export function attendanceRanking(
 
       for (const date of days) {
         const record = records.find(r => r.employeeId === e.id && r.date === date);
-        const kind = approvedRequestKind(requests, e.id, date);
-        const status = computeStatus(record, date, kind);
 
+        /*
+          시간은 휴일에 나온 날도 센다.
+
+          주말에 나와 일한 것도 일한 시간이다. 지각·조퇴 같은 '상태'만 근무일 기준으로
+          센다 — 토요일에 늦게 나왔다고 지각이라 할 수는 없다.
+        */
+        const inAt = minutesOf(record?.clockIn);
+        const outAt = minutesOf(record?.clockOut);
+        if (inAt !== null && outAt !== null && outAt > inAt) {
+          minutes += outAt - inAt;
+          worked += 1;
+        }
+
+        if (!isWorkday(date)) continue;
+        const status = computeStatus(record, date, approvedRequestKind(requests, e.id, date));
         if (status === 'normal') normal += 1;
         else if (status === 'late') late += 1;
         else if (status === 'earlyLeave') earlyLeave += 1;
@@ -73,42 +104,39 @@ export function attendanceRanking(
           late += 1;
           earlyLeave += 1;
         } else if (status === 'missing') missing += 1;
-        // 연차·반차·외근·휴무·아직 안 찍은 오늘은 세지 않는다
       }
-
-      const counted = normal + late + earlyLeave + missing;
-      const score = normal - (late + earlyLeave) * LATE_PENALTY - missing * MISSING_PENALTY;
 
       return {
         employeeId: e.id,
         name: e.name,
+        minutes,
+        days: worked,
         normal,
         late,
         earlyLeave,
         missing,
-        counted,
-        score,
         rank: 0,
-        perfect: counted > 0 && late === 0 && earlyLeave === 0 && missing === 0,
+        perfect: normal > 0 && late === 0 && earlyLeave === 0 && missing === 0,
       };
-    })
-    /*
-      한 번도 안 센 사람은 순위에 넣지 않는다.
+    });
 
-      이번 달에 들어온 사람이나 계정만 있고 안 찍는 사람이 0점으로 꼴찌에 박히면,
-      순위가 성실도가 아니라 입사일 표가 된다.
-    */
-    .filter(r => r.counted > 0);
+  rows.sort((a, b) => b.minutes - a.minutes || b.days - a.days || a.name.localeCompare(b.name));
 
-  rows.sort((a, b) => b.score - a.score || b.normal - a.normal || a.name.localeCompare(b.name));
+  /*
+    일한 시간이 같으면 같은 등수다.
 
-  // 점수가 같으면 같은 등수다 — 하루도 안 빠진 두 사람에게 1등과 2등을 매길 이유가 없다
+    한 번도 안 찍은 사람(0분)은 등수를 안 매긴다 — 0분끼리 공동 1위가 되면 표가 뜻을 잃는다.
+  */
   let rank = 0;
   let prev: number | null = null;
   rows.forEach((r, i) => {
-    if (prev === null || r.score !== prev) {
+    if (r.minutes <= 0) {
+      r.rank = 0;
+      return;
+    }
+    if (prev === null || r.minutes !== prev) {
       rank = i + 1;
-      prev = r.score;
+      prev = r.minutes;
     }
     r.rank = rank;
   });
