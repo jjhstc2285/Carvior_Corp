@@ -223,6 +223,16 @@ export default function PropertyModule() {
     .filter((x): x is { row: Property; left: number } => x.left !== null && x.left <= 90)
     .sort((a, b) => a.left - b.left);
 
+  /*
+    제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다(components/table).
+
+    아래 '번호 입력'·'권한 없음' 화면보다 위에 둔다. 리액트는 그릴 때마다 훅을 같은 수로
+    같은 차례에 불러야 하는데, 조기 리턴 아래에 두면 잠겨 있을 때는 안 불리고 풀리는
+    순간 하나가 더 불린다 — 그 순간 화면이 통째로 죽는다(번호를 맞게 넣었는데 흰 화면이
+    뜨던 게 이것이다).
+  */
+  const cols = useColumnOrder(COL_ORDER_KEY, COLUMNS);
+
   if (locked && !denied) {
     return (
       <div className="mx-auto max-w-sm px-4 py-16">
@@ -265,9 +275,6 @@ export default function PropertyModule() {
       </div>
     );
   }
-
-  /* 제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다(components/table) */
-  const cols = useColumnOrder(COL_ORDER_KEY, COLUMNS);
 
   /*
     화면을 넓게 쓴다 — 이 화면은 사무실 PC 에서만 본다. 가운데 좁게 모아 두면 칸이
