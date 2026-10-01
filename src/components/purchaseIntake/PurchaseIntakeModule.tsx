@@ -342,6 +342,21 @@ export default function PurchaseIntakeModule() {
                       상품화
                     </span>
                   )}
+                  {/*
+                    연식·주행거리가 비면 제시 가능 여부를 못 가린다.
+
+                    카비어에서 들어온 건은 이 둘이 비어 있는 채로 온다 — 제시 관리에서
+                    "주행거리를 모릅니다"로 뜨는 차가 그것이다. 여기서 먼저 보이게 해서
+                    매입 줄을 열어 바로 채우게 한다.
+                  */}
+                  {(!r.modelYear || !r.mileage) && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
+                      title="제시 가능 여부(10년 이내·20만km 미만)를 가릴 수 없습니다. 줄을 열어 채워 주세요"
+                    >
+                      {!r.modelYear && !r.mileage ? '연식·주행거리 없음' : !r.modelYear ? '연식 없음' : '주행거리 없음'}
+                    </span>
+                  )}
                   {/* 카비어가 달아 준 성능점검 결과 — 여기서 바로 연다 */}
                   {r.reportUrl && (
                     <a

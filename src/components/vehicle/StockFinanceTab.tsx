@@ -14,7 +14,10 @@ import {
 } from '../../lib/stockFinance';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { useStore } from '../../store';
-import type { ManagedVehicle } from '../../types';
+import type { ManagedVehicle, PurchaseIntake } from '../../types';
+import { api as callApi, ApiError } from '../../lib/api';
+import { alertError } from '../../lib/alert';
+import PurchaseIntakeForm from '../purchaseIntake/PurchaseIntakeForm';
 import type { VehiclesApi } from './useVehicles';
 import UnregisteredSoldPanel from './UnregisteredSoldPanel';
 import UnregisteredIntakePanel from './UnregisteredIntakePanel';
@@ -128,6 +131,34 @@ const DATE_FIELD: Partial<Record<View, { field: DateField; label: string }>> = {
  */
 export default function StockFinanceTab({ api, isOfficeManager }: { api: VehiclesApi; isOfficeManager: boolean }) {
   const { vehicles, toggleFlag, reload } = api;
+
+  /*
+    매입 정보를 여기서 바로 고친다.
+
+    연식·주행거리가 비어 제시 가능 여부를 못 가리는 차가 있는데, 그 값은 매입 관리에
+    이미 적혀 있거나 거기서 채워야 하는 값이다. 고치러 화면을 옮기면 돌아올 때 어느 차를
+    보고 있었는지 잊는다 — 같은 자리에서 매입 창을 열어 고치고 바로 돌아온다.
+  */
+  const [intake, setIntake] = useState<PurchaseIntake | null>(null);
+  const [intakeBusy, setIntakeBusy] = useState<string | null>(null);
+
+  const openIntake = async (plate: string) => {
+    setIntakeBusy(plate);
+    try {
+      const rows = await callApi<PurchaseIntake[]>(`/purchase-intake?q=${encodeURIComponent(plate)}`);
+      // 같은 차를 되사온 건이 있을 수 있다 — 최근 것이 지금 들고 있는 차다
+      const hit = rows.find(r => r.vehicleNumber.replace(/\s/g, '') === plate.replace(/\s/g, '')) ?? rows[0];
+      if (!hit) {
+        void alertError('매입 관리에 없는 차입니다', `${plate} 로 등록된 매입 건을 찾지 못했습니다.`);
+        return;
+      }
+      setIntake(hit);
+    } catch (e) {
+      void alertError('매입 내역을 불러오지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setIntakeBusy(null);
+    }
+  };
   const { state } = useStore();
 
   /**
@@ -476,7 +507,17 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                 const stage = saleStage(v);
                 return (
                 <tr key={v.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                  <td className="px-3 py-2.5 font-mono font-semibold text-slate-800">{v.vehicleNumber}</td>
+                  {/* 번호를 누르면 그 차 매입 창이 열린다 — 연식·주행거리를 거기서 채운다 */}
+                  <td className="px-3 py-2.5">
+                    <button
+                      onClick={() => void openIntake(v.vehicleNumber)}
+                      disabled={intakeBusy === v.vehicleNumber}
+                      title="눌러서 매입 정보를 고칩니다"
+                      className="font-mono font-semibold text-slate-800 hover:text-indigo-600 disabled:opacity-50"
+                    >
+                      {v.vehicleNumber}
+                    </button>
+                  </td>
                   {/* 차명은 길어도 한 줄만 쓴다 — 넘치면 잘라내고 손대면 전체가 뜬다 */}
                   <td className="max-w-40 truncate px-3 py-2.5 text-slate-600" title={v.vehicleModel}>
                     {v.vehicleModel}
@@ -615,6 +656,28 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       </datalist>
       {importOpen && (
         <StockSheetImportModal onClose={() => setImportOpen(false)} onImported={() => void reload()} />
+      )}
+
+      {/*
+        매입 창을 그대로 띄운다.
+
+        같은 값을 적는 자리를 두 벌 만들면 한쪽만 고쳐진다 — 매입 관리가 쓰는 창을 그대로
+        쓴다. 저장하면 차량 관리도 따라가므로 제시 가능 여부가 바로 다시 가려진다.
+      */}
+      {intake && (
+        <PurchaseIntakeForm
+          editing={intake}
+          onSave={async input => {
+            try {
+              await callApi(`/purchase-intake/${intake.id}`, { method: 'PATCH', body: input });
+              await reload();
+              return null;
+            } catch (e) {
+              return e instanceof ApiError ? e.message : '저장하지 못했습니다.';
+            }
+          }}
+          onClose={() => setIntake(null)}
+        />
       )}
     </>
   );
