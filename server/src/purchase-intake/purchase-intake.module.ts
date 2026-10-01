@@ -453,7 +453,8 @@ export class PurchaseIntakeService {
       prepared: dto.prepared,
     });
     await this.alertMileageGap(row);
-    return this.toView(row);
+    // 방금 올린 차의 상품화·등록 여부를 같이 담아 준다 — 안 담으면 새로고침해야 보인다
+    return this.toView(row, await this.plateState(row.vehicleNumber));
   }
 
   async update(id: string, dto: UpdatePurchaseIntakeDto) {
@@ -537,7 +538,7 @@ export class PurchaseIntakeService {
     }
 
     this.announceInspected(before, row);
-    return this.toView(row);
+    return this.toView(row, await this.plateState(row.vehicleNumber));
   }
 
   /**
@@ -912,6 +913,25 @@ export class PurchaseIntakeService {
    * 상품화는 차량 관리 쪽 값이라 매입 기록에는 없다. 목록에서 바로 보이고 체크도 여기서
    * 하려면 같이 실어 보내야 한다.
    */
+  /**
+   * 한 대만 — 저장하고 돌려줄 때 쓴다.
+   *
+   * 저장 응답에 상품화·차량관리 등록 여부가 안 담겨서, 검차를 켜고 저장해도 화면이 그대로
+   * 였다. 새로고침해야 비로소 바뀌니 눌러도 아무 일이 없는 것처럼 보인다. 전부 읽어오는
+   * 건 저장 한 번에 과하니 그 차 한 대만 본다.
+   */
+  private async plateState(vehicleNumber: string): Promise<{ all: Set<string>; prepared: Set<string> }> {
+    const plate = normalizePlate(vehicleNumber);
+    const row = await this.prisma.managedVehicle.findUnique({
+      where: { vehicleNumber: plate },
+      select: { vehicleNumber: true, prepared: true },
+    });
+    return {
+      all: row ? new Set([plate]) : new Set(),
+      prepared: row?.prepared ? new Set([plate]) : new Set(),
+    };
+  }
+
   private async registeredPlates(): Promise<{ all: Set<string>; prepared: Set<string> }> {
     const rows = await this.prisma.managedVehicle.findMany({
       select: { vehicleNumber: true, prepared: true },

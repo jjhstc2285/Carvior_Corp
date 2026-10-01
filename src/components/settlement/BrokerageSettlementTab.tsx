@@ -60,6 +60,15 @@ const COLUMNS: Column[] = [
 export default function BrokerageSettlementTab({ role, kind }: Props) {
   const kindLabel = CONSULTATION_KIND_LABEL[kind];
   const { state, deleteBrokerageSettlement, refresh } = useStore();
+  /*
+    정산은 달로 끊는다.
+
+    달마다 닫고 넘어가는 일인데 전부 한 판에 쌓여 있었다 — 쌓일수록 지난달 것이 섞여
+    이번 달 합계를 믿을 수 없고, 다음 달이 되면 지난달을 다시 찾아볼 방법도 없었다.
+    매입 정산과 같은 방식으로 맞춘다.
+  */
+  const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
+  const [allMonths, setAllMonths] = useState(false);
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [query, setQuery] = useState('');
@@ -131,10 +140,14 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
   /* 제목줄을 끌어 열 순서를 바꾼다 — 알선과 수출이 차례를 따로 기억한다 */
   const cols = useColumnOrder(`settlementColOrder-${kind}`, COLUMNS, { dense: true });
 
-  const ofKind = state.brokerageSettlements.filter(s => (s.kind ?? 'BROKERAGE') === kind);
+  // 그 달에 한정한다 — 칩에 적힌 건수가 목록과 다르면 어느 쪽이 맞는지 알 수 없다
+  const ofKind = state.brokerageSettlements
+    .filter(s => (s.kind ?? 'BROKERAGE') === kind)
+    .filter(s => allMonths || s.date.startsWith(month));
   const scoped = seesAll ? ofKind : ofKind.filter(s => s.employeeId === state.currentEmployeeId);
 
   const filtered = scoped
+    .filter(s => allMonths || s.date.startsWith(month))
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
     .filter(s => !seesAll || employeeFilter === 'all' || s.employeeId === employeeFilter)
     .filter(s => !query.trim() || s.vehicleNumber.includes(query.trim()) || s.vehicleName.includes(query.trim()))
@@ -198,7 +211,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `${kindLabel}정산`);
-    XLSX.writeFile(wb, `${kindLabel}정산_${dayjs().format('YYYYMMDD')}.xlsx`);
+    XLSX.writeFile(wb, `${kindLabel}정산_${allMonths ? dayjs().format('YYYYMMDD') : month}.xlsx`);
   };
 
   return (
@@ -220,7 +233,9 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">총 건수</p>
+          <p className="text-xs font-medium text-slate-400">
+            {allMonths ? '전체' : dayjs(month).format('M월')} 건수
+          </p>
           <p className="mt-1 text-2xl font-bold text-slate-800">{totals.count}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
@@ -271,6 +286,21 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
       )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        {/* 달마다 닫고 넘어가는 일이다 — 지난달을 다시 볼 수 있어야 한다 */}
+        <input
+          type="month"
+          value={month}
+          onChange={e => {
+            setMonth(e.target.value);
+            setAllMonths(false);
+          }}
+          disabled={allMonths}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400 disabled:opacity-50"
+        />
+        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+          <input type="checkbox" checked={allMonths} onChange={e => setAllMonths(e.target.checked)} />
+          전체 기간
+        </label>
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="차량번호·차량명 검색"
           className="w-52 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as SettlementStatus | 'all')}
