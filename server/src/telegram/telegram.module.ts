@@ -1,4 +1,4 @@
-import { Controller, Global, Injectable, Logger, Module, Post } from '@nestjs/common';
+import { Controller, Global, Injectable, Logger, Module, OnModuleInit, Post } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
@@ -20,7 +20,7 @@ import { Role } from '@prisma/client';
 const API = 'https://api.telegram.org';
 
 @Injectable()
-export class TelegramService {
+export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
 
   constructor(private readonly config: ConfigService) {}
@@ -38,6 +38,23 @@ export class TelegramService {
   }
 
   /**
+   * 뜰 때 한 줄 남긴다.
+   *
+   * 설정이 비어 있으면 공지는 아무 말 없이 안 나간다 — 일하다 멈추면 안 되니 그렇게 짰다.
+   * 그런데 그래서 방이 끊긴 건지, 열쇠가 빠진 건지, 보낼 일이 없었던 건지 구분할 길이
+   * 없었다. 뜰 때 어느 쪽인지 적어두면 로그 한 줄로 갈린다.
+   *
+   * 토큰은 안 적는다 — 로그는 여럿이 본다. 방 번호는 어느 방인지 가리는 값이라 적는다.
+   */
+  onModuleInit(): void {
+    if (this.configured) {
+      this.logger.log(`공지방 연결됨 — 방 ${this.chatId}`);
+    } else {
+      this.logger.warn('공지방이 설정되지 않았습니다(.env TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID). 공지는 나가지 않습니다.');
+    }
+  }
+
+  /**
    * 방에 한 줄 띄운다.
    *
    * 기다리지 않는다 — 부르는 쪽은 차를 고치거나 파는 중이고, 텔레그램이 느리다고 그
@@ -45,7 +62,7 @@ export class TelegramService {
    */
   notify(text: string): void {
     if (!this.configured || !text.trim()) return;
-    void this.send(text).catch((e: Error) => this.logger.warn(`공지를 보내지 못했습니다: ${e.message}`));
+    void this.send(text).catch((e: Error) => this.logger.warn(`공지를 보내지 못했습니다(방 ${this.chatId}): ${e.message}`));
   }
 
   private async send(text: string): Promise<void> {
