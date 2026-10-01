@@ -19,11 +19,11 @@ export default function TelegramTestCard() {
     setBusy(true);
     setResult(null);
     try {
-      const res = await api<{ sent: boolean }>('/telegram/test', { method: 'POST' });
+      const res = await api<{ sent: boolean; reason?: string }>('/telegram/test', { method: 'POST' });
       setResult(
         res.sent
           ? { ok: true, text: '보냈습니다. 공지방에 떴는지 확인해 주세요.' }
-          : { ok: false, text: '서버에 봇 토큰이나 방 번호가 없습니다(.env의 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).' },
+          : { ok: false, text: res.reason ?? '보내지 못했습니다.' },
       );
     } catch (e) {
       setResult({ ok: false, text: e instanceof ApiError ? e.message : '보내지 못했습니다.' });

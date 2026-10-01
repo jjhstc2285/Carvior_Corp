@@ -101,11 +101,24 @@ export class TelegramService implements OnModuleInit {
     }
   }
 
-  /** 잘 붙었는지 한 번 보내 본다 */
-  async test(): Promise<{ sent: boolean }> {
-    if (!this.configured) return { sent: false };
-    await this.send('🔔 애니원모터스 통합관리 — 공지방이 연결되었습니다.');
-    return { sent: true };
+  /**
+   * 잘 붙었는지 한 번 보내 본다.
+   *
+   * 실패를 던지지 않는다 — 던지면 화면에는 '서버 오류'만 뜨고 정작 왜 못 갔는지가 묻힌다.
+   * 이 단추를 누르는 까닭이 그 이유를 보려는 것이라, 이유를 담아 돌려준다.
+   */
+  async test(): Promise<{ sent: boolean; reason?: string }> {
+    if (!this.configured) {
+      return { sent: false, reason: '서버에 봇 토큰이나 방 번호가 없습니다(.env TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).' };
+    }
+    try {
+      await this.send('🔔 애니원모터스 통합관리 — 공지방이 연결되었습니다.');
+      return { sent: true };
+    } catch (e) {
+      const err = e as Error & { cause?: { code?: string; message?: string } };
+      const why = err.cause?.code ?? err.cause?.message ?? '';
+      return { sent: false, reason: `${err.message}${why ? ` — ${why}` : ''}` };
+    }
   }
 }
 
