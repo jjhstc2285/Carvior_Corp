@@ -76,9 +76,9 @@ export const PARKING_LOTS: ParkingLotConfig[] = [
   { lot: '배양동 창고', group: '외부', bandColor: '#fcd34d', zones: numberedZones(5), slots: rowSlots(1) },
   { lot: '배양동 58-13', group: '외부', bandColor: '#bef264', zones: numberedZones(7), slots: rowSlots(12) },
   // 고색동 A·B·C — A·B는 수출 전용, C는 일반광고 전용
-  { lot: '고색동 213-4', label: 'A주차장', group: '외부', bandColor: '#67e8f9', zones: numberedZones(8), slots: rowSlots(2) },
-  { lot: '고색동 205-1', label: 'B주차장', group: '외부', bandColor: '#a5b4fc', zones: numberedZones(3), slots: rowSlots(8) },
-  { lot: '고색동 203-2', label: 'C주차장', group: '외부', bandColor: '#fca5a5', zones: numberedZones(5), slots: rowSlots(5) },
+  { lot: '고색동 213-4', label: '고색동 213-4/A주차장', group: '외부', bandColor: '#67e8f9', zones: numberedZones(8), slots: rowSlots(2) },
+  { lot: '고색동 205-1', label: '고색동 205-1/B주차장', group: '외부', bandColor: '#a5b4fc', zones: numberedZones(3), slots: rowSlots(8) },
+  { lot: '고색동 203-2', label: '고색동 203-2/C주차장', group: '외부', bandColor: '#fca5a5', zones: numberedZones(5), slots: rowSlots(5) },
 ];
 
 /** 그 주차장이 쓰는 줄 목록 — 안 정해뒀으면 본관 기본값 */
