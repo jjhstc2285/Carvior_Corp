@@ -41,7 +41,13 @@ export default function PurchaseIntakeModule() {
   const brokerCount = api.items.filter(r => r.brokerFee > 0).length;
   // 매입만 봐서는 부가세가 안 나온다 — 그 차들이 얼마에 팔렸는지까지 맞춰봐야 한다.
   const saleTotal = api.items.reduce((sum, r) => sum + (r.salePrice ?? 0), 0);
-  const vat = vatBalance(total, saleTotal);
+  /*
+    부가세는 차값만 놓고 맞춰본다.
+
+    구전은 전 딜러에게 주는 수수료라 차를 사온 값이 아니다. 그걸 매입에 얹어 두면 실제보다
+    더 못 판 것처럼 잡히고, 남은 기간에 더 팔아야 할 금액도 부풀어 보인다.
+  */
+  const vat = vatBalance(purchaseTotal, saleTotal);
   const soldCount = api.items.filter(r => (r.salePrice ?? 0) > 0).length;
 
   /*
@@ -208,8 +214,11 @@ export default function PurchaseIntakeModule() {
         </div>
 
         {/*
-          매입만큼 매출이 잡혀야 의제매입세액 공제가 자리를 잡는다.
+          차값만큼 매출이 잡혀야 의제매입세액 공제가 자리를 잡는다.
           못 판 만큼은 부가세로 남는다 — 값 안에 들어 있는 세금이라 10%가 아니라 10/110이다.
+
+          구전은 빼고 본다. 전 딜러에게 주는 수수료라 차를 사온 값이 아니다 — 매입에 얹어
+          두면 실제보다 더 못 판 것처럼 잡힌다.
         */}
         <div
           className={`rounded-2xl border px-4 py-3.5 ${
@@ -217,7 +226,7 @@ export default function PurchaseIntakeModule() {
           }`}
         >
           <p className={`text-xs font-medium ${vat.gap > 0 ? 'text-red-700/80' : 'text-emerald-700/80'}`}>
-            {vat.gap > 0 ? '못 판 만큼 걸린 부가세' : '매입만큼 팔았습니다'}
+            {vat.gap > 0 ? '못 판 만큼 걸린 부가세' : '차값만큼 팔았습니다'}
           </p>
           <p className={`mt-1 text-xl font-bold sm:text-2xl ${vat.gap > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
             {NUM(vat.vat) || 0}
@@ -225,8 +234,8 @@ export default function PurchaseIntakeModule() {
           </p>
           <p className="text-[11px] text-slate-500">
             {vat.gap > 0
-              ? `매입 − 매도 = ${NUM(vat.gap)}원 · 이만큼 더 팔아야 합니다`
-              : `매도가 매입보다 ${NUM(-vat.gap) || 0}원 많습니다`}
+              ? `차값 − 매도 = ${NUM(vat.gap)}원 · 이만큼 더 팔아야 합니다 (구전 제외)`
+              : `매도가 차값보다 ${NUM(-vat.gap) || 0}원 많습니다 (구전 제외)`}
           </p>
         </div>
       </div>
