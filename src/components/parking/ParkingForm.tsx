@@ -37,6 +37,39 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  /*
+    이미 세워둔 차면 적어둔 것을 끌어온다.
+
+    같은 차를 옮겨 세우고 와서 다시 적는 일이 잦다. 그때마다 차명과 메모를 사람이 다시
+    치면, 한 글자 다르게 적힌 같은 차가 두 가지 이름으로 남는다 — 나중에 찾을 때 둘 다
+    훑어야 한다.
+
+    번호를 다 적으면 그 차가 지금 어디 있든 찾아서 차명·메모·상태·담당자를 끌어온다.
+    고치려고 연 줄(editing)은 건드리지 않는다 — 그건 이미 그 차의 값이다.
+
+    끌어온 값은 그대로 고칠 수 있다. 전에 적은 메모가 지금도 맞다는 보장은 없다.
+  */
+  const [pulledFrom, setPulledFrom] = useState<string | null>(null);
+
+  const pull = (plate: string) => {
+    const key = plate.replace(/\s/g, '');
+    if (editing || key.length < 7) return;
+
+    const found = state.parkingVehicles.find(
+      v => v.vehicleNumber.replace(/\s/g, '') === key && !v.soldDate,
+    );
+    if (!found) {
+      setPulledFrom(null);
+      return;
+    }
+
+    setVehicleModel(found.vehicleModel);
+    setMemo(found.memo ?? '');
+    setStatus(found.status);
+    if (found.employeeId) setEmployeeId(found.employeeId);
+    setPulledFrom(`${lotLabel(found.lot)} ${found.zone} ${found.slot}`);
+  };
+
   const zoneOptions = PARKING_LOTS.find(l => l.lot === lot)?.zones ?? [];
 
 
@@ -134,8 +167,21 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className="mb-1 block text-xs font-semibold text-slate-500">차량번호 *</label>
-            <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="12가3456"
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+            <input
+              value={vehicleNumber}
+              onChange={e => {
+                setVehicleNumber(e.target.value);
+                pull(e.target.value);
+              }}
+              placeholder="12가3456"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+            />
+            {/* 어디서 끌어왔는지 적는다 — 모르고 저장하면 그 자리가 비는 걸 모른다 */}
+            {pulledFrom && (
+              <p className="mt-1 text-[11px] text-indigo-600">
+                {pulledFrom}에 있던 차입니다. 차명·메모를 가져왔고, 저장하면 그 자리는 비워집니다.
+              </p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">상태</label>
