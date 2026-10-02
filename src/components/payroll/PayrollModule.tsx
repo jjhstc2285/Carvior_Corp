@@ -204,7 +204,6 @@ export default function PayrollModule() {
           <p className="mt-1 text-xs text-slate-500">번호를 넣어 주세요. 창을 닫으면 다시 물어봅니다.</p>
           <input
             type="password"
-            inputMode="numeric"
             value={code}
             onChange={e => {
               setCode(e.target.value);

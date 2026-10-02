@@ -240,15 +240,14 @@ export default function PropertyModule() {
           <Lock size={22} className="mx-auto text-slate-400" />
           <h1 className="mt-2 text-base font-bold text-slate-800">부동산 정보</h1>
           <p className="mt-1 text-xs text-slate-500">
-            대외비 화면입니다. 로그인과 별개로 <b>번호</b>를 한 번 더 넣어야 열립니다.
+            대외비 화면입니다. 로그인과 별개로 <b>비밀번호</b>를 한 번 더 넣어야 열립니다.
           </p>
           <input
             type="password"
-            inputMode="numeric"
             value={code}
             onChange={e => setCode(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && void unlock()}
-            placeholder="번호"
+            placeholder="비밀번호"
             autoFocus
             className="mt-4 w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-lg tracking-widest outline-none focus:border-indigo-400"
           />
@@ -261,7 +260,7 @@ export default function PropertyModule() {
             {unlocking ? '확인 중…' : '열기'}
           </button>
           <p className="mt-3 text-[11px] text-slate-400">
-            창을 닫으면 다시 번호를 넣어야 합니다. 자리를 비울 때 화면이 열린 채로 남지 않게 하려는 것입니다.
+            창을 닫으면 다시 비밀번호를 넣어야 합니다. 자리를 비울 때 화면이 열린 채로 남지 않게 하려는 것입니다.
           </p>
         </div>
       </div>
