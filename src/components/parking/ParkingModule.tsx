@@ -207,7 +207,7 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
                   <span className="font-mono font-semibold">{v.vehicleNumber}</span>
                   {v.vehicleModel && <span className="ml-1 text-slate-500">{v.vehicleModel}</span>}
                   <span className="ml-1.5 text-slate-400">
-                    {v.lot} {v.zone} {v.slot}
+                    {lotLabel(v.lot)} {v.zone} {v.slot}
                   </span>
                   <span className="ml-1.5 font-bold">{v.reinspect && reinspectLabel(v.reinspect)}</span>
                   {/* 받고 와서 그 자리에서 적는다 — 적으면 그날부터 다시 넉 달을 센다 */}
@@ -298,7 +298,7 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
               )}
               {rows.map(v => (
                 <tr key={v.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                  <td className="px-5 py-2.5 text-slate-600">{v.lot}</td>
+                  <td className="px-5 py-2.5 text-slate-600">{lotLabel(v.lot)}</td>
                   <td className="px-5 py-2.5 text-slate-600">{v.zone}</td>
                   <td className="px-5 py-2.5 text-slate-500">{v.slot}</td>
                   <td className="px-5 py-2.5 font-mono font-medium text-slate-700">{v.vehicleNumber}</td>

@@ -459,7 +459,7 @@ export default function ParkingGrid({ onCellClick, onMoveError, showSold = false
                   <tr className="hidden sm:table-row">
                     <th style={{ backgroundColor: bandColor }} className="w-10 border border-white/40" />
                     <th colSpan={zones.length} style={{ backgroundColor: bandColor }} className="border border-white/40 py-1.5 text-center text-sm font-bold text-slate-900">
-                      {lot}
+                      {lotLabel(lot)}
                     </th>
                   </tr>
                   <tr className="bg-slate-800 text-white">

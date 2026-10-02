@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Download, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
+import { lotLabel } from '../../lib/parkingLayout';
 
 interface Spot {
   lot: string;
@@ -153,7 +154,7 @@ export default function SheetImportModal({ onClose, onImported }: Props) {
                 <tbody>
                   {preview.spots.map(s => (
                     <tr key={`${s.lot}|${s.zone}|${s.slot}`} className="border-t border-slate-50">
-                      <td className="px-3 py-1.5 text-slate-600">{s.lot} {s.zone} {s.slot}</td>
+                      <td className="px-3 py-1.5 text-slate-600">{lotLabel(s.lot)} {s.zone} {s.slot}</td>
                       <td className="px-3 py-1.5 font-mono font-semibold text-slate-800">{s.vehicleNumber}</td>
                       <td className="px-3 py-1.5 text-slate-500">{s.vehicleModel || <span className="text-slate-300">—</span>}</td>
                       <td className="px-3 py-1.5 text-slate-400">
