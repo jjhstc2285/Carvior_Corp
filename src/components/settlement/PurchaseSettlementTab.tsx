@@ -241,18 +241,21 @@ export default function PurchaseSettlementTab({ role }: Props) {
   */
   const owners = useMemo(() => {
     const month = filtered;
-    const counted = new Map<string, { count: number; done: number }>();
+    const counted = new Map<string, { count: number; done: number; profit: number; sold: number }>();
     for (const s of month) {
-      const prev = counted.get(s.employeeId) ?? { count: 0, done: 0 };
+      const prev = counted.get(s.employeeId) ?? { count: 0, done: 0, profit: 0, sold: 0 };
       counted.set(s.employeeId, {
         count: prev.count + 1,
         done: prev.done + (s.stage === 'DONE' ? 1 : 0),
+        // 아직 안 판 차는 빼고 센다 — 판매가가 0이면 총비용만큼 적자로 잡힌다
+        profit: prev.profit + (s.salePrice > 0 ? profitOf(s) : 0),
+        sold: prev.sold + (s.salePrice > 0 ? 1 : 0),
       });
     }
     return state.employees
       .filter(e => e.active !== false && (e.department === '계약팀' || counted.has(e.id)))
       .map(e => {
-        const c = counted.get(e.id) ?? { count: 0, done: 0 };
+        const c = counted.get(e.id) ?? { count: 0, done: 0, profit: 0, sold: 0 };
         return {
           employee: e,
           ...c,
@@ -346,6 +349,14 @@ export default function PurchaseSettlementTab({ role }: Props) {
     prep: filtered.reduce((sum, s) => sum + prepTotalOf(s), 0),
     settlement: filtered.reduce((sum, s) => sum + s.settlementAmount, 0),
     vehicleCost: filtered.reduce((sum, s) => sum + (s.vehicleCost?.total ?? 0), 0),
+    /*
+      판매수익 — 판 차만 센다.
+
+      아직 안 판 차는 판매가가 0이라 그대로 더하면 총비용만큼 적자로 잡힌다. 그러면 많이
+      사올수록 수익이 깎여 보인다 — 판 차끼리 견주는 값이라야 뜻이 있다.
+    */
+    profit: filtered.filter(s => s.salePrice > 0).reduce((sum, s) => sum + profitOf(s), 0),
+    sold: filtered.filter(s => s.salePrice > 0).length,
     // 상품화총비용을 항목 6개로 쪼갠 합계 — 어디에 돈이 몰렸는지 한눈에 보려고 둔다.
     prepByKind: filtered.reduce((acc, s) => {
       const b = breakdownOf(s);
@@ -432,7 +443,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
       )}
 
-      <div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">총 건수</p>
           <p className="text-xl font-bold text-slate-800">{totals.count}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
@@ -453,6 +464,17 @@ export default function PurchaseSettlementTab({ role }: Props) {
           <p className="text-xs font-medium text-slate-400">차량비용 합계</p>
           <p className="text-xl font-bold text-sky-600">{NUM(totals.vehicleCost)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
           <p className="text-[10px] text-slate-400">주유·배터리·주차·세차·수리 자동 반영</p>
+        </div>
+        {/* 담당자 칩을 누르면 그 사람이 판 차만 더해진다 */}
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-2">
+          <p className="text-xs font-medium text-emerald-700/80">판매수익 합계</p>
+          <p className={`text-xl font-bold ${totals.profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+            {MAN(totals.profit)}<span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          <p className="text-[10px] text-slate-400">
+            {totals.count}건 중 <b className="font-bold text-emerald-700">{totals.sold}대</b> 판매
+            {totals.sold > 0 && ` · 대당 ${MAN(Math.round(totals.profit / totals.sold))}원`}
+          </p>
         </div>
       </div>
 
@@ -522,11 +544,11 @@ export default function PurchaseSettlementTab({ role }: Props) {
           >
             전체 <span className="ml-0.5 font-bold">{scoped.filter(s => allMonths || s.date.startsWith(month)).length}</span>
           </button>
-          {owners.map(({ employee, count, done, bonus }) => (
+          {owners.map(({ employee, count, done, bonus, profit, sold }) => (
             <button
               key={employee.id}
               onClick={() => setEmployeeFilter(v => (v === employee.id ? 'all' : employee.id))}
-              title={`${employee.name} ${employee.position} · ${count}건 중 결재완료 ${done}건${
+              title={`${employee.name} ${employee.position} · ${count}건 중 결재완료 ${done}건 · ${sold}대 판매, 판매수익 ${NUM(profit)}원${
                 bonus > 0 ? ` · 인센티브 ${NUM(bonus)}원` : ` · 결재완료 ${PURCHASE_BONUS_MIN}건부터 건당 ${NUM(PURCHASE_BONUS_PER_CASE)}원`
               }`}
               className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs transition-colors ${
@@ -540,6 +562,11 @@ export default function PurchaseSettlementTab({ role }: Props) {
               <span className="text-slate-400">{employee.position}</span>
               <span className="font-bold text-indigo-600">{count}</span>
               {done > 0 && <span className="text-[11px] text-slate-400">완료 {done}</span>}
+              {sold > 0 && (
+                <span className={`text-[11px] font-semibold ${profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                  수익 {MAN(profit)}
+                </span>
+              )}
               {bonus > 0 && (
                 <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
                   +{NUM(bonus)}
