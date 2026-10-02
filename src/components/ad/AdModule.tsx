@@ -39,7 +39,16 @@ export default function AdModule({ role }: { role: Role }) {
   */
   const { state } = useStore();
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
-  const isAdmin = role === 'ADMIN' || me?.department === '광고팀';
+  const admin = role === 'ADMIN';
+  /** 계약을 적는 건 광고팀이다 — 플랫폼·약정 대수·금액을 아는 사람이 적는다 */
+  const isAdmin = admin || me?.department === '광고팀';
+  /*
+    매물을 넣고 빼는 건 차량관리팀이다.
+
+    계약은 광고팀이 트고, 그 계약에 어느 차를 올릴지는 차를 쥐고 있는 쪽이 안다 —
+    상품화가 끝났는지, 지금 어디 세워져 있는지를 보고 넣는다.
+  */
+  const canPost = admin || me?.department === '차량관리팀';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -332,12 +341,14 @@ export default function AdModule({ role }: { role: Role }) {
                     {c.quotaCycle === '없음' && <span className="text-xs text-slate-400">대수 약정 없음</span>}
                   </>
                 )}
-                <button
-                  onClick={() => setAddingTo(c)}
-                  className="ml-auto rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  차량 넣기
-                </button>
+                {canPost && (
+                  <button
+                    onClick={() => setAddingTo(c)}
+                    className="ml-auto rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    차량 넣기
+                  </button>
+                )}
                 <button
                   onClick={() => setOpenId(open ? null : c.id)}
                   className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
@@ -408,13 +419,15 @@ export default function AdModule({ role }: { role: Role }) {
                       {p.auto && (
                         <span className="rounded bg-slate-100 px-1.5 text-[10px] font-medium text-slate-500">진단완료</span>
                       )}
-                      <button
-                        onClick={() => void removePosting(p.id)}
-                        className="ml-auto rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
-                        aria-label="빼기"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      {canPost && (
+                        <button
+                          onClick={() => void removePosting(p.id)}
+                          className="ml-auto rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                          aria-label="빼기"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

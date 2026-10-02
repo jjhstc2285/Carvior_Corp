@@ -426,12 +426,25 @@ export class AdReminderService implements OnModuleInit, OnModuleDestroy {
  * 보는 건 전 직원이다(어느 플랫폼에 몇 대가 남았는지는 매물 올리는 사람이면 다 알아야
  * 한다). 적는 건 다르다 — 금액과 약정 대수가 걸린 문서라 아무나 고칠 일이 아니다.
  *
- * 그동안 화면에서만 단추를 가리고 서버는 누구나 쓸 수 있었다. 주소를 아는 사람은 그대로
- * 보낼 수 있으니 여기서 한 번 더 본다.
+ * 화면에서만 단추를 가리면 막은 게 아니다. 주소를 아는 사람은 그대로 보낼 수 있다.
  */
 function assertAdEditor(user: AuthUser): void {
   if (user.role === Role.ADMIN || user.department === AD_TEAM) return;
   throw new ForbiddenException('광고 계약은 광고팀과 관리자만 등록·수정할 수 있습니다.');
+}
+
+/** 매물을 넣고 빼는 건 차량관리팀이다 */
+const VEHICLE_TEAM = '차량관리팀';
+
+/**
+ * 계약에 차를 넣고 뺄 수 있는 사람 — 차량관리팀과 관리자.
+ *
+ * 계약은 광고팀이 트고, 그 계약에 어느 차를 올릴지는 차를 쥐고 있는 쪽이 안다 —
+ * 상품화가 끝났는지, 지금 어디 세워져 있는지를 보고 넣는다. 일이 갈리니 자리도 가른다.
+ */
+function assertPostingEditor(user: AuthUser): void {
+  if (user.role === Role.ADMIN || user.department === VEHICLE_TEAM) return;
+  throw new ForbiddenException('계약에 차량을 넣고 빼는 것은 차량관리팀과 관리자만 할 수 있습니다.');
 }
 
 @Controller('ads')
@@ -472,14 +485,14 @@ export class AdsController {
 
   @Post(':id/postings')
   addPostings(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AddPostingDto) {
-    assertAdEditor(user);
+    assertPostingEditor(user);
     return this.ads.addPostings(id, dto);
   }
 
   @Delete('postings/:id')
   @HttpCode(204)
   async removePosting(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    assertAdEditor(user);
+    assertPostingEditor(user);
     await this.ads.removePosting(id);
   }
 
