@@ -419,6 +419,8 @@ function PhotoSlot({
           <>
             <Image
               src={url}
+              loading="lazy"
+              decoding="async"
               alt={label}
               width="100%"
               height="100%"
