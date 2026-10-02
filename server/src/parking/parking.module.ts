@@ -384,12 +384,22 @@ export class ParkingService {
    * 구역도에서 칸을 눌러 바로 바꾸는 흐름이라 upsert가 자연스럽다.
    */
   async upsert(dto: UpsertParkingDto) {
+    /*
+      그 차가 다른 자리에 있으면 그 자리를 비우고 옮긴다.
+
+      전에는 "이미 어디에 있습니다" 하고 막았다. 그런데 차는 실제로 옮겨 세우고 와서 적는
+      것이라, 막히면 옛 자리를 찾아가 지우고 다시 적어야 했다 — 두 번 일하고, 지우는 걸
+      잊으면 한 대가 두 자리를 차지한 채로 남는다.
+
+      옮긴 자리는 비운다. 차 한 대는 한 곳에만 있다.
+    */
     const duplicate = await this.prisma.parkingVehicle.findFirst({
       where: { vehicleNumber: dto.vehicleNumber, NOT: { lot: dto.lot, zone: dto.zone, slot: dto.slot } },
     });
     if (duplicate) {
-      throw new BadRequestException(
-        `${dto.vehicleNumber} 차량이 이미 ${duplicate.lot} ${duplicate.zone} ${duplicate.slot}에 등록돼 있습니다.`,
+      await this.prisma.parkingVehicle.delete({ where: { id: duplicate.id } });
+      this.logger.log(
+        `${dto.vehicleNumber} 자리 옮김: ${duplicate.lot} ${duplicate.zone} ${duplicate.slot} → ${dto.lot} ${dto.zone} ${dto.slot}`,
       );
     }
 
@@ -405,11 +415,14 @@ export class ParkingService {
       select: { vehicleNumber: true },
     });
     if (before?.vehicleNumber !== dto.vehicleNumber) {
+      // 옮겨 온 차는 어디서 왔는지 같이 적는다 — 찾던 사람이 옛 자리로 가지 않게
       this.telegram.notify(
-        `🅿️ <b>주차 등록</b>
+        `🅿️ <b>주차 ${duplicate ? '이동' : '등록'}</b>
 <b>${dto.vehicleNumber}</b> ${dto.vehicleModel}
 ` +
-          `자리: ${dto.lot} ${dto.zone} ${dto.slot}`,
+          `자리: ${dto.lot} ${dto.zone} ${dto.slot}` +
+          (duplicate ? `
+이전: ${duplicate.lot} ${duplicate.zone} ${duplicate.slot}` : ''),
       );
     }
 
