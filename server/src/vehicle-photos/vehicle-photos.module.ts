@@ -39,6 +39,19 @@ const PHOTO_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'vehicles');
 const MAX_PHOTO_SIZE = 12 * 1024 * 1024;
 const ALLOWED_PHOTO = /^image\/(jpeg|png|webp|heic|heif)$/;
 
+/**
+ * 종류를 못 믿을 때 이름으로 본다.
+ *
+ * 아이폰에서 올리면 종류가 application/octet-stream 으로 오는 일이 있다(특히 HEIC).
+ * 그러면 사진인데도 "이미지 파일만 올릴 수 있습니다" 로 막힌다 — 현장에서는 왜 안 되는지
+ * 알 길이 없다. 끝 글자가 사진이면 받아준다.
+ */
+const PHOTO_EXT = /\.(jpe?g|png|webp|heic|heif)$/i;
+
+function looksLikePhoto(file: { mimetype: string; originalname: string }): boolean {
+  return ALLOWED_PHOTO.test(file.mimetype) || PHOTO_EXT.test(file.originalname);
+}
+
 if (!existsSync(PHOTO_DIR)) mkdirSync(PHOTO_DIR, { recursive: true });
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -162,7 +175,7 @@ export class VehiclePhotosController {
       }),
       limits: { fileSize: MAX_PHOTO_SIZE, files: 1 },
       fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_PHOTO.test(file.mimetype)) {
+        if (!looksLikePhoto(file)) {
           cb(new BadRequestException('이미지 파일만 올릴 수 있습니다.'), false);
           return;
         }

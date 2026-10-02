@@ -4,6 +4,7 @@ import { Image } from 'antd';
 import { Camera, ImagePlus, Loader2, Search, Trash2, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useStore } from '../../store';
+import { shrinkForUpload } from '../../lib/imageShrink';
 import { alertError } from '../../lib/alert';
 import { confirmDanger } from '../../lib/alert';
 
@@ -50,8 +51,19 @@ interface PhotoSet {
  * 동시에 만들려다 부딪친다. 부르는 쪽에서 한 장씩 차례로 기다린다.
  */
 async function putPhoto(set: PhotoSet, slot: SlotKey, file: File): Promise<void> {
+  /*
+    올리기 전에 줄인다.
+
+    요즘 휴대폰은 한 장이 4~12MB다. 여섯 장이면 50MB를 현장에서 LTE로 올리게 되는데,
+    기다리다 창을 닫으면 반만 올라간 묶음이 남는다. 서버도 12MB가 넘으면 안 받아서
+    "업로드 불가"로 떨어진다.
+
+    긴 변 1600px·JPEG로 줄이면 보통 10분의 1이 된다. 아이폰 HEIC도 이 과정에서 JPEG가
+    되어 그냥 올라간다.
+  */
+  const shrunk = await shrinkForUpload(file);
   const form = new FormData();
-  form.append('file', file);
+  form.append('file', shrunk);
   const { url } = await api<{ url: string }>('/vehicle-photos/upload', { method: 'POST', formData: form });
   await api('/vehicle-photos/photos', {
     method: 'POST',

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Image } from 'antd';
 import { ImagePlus, Loader2, X } from 'lucide-react';
 import { api } from '../../lib/api';
+import { shrinkForUpload } from '../../lib/imageShrink';
 import { alertError } from '../../lib/alert';
 
 /**
@@ -31,7 +32,8 @@ export default function ContractPhotos({
     setBusy(true);
     try {
       const form = new FormData();
-      form.append('files', file);
+      // 계약서도 휴대폰으로 찍는다 — 올리기 전에 줄인다(차량 사진과 같은 식)
+      form.append('files', await shrinkForUpload(file));
 
       const { urls } = await api<{ urls: string[] }>('/settlements/purchase/contract-photos', {
         method: 'POST',
