@@ -166,6 +166,31 @@ export function setPropertyPass(pass: string | null) {
 }
 
 /**
+ * 상조회비 통행증.
+ *
+ * 비밀번호는 부동산과 같은 값을 쓰지만 통행증은 따로다 — 부동산을 열었다고 이 장부까지
+ * 열리면 따로 잠근 뜻이 없다.
+ */
+const DEALER_FEE_PASS_KEY = 'dealer-fee-pass';
+
+export function getDealerFeePass(): string | null {
+  try {
+    return sessionStorage.getItem(DEALER_FEE_PASS_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setDealerFeePass(pass: string | null) {
+  try {
+    if (pass) sessionStorage.setItem(DEALER_FEE_PASS_KEY, pass);
+    else sessionStorage.removeItem(DEALER_FEE_PASS_KEY);
+  } catch {
+    // 못 적어도 이번 화면에서는 쓸 수 있다 — 다음에 다시 번호를 받는다
+  }
+}
+
+/**
  * 인건비 통행증.
  *
  * 부동산과 같은 방식이고 서명이 달라 서로 열리지 않는다 — 한쪽 번호를 안다고 다른 쪽까지
@@ -194,9 +219,13 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   // 부동산 쪽은 통행증을 같이 보낸다. 화면마다 챙기면 한 군데는 꼭 빠뜨린다
-  // 상조회비도 같은 통행증을 쓴다 — 같은 돈 장부라 번호를 두 번 칠 이유가 없다
-  if (path.startsWith('/properties') || path.startsWith('/dealer-fees')) {
+  if (path.startsWith('/properties')) {
     const pass = getPropertyPass();
+    if (pass) headers['X-Property-Pass'] = pass;
+  }
+  // 상조회비는 번호만 부동산과 같고 통행증은 따로다
+  if (path.startsWith('/dealer-fees')) {
+    const pass = getDealerFeePass();
     if (pass) headers['X-Property-Pass'] = pass;
   }
   if (path.startsWith('/payroll')) {
@@ -241,6 +270,10 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     */
     if (code === 'PROPERTY_LOCKED') {
       setPropertyPass(null);
+      window.dispatchEvent(new CustomEvent('ledger-locked'));
+    }
+    if (code === 'DEALER_FEE_LOCKED') {
+      setDealerFeePass(null);
       window.dispatchEvent(new CustomEvent('ledger-locked'));
     }
 

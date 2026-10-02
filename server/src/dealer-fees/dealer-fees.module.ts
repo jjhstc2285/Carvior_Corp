@@ -39,7 +39,7 @@ import { bestMatch, brandOf, dealerKey } from './dealer-match';
 import { formatDateOnly, formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager, LEDGER_VIEWER_WHERE } from '../auth/office-manager';
-import { verifyPass } from '../properties/properties.module';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { PushService } from '../push/push.service';
@@ -626,24 +626,73 @@ export class DealerFeeReminderService implements OnModuleInit, OnModuleDestroy {
  * 막은 게 아니라 여기서 한 번 더 가린다.
  */
 /**
+ * 통행증은 한 시간만 산다 — 부동산·인건비와 같은 기준이다.
+ */
+const PASS_HOURS = 1;
+
+/**
+ * 통행증 = 만료시각 + 그 사람에게만 맞는 서명.
+ *
+ * 서명에 'dealerFee' 를 넣는다. 비밀번호는 부동산과 같은 값을 쓰지만 통행증은 따로다 —
+ * 부동산을 열었다고 이 장부까지 열리면, 두 장부를 따로 잠근 뜻이 없다.
+ */
+function makePass(user: AuthUser): string {
+  const exp = Date.now() + PASS_HOURS * 3600_000;
+  const sign = createHmac('sha256', process.env.JWT_SECRET ?? '')
+    .update(`dealerFee.${user.id}.${exp}`)
+    .digest('hex');
+  return `${exp}.${sign}`;
+}
+
+function verifyPass(user: AuthUser, pass?: string): boolean {
+  const [expText, sign] = (pass ?? '').split('.');
+  const exp = Number(expText);
+  if (!exp || !sign || Date.now() > exp) return false;
+
+  const want = createHmac('sha256', process.env.JWT_SECRET ?? '')
+    .update(`dealerFee.${user.id}.${exp}`)
+    .digest('hex');
+  const a = Buffer.from(sign);
+  const b = Buffer.from(want);
+  // 길이가 다르면 맞춰 보지 않는다 — timingSafeEqual 은 길이가 다르면 던진다
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
  * 볼 수 있는 사람인가, 그리고 비밀번호를 넣고 들어왔는가.
  *
  * 직급으로만 가리고 있었다. 그런데 이건 어느 영업소에 얼마를 걸어 두었는지가 줄줄이
  * 적힌 장부다 — 부동산과 같은 성격이라 같은 비밀번호로 잠근다.
- *
- * 통행증은 부동산 것을 그대로 쓴다. 같은 돈 장부를 두 번 칠 이유가 없다 — 한쪽을 열면
- * 다른 쪽도 열린다.
  */
 function assertUnlocked(user: AuthUser, pass?: string): void {
   assertOfficeManager(user);
   if (!verifyPass(user, pass)) {
     // 화면이 '번호 다시 받기'와 '아예 못 봄'을 갈라 볼 수 있게 표를 붙인다
-    throw new ForbiddenException({ message: '비밀번호를 다시 넣어 주세요.', code: 'PROPERTY_LOCKED' });
+    throw new ForbiddenException({ message: '비밀번호를 다시 넣어 주세요.', code: 'DEALER_FEE_LOCKED' });
   }
 }
 
 @Controller('dealer-fees')
 export class DealerFeesController {
+  /**
+   * 비밀번호를 넣어 통행증을 받는다.
+   *
+   * 번호는 부동산과 같은 값을 쓴다(.env PROPERTY_ACCESS_CODE) — 같은 사람이 보는 같은
+   * 성격의 장부라 외울 번호를 둘로 늘리지 않는다. 통행증만 따로다.
+   */
+  @Post('unlock')
+  unlock(@CurrentUser() user: AuthUser, @Body() dto: { code?: string }) {
+    assertOfficeManager(user);
+    const code = (process.env.PROPERTY_ACCESS_CODE ?? '').trim();
+    if (!code) {
+      throw new ForbiddenException('비밀번호가 서버에 설정되지 않았습니다. 관리자에게 문의해 주세요.');
+    }
+    if ((dto.code ?? '').trim() !== code) {
+      throw new ForbiddenException('비밀번호가 맞지 않습니다.');
+    }
+    return { pass: makePass(user) };
+  }
+
   constructor(
     private readonly dealerFees: DealerFeesService,
     private readonly reminder: DealerFeeReminderService,

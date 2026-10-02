@@ -83,13 +83,7 @@ function makePass(user: AuthUser): string {
   return `${exp}.${sign}`;
 }
 
-/**
- * 통행증이 맞는가.
- *
- * 상조회비도 같은 번호로 잠근다 — 같은 돈 장부라 두 번 칠 이유가 없다. 그래서 이 검사만
- * 밖으로 연다(번호를 받고 통행증을 내주는 자리는 여전히 여기 하나뿐이다).
- */
-export function verifyPass(user: AuthUser, pass?: string): boolean {
+function verifyPass(user: AuthUser, pass?: string): boolean {
   const [expText, sign] = (pass ?? '').split('.');
   const exp = Number(expText);
   if (!exp || !sign || Date.now() > exp) return false;

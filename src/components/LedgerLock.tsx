@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Lock } from 'lucide-react';
-import { api, ApiError, getPropertyPass, setPropertyPass } from '../lib/api';
+import { api, ApiError, getDealerFeePass, setDealerFeePass } from '../lib/api';
 
 /**
  * 돈 장부 잠금 — 비밀번호를 넣어야 안이 보인다.
@@ -8,13 +8,14 @@ import { api, ApiError, getPropertyPass, setPropertyPass } from '../lib/api';
  * 로그인만으로는 안 연다. 보증금·월세·상조회비처럼 자리를 비운 사이 열린 화면이 그대로
  * 남으면 안 되는 값이라, 탭에 들어올 때 한 번 더 받는다.
  *
- * 부동산과 같은 통행증을 쓴다 — 같은 성격의 장부를 두 번 칠 이유가 없다. 한쪽을 열면
- * 다른 쪽도 열리고, 한 시간이 지나면 둘 다 다시 잠긴다.
+ * 비밀번호는 부동산과 같은 값이다 — 같은 사람이 보는 같은 성격의 장부라 외울 번호를 둘로
+ * 늘리지 않는다. 다만 통행증은 따로 받는다: 부동산을 열었다고 이 장부까지 열리면 따로
+ * 잠근 뜻이 없다. 한 시간이 지나면 다시 잠긴다.
  *
  * 비밀번호는 서버(.env)에만 둔다. 화면에 박으면 소스를 받은 사람이 다 본다.
  */
 export default function LedgerLock({ title, children }: { title: string; children: ReactNode }) {
-  const [locked, setLocked] = useState(() => !getPropertyPass());
+  const [locked, setLocked] = useState(() => !getDealerFeePass());
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,8 +36,8 @@ export default function LedgerLock({ title, children }: { title: string; childre
     setBusy(true);
     setError(null);
     try {
-      const { pass } = await api<{ pass: string }>('/properties/unlock', { method: 'POST', body: { code } });
-      setPropertyPass(pass);
+      const { pass } = await api<{ pass: string }>('/dealer-fees/unlock', { method: 'POST', body: { code } });
+      setDealerFeePass(pass);
       setCode('');
       setLocked(false);
     } catch (e) {
