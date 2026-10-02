@@ -10,7 +10,7 @@ import SheetImportModal from './SheetImportModal';
 import MoveSuggestions from './MoveSuggestions';
 import KeyDispatchPanel from './KeyDispatchPanel';
 import { alertError, confirmDanger } from '../../lib/alert';
-import { PARKING_LOTS } from '../../lib/parkingLayout';
+import { PARKING_LOTS, lotLabel } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 import { REINSPECT_MONTHS, reinspectLabel } from '../../lib/reinspection';
 
@@ -262,7 +262,7 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
             <select value={lotFilter} onChange={e => setLotFilter(e.target.value)}
               className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
               <option value="all">전체 주차장</option>
-              {lots.map(l => <option key={l} value={l}>{l}</option>)}
+              {lots.map(l => <option key={l} value={l}>{lotLabel(l)}</option>)}
             </select>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as ParkingStatus | 'all')}
               className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">

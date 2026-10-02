@@ -14,7 +14,7 @@ import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import { reinspectLabel } from '../../lib/reinspection';
 import { ChevronRight, Move, Search } from 'lucide-react';
-import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup } from '../../lib/parkingLayout';
+import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup, lotLabel } from '../../lib/parkingLayout';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
 interface Props {
@@ -387,7 +387,7 @@ export default function ParkingGrid({ onCellClick, onMoveError, showSold = false
           {query.replace(/\s+/g, '').length >= 2 &&
             (found ? (
               <span className="text-xs font-semibold text-indigo-700">
-                {found.lot} {found.zone} {found.slot}
+                {lotLabel(found.lot)} {found.zone} {found.slot}
                 <span className="ml-1.5 font-normal text-slate-500">{found.vehicleModel}</span>
               </span>
             ) : (
@@ -448,7 +448,7 @@ export default function ParkingGrid({ onCellClick, onMoveError, showSold = false
               className="flex w-full items-center gap-2 px-3 py-2.5 text-left sm:hidden"
             >
               <ChevronRight size={16} className={`shrink-0 text-slate-800 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
-              <span className="text-sm font-bold text-slate-900">{lot}</span>
+              <span className="text-sm font-bold text-slate-900">{lotLabel(lot)}</span>
               <span className="ml-auto text-xs font-medium text-slate-700">{parked}대</span>
             </button>
 

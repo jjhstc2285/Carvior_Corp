@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { Check, ChevronLeft, ChevronRight, Droplets } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useStore } from '../../store';
-import { PARKING_LOTS } from '../../lib/parkingLayout';
+import { PARKING_LOTS, lotLabel } from '../../lib/parkingLayout';
 import { withCommas } from '../../lib/money';
 
 /**
@@ -198,7 +198,7 @@ export default function WashTab() {
         >
           {outsideLots.map(l => (
             <option key={l} value={l}>
-              {l}
+              {lotLabel(l)}
             </option>
           ))}
         </select>

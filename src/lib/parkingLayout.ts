@@ -13,6 +13,14 @@ export interface ParkingLotConfig {
    * (평동 3줄, 배양동 12줄) 주차장마다 따로 정한다.
    */
   slots?: string[];
+
+  /**
+   * 화면에 띄울 이름.
+   *
+   * 저장된 값(lot)은 번지 그대로다 — 바꾸면 지금까지 세워둔 차와 세차 기록이 모두 엉뚱한
+   * 주차장을 가리키게 된다. 부르는 이름만 따로 둔다.
+   */
+  label?: string;
 }
 
 /** 1행·2행 … N행 */
@@ -68,9 +76,9 @@ export const PARKING_LOTS: ParkingLotConfig[] = [
   { lot: '배양동 창고', group: '외부', bandColor: '#fcd34d', zones: numberedZones(5), slots: rowSlots(1) },
   { lot: '배양동 58-13', group: '외부', bandColor: '#bef264', zones: numberedZones(7), slots: rowSlots(12) },
   // 고색동 A·B·C — A·B는 수출 전용, C는 일반광고 전용
-  { lot: '고색동 213-4', group: '외부', bandColor: '#67e8f9', zones: numberedZones(8), slots: rowSlots(2) },
-  { lot: '고색동 205-1', group: '외부', bandColor: '#a5b4fc', zones: numberedZones(3), slots: rowSlots(8) },
-  { lot: '고색동 203-2', group: '외부', bandColor: '#fca5a5', zones: numberedZones(5), slots: rowSlots(5) },
+  { lot: '고색동 213-4', label: 'A주차장', group: '외부', bandColor: '#67e8f9', zones: numberedZones(8), slots: rowSlots(2) },
+  { lot: '고색동 205-1', label: 'B주차장', group: '외부', bandColor: '#a5b4fc', zones: numberedZones(3), slots: rowSlots(8) },
+  { lot: '고색동 203-2', label: 'C주차장', group: '외부', bandColor: '#fca5a5', zones: numberedZones(5), slots: rowSlots(5) },
 ];
 
 /** 그 주차장이 쓰는 줄 목록 — 안 정해뒀으면 본관 기본값 */
@@ -81,3 +89,13 @@ export function slotsOf(lot: ParkingLotConfig): readonly string[] {
 /** 화면 상단 묶음 탭 — 본관과 외부를 따로 본다(다 펼치면 표가 너무 길다). */
 export const PARKING_GROUPS = ['본관', '외부'] as const;
 export type ParkingGroup = (typeof PARKING_GROUPS)[number];
+
+/**
+ * 화면에 띄울 주차장 이름.
+ *
+ * 따로 정해둔 이름이 있으면 그걸, 없으면 번지 그대로 쓴다. 저장된 값은 건드리지 않는다 —
+ * 번지로 쌓인 기록이 그대로 있어야 지난 세차·주차를 찾을 수 있다.
+ */
+export function lotLabel(lot: string): string {
+  return PARKING_LOTS.find((l) => l.lot === lot)?.label ?? lot;
+}

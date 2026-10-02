@@ -4,6 +4,7 @@ import { useStore } from '../../store';
 import { api } from '../../lib/api';
 import { isPlacedWell, suggestLot, type LotSuggestion } from '../../lib/parkingPolicy';
 import { VEHICLE_BODY_TYPE_LABEL, type ManagedVehicle, type ParkingVehicle } from '../../types';
+import { lotLabel } from '../../lib/parkingLayout';
 
 interface Row {
   vehicle: ManagedVehicle;
@@ -93,7 +94,7 @@ export default function MoveSuggestions() {
 
               <span className="ml-auto flex items-center gap-1.5 whitespace-nowrap">
                 <span className="text-slate-500">
-                  {parked?.lot} {parked?.zone}
+                  {parked ? lotLabel(parked.lot) : ""} {parked?.zone}
                 </span>
                 <ArrowRight size={12} className="text-amber-500" />
                 <span className="font-bold text-amber-700">{suggestion.lots.join(' 또는 ')}</span>

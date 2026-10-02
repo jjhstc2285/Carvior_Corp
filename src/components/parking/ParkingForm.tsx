@@ -4,7 +4,7 @@ import { Trash2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { api, ApiError } from '../../lib/api';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
-import { PARKING_LOTS, PARKING_SLOTS } from '../../lib/parkingLayout';
+import { PARKING_LOTS, PARKING_SLOTS, lotLabel } from '../../lib/parkingLayout';
 import { confirmDanger } from '../../lib/alert';
 import { REINSPECT_MONTHS, reinspectLabel } from '../../lib/reinspection';
 
@@ -103,7 +103,7 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
 
         {positionLocked ? (
           <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            <span className="font-semibold">{lot}</span> · {zone} · {slot}
+            <span className="font-semibold">{lotLabel(lot)}</span> · {zone} · {slot}
           </p>
         ) : (
           <div className="mt-4 grid grid-cols-3 gap-3">
@@ -111,7 +111,7 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
               <label className="mb-1 block text-xs font-semibold text-slate-500">주차장 *</label>
               <select value={lot} onChange={e => { setLot(e.target.value); setZone(PARKING_LOTS.find(l => l.lot === e.target.value)?.zones[0] ?? ''); }}
                 className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-                {PARKING_LOTS.map(l => <option key={l.lot} value={l.lot}>{l.lot}</option>)}
+                {PARKING_LOTS.map(l => <option key={l.lot} value={l.lot}>{lotLabel(l.lot)}</option>)}
               </select>
             </div>
             <div>
