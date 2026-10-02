@@ -42,4 +42,10 @@ export const PARKING_STATUS_STYLE: Record<ParkingStatus, ParkingStatusStyle> = {
     dot: 'bg-slate-500',
     pill: 'bg-slate-100 text-slate-600 ring-slate-400/20',
   },
+  REPAIR: {
+    // 카모두수정 — 수정 들어간 차는 자리에 있어도 손대면 안 된다. 진한 민트.
+    cell: 'bg-teal-300 text-teal-950 hover:bg-teal-400',
+    dot: 'bg-teal-700',
+    pill: 'bg-teal-100 text-teal-800 ring-teal-700/20',
+  },
 };

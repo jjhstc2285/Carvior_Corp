@@ -1084,7 +1084,7 @@ export interface ConsultationRecord {
   createdAt: string;
 }
 
-export type ParkingStatus = 'DISPLAY' | 'SOLD' | 'RESERVED' | 'MOVING';
+export type ParkingStatus = 'DISPLAY' | 'SOLD' | 'RESERVED' | 'MOVING' | 'REPAIR';
 
 export const PARKING_STATUS_LABEL: Record<ParkingStatus, string> = {
   DISPLAY: '전시중',
@@ -1093,6 +1093,8 @@ export const PARKING_STATUS_LABEL: Record<ParkingStatus, string> = {
   SOLD: '엔카 진단예정',
   RESERVED: '출고대기',
   MOVING: '이동중',
+  // 수정 들어간 차 — 돌아올 때까지 빼면 안 된다
+  REPAIR: '카모두수정',
 };
 
 export interface ParkingVehicle {

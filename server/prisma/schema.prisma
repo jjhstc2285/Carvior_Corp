@@ -787,6 +787,7 @@ enum ParkingStatus {
   SOLD // 판매완료
   RESERVED // 예약중
   MOVING // 이동중
+  REPAIR // 카모두수정 — 수정 들어간 차. 손대면 안 된다
 }
 
 model ParkingVehicle {
