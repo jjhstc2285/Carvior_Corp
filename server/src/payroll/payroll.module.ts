@@ -65,8 +65,13 @@ export const MEAL_PER_DAY = 9000;
 export const MEAL_IN_BY = '09:30';
 export const MEAL_OUT_FROM = '18:00';
 
-/** 통행증은 여덟 시간만 산다 — 하루 일과가 끝나면 다시 받는다 */
-const PASS_HOURS = 8;
+/**
+ * 통행증은 한 시간만 산다.
+ *
+ * 여덟 시간으로 뒀더니 아침에 한 번 열면 그날 하루는 그냥 열렸다 — 잠근 뜻이 없다.
+ * 자리를 비운 사이 누가 와서 봐도 한 시간 안에는 잠긴다.
+ */
+const PASS_HOURS = 1;
 
 function makePass(user: AuthUser): string {
   const exp = Date.now() + PASS_HOURS * 3600_000;

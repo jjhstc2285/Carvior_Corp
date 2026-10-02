@@ -53,6 +53,7 @@ import CondolenceModule from './components/condolence/CondolenceModule';
 import PurchaseIntakeModule from './components/purchaseIntake/PurchaseIntakeModule';
 import StockFinanceModule from './components/vehicle/StockFinanceModule';
 import DealerFeeModule from './components/dealerFee/DealerFeeModule';
+import LedgerLock from './components/LedgerLock';
 import ApprovalModule from './components/approval/ApprovalModule';
 import AdModule from './components/ad/AdModule';
 import { useChatUnread } from './components/chat/useChat';
@@ -95,7 +96,13 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'vendor') return <VendorModule role={role} />;
   if (module === 'property') return <PropertyModule />;
   if (module === 'payroll') return <PayrollModule />;
-  if (module === 'dealerFee') return <DealerFeeModule />;
+  if (module === 'dealerFee')
+    return (
+      // 부동산과 같은 비밀번호로 잠근다 — 같은 성격의 돈 장부다
+      <LedgerLock title="신차영업소 상조회비">
+        <DealerFeeModule />
+      </LedgerLock>
+    );
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
   if (module === 'ad') return <AdModule role={role} />;

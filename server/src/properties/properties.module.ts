@@ -68,8 +68,13 @@ function canOpenProperty(user: AuthUser): boolean {
   return viewerNames().includes(user.name.trim()) || isTestAccount(user);
 }
 
-/** 통행증은 여덟 시간만 산다 — 하루 일과가 끝나면 다시 받는다 */
-const PASS_HOURS = 8;
+/**
+ * 통행증은 한 시간만 산다.
+ *
+ * 여덟 시간으로 뒀더니 아침에 한 번 열면 그날 하루는 그냥 열렸다 — 잠근 뜻이 없다.
+ * 자리를 비운 사이 누가 와서 봐도 한 시간 안에는 잠긴다.
+ */
+const PASS_HOURS = 1;
 
 /** 통행증 = 만료시각 + 그 사람에게만 맞는 서명. 서버만 만들 수 있다 */
 function makePass(user: AuthUser): string {
@@ -78,7 +83,13 @@ function makePass(user: AuthUser): string {
   return `${exp}.${sign}`;
 }
 
-function verifyPass(user: AuthUser, pass?: string): boolean {
+/**
+ * 통행증이 맞는가.
+ *
+ * 상조회비도 같은 번호로 잠근다 — 같은 돈 장부라 두 번 칠 이유가 없다. 그래서 이 검사만
+ * 밖으로 연다(번호를 받고 통행증을 내주는 자리는 여전히 여기 하나뿐이다).
+ */
+export function verifyPass(user: AuthUser, pass?: string): boolean {
   const [expText, sign] = (pass ?? '').split('.');
   const exp = Number(expText);
   if (!exp || !sign || Date.now() > exp) return false;

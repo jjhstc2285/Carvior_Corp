@@ -2,7 +2,9 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
+  Headers,
   HttpCode,
   Injectable,
   Logger,
@@ -37,6 +39,7 @@ import { bestMatch, brandOf, dealerKey } from './dealer-match';
 import { formatDateOnly, formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager, LEDGER_VIEWER_WHERE } from '../auth/office-manager';
+import { verifyPass } from '../properties/properties.module';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { PushService } from '../push/push.service';
@@ -622,6 +625,23 @@ export class DealerFeeReminderService implements OnModuleInit, OnModuleDestroy {
  * 사무장이 챙기는 대장이라 사무장과 관리자만 본다. 화면에서 메뉴를 감추는 것만으로는
  * 막은 게 아니라 여기서 한 번 더 가린다.
  */
+/**
+ * 볼 수 있는 사람인가, 그리고 비밀번호를 넣고 들어왔는가.
+ *
+ * 직급으로만 가리고 있었다. 그런데 이건 어느 영업소에 얼마를 걸어 두었는지가 줄줄이
+ * 적힌 장부다 — 부동산과 같은 성격이라 같은 비밀번호로 잠근다.
+ *
+ * 통행증은 부동산 것을 그대로 쓴다. 같은 돈 장부를 두 번 칠 이유가 없다 — 한쪽을 열면
+ * 다른 쪽도 열린다.
+ */
+function assertUnlocked(user: AuthUser, pass?: string): void {
+  assertOfficeManager(user);
+  if (!verifyPass(user, pass)) {
+    // 화면이 '번호 다시 받기'와 '아예 못 봄'을 갈라 볼 수 있게 표를 붙인다
+    throw new ForbiddenException({ message: '비밀번호를 다시 넣어 주세요.', code: 'PROPERTY_LOCKED' });
+  }
+}
+
 @Controller('dealer-fees')
 export class DealerFeesController {
   constructor(
@@ -630,15 +650,15 @@ export class DealerFeesController {
   ) {}
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser, @Query() query: DealerFeeQueryDto) {
-    assertOfficeManager(user);
+  findAll(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Query() query: DealerFeeQueryDto) {
+    assertUnlocked(user, pass);
     return this.dealerFees.findAll(query);
   }
 
   /** 영업소별 판매·매입 실적 — 회비만 나가는 곳을 찾는 데 쓴다. */
   @Get('activity')
-  activity(@CurrentUser() user: AuthUser) {
-    assertOfficeManager(user);
+  activity(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string) {
+    assertUnlocked(user, pass);
     return this.dealerFees.activity();
   }
 
@@ -647,48 +667,48 @@ export class DealerFeesController {
    * 회비를 어디에 계속 낼지 정하는 자리라 장부와 같은 사람만 본다.
    */
   @Get('ranking')
-  ranking(@CurrentUser() user: AuthUser) {
-    assertOfficeManager(user);
+  ranking(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string) {
+    assertUnlocked(user, pass);
     return this.dealerFees.dealerRanking();
   }
 
   /** 지금 이 장부를 볼 수 있는 사람 — 화면에서 확인용 */
   @Get('viewers')
-  viewers(@CurrentUser() user: AuthUser) {
-    assertOfficeManager(user);
+  viewers(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string) {
+    assertUnlocked(user, pass);
     return this.dealerFees.viewers();
   }
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() dto: CreateDealerFeeDto) {
-    assertOfficeManager(user);
+  create(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Body() dto: CreateDealerFeeDto) {
+    assertUnlocked(user, pass);
     return this.dealerFees.create(dto);
   }
 
   /** 엑셀에서 붙여넣은 줄을 한 번에 — 이미 있는 업체명은 건너뛴다 */
   /** 오늘 이체할 곳을 지금 바로 알린다 — 시간을 기다리지 않고 확인할 때 */
   @Post('remind-now')
-  remindNow(@CurrentUser() user: AuthUser) {
-    assertOfficeManager(user);
+  remindNow(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string) {
+    assertUnlocked(user, pass);
     return this.reminder.notifyDue(todayKst());
   }
 
   @Post('bulk')
-  createMany(@CurrentUser() user: AuthUser, @Body() dto: BulkDealerFeeDto) {
-    assertOfficeManager(user);
+  createMany(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Body() dto: BulkDealerFeeDto) {
+    assertUnlocked(user, pass);
     return this.dealerFees.createMany(dto.items);
   }
 
   @Patch(':id')
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateDealerFeeDto) {
-    assertOfficeManager(user);
+  update(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Param('id') id: string, @Body() dto: UpdateDealerFeeDto) {
+    assertUnlocked(user, pass);
     return this.dealerFees.update(id, user, dto);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    assertOfficeManager(user);
+  async remove(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Param('id') id: string) {
+    assertUnlocked(user, pass);
     await this.dealerFees.remove(id);
   }
 }

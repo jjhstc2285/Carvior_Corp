@@ -194,7 +194,8 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   // 부동산 쪽은 통행증을 같이 보낸다. 화면마다 챙기면 한 군데는 꼭 빠뜨린다
-  if (path.startsWith('/properties')) {
+  // 상조회비도 같은 통행증을 쓴다 — 같은 돈 장부라 번호를 두 번 칠 이유가 없다
+  if (path.startsWith('/properties') || path.startsWith('/dealer-fees')) {
     const pass = getPropertyPass();
     if (pass) headers['X-Property-Pass'] = pass;
   }
@@ -230,7 +231,20 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
   if (!res.ok) {
     const message = extractMessage(data) ?? `요청에 실패했습니다. (${res.status})`;
-    throw new ApiError(res.status, message, extractCode(data));
+    const code = extractCode(data);
+
+    /*
+      돈 장부 통행증이 시간 지나 막혔다.
+
+      화면마다 이걸 따로 알아채게 두면 한 군데는 꼭 빠뜨린다 — 그러면 화면은 열려 있는데
+      아무것도 안 불러와지는 상태로 남는다. 여기서 한 번 치우고 알린다.
+    */
+    if (code === 'PROPERTY_LOCKED') {
+      setPropertyPass(null);
+      window.dispatchEvent(new CustomEvent('ledger-locked'));
+    }
+
+    throw new ApiError(res.status, message, code);
   }
 
   return data as T;
