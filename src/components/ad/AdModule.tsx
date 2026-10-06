@@ -161,7 +161,13 @@ export default function AdModule({ role }: { role: Role }) {
     광고비는 대당 금액 × 찍은 대수다 — 정액이 아니라 쓴 만큼 나간다. 약정은 분기라
     달과 주기가 다르다: 돈은 달로, 약정은 분기로 본다.
   */
-  const month = dayjs().format('YYYY-MM');
+  /*
+    맨 위 숫자가 가리키는 달.
+
+    이번 달로 못 박아 두니 지난달에 얼마 나갔는지 보려면 달력을 뒤져야 했다. 달을 고르면
+    광고비·진단 대수·약정이 모두 그 달 기준으로 바뀐다.
+  */
+  const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   const monthRows = rows.map(c => ({ c, count: c.postings.filter(p => p.postedOn.startsWith(month)).length }));
   const monthCount = monthRows.reduce((sum, x) => sum + x.count, 0);
   const monthFee = monthRows.reduce((sum, x) => sum + x.c.unitFee * x.count, 0);
@@ -235,6 +241,13 @@ export default function AdModule({ role }: { role: Role }) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/* 맨 위 숫자가 가리키는 달 — 바꾸면 광고비·진단·약정이 같이 따라간다 */}
+          <input
+            type="month"
+            value={month}
+            onChange={e => setMonth(e.target.value || dayjs().format('YYYY-MM'))}
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+          />
           {isAdmin && (
             <button
               onClick={() => setFormOpen(true)}
@@ -248,7 +261,7 @@ export default function AdModule({ role }: { role: Role }) {
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">
-          <p className="text-xs font-medium text-indigo-700/80">{dayjs().format('M월')} 광고비</p>
+          <p className="text-xs font-medium text-indigo-700/80">{dayjs(`${month}-01`).format('M월')} 광고비</p>
           <p className="mt-1 text-2xl font-bold text-indigo-700">
             {(monthFee + otherSpend).toLocaleString()}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
@@ -262,7 +275,7 @@ export default function AdModule({ role }: { role: Role }) {
 
 
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">{dayjs().format('M월')} 진단</p>
+          <p className="text-xs font-medium text-slate-400">{dayjs(`${month}-01`).format('M월')} 진단</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">
             {monthCount}
             <span className="ml-1 text-sm font-medium text-slate-400">대</span>
@@ -422,7 +435,7 @@ export default function AdModule({ role }: { role: Role }) {
                       {monthCountOf}
                       <span className="ml-1 text-sm font-medium text-slate-400">대</span>
                     </span>
-                    <span className="text-xs font-medium text-slate-400">{dayjs().format('M월')}</span>
+                    <span className="text-xs font-medium text-slate-400">{dayjs(`${month}-01`).format('M월')}</span>
                     <span className="text-sm font-semibold text-slate-500">
                       {(c.unitFee * monthCountOf).toLocaleString()}원
                     </span>
@@ -467,7 +480,15 @@ export default function AdModule({ role }: { role: Role }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {c.periods.map(m => (
+                    {/*
+                      지난 주기는 안 띄운다.
+
+                      계약이 일 년이면 분기 넷이 줄줄이 늘어서는데, 이미 끝난 분기는 지금
+                      할 일이 없다 — 보고 있는 달이 든 주기부터 보여준다.
+                    */}
+                    {c.periods
+                      .filter(m => m.to > `${month}-01`)
+                      .map(m => (
                       <tr key={m.from} className={`border-t border-slate-50 ${cur?.label === m.label ? 'bg-indigo-50/40' : ''}`}>
                         <td className="px-3 py-1.5 text-slate-600">{m.label}</td>
                         <td className={`px-3 py-1.5 text-right font-semibold ${m.quota > 0 && m.count >= m.quota ? 'text-emerald-700' : 'text-slate-800'}`}>
@@ -479,7 +500,7 @@ export default function AdModule({ role }: { role: Role }) {
                           {m.shortfall > 0 ? `${m.shortfall}대` : '—'}
                         </td>
                       </tr>
-                    ))}
+                      ))}
                     <tr className="border-t border-slate-200 bg-slate-50/60 font-semibold">
                       <td className="px-3 py-1.5 text-slate-600">합계</td>
                       <td className="px-3 py-1.5 text-right text-slate-800">{c.used}대</td>
