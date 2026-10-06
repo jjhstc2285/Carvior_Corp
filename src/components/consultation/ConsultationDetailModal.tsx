@@ -34,7 +34,8 @@ export default function ConsultationDetailModal({
   onClose,
 }: {
   consultation: ConsultationRecord;
-  onEdit: () => void;
+  /** 없으면 [수정]을 안 띄운다 — 고칠 자리가 아닌 화면에서도 띄워 보기 때문이다 */
+  onEdit?: () => void;
   onClose: () => void;
 }) {
   const { state } = useStore();
@@ -136,12 +137,14 @@ export default function ConsultationDetailModal({
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
             닫기
           </button>
-          <button
-            onClick={onEdit}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-          >
-            <Pencil size={14} /> 수정
-          </button>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              <Pencil size={14} /> 수정
+            </button>
+          )}
         </div>
       </div>
     </div>

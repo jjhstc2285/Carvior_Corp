@@ -160,3 +160,54 @@ export function parseVisit(text: string, calledAt: string): Visit | null {
   }
   return best;
 }
+
+/** 한글로 읽은 시각 — "세시" (visitHour 에서도 쓴다) */
+const PART_OF_DAY: { word: RegExp; hour: number }[] = [
+  { word: /새벽/, hour: 8 },
+  { word: /아침/, hour: 9 },
+  { word: /오전/, hour: 10 },
+  { word: /점심|낮/, hour: 12 },
+  { word: /오후/, hour: 14 },
+  { word: /저녁|밤/, hour: 18 },
+];
+
+function to24(hour: number, mark: string): number {
+  if (/오전|아침|새벽/.test(mark)) return hour === 12 ? 0 : hour;
+  if (/오후|저녁|밤/.test(mark)) return hour < 12 ? hour + 12 : hour;
+  if (hour === 12) return 12;
+  return hour >= 1 && hour <= 7 ? hour + 12 : hour;
+}
+
+/**
+ * 적힌 방문 시각을 한 시간짜리 자리로 바꾼다 — "오후 3시~4시" → 15.
+ *
+ * 범위로 적힌 건 시작 시각으로 본다. 때만 말한 것도 자리는 잡아 준다("오전" → 10시).
+ * 아무것도 못 집으면 null 이다.
+ *
+ * 나누는 계산은 서버가 한다(server/src/consultations/visit-slot.ts). 여기 것은 화면에서
+ * 차례를 세우고 몇 시 자리인지 보여주는 데만 쓴다 — 고칠 땐 양쪽을 같이 본다.
+ */
+export function visitHour(text: string | null | undefined): number | null {
+  const line = (text ?? '').trim();
+  if (!line) return null;
+
+  const mark = /오전|오후|아침|점심|저녁|밤|새벽|낮/.exec(line)?.[0] ?? '';
+
+  const colon = /(\d{1,2})\s*:\s*(\d{2})/.exec(line);
+  if (colon) {
+    const h = Number(colon[1]);
+    if (h >= 0 && h <= 23) return to24(h, mark);
+  }
+
+  const num = /(\d{1,2})\s*시/.exec(line);
+  if (num) {
+    const h = Number(num[1]);
+    if (h >= 0 && h <= 23) return to24(h, mark);
+  }
+
+  const words = Object.keys(HOUR_WORDS).sort((a, b) => b.length - a.length).join('|');
+  const word = new RegExp(`(${words})\s*시`).exec(line);
+  if (word) return to24(HOUR_WORDS[word[1]], mark);
+
+  return PART_OF_DAY.find(p => p.word.test(line))?.hour ?? null;
+}

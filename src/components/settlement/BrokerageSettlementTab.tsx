@@ -17,6 +17,7 @@ import {
 import { ContractPhotoThumb } from './ContractPhotos';
 import BrokerageSettlementForm from './BrokerageSettlementForm';
 import PendingSettlementVehicles from './PendingSettlementVehicles';
+import VisitMissPanel from '../consultation/VisitMissPanel';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
@@ -287,6 +288,12 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           setFormOpen(true);
         }}
       />
+
+      {/*
+        방문했는데 계약이 안 된 건 — 전환율 숫자 뒤에 있는 손님들이다.
+        눌러서 바로 연다. 보류면 왜 보류인지, 종결이면 무슨 말이 오갔는지가 거기 있다.
+      */}
+      <VisitMissPanel month={month} allMonths={allMonths} />
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">

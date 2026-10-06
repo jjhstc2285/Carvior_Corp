@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConsultationKind, ConsultationStatus, NotificationType, PayMethod, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
@@ -7,6 +7,7 @@ import { todayKst } from '../common/date.util';
 import { normalizePlate } from '../vehicles/vehicle.rules';
 import { parseConsultationSheet } from './sheet-import';
 import type { AuthUser } from '../auth/current-user.decorator';
+import { assignVisits } from './visit-slot';
 import { formatDateOnly, formatDateOnlyOrNull, toDateOnly, toDateOnlyOrNull } from '../common/date.util';
 import type { CreateConsultationDto, UpdateConsultationDto } from './dto/consultation.dto';
 import { TelegramService } from '../telegram/telegram.module';
@@ -43,6 +44,9 @@ function payFieldsOf(dto: {
     installmentAmount: dto.installmentAmount ?? 0,
   };
 }
+
+/** 방문을 맡는 팀 — 상담도 이 팀이 받는다(화면의 전환율도 같은 팀만 센다) */
+const VISIT_TEAM = '알선팀';
 
 @Injectable()
 export class ConsultationsService {
@@ -272,6 +276,7 @@ export class ConsultationsService {
         time: dto.time,
         content: dto.content,
         visitDate: toDateOnlyOrNull(dto.visitDate),
+        visitDealerId: dto.visitDealerId?.trim() || null,
         visitTime: dto.visitTime?.trim() ?? '',
         depositAmount: dto.depositAmount ?? 0,
         nextContactDate: toDateOnlyOrNull(dto.nextContactDate),
@@ -308,6 +313,8 @@ export class ConsultationsService {
         ...(dto.content !== undefined ? { content: dto.content } : {}),
         ...(dto.visitDate !== undefined ? { visitDate: toDateOnlyOrNull(dto.visitDate) } : {}),
         ...(dto.visitTime !== undefined ? { visitTime: dto.visitTime.trim() } : {}),
+        // 빈 글자로 오면 '아직 안 정함'으로 되돌린다
+        ...(dto.visitDealerId !== undefined ? { visitDealerId: dto.visitDealerId?.trim() || null } : {}),
         ...(dto.depositAmount !== undefined ? { depositAmount: dto.depositAmount } : {}),
         ...(dto.nextContactDate !== undefined
           ? { nextContactDate: toDateOnlyOrNull(dto.nextContactDate) }
@@ -402,6 +409,63 @@ export class ConsultationsService {
     });
 
     return { imported: created.count, already, skipped };
+  }
+
+  /**
+   * 그날 방문을 알선팀에게 자동으로 나눈다.
+   *
+   * 한 사람은 같은 시간대에 한 손님만 맞는다 — 맞고 있는 동안 다른 손님은 못 받는다.
+   * 그 시간에 빈 사람 중 그날 제일 적게 맡은 사람에게 간다.
+   *
+   * 이미 정해 둔 건은 그대로 둔다. 전화받은 사람이 찍어 둔 걸 자동으로 뒤집으면 버튼을
+   * 누를 때마다 담당이 바뀐다.
+   *
+   * 종결한 건은 빼고 센다 — 안 오기로 한 손님 자리까지 잡아 두면 올 손님이 갈 데가 없다.
+   */
+  async assignVisits(date: string) {
+    const day = toDateOnly(date);
+
+    const [rows, dealers] = await Promise.all([
+      this.prisma.consultation.findMany({
+        where: { visitDate: day, status: { not: ConsultationStatus.CLOSED } },
+        select: { id: true, visitTime: true, visitDealerId: true, vehicleNumber: true, vehicleName: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.employee.findMany({
+        where: { active: true, department: VISIT_TEAM },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    if (dealers.length === 0) {
+      throw new BadRequestException(`${VISIT_TEAM}에 등록된 직원이 없습니다.`);
+    }
+
+    const result = assignVisits(rows, dealers.map((d) => d.id));
+
+    // 몇 건 안 되는 하루치라 한 줄씩 적는다
+    await Promise.all(
+      result.placed.map((p) =>
+        this.prisma.consultation.update({ where: { id: p.id }, data: { visitDealerId: p.dealerId } }),
+      ),
+    );
+
+    const labelOf = (id: string) => {
+      const row = rows.find((r) => r.id === id);
+      return row ? row.vehicleName || row.vehicleNumber : '';
+    };
+
+    return {
+      date,
+      visits: rows.length,
+      assigned: result.placed.length,
+      /** 시각을 못 읽어 못 나눈 건 — 방문 시각을 적어 주면 다음에 나뉜다 */
+      noTime: result.noTime.map(labelOf),
+      /** 그 시간에 빈 사람이 없던 건 */
+      noRoom: result.noRoom.map(labelOf),
+      dealers: dealers.map((d) => ({ ...d, count: result.load.get(d.id) ?? 0 })),
+    };
   }
 
   async remove(id: string) {

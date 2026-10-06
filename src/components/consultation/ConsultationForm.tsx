@@ -90,6 +90,8 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
       depositAmount: Number(depositAmount.replace(/[^\d]/g, '')) || 0,
       visitDate: visitDate || null,
       visitTime: visitTime.trim(),
+      // 담당 딜러는 이 창에서 안 고친다 — 방문 배정판과 표에서 고르는 값이라 그대로 들고 간다
+      visitDealerId: editing?.visitDealerId ?? null,
       nextContactDate: nextContactDate || null,
       payMethod,
       // 현금이면 할부 칸은 안 보낸다 — 서버도 같은 기준으로 비운다

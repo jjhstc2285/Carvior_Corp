@@ -557,6 +557,15 @@ model Consultation {
   visitDate DateTime? @db.Date
   visitTime String    @default("") @db.VarChar(30)
 
+  /**
+   * 그날 손님을 맞을 담당 딜러.
+   *
+   * employeeId 는 전화를 받아 적은 사람이다. 손님이 오는 날 붙어 있을 사람은 그와 다를
+   * 수 있어 따로 둔다 — 전화받은 사람이 알선팀에서 골라 지정하고, 비워 두면 자동으로
+   * 나눈다(한 시간 자리에 한 사람, 적게 맡은 사람부터).
+   */
+  visitDealerId String?
+
   // 출고할 때 카톡방에 "12가3456 입금1000만원 동주 출고완료"처럼 올린다.
   // 그 입금액을 여기 남겨두면 정산으로 넘길 때 다시 묻지 않아도 된다(만원).
   depositAmount Int @default(0)

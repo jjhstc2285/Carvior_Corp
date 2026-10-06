@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -91,6 +92,21 @@ export class ConsultationsController {
   @Get('by-customer/:name')
   byCustomer(@Param('name') name: string) {
     return this.consultations.findByCustomer(name);
+  }
+
+  /**
+   * 그날 방문을 알선팀에게 자동으로 나눈다.
+   *
+   * 한 시간 자리에 한 사람씩, 적게 맡은 사람부터. 이미 담당을 찍어 둔 건은 그대로 둔다.
+   * 전화받은 사람이 누르는 버튼이라 자리를 가리지 않는다 — 상담은 전 직원이 본다.
+   */
+  @Post('visits/assign')
+  assignVisits(@Body() dto: { date?: string }) {
+    const date = (dto.date ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new BadRequestException('날짜는 YYYY-MM-DD 형식이어야 합니다.');
+    }
+    return this.consultations.assignVisits(date);
   }
 
   @Get(':id')

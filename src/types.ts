@@ -1075,6 +1075,8 @@ export interface ConsultationRecord {
   visitDate: string | null;
   /** 방문 시각 — "오후 3시~4시"처럼 적힌 그대로 둔다(범위나 두루뭉술한 표현이 많다) */
   visitTime: string;
+  /** 그날 손님을 맞을 담당 딜러 — 전화를 받아 적은 사람(employeeId)과 다를 수 있다 */
+  visitDealerId: string | null;
   /** 출고 시 입금액(만원) — 카톡방에 올리는 "입금1000만원"이 이 값이다 */
   depositAmount: number;
   nextContactDate: string | null; // 다음 연락 예정일

@@ -16,8 +16,10 @@ import CustomerHistoryModal from './CustomerHistoryModal';
 import SellableVehicles from './SellableVehicles';
 import CallInbox from './CallInbox';
 import ConsultationDetailModal from './ConsultationDetailModal';
+import VisitAssignPanel, { VisitDealerSelect, visitDealers } from './VisitAssignPanel';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
+import { api, ApiError } from '../../lib/api';
 import { conversionOf, isOfKind } from '../../lib/consultationStats';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 
@@ -31,6 +33,7 @@ const COLUMNS: Column[] = [
   { key: 'customer', label: '손님번호' },
   { key: 'owner', label: '담당자' },
   { key: 'visit', label: '방문예정' },
+  { key: 'visitDealer', label: '담당 딜러' },
   { key: 'status', label: '상태' },
   { key: 'content', label: '내용', nowrap: false },
   { key: 'actions', label: '관리', align: 'text-right' },
@@ -109,7 +112,7 @@ const CONSULTATION_TEAM = '알선팀';
 const PAGE_SIZE = 100;
 
 export default function ConsultationModule({ role, kind }: Props) {
-  const { state, deleteConsultation } = useStore();
+  const { state, deleteConsultation, refresh } = useStore();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusView>('open');
   const [visible, setVisible] = useState(PAGE_SIZE);
@@ -160,6 +163,18 @@ export default function ConsultationModule({ role, kind }: Props) {
   const shown = filtered.slice(0, visible);
 
   const employeeOf = (id: string) => state.employees.find(e => e.id === id);
+
+  /** 방문을 맡는 알선팀 — 담당 딜러 칸에 뜨는 사람들 */
+  const dealers = useMemo(() => visitDealers(state.employees), [state.employees]);
+
+  const setVisitDealer = async (c: ConsultationRecord, dealerId: string) => {
+    try {
+      await api(`/consultations/${c.id}`, { method: 'PATCH', body: { visitDealerId: dealerId } });
+      await refresh();
+    } catch (e) {
+      void alertError('담당 딜러를 정하지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
 
   /**
    * 날짜별로 미리 묶어둔다.
@@ -278,6 +293,12 @@ export default function ConsultationModule({ role, kind }: Props) {
           }}
         />
       </div>
+
+      {/*
+        방문 배정 — 그날 오는 손님을 누가 맞을지 정한다.
+        우리 물건을 우리가 파는 자리에서만 띄운다(수출·기타는 손님이 오지 않는다).
+      */}
+      {(kind === 'SALE' || kind === 'BROKERAGE') && <VisitAssignPanel />}
 
       {/* 상품화된 차를 눌러 그 차로 상담을 연다 — 차량번호를 옮겨 치지 않게 */}
       {/* 우리 물건을 우리가 파는 자리(판매·알선)에서만 — 수출·기타는 고를 차가 다르다 */}
@@ -447,6 +468,21 @@ export default function ConsultationModule({ role, kind }: Props) {
                       ) : (
                         <span className="text-slate-300">—</span>
                       ),
+                    /*
+                      방문을 맞을 사람 — 전화받은 사람이 여기서 바로 고른다.
+
+                      방문 약속이 없는 건에는 안 띄운다. 올 날이 없는데 맞을 사람부터
+                      정해 두면 아무 뜻이 없다.
+                    */
+                    visitDealer: c.visitDate ? (
+                      <VisitDealerSelect
+                        value={c.visitDealerId}
+                        dealers={dealers}
+                        onPick={id => setVisitDealer(c, id)}
+                      />
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    ),
                     status: (
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STATUS_COLOR[c.status]}`}

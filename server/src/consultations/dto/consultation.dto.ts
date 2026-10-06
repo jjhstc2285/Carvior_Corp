@@ -69,6 +69,9 @@ export class CreateConsultationDto extends PayFields {
   /** 방문 시각 — "오후 3시~4시"처럼 적힌 그대로 받는다 */
   @IsOptional() @IsString() @MaxLength(30) visitTime?: string;
 
+  /** 그날 손님을 맞을 담당 딜러 — 빈 글자면 아직 안 정한 것이다 */
+  @IsOptional() @IsString() @MaxLength(40) visitDealerId?: string | null;
+
   /** 출고 입금액(만원) */
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) depositAmount?: number;
 
@@ -85,6 +88,7 @@ export class UpdateConsultationDto extends PayFields {
   @IsOptional() @IsString() @MaxLength(20) customerPhone?: string;
   @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/) visitDate?: string | null;
   @IsOptional() @IsString() @MaxLength(30) visitTime?: string;
+  @IsOptional() @IsString() @MaxLength(40) visitDealerId?: string | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) depositAmount?: number;
   @IsOptional() @IsString() @MaxLength(50) customerName?: string;
   @IsOptional() @IsString() @MaxLength(60) outsideDealer?: string;
