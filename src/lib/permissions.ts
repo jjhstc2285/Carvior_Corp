@@ -35,7 +35,23 @@ export function isOfficeManager(user: AuthUser | null): boolean {
  *
  * 부서로 가린다 — 사람이 바뀌어도 계약팀에 들어오면 그대로 보인다.
  */
-export function canSeeAllSettlements(user: { role: string } | null, department?: string | null): boolean {
+/**
+ * 계약팀은 아니지만 매입 정산을 보는 사람.
+ *
+ * 매입가와 상품화 비용을 들여다봐야 하는 자리인데 계약팀이 아니다. 직급으로 열면 같은
+ * 직급이 하나 더 생겼을 때 같이 열린다 — 승인자를 이름으로 못 박는 것과 같은 이유로
+ * 이름으로 둔다. 바꿀 일이 생기면 이 줄 하나만 고친다.
+ *
+ * 서버에도 같은 이름이 있다(settlements/approvers.ts) — 고칠 땐 양쪽을 같이 본다.
+ */
+export const SETTLEMENT_VIEWERS = ['이우주', '안원용'];
+
+export function canSeeAllSettlements(
+  user: { role: string } | null,
+  department?: string | null,
+  name?: string | null,
+): boolean {
   if (!user) return false;
-  return user.role !== 'EMPLOYEE' || department === '계약팀';
+  if (user.role !== 'EMPLOYEE' || department === '계약팀') return true;
+  return SETTLEMENT_VIEWERS.includes((name ?? '').trim());
 }

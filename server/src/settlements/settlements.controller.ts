@@ -56,7 +56,7 @@ if (!existsSync(PANEL_INVOICE_DIR)) mkdirSync(PANEL_INVOICE_DIR, { recursive: tr
 /** 계약팀은 남의 정산도 본다 — 빈칸을 채우는 게 그 팀 일이다. */
 const CONTRACT_TEAM = '계약팀';
 import { assertOfficeManager } from '../auth/office-manager';
-import { canEditPanelInvoice } from './approvers';
+import { canEditPanelInvoice, canSeePurchaseSettlements } from './approvers';
 import type { PrepCostKind } from '@prisma/client';
 
 /** 상품화 비용 항목 — 청구서가 어느 칸으로 들어갈지 가른다(스키마의 PrepCostKind와 같다) */
@@ -209,7 +209,7 @@ export class SettlementsController {
     @Query('month') month?: string,
     @Query('employeeId') employeeId?: string,
   ) {
-    if (user.role !== Role.ADMIN && user.department !== CONTRACT_TEAM) {
+    if (user.role !== Role.ADMIN && user.department !== CONTRACT_TEAM && !canSeePurchaseSettlements(user)) {
       throw new ForbiddenException('매입 정산은 계약팀과 관리자만 볼 수 있습니다.');
     }
     return this.settlements.findPurchase({ q, status, month, employeeId: this.scope(user, employeeId) });

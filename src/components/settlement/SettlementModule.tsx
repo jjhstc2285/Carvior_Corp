@@ -48,7 +48,7 @@ export default function SettlementModule({ role }: Props) {
   */
   const { state } = useStore();
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
-  const seesPurchase = canSeeAllSettlements({ role }, me?.department);
+  const seesPurchase = canSeeAllSettlements({ role }, me?.department, me?.name);
 
   const tabs = TABS.filter(t => t.key !== 'purchase' || seesPurchase);
   const current = tabs.find(t => t.key === tab) ?? tabs[0];
