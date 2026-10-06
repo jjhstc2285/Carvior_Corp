@@ -195,8 +195,10 @@ export function purchaseGrandTotal(
   prepTotal: number,
   transferFee = 0,
   brokerFee = 0,
+  /** 헤이딜러·엔카 경매장 수수료 — 사오는 데 든 돈이라 총비용에 들어간다 */
+  platformFee = 0,
 ): number {
-  return purchasePrice + transferFee + brokerFee + prepTotal;
+  return purchasePrice + transferFee + brokerFee + platformFee + prepTotal;
 }
 
 /**
@@ -292,6 +294,7 @@ export function purchaseGrandTotalWon(
   vehicleCost: VehicleCostSummary,
   transferFee = 0,
   brokerFee = 0,
+  platformFee = 0,
 ): number {
-  return purchaseGrandTotal(purchasePrice, prepTotal, transferFee, brokerFee) + vehicleCost.total;
+  return purchaseGrandTotal(purchasePrice, prepTotal, transferFee, brokerFee, platformFee) + vehicleCost.total;
 }

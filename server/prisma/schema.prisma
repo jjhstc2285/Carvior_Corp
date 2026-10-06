@@ -709,6 +709,16 @@ model PurchaseSettlement {
   purchasePrice Int      @default(0) // 매입가
   brokerFee     Int      @default(0) // 구전 — 상품화가 아니라 별도 항목이다
 
+  /**
+   * 플랫폼 수수료(원).
+   *
+   * 헤이딜러·엔카 경매장에서 사오면 그쪽에 수수료를 낸다. 차를 사오는 데 든 돈이라
+   * 상품화가 아니라 매입 쪽에 붙는다 — 이전비·구전과 같은 자리다.
+   *
+   * 직접 사온 차는 0이다.
+   */
+  platformFee   Int      @default(0)
+
   // 구전 지급방식. 금액은 방식에 맞춰 brokerFee 에 적는다.
   brokerFeePayout BrokerFeePayout @default(CASH)
 

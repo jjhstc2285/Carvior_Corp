@@ -68,6 +68,7 @@ const COLUMNS: Column[] = [
   ...PREP_COST_KINDS.map(k => ({ key: `prep:${k}`, label: PREP_COST_LABEL[k], align: 'text-right' })),
   { key: 'prepTotal', label: '상품화총비용', align: 'text-right' },
   { key: 'brokerFee', label: '구전', align: 'text-right' },
+  { key: 'platformFee', label: '플랫폼 수수료', align: 'text-right' },
   { key: 'grandTotal', label: '총비용', align: 'text-right' },
   { key: 'settlementAmount', label: '정산금액', align: 'text-right' },
   { key: 'vehicleCost', label: '차량비용(원)', align: 'text-right', headClass: 'text-sky-600' },
@@ -250,7 +251,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
   const prepTotalOf = (s: PurchaseSettlement) => s.prepTotal ?? purchasePrepTotal(s.prepCosts ?? []);
   const breakdownOf = (s: PurchaseSettlement) => s.prepBreakdown ?? prepBreakdown(s.prepCosts ?? []);
   const grandTotalOf = (s: PurchaseSettlement) =>
-    s.grandTotal ?? purchaseGrandTotal(s.purchasePrice, prepTotalOf(s), s.transferFee, s.brokerFee);
+    s.grandTotal ?? purchaseGrandTotal(s.purchasePrice, prepTotalOf(s), s.transferFee, s.brokerFee, s.platformFee ?? 0);
   /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
   const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
   // 서버가 계산해 주지만, 목록을 손에서 고치는 동안에는 없을 수 있어 같은 식으로 다시 낸다.
@@ -347,6 +348,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
   const totals = useMemo(() => ({
     count: filtered.length,
     purchase: filtered.reduce((sum, s) => sum + s.purchasePrice, 0),
+    /** 헤이딜러·엔카 경매장에 낸 수수료 — 직접 사온 차는 0이라 합계가 곧 플랫폼으로 산 값이다 */
+    platform: filtered.reduce((sum, s) => sum + (s.platformFee ?? 0), 0),
+    platformCount: filtered.filter(s => (s.platformFee ?? 0) > 0).length,
     prep: filtered.reduce((sum, s) => sum + prepTotalOf(s), 0),
     settlement: filtered.reduce((sum, s) => sum + s.settlementAmount, 0),
     vehicleCost: filtered.reduce((sum, s) => sum + (s.vehicleCost?.total ?? 0), 0),
@@ -388,6 +392,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
       // 항목별 합계 6칸 — 업체별 세부는 '상품화 명세' 열에 풀어 쓴다.
       ...Object.fromEntries(PREP_COST_KINDS.map(k => [`${PREP_COST_LABEL[k]}(원)`, breakdownOf(s)[k]])),
       '구전(원)': s.brokerFee,
+      '플랫폼 수수료(원)': s.platformFee ?? 0,
       '상품화총비용(원)': prepTotalOf(s),
       '상품화 명세': (s.prepCosts ?? [])
         .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount.toLocaleString()}`)
@@ -444,7 +449,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
       )}
 
-      <div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">총 건수</p>
           <p className="text-xl font-bold text-slate-800">{totals.count}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
@@ -465,6 +470,14 @@ export default function PurchaseSettlementTab({ role }: Props) {
           <p className="text-xs font-medium text-slate-400">차량비용 합계</p>
           <p className="text-xl font-bold text-sky-600">{NUM(totals.vehicleCost)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
           <p className="text-[10px] text-slate-400">주유·배터리·주차·세차·수리 자동 반영</p>
+        </div>
+        {/* 헤이딜러·엔카 경매장에서 사온 차에 붙는 돈 */}
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+          <p className="text-xs font-medium text-slate-400">플랫폼 수수료</p>
+          <p className="text-xl font-bold text-violet-700">
+            {MAN(totals.platform)}<span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          <p className="text-[10px] text-slate-400">{totals.count}건 중 {totals.platformCount}건</p>
         </div>
         {/* 담당자 칩을 누르면 그 사람이 판 차만 더해진다 */}
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-2">
@@ -706,6 +719,12 @@ export default function PurchaseSettlementTab({ role }: Props) {
                     ),
                     prepTotal: <span className="font-medium text-amber-700">{MAN(prepTotalOf(s))}</span>,
                     brokerFee: <span className="text-slate-500">{MAN(s.brokerFee)}</span>,
+                    // 헤이딜러·엔카 경매장에서 사온 차만 값이 있다 — 0은 흐리게 둔다
+                    platformFee: (
+                      <span className={(s.platformFee ?? 0) > 0 ? 'font-semibold text-violet-700' : 'text-slate-300'}>
+                        {(s.platformFee ?? 0) > 0 ? MAN(s.platformFee) : '—'}
+                      </span>
+                    ),
                     grandTotal: <span className="font-semibold text-indigo-600">{MAN(grandTotalOf(s))}</span>,
                     settlementAmount: <span className="font-semibold text-slate-800">{MAN(s.settlementAmount)}</span>,
                     vehicleCost: (

@@ -65,6 +65,8 @@ interface PurchaseRow extends SaleFields {
   ceoApprovedAt: Date | null;
   purchasePrice: number;
   salePrice: number;
+  /** 플랫폼 수수료 — 헤이딜러·엔카 경매장에서 사오면 내는 돈 */
+  platformFee: number;
   prepCosts: { kind: PrepCostKind; amount: number }[];
 }
 
@@ -1128,10 +1130,10 @@ export class SettlementsService {
       date: formatDateOnly(row.date),
       prepTotal,
       prepBreakdown: prepBreakdown(row.prepCosts),
-      grandTotal: purchaseGrandTotal(row.purchasePrice, prepTotal, transferFee, row.brokerFee),
+      grandTotal: purchaseGrandTotal(row.purchasePrice, prepTotal, transferFee, row.brokerFee, row.platformFee),
       // 차량관리에서 자동으로 붙는 값 — 저장하지 않고 조회할 때마다 계산한다.
       vehicleCost,
-      grandTotalWon: purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee),
+      grandTotalWon: purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee, row.platformFee),
       // 판 값. 아직 안 팔았으면 전부 0이라 판매수익도 0으로 나온다.
       submittedAt: row.submittedAt?.toISOString() ?? null,
       chiefApprovedAt: row.chiefApprovedAt?.toISOString() ?? null,
@@ -1142,7 +1144,7 @@ export class SettlementsService {
       chiefRequired: withChief,
       saleProfit: saleProfit(
         row.salePrice,
-        purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee),
+        purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee, row.platformFee),
       ),
     };
   }
@@ -1166,6 +1168,7 @@ export class SettlementsService {
         transferFee: dto.transferFee ?? 0,
         purchasePrice,
         brokerFee: dto.brokerFee ?? 0,
+        platformFee: dto.platformFee ?? 0,
         ...(dto.brokerFeePayout ? { brokerFeePayout: dto.brokerFeePayout } : {}),
         contractPhotos: dto.contractPhotos ?? '',
         salePrice: dto.salePrice ?? 0,
@@ -1174,7 +1177,9 @@ export class SettlementsService {
         insuranceFee: dto.insuranceFee ?? 0,
         dealerLoanFee: dto.dealerLoanFee ?? 0,
         // 비워서 보내면 매입+상품화총비용을 그대로 정산금액으로 잡는다.
-        settlementAmount: dto.settlementAmount ?? purchaseGrandTotal(purchasePrice, prepTotal, dto.transferFee ?? 0, dto.brokerFee ?? 0),
+        settlementAmount:
+          dto.settlementAmount ??
+          purchaseGrandTotal(purchasePrice, prepTotal, dto.transferFee ?? 0, dto.brokerFee ?? 0, dto.platformFee ?? 0),
         newCarName: dto.newCarName ?? '',
         employeeId: dto.employeeId,
         status: dto.status ?? SettlementStatus.IN_PROGRESS,

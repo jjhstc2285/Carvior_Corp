@@ -48,6 +48,8 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
    */
   const transferFee = transferFeeOf(moneyToNumber(purchasePrice));
   const [brokerFee, setBrokerFee] = useState(editing ? String(editing.brokerFee) : '0');
+  /** 헤이딜러·엔카 경매장에서 사왔으면 그쪽에 낸 수수료 — 직접 사온 차는 0이다 */
+  const [platformFee, setPlatformFee] = useState(editing ? String(editing.platformFee ?? 0) : '0');
   const [brokerFeePayout, setBrokerFeePayout] = useState<BrokerFeePayout>(editing?.brokerFeePayout ?? 'CASH');
   // 판 값 — 상담이 판매완료로 끝나면 채운다. 아직 안 팔았으면 비워둔다.
   const [salePrice, setSalePrice] = useState(editing ? String(editing.salePrice) : '');
@@ -183,6 +185,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     transferFee,
     purchasePrice: moneyToNumber(purchasePrice),
     brokerFee: moneyToNumber(brokerFee),
+    platformFee: moneyToNumber(platformFee),
     salePrice: moneyToNumber(salePrice),
     cashCommission: moneyToNumber(cashCommission),
     installmentFee: moneyToNumber(installmentFee),
@@ -190,7 +193,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     dealerLoanFee: moneyToNumber(dealerLoanFee),
   };
   const prepTotal = purchasePrepTotal(prepCosts);
-  const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal, nums.transferFee, nums.brokerFee);
+  const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal, nums.transferFee, nums.brokerFee, nums.platformFee);
   // 폼에서는 차량비용(주유·배터리)을 모른다 — 표에서는 그것까지 더한 총합계로 낸다.
   const profit = saleProfit(nums.salePrice, grandTotal);
 
@@ -212,6 +215,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         vehicleNumber: vehicleNumber.trim(),
         ...nums,
         brokerFeePayout,
+        platformFee: nums.platformFee,
         contractPhotos,
         prepCosts,
           // 손으로 잡지 않았으면 총비용이 그대로 정산금액이다
@@ -257,6 +261,8 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
 
           <MoneyField label="매입가" value={purchasePrice} onChange={setPurchasePrice} required />
           <MoneyField label="구전" value={brokerFee} onChange={setBrokerFee} />
+          {/* 헤이딜러·엔카 경매장에서 사오면 그쪽에 수수료를 낸다 — 직접 사온 차는 비워둔다 */}
+          <MoneyField label="플랫폼 수수료" value={platformFee} onChange={setPlatformFee} />
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">구전 지급방식</label>
             <select

@@ -564,6 +564,8 @@ export interface PurchaseSettlement {
   transferFee: number; // 이전비 + 추가이전비
   purchasePrice: number; // 매입가
   brokerFee: number; // 구전 — 상품화가 아니라 별도 항목
+  /** 플랫폼 수수료(원) — 헤이딜러·엔카 경매장에서 사오면 내는 돈 */
+  platformFee: number;
   /** 구전 지급방식 — 현금으로 준 것만 판매수익에서 뺀다 */
   brokerFeePayout: BrokerFeePayout;
   /** 계약서 사진 경로 — 줄바꿈으로 이어 담는다. 결재하는 쪽에서 화면으로 본다 */
@@ -719,8 +721,10 @@ export function purchaseGrandTotal(
   prepTotal: number,
   transferFee = 0,
   brokerFee = 0,
+  /** 헤이딜러·엔카 경매장 수수료 — 사오는 데 든 돈이라 총비용에 들어간다 */
+  platformFee = 0,
 ): number {
-  return purchasePrice + transferFee + brokerFee + prepTotal;
+  return purchasePrice + transferFee + brokerFee + platformFee + prepTotal;
 }
 
 /**

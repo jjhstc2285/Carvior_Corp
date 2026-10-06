@@ -110,6 +110,8 @@ export class CreatePurchaseDto {
   @IsOptional() @Money() transferFee?: number;
   @IsOptional() @Money() purchasePrice?: number;
   @IsOptional() @Money() brokerFee?: number;
+  /** 플랫폼 수수료 — 헤이딜러·엔카 경매장에서 사오면 내는 돈 */
+  @IsOptional() @Money() platformFee?: number;
   @IsOptional() @IsEnum(BrokerFeePayout) brokerFeePayout?: BrokerFeePayout;
   /** 계약서 사진 경로 — 줄바꿈으로 이어 담는다 */
   @IsOptional() @IsString() contractPhotos?: string;
@@ -135,6 +137,8 @@ export class UpdatePurchaseDto {
   @IsOptional() @Money() transferFee?: number;
   @IsOptional() @Money() purchasePrice?: number;
   @IsOptional() @Money() brokerFee?: number;
+  /** 플랫폼 수수료 — 헤이딜러·엔카 경매장에서 사오면 내는 돈 */
+  @IsOptional() @Money() platformFee?: number;
   @IsOptional() @IsEnum(BrokerFeePayout) brokerFeePayout?: BrokerFeePayout;
   @IsOptional() @Money() salePrice?: number;
   @IsOptional() @Money() cashCommission?: number;
