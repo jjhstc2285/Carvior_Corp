@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, FileSpreadsheet, Lock, Pencil, Percent, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { useDragScroll } from '../../lib/useDragScroll';
 import EmployeeAvatar from '../EmployeeAvatar';
 import PanelInvoiceModal from './PanelInvoiceModal';
 import PerformanceVatModal from './PerformanceVatModal';
@@ -107,6 +108,8 @@ interface MealRow {
 
 export default function PurchaseSettlementTab({ role }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
+  /** 표를 잡고 끌어서 옆으로 넘긴다 — 칸이 스무 개가 넘어 화면 밖으로 나간다 */
+  const dragRef = useDragScroll<HTMLDivElement>();
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
   /** 이번 달부터 본다. 지난 달 것까지 한 화면에 쌓이면 지금 처리할 게 안 보인다. */
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
@@ -776,7 +779,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
           정산이 백 줄이 넘는 달이 있는데, 그때 제목줄이 화면 위로 올라가 버리면 지금
           보는 숫자가 매입가인지 정산금액인지 세어 가며 읽게 된다. 제목줄을 붙여 둔다.
         */}
-        <div className="max-h-[70vh] overflow-auto">
+        {/* 표가 화면 밖으로 한참 나간다 — 아무 데나 잡고 끌어서 옆으로 넘긴다 */}
+        <div ref={dragRef} className="max-h-[70vh] overflow-auto">
           <table className="w-full min-w-[1520px] text-sm">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_#e2e8f0]">
               <tr className="text-left text-xs text-slate-400">

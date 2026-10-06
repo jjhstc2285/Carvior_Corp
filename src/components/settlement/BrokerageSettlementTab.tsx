@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, Lock, Pencil, Plus, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
+import { useDragScroll } from '../../lib/useDragScroll';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 import {
   brokerageProfit,
@@ -64,6 +65,8 @@ const COLUMNS: Column[] = [
 export default function BrokerageSettlementTab({ role, kind }: Props) {
   const kindLabel = CONSULTATION_KIND_LABEL[kind];
   const { state, deleteBrokerageSettlement, refresh } = useStore();
+  /** 표를 잡고 끌어서 옆으로 넘긴다 — 칸이 스무 개가 넘어 화면 밖으로 나간다 */
+  const dragRef = useDragScroll<HTMLDivElement>();
   /*
     정산은 달로 끊는다.
 
@@ -455,7 +458,8 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
       ) : (
       <div className="rounded-2xl border border-slate-200 bg-white">
         {/* 제목줄을 붙여 둔다 — 줄이 길어지면 무슨 칸을 보는지 세어 가며 읽게 된다 */}
-        <div className="max-h-[70vh] overflow-auto">
+        {/* 표가 화면 밖으로 한참 나간다 — 아무 데나 잡고 끌어서 옆으로 넘긴다 */}
+        <div ref={dragRef} className="max-h-[70vh] overflow-auto">
           <table className="w-full min-w-[1180px] text-sm">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_#e2e8f0]">
               <tr className="text-left text-xs text-slate-400">
