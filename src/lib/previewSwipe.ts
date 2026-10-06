@@ -41,10 +41,11 @@ export function enablePreviewSwipe(): void {
     e => {
       live = false;
       const target = e.target as HTMLElement | null;
-      const wrap = target?.closest?.('.ant-image-preview-wrap');
-      if (!wrap) return;
+      if (!target?.closest?.('.ant-image-preview-wrap')) return;
+      // 화살표·도구줄 위에서 시작한 건 누르는 것이다
+      if (target.closest('.ant-image-preview-operations-wrapper')) return;
 
-      const img = wrap.querySelector('.ant-image-preview-img');
+      const img = document.querySelector('.ant-image-preview-img');
       if (img && scaleOf(img) > ZOOMED) return; // 확대 중 — 옮겨 보는 중이다
 
       live = true;
@@ -64,11 +65,14 @@ export function enablePreviewSwipe(): void {
       const dy = e.clientY - startY;
       if (Math.abs(dx) < MIN_X || Math.abs(dx) < Math.abs(dy) * X_OVER_Y) return;
 
-      const wrap = document.querySelector('.ant-image-preview-wrap');
-      if (!wrap) return;
+      /*
+        화살표는 사진과 다른 자리에 그려진다.
 
-      // 왼쪽으로 쓸면 다음 장이다
-      const button = wrap.querySelector<HTMLElement>(
+        antd 는 좌우 화살표와 아래 도구줄을 따로 띄운다(-operations-wrapper). 사진이
+        들어 있는 칸 안에서 찾으면 아무것도 안 나와서, 쓸어도 조용히 아무 일이 없다.
+        문서 전체에서 찾는다.
+      */
+      const button = document.querySelector<HTMLElement>(
         dx < 0 ? '.ant-image-preview-switch-right' : '.ant-image-preview-switch-left',
       );
       // 끝 장이면 저쪽이 버튼을 꺼 둔다 — 그때는 아무 일도 안 일어나야 한다

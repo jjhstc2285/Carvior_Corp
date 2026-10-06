@@ -9,3 +9,59 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", Roboto, sans-serif;
   background: #f5f6f8;
 }
+
+/*
+  사진을 크게 띄웠을 때 좌우로 넘기는 화살표.
+
+  기본값은 44px에 옅은 회색이라 어두운 사진 위에서는 거의 안 보이고, 현장에서 장갑 낀
+  손으로는 잘 안 눌린다. 계약서를 넘겨 보는 자리라 큼직해야 한다.
+
+  끌어서 넘기는 것과 같은 일을 한다(lib/previewSwipe.ts) — 둘 중 편한 쪽으로 쓴다.
+*/
+.ant-image-preview-switch-left,
+.ant-image-preview-switch-right {
+  width: 64px;
+  height: 64px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.ant-image-preview-switch-left:hover,
+.ant-image-preview-switch-right:hover {
+  background: rgba(0, 0, 0, 0.85);
+  transform: scale(1.06);
+}
+
+.ant-image-preview-switch-left {
+  inset-inline-start: 20px;
+}
+
+.ant-image-preview-switch-right {
+  inset-inline-end: 20px;
+}
+
+/* 아이콘도 같이 키운다 — 칸만 커지면 가운데 점처럼 보인다 */
+.ant-image-preview-switch-left .anticon,
+.ant-image-preview-switch-right .anticon,
+.ant-image-preview-switch-left svg,
+.ant-image-preview-switch-right svg {
+  width: 30px;
+  height: 30px;
+  font-size: 30px;
+}
+
+/* 끝 장에서는 눌러도 아무 일이 없다 — 보이기에도 그래야 한다 */
+.ant-image-preview-switch-left-disabled,
+.ant-image-preview-switch-right-disabled {
+  background: rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.ant-image-preview-switch-left-disabled:hover,
+.ant-image-preview-switch-right-disabled:hover {
+  background: rgba(0, 0, 0, 0.25);
+  transform: none;
+}
