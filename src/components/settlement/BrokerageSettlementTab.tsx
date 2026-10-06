@@ -165,19 +165,17 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
    * 팀을 옮겼거나 팀이 안 적힌 사람의 정산이 조용히 안 보이면 안 된다.
    */
   const owners = useMemo(() => {
-    const counted = new Map<string, { count: number; amount: number; installment: number }>();
+    const counted = new Map<string, { count: number; amount: number }>();
     for (const s of ofKind) {
-      const prev = counted.get(s.employeeId) ?? { count: 0, amount: 0, installment: 0 };
+      const prev = counted.get(s.employeeId) ?? { count: 0, amount: 0 };
       counted.set(s.employeeId, {
         count: prev.count + 1,
         amount: prev.amount + s.settlementAmount,
-        // 누가 얼마나 깔았는지 — 캐피탈 약정은 사람별로 챙긴다
-        installment: prev.installment + s.installmentFee,
       });
     }
     return state.employees
       .filter(e => e.active !== false && (e.department === BROKERAGE_TEAM || counted.has(e.id)))
-      .map(e => ({ employee: e, ...(counted.get(e.id) ?? { count: 0, amount: 0, installment: 0 }) }))
+      .map(e => ({ employee: e, ...(counted.get(e.id) ?? { count: 0, amount: 0 }) }))
       // 많이 한 사람부터. 한 건도 없는 사람은 뒤로 — 고를 일이 드물다
       .sort((a, b) => b.count - a.count || a.employee.name.localeCompare(b.employee.name));
   }, [ofKind, state.employees]);
@@ -188,17 +186,40 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
     profit: filtered.reduce((sum, s) => sum + brokerageProfit(s), 0),
     settlement: filtered.reduce((sum, s) => sum + s.settlementAmount, 0),
     inProgress: filtered.filter(s => s.status === 'IN_PROGRESS').length,
-    /*
-      할부 피 — 할부를 깔아 받은 돈.
-
-      재고금융을 쓴 캐피탈에는 그 회사 할부를 얼마 이상 깔아 줘야 하는 약정이 있다.
-      줄마다 적혀 있어도 더한 값이 없으면 약정을 채웠는지 셀 방법이 없다.
-
-      몇 건에 깔았는지도 같이 센다 — 금액만 보면 한 건에 몰린 건지 여럿에 퍼진 건지 모른다.
-    */
-    installment: filtered.reduce((sum, s) => sum + s.installmentFee, 0),
-    installmentCount: filtered.filter(s => s.installmentFee > 0).length,
   }), [filtered]);
+
+  /*
+    캐피탈별로 얼마를 깔았는가.
+
+    재고금융을 쓴 캐피탈에는 그 회사 할부를 얼마 이상 깔아 줘야 하는 약정이 있다. 어느
+    캐피탈로 얼마를 실행했는지는 상담에 이미 적는다 — 그걸 모아 보여줄 데가 없었을 뿐이다.
+
+    정산이 아니라 상담에서 센다. 할부를 깐 건 차를 판 자리이고, 정산에 올라오기 전에도
+    이미 실행된 돈이다 — 정산을 기다렸다 세면 약정 마감을 넘긴 뒤에 알게 된다.
+
+    보고 있는 달과 종류(알선/수출)를 그대로 따른다.
+  */
+  const [capitalOpen, setCapitalOpen] = useState(false);
+
+  const byCapital = useMemo(() => {
+    const counted = new Map<string, { amount: number; count: number }>();
+    for (const c of state.consultations) {
+      if ((c.kind ?? 'BROKERAGE') !== kind) continue;
+      if (c.payMethod !== 'INSTALLMENT') continue;
+      if (!allMonths && !c.date.startsWith(month)) continue;
+
+      // 캐피탈을 안 적은 건도 센다 — 빠뜨린 게 있다는 걸 알아야 채운다
+      const name = (c.installmentCapital ?? '').trim() || '(캐피탈 안 적음)';
+      const prev = counted.get(name) ?? { amount: 0, count: 0 };
+      counted.set(name, { amount: prev.amount + (c.installmentAmount ?? 0), count: prev.count + 1 });
+    }
+    return [...counted]
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+  }, [state.consultations, kind, month, allMonths]);
+
+  const capitalTotal = byCapital.reduce((sum, c) => sum + c.amount, 0);
+  const capitalCount = byCapital.reduce((sum, c) => sum + c.count, 0);
 
   const handleExport = () => {
     const rows = filtered.map(s => ({
@@ -246,7 +267,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
         }}
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">
             {allMonths ? '전체' : dayjs(month).format('M월')} 건수
@@ -265,17 +286,46 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           <p className="text-xs font-medium text-slate-400">진행중</p>
           <p className="mt-1 text-2xl font-bold text-amber-600">{totals.inProgress}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
         </div>
-        {/* 캐피탈 약정을 채웠는지 세려면 더한 값이 있어야 한다 */}
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">할부 피 합계</p>
-          <p className="mt-1 text-2xl font-bold text-teal-700">
-            {NUM(totals.installment)}<span className="ml-1 text-sm font-medium text-slate-400">원</span>
-          </p>
-          <p className="text-[11px] text-slate-400">
-            {totals.count}건 중 {totals.installmentCount}건에 할부
-          </p>
-        </div>
+
       </div>
+
+      {/*
+        캐피탈별 할부 — 약정을 채웠는지 세는 자리다.
+
+        평소에 보는 건 정산 줄이라 접어 둔다. 깐 게 있으면 제목줄에 합계가 남아서,
+        펴지 않아도 이번 달에 얼마를 깔았는지는 보인다.
+      */}
+      {byCapital.length > 0 && (
+        <div className="mb-3 overflow-hidden rounded-2xl border border-teal-200 bg-teal-50/40">
+          <button
+            onClick={() => setCapitalOpen(v => !v)}
+            className="flex w-full flex-wrap items-center gap-2 px-4 py-2.5 text-left hover:bg-teal-50"
+          >
+            <span className="text-sm font-bold text-teal-900">캐피탈별 할부</span>
+            <span className="text-xs text-teal-800/80">
+              {capitalCount}건 · <b className="font-bold">{NUM(capitalTotal)}</b>원
+            </span>
+            <span className="ml-auto text-xs text-teal-700/70">{capitalOpen ? '접기' : '펴기'}</span>
+          </button>
+
+          {capitalOpen && (
+            <ul className="divide-y divide-teal-100 border-t border-teal-200/70 bg-white">
+              {byCapital.map(c => (
+                <li key={c.name} className="flex flex-wrap items-baseline gap-2 px-4 py-2 text-sm">
+                  <span className={`font-semibold ${c.name.startsWith('(') ? 'text-amber-700' : 'text-slate-800'}`}>
+                    {c.name}
+                  </span>
+                  <span className="text-xs text-slate-400">{c.count}건</span>
+                  <span className="ml-auto font-bold tabular-nums text-teal-800">{NUM(c.amount)}원</span>
+                </li>
+              ))}
+              <li className="px-4 py-2 text-[11px] text-slate-400">
+                상담에 적은 <b>할부 실행액</b>을 캐피탈별로 더한 값입니다. 정산에 올라오기 전 건도 들어갑니다.
+              </li>
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* 남의 것까지 보는 사람에게만 쓸모가 있다 — 자기 것만 보이면 고를 게 없다 */}
       {seesAll && owners.length > 0 && (
@@ -290,11 +340,11 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           >
             전체 <span className="ml-0.5 font-bold">{ofKind.length}</span>
           </button>
-          {owners.map(({ employee, count, amount, installment }) => (
+          {owners.map(({ employee, count, amount }) => (
             <button
               key={employee.id}
               onClick={() => setEmployeeFilter(v => (v === employee.id ? 'all' : employee.id))}
-              title={`${employee.name} ${employee.position} · ${count}건 · 정산 ${NUM(amount)}원 · 할부 피 ${NUM(installment)}원`}
+              title={`${employee.name} ${employee.position} · ${count}건 · 정산 ${NUM(amount)}원`}
               className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs transition-colors ${
                 employeeFilter === employee.id
                   ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
@@ -305,9 +355,6 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
               <span className="font-semibold text-slate-800">{employee.name}</span>
               <span className="text-slate-400">{employee.position}</span>
               <span className="font-bold text-indigo-600">{count}</span>
-              {installment > 0 && (
-                <span className="text-[11px] font-semibold text-teal-700">할부 {NUM(installment)}</span>
-              )}
             </button>
           ))}
         </div>
