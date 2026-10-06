@@ -406,7 +406,10 @@ export interface BrokerageSettlement {
   cashCommission: number; // 현금 수수료
   /** 대표가 현금 수수료를 받았다고 찍은 때. 안 찍었으면 null */
   cashConfirmedAt?: string | null;
-  installmentFee: number; // 할부 피
+  installmentFee: number; // 할부 피 — 우리가 받은 수수료
+  /** 어느 캐피탈로 얼마를 깔았는가 — 재고금융 약정을 세는 값 */
+  installmentCapital: string;
+  installmentAmount: number; // 할부 실행액(원) — 손님이 깔아 준 원금
   insuranceFee: number; // 보험 피
   etcCost: number; // 차대금업 (DB 칸 이름은 그대로 둔다 — 지난 자료가 들어 있다)
   settlementAmount: number; // 정산받을금액

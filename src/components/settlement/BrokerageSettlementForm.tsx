@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../../store';
@@ -39,6 +39,27 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
   const [transferFeeBalance, setTransferFeeBalance] = useState(editing?.transferFeeBalance?.toString() ?? '0');
   const [cashCommission, setCashCommission] = useState(editing?.cashCommission?.toString() ?? '0');
   const [installmentFee, setInstallmentFee] = useState(editing?.installmentFee?.toString() ?? '0');
+  /*
+    어느 캐피탈로 얼마를 깔았는가.
+
+    할부 피는 우리가 받은 수수료고, 실행액은 손님이 깔아 준 원금이다. 재고금융 약정은
+    원금으로 세기 때문에 둘을 같이 적는다.
+  */
+  const [installmentCapital, setInstallmentCapital] = useState(editing?.installmentCapital ?? '');
+
+  /*
+    자주 쓰는 할부사를 눌러 고르게 한다.
+
+    사람마다 '엔카캐피탈'·'엔카 캐피탈'로 달리 적으면 캐피탈별 합계가 둘로 갈린다 —
+    이미 적힌 이름과 상담에 적힌 이름을 모아 띄운다.
+  */
+  const capitalNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const r of state.brokerageSettlements) if (r.installmentCapital?.trim()) names.add(r.installmentCapital.trim());
+    for (const c of state.consultations) if (c.installmentCapital?.trim()) names.add(c.installmentCapital.trim());
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [state.brokerageSettlements, state.consultations]);
+  const [installmentAmount, setInstallmentAmount] = useState(editing?.installmentAmount?.toString() ?? '0');
   const [insuranceFee, setInsuranceFee] = useState(editing?.insuranceFee?.toString() ?? '0');
   const [etcCost, setEtcCost] = useState(editing?.etcCost?.toString() ?? '0');
   const [settlementAmount, setSettlementAmount] = useState(editing?.settlementAmount?.toString() ?? '');
@@ -55,6 +76,8 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
     transferFeeBalance: Number(transferFeeBalance) || 0,
     cashCommission: Number(cashCommission) || 0,
     installmentFee: Number(installmentFee) || 0,
+    installmentCapital: installmentCapital.trim(),
+    installmentAmount: Number(String(installmentAmount).replace(/[^\d]/g, '')) || 0,
     insuranceFee: Number(insuranceFee) || 0,
     etcCost: Number(etcCost) || 0,
   };
@@ -122,6 +145,23 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
 
           <MoneyField label="현금 수수료" value={cashCommission} onChange={setCashCommission} />
           <MoneyField label="할부 피" value={installmentFee} onChange={setInstallmentFee} />
+          {/* 약정은 원금으로 센다 — 할부 피가 아니라 이 값이다 */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">할부사</label>
+            <input
+              value={installmentCapital}
+              onChange={e => setInstallmentCapital(e.target.value)}
+              list="installment-capitals"
+              placeholder="엔카캐피탈"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+            />
+            <datalist id="installment-capitals">
+              {capitalNames.map(n => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          </div>
+          <MoneyField label="할부 실행액" value={installmentAmount} onChange={setInstallmentAmount} />
           <MoneyField label="보험 피" value={insuranceFee} onChange={setInsuranceFee} />
           <MoneyField label="차대금업" value={etcCost} onChange={setEtcCost} />
         </div>

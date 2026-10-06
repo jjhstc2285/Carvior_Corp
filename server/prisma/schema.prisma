@@ -665,6 +665,18 @@ model BrokerageSettlement {
   ceoApprovedAt    DateTime?
   ceoApprover      String           @default("") @db.VarChar(30)
   installmentFee   Int              @default(0) // 할부 피
+
+  /**
+   * 어느 캐피탈로 얼마를 깔았는가.
+   *
+   * 재고금융을 쓴 캐피탈에는 그 회사 할부를 얼마 이상 깔아 줘야 하는 약정이 있다.
+   * 상담에도 같은 칸이 있지만 거기는 상담받을 때 적는 값이라 비어 있는 건이 많다 —
+   * 정산은 돈이 오간 뒤에 적는 자리라 여기 적힌 값이 실제와 맞다.
+   *
+   * 할부 피는 우리가 받은 수수료고, 실행액은 손님이 깔아 준 원금이다. 약정은 원금으로 센다.
+   */
+  installmentCapital String @default("") @db.VarChar(20)
+  installmentAmount  Int    @default(0) // 할부 실행액(원)
   insuranceFee     Int              @default(0) // 보험 피
   etcCost          Int              @default(0) // 기타비용
   settlementAmount Int              @default(0) // 정산받을금액

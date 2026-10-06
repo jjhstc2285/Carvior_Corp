@@ -59,6 +59,9 @@ export class CreateBrokerageDto {
   @IsOptional() @Money() transferFeeBalance?: number;
   @IsOptional() @Money() cashCommission?: number;
   @IsOptional() @Money() installmentFee?: number;
+  /** 어느 캐피탈로 깔았는가 — 재고금융 약정을 세는 값 */
+  @IsOptional() @IsString() @MaxLength(20) installmentCapital?: string;
+  @IsOptional() @Money() installmentAmount?: number;
   @IsOptional() @Money() insuranceFee?: number;
   @IsOptional() @Money() etcCost?: number;
   @IsOptional() @Money() settlementAmount?: number;
@@ -80,6 +83,9 @@ export class UpdateBrokerageDto {
   @IsOptional() @Money() transferFeeBalance?: number;
   @IsOptional() @Money() cashCommission?: number;
   @IsOptional() @Money() installmentFee?: number;
+  /** 어느 캐피탈로 깔았는가 — 재고금융 약정을 세는 값 */
+  @IsOptional() @IsString() @MaxLength(20) installmentCapital?: string;
+  @IsOptional() @Money() installmentAmount?: number;
   @IsOptional() @Money() insuranceFee?: number;
   @IsOptional() @Money() etcCost?: number;
   @IsOptional() @Money() settlementAmount?: number;
@@ -118,6 +124,9 @@ export class CreatePurchaseDto {
   @IsOptional() @Money() salePrice?: number;
   @IsOptional() @Money() cashCommission?: number;
   @IsOptional() @Money() installmentFee?: number;
+  /** 어느 캐피탈로 깔았는가 — 재고금융 약정을 세는 값 */
+  @IsOptional() @IsString() @MaxLength(20) installmentCapital?: string;
+  @IsOptional() @Money() installmentAmount?: number;
   @IsOptional() @Money() insuranceFee?: number;
   @IsOptional() @Money() dealerLoanFee?: number;
   @IsOptional() @Money() settlementAmount?: number;
@@ -143,6 +152,9 @@ export class UpdatePurchaseDto {
   @IsOptional() @Money() salePrice?: number;
   @IsOptional() @Money() cashCommission?: number;
   @IsOptional() @Money() installmentFee?: number;
+  /** 어느 캐피탈로 깔았는가 — 재고금융 약정을 세는 값 */
+  @IsOptional() @IsString() @MaxLength(20) installmentCapital?: string;
+  @IsOptional() @Money() installmentAmount?: number;
   @IsOptional() @Money() insuranceFee?: number;
   @IsOptional() @Money() dealerLoanFee?: number;
   @IsOptional() @Money() settlementAmount?: number;

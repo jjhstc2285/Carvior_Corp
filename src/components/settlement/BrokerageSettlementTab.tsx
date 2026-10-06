@@ -47,6 +47,8 @@ const COLUMNS: Column[] = [
   { key: 'cashCommission', label: '현금 수수료', align: 'text-right' },
   { key: 'cashConfirm', label: '현금 확인', align: 'text-center' },
   { key: 'installmentFee', label: '할부 피', align: 'text-right' },
+  { key: 'installmentCapital', label: '할부사' },
+  { key: 'installmentAmount', label: '할부 실행액', align: 'text-right' },
   { key: 'insuranceFee', label: '보험 피', align: 'text-right' },
   { key: 'etcCost', label: '차대금업', align: 'text-right' },
   { key: 'settlementAmount', label: '정산받을금액', align: 'text-right' },
@@ -201,20 +203,41 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
   */
   const byCapital = useMemo(() => {
     const counted = new Map<string, { amount: number; count: number }>();
-    for (const c of state.consultations) {
-      if ((c.kind ?? 'BROKERAGE') !== kind) continue;
-      if (c.payMethod !== 'INSTALLMENT') continue;
-      if (!allMonths && !c.date.startsWith(month)) continue;
+
+    /*
+      정산에 적힌 값으로 센다.
+
+      상담에도 같은 칸이 있지만 거기는 상담받을 때 적는 값이라 비어 있는 건이 많다 —
+      정산은 돈이 오간 뒤에 적는 자리라 여기 적힌 값이 실제와 맞다.
+
+      정산에 안 적혔으면 같은 차의 상담에서 끌어온다. 적어둔 데가 어디든 한 번은 세어야
+      한다 — 다만 한 차를 두 번 세지 않게 정산이 있으면 그쪽만 본다.
+    */
+    for (const r of filtered) {
+      const capital = (r.installmentCapital ?? '').trim();
+      const amount = r.installmentAmount ?? 0;
+
+      let name = capital;
+      let value = amount;
+      if (!capital && amount === 0) {
+        const c = state.consultations.find(
+          x => x.vehicleNumber === r.vehicleNumber && x.payMethod === 'INSTALLMENT',
+        );
+        if (!c) continue;
+        name = (c.installmentCapital ?? '').trim();
+        value = c.installmentAmount ?? 0;
+      }
 
       // 캐피탈을 안 적은 건도 센다 — 빠뜨린 게 있다는 걸 알아야 채운다
-      const name = (c.installmentCapital ?? '').trim() || '(캐피탈 안 적음)';
-      const prev = counted.get(name) ?? { amount: 0, count: 0 };
-      counted.set(name, { amount: prev.amount + (c.installmentAmount ?? 0), count: prev.count + 1 });
+      const key = name || '(할부사 안 적음)';
+      const prev = counted.get(key) ?? { amount: 0, count: 0 };
+      counted.set(key, { amount: prev.amount + value, count: prev.count + 1 });
     }
+
     return [...counted]
       .map(([name, v]) => ({ name, ...v }))
       .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
-  }, [state.consultations, kind, month, allMonths]);
+  }, [filtered, state.consultations]);
 
   const capitalTotal = byCapital.reduce((sum, c) => sum + c.amount, 0);
   const capitalCount = byCapital.reduce((sum, c) => sum + c.count, 0);
@@ -483,6 +506,17 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                         </>
                       ),
                       installmentFee: <span className="text-slate-500">{NUM(s.installmentFee)}</span>,
+                      // 약정을 세는 값이라 적힌 줄이 눈에 걸려야 한다
+                      installmentCapital: s.installmentCapital ? (
+                        <span className="text-slate-600">{s.installmentCapital}</span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      ),
+                      installmentAmount: (
+                        <span className={s.installmentAmount > 0 ? 'font-semibold text-teal-700' : 'text-slate-300'}>
+                          {s.installmentAmount > 0 ? NUM(s.installmentAmount) : '—'}
+                        </span>
+                      ),
                       insuranceFee: <span className="text-slate-500">{NUM(s.insuranceFee)}</span>,
                       etcCost: <span className="text-slate-500">{NUM(s.etcCost)}</span>,
                       settlementAmount: (
