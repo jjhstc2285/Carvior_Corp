@@ -199,8 +199,6 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
 
     보고 있는 달과 종류(알선/수출)를 그대로 따른다.
   */
-  const [capitalOpen, setCapitalOpen] = useState(false);
-
   const byCapital = useMemo(() => {
     const counted = new Map<string, { amount: number; count: number }>();
     for (const c of state.consultations) {
@@ -267,7 +265,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
         }}
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">
             {allMonths ? '전체' : dayjs(month).format('M월')} 건수
@@ -282,6 +280,16 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           <p className="text-xs font-medium text-slate-400">정산받을금액 합계</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">{NUM(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
+        {/* 재고금융 약정을 채웠는지 세는 값 — 속은 아래 '캐피탈별 할부'에서 본다 */}
+        <div className="rounded-2xl border border-teal-200 bg-teal-50/40 px-4 py-3.5">
+          <p className="text-xs font-medium text-teal-700/80">할부 실행액</p>
+          <p className="mt-1 text-2xl font-bold text-teal-800">
+            {NUM(capitalTotal)}<span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          <p className="text-[11px] text-slate-400">
+            {capitalCount}건 · 캐피탈 {byCapital.length}곳
+          </p>
+        </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">진행중</p>
           <p className="mt-1 text-2xl font-bold text-amber-600">{totals.inProgress}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
@@ -292,38 +300,33 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
       {/*
         캐피탈별 할부 — 약정을 채웠는지 세는 자리다.
 
-        평소에 보는 건 정산 줄이라 접어 둔다. 깐 게 있으면 제목줄에 합계가 남아서,
-        펴지 않아도 이번 달에 얼마를 깔았는지는 보인다.
+        위 카드가 합계고 여기가 그 속이다. 매입 정산의 상품화총비용 항목별과 같은 모양으로
+        둔다 — 같은 뜻의 칸은 같은 자리에 같은 꼴로 있어야 눈이 덜 든다.
       */}
       {byCapital.length > 0 && (
-        <div className="mb-3 overflow-hidden rounded-2xl border border-teal-200 bg-teal-50/40">
-          <button
-            onClick={() => setCapitalOpen(v => !v)}
-            className="flex w-full flex-wrap items-center gap-2 px-4 py-2.5 text-left hover:bg-teal-50"
-          >
-            <span className="text-sm font-bold text-teal-900">캐피탈별 할부</span>
-            <span className="text-xs text-teal-800/80">
-              {capitalCount}건 · <b className="font-bold">{NUM(capitalTotal)}</b>원
+        <div className="mb-3 overflow-hidden rounded-xl border border-teal-200 bg-teal-50/40">
+          <div className="flex items-baseline justify-between border-b border-teal-200/70 px-3 py-1.5">
+            <span className="text-xs font-bold text-teal-900">캐피탈별 할부</span>
+            <span className="text-[11px] text-teal-800/80">
+              합계 {NUM(capitalTotal)}원 · {capitalCount}건 기준
             </span>
-            <span className="ml-auto text-xs text-teal-700/70">{capitalOpen ? '접기' : '펴기'}</span>
-          </button>
-
-          {capitalOpen && (
-            <ul className="divide-y divide-teal-100 border-t border-teal-200/70 bg-white">
-              {byCapital.map(c => (
-                <li key={c.name} className="flex flex-wrap items-baseline gap-2 px-4 py-2 text-sm">
-                  <span className={`font-semibold ${c.name.startsWith('(') ? 'text-amber-700' : 'text-slate-800'}`}>
-                    {c.name}
-                  </span>
-                  <span className="text-xs text-slate-400">{c.count}건</span>
-                  <span className="ml-auto font-bold tabular-nums text-teal-800">{NUM(c.amount)}원</span>
-                </li>
-              ))}
-              <li className="px-4 py-2 text-[11px] text-slate-400">
-                상담에 적은 <b>할부 실행액</b>을 캐피탈별로 더한 값입니다. 정산에 올라오기 전 건도 들어갑니다.
-              </li>
-            </ul>
-          )}
+          </div>
+          <div className="grid grid-cols-2 divide-x divide-y divide-teal-200/60 sm:grid-cols-4 sm:divide-y-0">
+            {byCapital.map(c => (
+              <div key={c.name} className="px-2 py-1.5 text-center">
+                <p
+                  className={`truncate text-[11px] font-medium ${
+                    c.name.startsWith('(') ? 'text-amber-700' : 'text-teal-900/80'
+                  }`}
+                  title={c.name}
+                >
+                  {c.name}
+                </p>
+                <p className="mt-0.5 text-base font-bold text-teal-800">{NUM(c.amount)}</p>
+                <p className="text-[10px] text-teal-700/60">{c.count}건</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
