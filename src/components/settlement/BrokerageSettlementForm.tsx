@@ -195,7 +195,7 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
         </p>
 
         <div className="mt-3">
-          <ContractPhotos value={contractPhotos} onChange={setContractPhotos} />
+          <ContractPhotos value={contractPhotos} onChange={setContractPhotos} max={5} />
         </div>
 
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
