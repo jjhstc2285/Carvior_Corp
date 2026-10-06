@@ -230,6 +230,32 @@ export default function PurchaseSettlementTab({ role }: Props) {
     .filter(s => !query.trim() || s.vehicleNumber.includes(query.trim()) || s.vehicleName.includes(query.trim()))
     .sort((a, b) => b.date.localeCompare(a.date));
 
+
+  const employeeOf = (id: string) => state.employees.find(e => e.id === id);
+
+  /**
+   * 판매 입력 대기.
+   *
+   * 상담이 판매완료로 끝났는데 그 차의 매입 정산에 판매가가 아직 안 들어간 건들이다.
+   * 차는 살 때 정산이 이미 만들어져 있으므로 새로 만들지 않고 그 줄을 열어 판매 쪽만 채운다.
+   */
+  const awaitingSale = useMemo(() => {
+    const sold = new Set(state.consultations.filter(c => c.status === 'SOLD').map(c => c.vehicleNumber));
+    return scoped.filter(s => s.salePrice === 0 && sold.has(s.vehicleNumber));
+  }, [state.consultations, scoped]);
+
+  // 차량관리에서 붙는 비용 — 차량번호가 차량관리에 없으면 서버가 아무것도 안 붙이므로 0으로 본다.
+  const costOf = (s: PurchaseSettlement) => s.vehicleCost ?? EMPTY_VEHICLE_COST;
+  /** 상품화총비용·항목별 합계는 서버가 명세를 더해서 내려준다. 없으면 화면에서 같은 식으로 낸다. */
+  const prepTotalOf = (s: PurchaseSettlement) => s.prepTotal ?? purchasePrepTotal(s.prepCosts ?? []);
+  const breakdownOf = (s: PurchaseSettlement) => s.prepBreakdown ?? prepBreakdown(s.prepCosts ?? []);
+  const grandTotalOf = (s: PurchaseSettlement) =>
+    s.grandTotal ?? purchaseGrandTotal(s.purchasePrice, prepTotalOf(s), s.transferFee, s.brokerFee);
+  /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
+  const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
+  // 서버가 계산해 주지만, 목록을 손에서 고치는 동안에는 없을 수 있어 같은 식으로 다시 낸다.
+  const profitOf = (s: PurchaseSettlement) => s.saleProfit ?? saleProfit(s.salePrice, totalWonOf(s));
+
   /*
     담당자 칩.
 
@@ -265,31 +291,6 @@ export default function PurchaseSettlementTab({ role }: Props) {
       })
       .sort((a, b) => b.done - a.done || b.count - a.count || a.employee.name.localeCompare(b.employee.name));
   }, [filtered, state.employees]);
-
-  const employeeOf = (id: string) => state.employees.find(e => e.id === id);
-
-  /**
-   * 판매 입력 대기.
-   *
-   * 상담이 판매완료로 끝났는데 그 차의 매입 정산에 판매가가 아직 안 들어간 건들이다.
-   * 차는 살 때 정산이 이미 만들어져 있으므로 새로 만들지 않고 그 줄을 열어 판매 쪽만 채운다.
-   */
-  const awaitingSale = useMemo(() => {
-    const sold = new Set(state.consultations.filter(c => c.status === 'SOLD').map(c => c.vehicleNumber));
-    return scoped.filter(s => s.salePrice === 0 && sold.has(s.vehicleNumber));
-  }, [state.consultations, scoped]);
-
-  // 차량관리에서 붙는 비용 — 차량번호가 차량관리에 없으면 서버가 아무것도 안 붙이므로 0으로 본다.
-  const costOf = (s: PurchaseSettlement) => s.vehicleCost ?? EMPTY_VEHICLE_COST;
-  /** 상품화총비용·항목별 합계는 서버가 명세를 더해서 내려준다. 없으면 화면에서 같은 식으로 낸다. */
-  const prepTotalOf = (s: PurchaseSettlement) => s.prepTotal ?? purchasePrepTotal(s.prepCosts ?? []);
-  const breakdownOf = (s: PurchaseSettlement) => s.prepBreakdown ?? prepBreakdown(s.prepCosts ?? []);
-  const grandTotalOf = (s: PurchaseSettlement) =>
-    s.grandTotal ?? purchaseGrandTotal(s.purchasePrice, prepTotalOf(s), s.transferFee, s.brokerFee);
-  /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
-  const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
-  // 서버가 계산해 주지만, 목록을 손에서 고치는 동안에는 없을 수 있어 같은 식으로 다시 낸다.
-  const profitOf = (s: PurchaseSettlement) => s.saleProfit ?? saleProfit(s.salePrice, totalWonOf(s));
 
   /** 항목 칸에 마우스를 올리면 어느 업체에 얼마 썼는지 보인다. */
   const vendorsOf = (s: PurchaseSettlement, kind: PrepCostKind) => {
