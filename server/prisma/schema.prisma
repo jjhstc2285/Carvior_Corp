@@ -1842,6 +1842,33 @@ model PanelInvoiceTotal {
  *
  * 올린 파일을 달·업체로 묶어 둔다. 금액이 왜 저렇게 적혔는지 물어볼 때 볼 것은 원본이다.
  */
+/**
+ * 매입 정산에 붙는 식대 — 달마다 한 사람에 한 줄.
+ *
+ * 이우주 차장과 안원용 본부장 두 사람은 정산금액에 식대가 같이 붙는다. 차 한 대에
+ * 붙는 값이 아니라 달마다 한 번 적는 값이라 정산 줄에 넣지 않고 따로 둔다 — 줄에
+ * 넣으면 어느 차에 붙일지부터 정해야 하고, 그건 아무 뜻이 없는 질문이다.
+ *
+ * 금액만 담는다. 합계는 볼 때마다 더한다.
+ */
+model SettlementMeal {
+  id String @id @default(cuid())
+
+  month      String @db.VarChar(7) // YYYY-MM
+  employeeId String
+  amount     Int    @default(0) // 그 달 식대(원)
+
+  /** 적은 사람 — 본인이거나 대표다. 나중에 누가 적었는지 묻는다 */
+  writer String @default("") @db.VarChar(30)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 달 · 사람으로 한 줄
+  @@unique([month, employeeId])
+  @@index([month])
+}
+
 model PanelInvoiceFile {
   id String @id @default(cuid())
 

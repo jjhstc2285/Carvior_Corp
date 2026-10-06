@@ -364,6 +364,30 @@ export class SettlementsService {
   }
 
   /**
+   * 매입 정산에 붙는 식대 — 달마다 한 사람에 한 줄.
+   *
+   * 몇 줄 안 되는 표라 달로 안 끊고 다 내준다. 화면이 고른 달로 추려 쓴다 — 전체 기간을
+   * 보는 화면이 있어서, 달로 끊어 주면 그 화면이 달마다 다시 물어봐야 한다.
+   */
+  async settlementMeals() {
+    return this.prisma.settlementMeal.findMany({
+      orderBy: [{ month: 'desc' }],
+      select: { month: true, employeeId: true, amount: true, writer: true, updatedAt: true },
+    });
+  }
+
+  /** 한 사람 한 달치를 적어 둔다 — 0을 적으면 0으로 남는다(지우는 것과 같다) */
+  async saveSettlementMeal(month: string, employeeId: string, amount: number, writer: string) {
+    const data = { amount: Math.max(0, Math.round(amount)), writer: writer.slice(0, 30) };
+    await this.prisma.settlementMeal.upsert({
+      where: { month_employeeId: { month, employeeId } },
+      update: data,
+      create: { month, employeeId, ...data },
+    });
+    return this.settlementMeals();
+  }
+
+  /**
    * 이미 적어둔 성능비 줄을 훑어 본다.
    *
    * 성능비는 부가세를 따로 붙여 청구해 오는데, 그동안 공급가만 적힌 건이 쌓였다.

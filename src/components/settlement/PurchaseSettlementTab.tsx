@@ -8,8 +8,8 @@ import PanelInvoiceModal from './PanelInvoiceModal';
 import PerformanceVatModal from './PerformanceVatModal';
 import { canEditPanelInvoice } from '../../lib/panelInvoice';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
-import { percentLabel } from '../../lib/money';
-import { canSeeAllSettlements } from '../../lib/permissions';
+import { moneyToNumber, percentLabel, toMoneyValue } from '../../lib/money';
+import { canSeeAllSettlements, SETTLEMENT_VIEWERS } from '../../lib/permissions';
 import {
   EMPTY_PREP_BREAKDOWN,
   EMPTY_VEHICLE_COST,
@@ -96,6 +96,14 @@ const COLUMNS: Column[] = [
  */
 const PURCHASE_BONUS_MIN = 20;
 const PURCHASE_BONUS_PER_CASE = 20_000;
+
+/** 그 달 한 사람 식대 — 서버가 달·사람으로 한 줄씩 들고 있다 */
+interface MealRow {
+  month: string;
+  employeeId: string;
+  amount: number;
+  writer: string;
+}
 
 export default function PurchaseSettlementTab({ role }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
@@ -293,6 +301,55 @@ export default function PurchaseSettlementTab({ role }: Props) {
       .sort((a, b) => b.done - a.done || b.count - a.count || a.employee.name.localeCompare(b.employee.name));
   }, [filtered, state.employees]);
 
+  /*
+    식대.
+
+    이우주 차장과 안원용 본부장 두 사람은 정산금액에 식대가 같이 붙는다. 차 한 대에
+    붙는 값이 아니라 달마다 한 번 적는 값이라 줄에 넣지 않고 카드로 둔다 — 줄에 넣으면
+    어느 차에 붙일지부터 정해야 하는데 그건 뜻이 없는 질문이다.
+
+    대표는 둘 다 보고 고치고, 본인은 자기 것만 본다. 계약팀이 다 보는 자리에 두지
+    않는다 — 서버도 같은 기준으로 다시 본다.
+  */
+  const mealPeople = useMemo(() => {
+    const named = state.employees.filter(e => SETTLEMENT_VIEWERS.includes(e.name.trim()));
+    return role === 'ADMIN' ? named : named.filter(e => e.id === state.currentEmployeeId);
+  }, [state.employees, role, state.currentEmployeeId]);
+
+  const seesMeal = mealPeople.length > 0;
+  const [meals, setMeals] = useState<MealRow[]>([]);
+
+  const loadMeals = useCallback(async () => {
+    if (!seesMeal) return;
+    try {
+      setMeals(await api<MealRow[]>('/settlements/purchase/meal'));
+    } catch {
+      // 못 불러와도 표는 그대로 보여준다 — 식대만 0으로 남는다
+    }
+  }, [seesMeal]);
+
+  useEffect(() => {
+    void loadMeals();
+  }, [loadMeals]);
+
+  /** 지금 보고 있는 달(또는 전체 기간)의 식대 — 내가 볼 수 있는 사람 것만 더한다 */
+  const mealOf = (employeeId: string) =>
+    meals
+      .filter(m => m.employeeId === employeeId && (allMonths || m.month === month))
+      .reduce((sum, m) => sum + m.amount, 0);
+  const mealTotal = mealPeople.reduce((sum, p) => sum + mealOf(p.id), 0);
+
+  const saveMeal = async (employeeId: string, amount: number) => {
+    try {
+      setMeals(await api<MealRow[]>('/settlements/purchase/meal', {
+        method: 'POST',
+        body: { month, employeeId, amount },
+      }));
+    } catch (e) {
+      void alertError('식대를 적지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
   /** 항목 칸에 마우스를 올리면 어느 업체에 얼마 썼는지 보인다. */
   const vendorsOf = (s: PurchaseSettlement, kind: PrepCostKind) => {
     const lines = (s.prepCosts ?? []).filter(c => c.kind === kind);
@@ -449,7 +506,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
       )}
 
-      <div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
+      <div className={`mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 ${seesMeal ? 'lg:grid-cols-8' : 'lg:grid-cols-7'}`}>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">총 건수</p>
           <p className="text-xl font-bold text-slate-800">{totals.count}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
@@ -462,9 +519,38 @@ export default function PurchaseSettlementTab({ role }: Props) {
           <p className="text-xs font-medium text-slate-400">상품화총비용 합계</p>
           <p className="text-xl font-bold text-amber-600">{MAN(prepShown)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
+        {/*
+          식대 — 정산금액 바로 왼쪽이다. 아래 정산금액 합계에 이 값이 더해져 있어서,
+          두 숫자가 떨어져 있으면 어디서 더해진 건지 알 수가 없다.
+        */}
+        {seesMeal && (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 px-3 py-2">
+            <p className="text-xs font-medium text-indigo-700/80">식대</p>
+            <p className="text-xl font-bold text-indigo-700">
+              {MAN(mealTotal)}<span className="ml-1 text-sm font-medium text-slate-400">원</span>
+            </p>
+            {allMonths ? (
+              <p className="text-[10px] text-slate-400">달을 고르면 적을 수 있습니다</p>
+            ) : (
+              <div className="mt-1 space-y-0.5">
+                {mealPeople.map(p => (
+                  <MealInput
+                    key={p.id}
+                    name={p.name}
+                    amount={mealOf(p.id)}
+                    onSave={next => void saveMeal(p.id, next)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">정산금액 합계</p>
-          <p className="text-xl font-bold text-indigo-600">{MAN(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
+          <p className="text-xl font-bold text-indigo-600">{MAN(totals.settlement + mealTotal)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
+          {seesMeal && mealTotal > 0 && (
+            <p className="text-[10px] text-slate-400">정산 {MAN(totals.settlement)} + 식대 {MAN(mealTotal)}</p>
+          )}
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">차량비용 합계</p>
@@ -878,5 +964,53 @@ export default function PurchaseSettlementTab({ role }: Props) {
         <PurchaseSettlementForm editing={editing} defaultEmployeeId={state.currentEmployeeId} onClose={() => setFormOpen(false)} />
       )}
     </>
+  );
+}
+
+/**
+ * 식대 한 칸 — 이름과 금액.
+ *
+ * 저장 버튼을 따로 두지 않는다. 칸을 떠날 때(또는 엔터) 적는다 — 카드 안에 들어가는
+ * 작은 칸이라 버튼까지 놓으면 정작 금액이 안 보인다.
+ *
+ * 고치는 중에는 밖에서 온 값으로 덮지 않는다. 적는 사이에 목록이 다시 와서 글자가
+ * 바뀌면 적던 숫자가 날아간다.
+ */
+function MealInput({
+  name,
+  amount,
+  onSave,
+}: {
+  name: string;
+  amount: number;
+  onSave: (next: number) => void;
+}) {
+  const [text, setText] = useState(() => (amount > 0 ? amount.toLocaleString() : ''));
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setText(amount > 0 ? amount.toLocaleString() : '');
+  }, [amount, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const next = moneyToNumber(text);
+    if (next !== amount) onSave(next);
+  };
+
+  return (
+    <label className="flex items-center gap-1">
+      <span className="w-9 shrink-0 text-[10px] font-medium text-indigo-700/70">{name}</span>
+      <input
+        value={text}
+        onFocus={() => setEditing(true)}
+        onChange={e => setText(toMoneyValue(e.target.value))}
+        onBlur={commit}
+        onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+        placeholder="0"
+        inputMode="numeric"
+        className="w-full min-w-0 rounded border border-indigo-200 bg-white px-1.5 py-0.5 text-right text-[11px] outline-none focus:border-indigo-400"
+      />
+    </label>
   );
 }

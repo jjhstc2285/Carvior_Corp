@@ -388,6 +388,43 @@ export class SettlementsController {
   }
 
 
+  /*
+    매입 정산에 붙는 식대.
+
+    이우주 차장과 안원용 본부장 두 사람만 있는 값이다. 대표는 둘 다 보고 고치고, 본인은
+    자기 것만 고친다 — 계약팀이 다 보는 자리에 두지 않는다. 남의 식대를 올렸다 내렸다
+    할 수 있으면 그건 식대 칸이 아니라 급여 수정이다.
+  */
+  private assertSeesMeal(user: AuthUser): void {
+    if (user.role !== Role.ADMIN && !canSeePurchaseSettlements(user)) {
+      throw new ForbiddenException('식대는 대표와 본인만 봅니다.');
+    }
+  }
+
+  @Get('purchase/meal')
+  meals(@CurrentUser() user: AuthUser) {
+    this.assertSeesMeal(user);
+    return this.settlements.settlementMeals();
+  }
+
+  @Post('purchase/meal')
+  saveMeal(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { month?: string; employeeId?: string; amount?: number },
+  ) {
+    this.assertSeesMeal(user);
+    const month = (dto.month ?? '').trim();
+    if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
+
+    const employeeId = (dto.employeeId ?? '').trim();
+    if (!employeeId) throw new BadRequestException('누구 식대인지 없습니다.');
+    if (user.role !== Role.ADMIN && employeeId !== user.id) {
+      throw new ForbiddenException('본인 식대만 적을 수 있습니다.');
+    }
+
+    return this.settlements.saveSettlementMeal(month, employeeId, dto.amount ?? 0, user.name);
+  }
+
   /**
    * 이미 적어둔 성능비에 부가세를 올린다.
    *
