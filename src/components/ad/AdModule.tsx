@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
@@ -189,6 +189,41 @@ export default function AdModule({ role }: { role: Role }) {
       .catch(() => setOtherSpend(0));
   }, [month]);
 
+  /*
+    달마다 얼마씩 나갔는가 — 최근 열두 달.
+
+    한 달만 보면 이번 달이 많은 건지 적은 건지 알 수 없다. 줄여야 할 달인지 판단하려면
+    지난 달들과 나란히 놓고 봐야 한다.
+
+    상품 광고비는 이미 받아둔 계약의 찍은 기록에서 센다(대당 금액 × 그 달에 찍은 대수).
+    그 밖의 광고비는 달별 합계만 따로 받아온다.
+  */
+  const [monthlyOther, setMonthlyOther] = useState<Record<string, number>>({});
+  const [trendOpen, setTrendOpen] = useState(false);
+
+  useEffect(() => {
+    void api<{ month: string; amount: number }[]>('/ad-spends/monthly?months=12')
+      .then(list => setMonthlyOther(Object.fromEntries(list.map(r => [r.month, r.amount]))))
+      .catch(() => setMonthlyOther({}));
+  }, []);
+
+  const monthly = useMemo(() => {
+    const months: string[] = [];
+    for (let i = 0; i < 12; i += 1) months.push(dayjs().subtract(i, 'month').format('YYYY-MM'));
+
+    return months.map(m => {
+      let product = 0;
+      let count = 0;
+      for (const c of rows) {
+        const n = c.postings.filter(p => p.postedOn.startsWith(m)).length;
+        product += c.unitFee * n;
+        count += n;
+      }
+      const other = monthlyOther[m] ?? 0;
+      return { month: m, product, other, total: product + other, count };
+    });
+  }, [rows, monthlyOther]);
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -224,6 +259,58 @@ export default function AdModule({ role }: { role: Role }) {
             {otherSpend > 0 && ` · 그 외 ${otherSpend.toLocaleString()}원`}
           </p>
         </div>
+
+      {/*
+        달마다 얼마씩 나갔는가.
+
+        한 달만 보면 이번 달이 많은 건지 적은 건지 알 수 없다. 접어 두고 필요할 때 편다 —
+        평소에 보는 건 이번 달이다.
+      */}
+      <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <button
+          onClick={() => setTrendOpen(v => !v)}
+          className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-slate-50"
+        >
+          <span className="text-sm font-bold text-slate-800">월별 광고비</span>
+          <span className="text-[11px] text-slate-400">최근 12개월</span>
+          <span className="ml-auto text-xs text-slate-400">{trendOpen ? '접기' : '펴기'}</span>
+        </button>
+
+        {trendOpen && (
+          <div className="overflow-x-auto border-t border-slate-100">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-xs text-slate-400">
+                  <th className="px-4 py-2 font-medium">달</th>
+                  <th className="px-4 py-2 text-right font-medium">상품</th>
+                  <th className="px-4 py-2 text-right font-medium">그 외</th>
+                  <th className="px-4 py-2 text-right font-medium">합계</th>
+                  <th className="px-4 py-2 text-right font-medium">찍은 대수</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {monthly.map(m => (
+                  <tr key={m.month} className={m.month === month ? 'bg-indigo-50/40' : ''}>
+                    <td className="whitespace-nowrap px-4 py-2 font-medium text-slate-700">
+                      {dayjs(`${m.month}-01`).format('YYYY년 M월')}
+                      {m.month === month && <span className="ml-1 text-[10px] text-indigo-600">이번 달</span>}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums text-slate-600">{m.product.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-slate-600">{m.other.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right font-bold tabular-nums text-indigo-700">
+                      {m.total.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums text-slate-500">{m.count || '–'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="px-4 py-2 text-[11px] text-slate-400">
+              상품은 대당 금액 × 그 달에 찍은 대수입니다. 그 외는 구글 애즈·114처럼 따로 적어둔 광고비입니다.
+            </p>
+          </div>
+        )}
+      </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">{dayjs().format('M월')} 진단</p>

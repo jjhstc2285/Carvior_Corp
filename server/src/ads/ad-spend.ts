@@ -63,6 +63,24 @@ export class AdSpendService {
     return this.prisma.adSpend.findMany({ where: { month }, orderBy: [{ amount: 'desc' }, { channel: 'asc' }] });
   }
 
+  /**
+   * 달마다 얼마씩 나갔는가 — 최근 열두 달.
+   *
+   * 한 달만 보면 이번 달이 많은 건지 적은 건지 알 수 없다. 줄여야 할 달인지 판단하려면
+   * 지난 달들과 나란히 놓고 봐야 한다.
+   *
+   * 달별 합계만 준다. 어디에 썼는지는 그 달을 골라 보면 나온다.
+   */
+  async monthly(months: number) {
+    const rows = await this.prisma.adSpend.groupBy({
+      by: ['month'],
+      _sum: { amount: true },
+      orderBy: { month: 'desc' },
+      take: Math.min(Math.max(months, 1), 36),
+    });
+    return rows.map((r) => ({ month: r.month, amount: r._sum.amount ?? 0 }));
+  }
+
   create(dto: CreateAdSpendDto) {
     return this.prisma.adSpend.create({
       data: {
@@ -143,6 +161,12 @@ export class AdSpendController {
   @Get()
   findMonth(@Query('month') month = '') {
     return this.spends.findMonth(month);
+  }
+
+  /** 달마다 얼마씩 나갔는가 — 최근 열두 달 */
+  @Get('monthly')
+  monthly(@Query('months') months = '12') {
+    return this.spends.monthly(Number(months) || 12);
   }
 
   @Post()
