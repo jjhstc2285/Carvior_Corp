@@ -72,14 +72,17 @@ async function putPhoto(set: PhotoSet, slot: SlotKey, file: File): Promise<void>
 }
 
 /**
- * 고른 사진을 찍은 차례대로 세운다.
+ * 고른 차례 그대로 넣는다.
  *
- * 갤러리에서 여섯 장을 고르면 브라우저가 주는 차례는 고른 차례도, 찍은 차례도 아니다
- * (이름 순으로 오기도 한다). 파일에 적힌 찍은 시각으로 세운다 — 앞에서 찍고 뒤로 도는
- * 차례가 그대로 전면·후면·좌·우가 된다.
+ * 갤러리에서 누른 차례가 곧 1번·2번…으로 찍혀 나온다 — 앞에서 찍고 뒤로 도는 그 차례가
+ * 그대로 전면·후면·좌·우가 되게 하려는 것이다.
+ *
+ * 전에는 파일에 적힌 찍은 시각으로 다시 세웠다. 그러면 누른 차례와 어긋난다 — 같은 자리를
+ * 두 번 찍고 나중 것을 고르거나, 이어 찍은 사진의 시각이 같으면 순서가 뒤집힌다.
+ * 사람이 고른 차례가 사람 뜻에 제일 가깝다.
  */
-function inShotOrder(files: File[]): File[] {
-  return [...files].sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name));
+function pickedOrder(files: File[]): File[] {
+  return files.filter((f) => f.type.startsWith('image/'));
 }
 
 export default function PhotoTab() {
@@ -236,7 +239,7 @@ function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () =>
    * 여러 장을 한 번에 넣는다.
    *
    * 차 한 대를 돌면서 여섯 장을 이어 찍는다. 갤러리에서 여섯 장을 고르거나 여섯 장을
-   * 통째로 끌어다 놓으면, 찍은 차례대로 빈 칸에 차례로 들어간다 — 한 칸씩 여섯 번
+   * 통째로 끌어다 놓으면, 고른 차례대로 빈 칸에 차례로 들어간다 — 한 칸씩 여섯 번
    * 누르는 건 차 앞에 서서 할 일이 아니다.
    *
    * 이미 넣은 칸은 건드리지 않는다. 덮어쓰면 잘 찍어 둔 걸 모르고 날린다.
@@ -248,7 +251,7 @@ function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () =>
       return;
     }
 
-    const ordered = inShotOrder(files.filter(f => f.type.startsWith('image/')));
+    const ordered = pickedOrder(files);
     if (ordered.length === 0) return;
 
     setBusy(true);
@@ -329,15 +332,23 @@ function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () =>
       {note && <p className="mb-2 text-[11px] font-medium text-amber-700">{note}</p>}
       {over && (
         <p className="mb-2 rounded-lg bg-indigo-100 px-2.5 py-1.5 text-[11px] font-bold text-indigo-700">
-          놓으면 찍은 차례대로 빈 칸에 들어갑니다
+          놓으면 고른 차례대로 빈 칸에 들어갑니다
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {SLOTS.map(slot => (
-          <PhotoSlot key={slot.key} set={set} slot={slot.key} label={slot.label} onChanged={onChanged} />
-        ))}
-      </div>
+      {/*
+        여섯 장을 한 묶음으로 묶는다.
+
+        한 장을 눌러 크게 본 뒤 옆으로 넘기면 나머지가 이어서 나온다 — 흠집을 볼 때는 한
+        장씩 닫았다 여는 게 아니라 쭉 넘겨 보게 된다. 휴대폰에서는 쓸어 넘기면 된다.
+      */}
+      <Image.PreviewGroup>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {SLOTS.map(slot => (
+            <PhotoSlot key={slot.key} set={set} slot={slot.key} label={slot.label} onChanged={onChanged} />
+          ))}
+        </div>
+      </Image.PreviewGroup>
     </section>
   );
 }
