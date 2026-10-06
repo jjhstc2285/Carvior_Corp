@@ -82,7 +82,15 @@ export class SettlementsController {
    * 정작 채워야 할 사람이 아무것도 못 본다.
    */
   private scope(user: AuthUser, employeeId?: string) {
-    const seesAll = user.role === Role.ADMIN || user.department === CONTRACT_TEAM;
+    /*
+      남의 정산까지 보는 사람.
+
+      매입은 매입팀이 해오고 빈칸은 계약팀이 채운다. 계약팀이 아니면서도 매입가와 상품화
+      비용을 들여다봐야 하는 자리가 있어 이름으로 몇을 더 둔다 — 직급으로 열면 같은 직급이
+      하나 더 생겼을 때 같이 열린다.
+    */
+    const seesAll =
+      user.role === Role.ADMIN || user.department === CONTRACT_TEAM || canSeePurchaseSettlements(user);
     return seesAll ? employeeId : user.id;
   }
 
