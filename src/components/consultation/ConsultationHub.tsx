@@ -3,7 +3,6 @@ import { Download } from 'lucide-react';
 import ConsultationModule from './ConsultationModule';
 import type { ConsultationKind } from '../../types';
 import ConsultationSheetImportModal from './SheetImportModal';
-import CapitalQuotaPanel from './CapitalQuotaPanel';
 import SoldMixChart from './SoldMixChart';
 import { useStore } from '../../store';
 
@@ -59,14 +58,9 @@ export default function ConsultationHub({ role }: Props) {
         ))}
       </div>
 
-      {/*
-        재고금융을 쓴 캐피탈에 할부를 얼마나 깔아 줘야 하는지.
-        파는 사람이 손님 앞에서 어느 할부를 밀지 정해야 해서 상담 맨 위에 둔다.
-      */}
       {/* 넷 중 어디서 팔리고 있는지 — 탭과 상관없이 늘 같은 자리에 둔다 */}
+      {/* 재고금융 할부 의무는 알선 정산으로 옮겼다 — 정산에서 보기로 했다 */}
       <SoldMixChart />
-
-      <CapitalQuotaPanel />
 
       {/* key 를 줘서 탭을 옮기면 검색·필터가 초기화된다 — 알선에서 걸어둔 조건이 수출에 남으면 헷갈린다 */}
       <ConsultationModule key={tab} role={role} kind={tab} />

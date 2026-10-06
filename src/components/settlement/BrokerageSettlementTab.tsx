@@ -17,7 +17,8 @@ import {
 import { ContractPhotoThumb } from './ContractPhotos';
 import BrokerageSettlementForm from './BrokerageSettlementForm';
 import PendingSettlementVehicles from './PendingSettlementVehicles';
-import VisitMissPanel from '../consultation/VisitMissPanel';
+import VisitReviewSection from '../consultation/VisitReviewSection';
+import CapitalQuotaPanel from '../consultation/CapitalQuotaPanel';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
@@ -290,10 +291,18 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
       />
 
       {/*
-        방문했는데 계약이 안 된 건 — 전환율 숫자 뒤에 있는 손님들이다.
-        눌러서 바로 연다. 보류면 왜 보류인지, 종결이면 무슨 말이 오갔는지가 거기 있다.
+        전환율과 그 숫자 뒤의 손님들 — 알선에서만 띄운다(수출은 손님이 오지 않는다).
+
+        누르면 그 상담이 바로 열리고, 왜 안 됐는지는 그 자리에서 적는다.
+        대표만 전원을 보고 나머지는 자기 것만 본다.
       */}
-      <VisitMissPanel month={month} allMonths={allMonths} />
+      {kind === 'BROKERAGE' && <VisitReviewSection role={role} month={month} allMonths={allMonths} />}
+
+      {/*
+        재고금융 할부 의무 — 어느 캐피탈에 얼마를 더 깔아야 하는가.
+        정산에서 보고 싶다고 해서 상담 화면에서 이리로 옮겼다.
+      */}
+      {kind === 'BROKERAGE' && <CapitalQuotaPanel />}
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">

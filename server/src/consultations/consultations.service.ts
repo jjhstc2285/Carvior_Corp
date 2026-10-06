@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConsultationKind, ConsultationStatus, NotificationType, PayMethod, Prisma } from '@prisma/client';
+import { ConsultationKind, ConsultationStatus, NotificationType, PayMethod, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { PushService } from '../push/push.service';
@@ -466,6 +466,41 @@ export class ConsultationsService {
       noRoom: result.noRoom.map(labelOf),
       dealers: dealers.map((d) => ({ ...d, count: result.load.get(d.id) ?? 0 })),
     };
+  }
+
+  /**
+   * 안 된 건에 리뷰를 남긴다 — 왜 계약이 안 됐는지.
+   *
+   * 담당(방문 담당 딜러, 없으면 적은 사람)과 관리자만 적는다. 남의 건에 사유를 달면
+   * 그건 리뷰가 아니라 평가가 된다.
+   *
+   * 적은 사람과 때를 서버가 박는다 — 화면에서 보내면 누가 적었는지를 믿을 수 없다.
+   */
+  async saveVisitReview(id: string, user: AuthUser, reason: string, review: string) {
+    const row = await this.prisma.consultation.findUnique({
+      where: { id },
+      select: { id: true, employeeId: true, visitDealerId: true },
+    });
+    if (!row) throw new NotFoundException('상담을 찾을 수 없습니다.');
+
+    const mine = user.id === (row.visitDealerId ?? row.employeeId);
+    if (user.role !== Role.ADMIN && !mine) {
+      throw new BadRequestException('담당자와 관리자만 리뷰를 적을 수 있습니다.');
+    }
+
+    const clean = review.trim();
+    const updated = await this.prisma.consultation.update({
+      where: { id },
+      data: {
+        missReason: reason.trim().slice(0, 20),
+        missReview: clean,
+        // 둘 다 비우면 안 적은 것으로 되돌린다
+        missReviewBy: reason.trim() || clean ? user.name : '',
+        missReviewAt: reason.trim() || clean ? new Date() : null,
+      },
+      include: this.include,
+    });
+    return this.toView(updated);
   }
 
   async remove(id: string) {

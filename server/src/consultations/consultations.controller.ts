@@ -109,6 +109,20 @@ export class ConsultationsController {
     return this.consultations.assignVisits(date);
   }
 
+  /**
+   * 안 된 건 리뷰 — 왜 계약이 안 됐는지 담당이 적는다.
+   *
+   * 적은 사람과 때는 서버가 박는다. 화면에서 보내면 누가 적었는지를 믿을 수 없다.
+   */
+  @Post(':id/review')
+  review(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: { reason?: string; review?: string },
+  ) {
+    return this.consultations.saveVisitReview(id, user, dto.reason ?? '', dto.review ?? '');
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.consultations.findOne(id);

@@ -566,6 +566,19 @@ model Consultation {
    */
   visitDealerId String?
 
+  /**
+   * 왜 계약이 안 됐는가 — 손님이 다녀간 뒤 담당이 적는다.
+   *
+   * 전환율은 숫자로만 보인다. 몇 퍼센트인지는 알겠는데 왜 그런지는 아무 데도 안 남아,
+   * 다음 달에 같은 이유로 또 놓친다. 사유 한 칸과 적은 말 한 줄이면 달마다 견줄 수 있다.
+   *
+   * 적은 사람과 적은 때를 같이 남긴다 — 나중에 "이거 누가 본 건데" 가 꼭 나온다.
+   */
+  missReason   String    @default("") @db.VarChar(20)
+  missReview   String    @default("") @db.Text
+  missReviewBy String    @default("") @db.VarChar(30)
+  missReviewAt DateTime?
+
   // 출고할 때 카톡방에 "12가3456 입금1000만원 동주 출고완료"처럼 올린다.
   // 그 입금액을 여기 남겨두면 정산으로 넘길 때 다시 묻지 않아도 된다(만원).
   depositAmount Int @default(0)

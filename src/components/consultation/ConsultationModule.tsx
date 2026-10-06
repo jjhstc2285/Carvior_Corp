@@ -20,7 +20,7 @@ import VisitAssignPanel, { VisitDealerSelect, visitDealers } from './VisitAssign
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
-import { conversionOf, isOfKind } from '../../lib/consultationStats';
+import { isOfKind } from '../../lib/consultationStats';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 
 /** 표의 칸들 — 제목과 그리는 방법을 한 벌로 묶어야 차례를 바꿔도 값이 안 엉킨다 */
@@ -106,12 +106,16 @@ const STATUS_COLOR: Record<ConsultationStatus, string> = {
 type StatusView = 'open' | 'all' | ConsultationStatus;
 
 /** 한 번에 그리는 줄 수. 넘으면 '더 보기'로 늘린다 — 천 줄을 한꺼번에 그리면 멈춘다. */
-/** 상담은 알선팀이 맡는다 — 전환율은 이 팀만 센다 */
-const CONSULTATION_TEAM = '알선팀';
 
 const PAGE_SIZE = 100;
 
-export default function ConsultationModule({ role, kind }: Props) {
+/*
+  담당자별 전환율은 알선 정산으로 옮겼다.
+
+  숫자만 봐서는 왜 그런지 알 수가 없어, 그냥 간 손님 목록과 그 이유(리뷰)를 한 자리에
+  두기로 했다 — 그게 정산을 보는 자리다. (components/consultation/VisitReviewSection.tsx)
+*/
+export default function ConsultationModule({ kind }: Props) {
   const { state, deleteConsultation, refresh } = useStore();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusView>('open');
@@ -237,14 +241,6 @@ export default function ConsultationModule({ role, kind }: Props) {
     [state.consultations, kind],
   );
 
-  const staffStats = useMemo(() => {
-    if (role !== 'ADMIN') return [];
-    return state.employees
-      .filter(emp => emp.department === CONSULTATION_TEAM)
-      .map(emp => ({ emp, ...conversionOf(ofKind.filter(c => c.employeeId === emp.id)) }))
-      .filter(s => s.total > 0 || s.closed > 0)
-      .sort((a, b) => b.rate - a.rate || b.total - a.total);
-  }, [ofKind, state.employees, role]);
 
   return (
     <>
@@ -311,34 +307,6 @@ export default function ConsultationModule({ role, kind }: Props) {
             setFormOpen(true);
           }}
         />
-      )}
-
-      {role === 'ADMIN' && staffStats.length > 0 && (
-        <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="mb-3 flex flex-wrap items-baseline gap-2">
-            <p className="text-xs font-bold text-slate-500">담당자별 상담 → 계약 전환율</p>
-            <p className="text-[11px] text-slate-400">
-              {CONSULTATION_TEAM} · 계약 = 계약 + 판매완료 · 계약보류는 계약으로 안 세고 · 상담종결은 아예 빼고 셉니다
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {staffStats.map(({ emp, total, contracted, onHold, closed, rate }) => (
-              <div key={emp.id} className="rounded-xl bg-slate-50 px-3 py-2.5">
-                <p className="text-xs font-medium text-slate-500">{emp.name}</p>
-                <p className="mt-1 text-lg font-bold text-slate-800">{rate}<span className="text-xs font-medium text-slate-400">%</span></p>
-                <p className="text-[11px] text-slate-400">{contracted}/{total}건 계약</p>
-                {/* 보류·종결은 왜 숫자가 그런지 설명해 주는 값이라 같이 둔다 */}
-                {(onHold > 0 || closed > 0) && (
-                  <p className="mt-0.5 text-[11px] text-slate-400">
-                    {onHold > 0 && <span className="text-amber-700">계약보류 {onHold}건</span>}
-                    {onHold > 0 && closed > 0 && ' · '}
-                    {closed > 0 && <span>상담종결 {closed}건 제외</span>}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">

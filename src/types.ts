@@ -1077,6 +1077,15 @@ export interface ConsultationRecord {
   visitTime: string;
   /** 그날 손님을 맞을 담당 딜러 — 전화를 받아 적은 사람(employeeId)과 다를 수 있다 */
   visitDealerId: string | null;
+
+  /**
+   * 왜 계약이 안 됐는가 — 손님이 다녀간 뒤 담당이 적는다.
+   * 적는 칸이 따로 있어서(알선 정산의 '방문 리뷰') 상담 등록 창에서는 안 보낸다.
+   */
+  missReason?: string;
+  missReview?: string;
+  missReviewBy?: string;
+  missReviewAt?: string | null;
   /** 출고 시 입금액(만원) — 카톡방에 올리는 "입금1000만원"이 이 값이다 */
   depositAmount: number;
   nextContactDate: string | null; // 다음 연락 예정일
