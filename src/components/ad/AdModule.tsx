@@ -260,6 +260,43 @@ export default function AdModule({ role }: { role: Role }) {
           </p>
         </div>
 
+
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-xs font-medium text-slate-400">{dayjs().format('M월')} 진단</p>
+          <p className="mt-1 text-2xl font-bold text-slate-800">
+            {monthCount}
+            <span className="ml-1 text-sm font-medium text-slate-400">대</span>
+          </p>
+          <p className="truncate text-[11px] text-slate-400">
+            {byPlatform.length > 0 ? byPlatform.map(([platform, n]) => `${platform} ${n}대`).join(' · ') : '이번 달 찍은 차가 없습니다'}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-xs font-medium text-slate-400">{quotaLabel || '이번 분기'} 약정</p>
+          {quotaTotal > 0 ? (
+            <>
+              <p className="mt-1 text-2xl font-bold text-slate-800">
+                {quotaDone}
+                <span className="ml-1 text-sm font-medium text-slate-400">/ {quotaTotal}대</span>
+                {quotaLeft > 0 && <span className="ml-2 text-sm font-bold text-amber-600">{quotaLeft}대 남음</span>}
+              </p>
+              {/* 분기 90대는 남은 날로 나눠 봐야 급한 줄 안다 */}
+              <p className="text-[11px] text-slate-400">
+                {quotaLeft > 0
+                  ? `마감까지 ${quotaDays}일 · 하루 ${Math.ceil(quotaLeft / Math.max(1, quotaDays))}대`
+                  : '이번 분기 약정을 채웠습니다'}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-2xl font-bold text-slate-300">—</p>
+              <p className="text-[11px] text-slate-400">대수 약정이 걸린 계약이 없습니다</p>
+            </>
+          )}
+        </div>
+      </div>
+
       {/*
         달마다 얼마씩 나갔는가.
 
@@ -310,42 +347,6 @@ export default function AdModule({ role }: { role: Role }) {
             </p>
           </div>
         )}
-      </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">{dayjs().format('M월')} 진단</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">
-            {monthCount}
-            <span className="ml-1 text-sm font-medium text-slate-400">대</span>
-          </p>
-          <p className="truncate text-[11px] text-slate-400">
-            {byPlatform.length > 0 ? byPlatform.map(([platform, n]) => `${platform} ${n}대`).join(' · ') : '이번 달 찍은 차가 없습니다'}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">{quotaLabel || '이번 분기'} 약정</p>
-          {quotaTotal > 0 ? (
-            <>
-              <p className="mt-1 text-2xl font-bold text-slate-800">
-                {quotaDone}
-                <span className="ml-1 text-sm font-medium text-slate-400">/ {quotaTotal}대</span>
-                {quotaLeft > 0 && <span className="ml-2 text-sm font-bold text-amber-600">{quotaLeft}대 남음</span>}
-              </p>
-              {/* 분기 90대는 남은 날로 나눠 봐야 급한 줄 안다 */}
-              <p className="text-[11px] text-slate-400">
-                {quotaLeft > 0
-                  ? `마감까지 ${quotaDays}일 · 하루 ${Math.ceil(quotaLeft / Math.max(1, quotaDays))}대`
-                  : '이번 분기 약정을 채웠습니다'}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="mt-1 text-2xl font-bold text-slate-300">—</p>
-              <p className="text-[11px] text-slate-400">대수 약정이 걸린 계약이 없습니다</p>
-            </>
-          )}
-        </div>
       </div>
 
       {/* 약정 계약 말고, 달마다 얼마를 썼는지만 남기는 광고 */}
