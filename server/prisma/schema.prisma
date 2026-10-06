@@ -124,6 +124,17 @@ model AttendanceRecord {
   clockIn    String? // "HH:mm"
   clockOut   String? // "HH:mm"
 
+  /**
+   * 그날 구내식당(함바집)에서 먹었는가.
+   *
+   * 식대는 출퇴근으로 자동으로 센다(9시 30분까지 찍고 6시 넘겨 찍은 날). 그런데 외근을
+   * 나가거나 손님과 밖에서 먹는 날이 있어, 찍었다고 다 먹은 것은 아니다.
+   *
+   * 비어 있으면(null) 출퇴근으로 자동 판정한다 — 평소에는 아무도 손대지 않아도 된다.
+   * 사람이 켜거나 끄면 그 값이 자동 판정을 이긴다.
+   */
+  mealUsed Boolean?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

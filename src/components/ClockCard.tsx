@@ -9,13 +9,25 @@ import { alertError } from '../lib/alert';
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 const FULL_WORK_MINUTES = 8 * 60;
 
+/*
+  구내식당 체크가 처음에 켜져 있는 기준 — 서버가 식대를 셀 때 쓰는 것과 같은 시각이다.
+
+  여기 있는 값은 보여주기만 한다. 실제로 며칠치를 주는지는 서버가 정한다 — 둘이 어긋나면
+  급여가 어긋나는 쪽이 아니라 체크 표시만 어긋난다.
+
+  평소에는 아무도 안 눌러도 맞게 켜져 있고, 밖에서 먹은 날만 끄면 된다.
+*/
+const MEAL_IN_BY = '09:30';
+const MEAL_OUT_FROM = '18:00';
+
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
 }
 
 export default function ClockCard() {
-  const { state, clockIn, clockOut } = useStore();
+  const { state, clockIn, clockOut, setMeal } = useStore();
+  const [mealBusy, setMealBusy] = useState(false);
 
   /**
    * 출퇴근 등록은 서버가 막는 경우가 있다(등록 안 된 PC, 사무실 밖 네트워크).
@@ -38,6 +50,24 @@ export default function ClockCard() {
         return;
       }
       await alertError('등록하지 못했습니다', message);
+    }
+  };
+
+  /*
+    체크를 누르면 바로 서버에 적는다 — 따로 저장 버튼을 두지 않는다.
+
+    기다렸다 받아야 한다. 안 기다리면 실패해도 화면은 체크된 채로 남아, 먹지도 않은 날이
+    그대로 식대에 올라간다.
+  */
+  const toggleMeal = async (next: boolean) => {
+    setMealBusy(true);
+    try {
+      await setMeal(next);
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : '잠시 후 다시 시도해 주세요.';
+      await alertError('구내식당 체크를 바꾸지 못했습니다', message);
+    } finally {
+      setMealBusy(false);
     }
   };
   const { ip, loading: ipLoading, error: ipError } = useCurrentIp();
@@ -77,6 +107,17 @@ export default function ClockCard() {
 
   const clockedIn = !!record?.clockIn;
   const clockedOut = !!record?.clockOut;
+
+  /*
+    구내식당을 먹은 날인가.
+
+    손으로 켜거나 끈 날은 그 값이고, 안 건드린 날은 출퇴근 시각으로 본다. 출근을 찍기
+    전에는 적을 데가 없다 — 그날 기록이 아직 없다.
+  */
+  const mealAuto =
+    !!record?.clockIn && !!record.clockOut && record.clockIn <= MEAL_IN_BY && record.clockOut >= MEAL_OUT_FROM;
+  const mealOn = record?.mealUsed ?? mealAuto;
+  const mealSet = record?.mealUsed !== null && record?.mealUsed !== undefined;
 
   const canClockIn = !clockedIn && (isAdmin || (!ipLoading && ipOk));
   const canClockOut = clockedIn && !clockedOut;
@@ -156,6 +197,40 @@ export default function ClockCard() {
               퇴근
             </button>
           </div>
+
+          {/*
+            구내식당.
+
+            함바집은 먹은 끼니로 계산한다. 출퇴근만 보고 세면 손님 만나러 나가서 밖에서
+            먹은 날까지 올라가니, 그날은 본인이 끈다.
+          */}
+          <label
+            className={`flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-xs ${
+              clockedIn ? 'cursor-pointer border-slate-200 bg-slate-50' : 'border-slate-100 bg-slate-50/60'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={mealOn}
+              disabled={!clockedIn || mealBusy}
+              onChange={e => void toggleMeal(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-indigo-600 disabled:cursor-not-allowed"
+            />
+            <span className="leading-snug">
+              <span className="font-semibold text-slate-700">구내식당</span>
+              <span className="ml-1 text-slate-400">
+                {!clockedIn
+                  ? '출근을 찍은 뒤 체크할 수 있습니다.'
+                  : mealBusy
+                    ? '적는 중…'
+                    : mealSet
+                      ? mealOn
+                        ? '먹은 날로 적혀 있습니다.'
+                        : '안 먹은 날로 적혀 있습니다.'
+                      : '출퇴근 시각으로 자동 판정 중입니다. 밖에서 먹은 날은 체크를 끄세요.'}
+              </span>
+            </span>
+          </label>
         </div>
       </div>
     </section>

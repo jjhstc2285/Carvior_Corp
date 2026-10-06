@@ -47,6 +47,8 @@ interface Store {
 
   clockIn: () => Promise<void>;
   clockOut: () => Promise<void>;
+  /** 오늘 구내식당에서 먹었는지 적는다 — null 이면 다시 출퇴근 시각으로 자동 판정 */
+  setMeal: (used: boolean | null) => Promise<void>;
 
   submitCorrectionRequest: (input: {
     date: string;
@@ -279,6 +281,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       clockIn: () => run(() => api('/attendance/clock-in', { method: 'POST' })),
       clockOut: () => run(() => api('/attendance/clock-out', { method: 'POST' })),
+      setMeal: (used) => run(() => api('/attendance/meal', { method: 'PATCH', body: { used } })),
 
       submitCorrectionRequest: (input) =>
         run(() =>

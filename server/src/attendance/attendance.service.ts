@@ -304,6 +304,32 @@ export class AttendanceService {
     return { ...row, date: formatDateOnly(row.date) };
   }
 
+  /**
+   * 오늘 구내식당에서 먹었는가를 적는다 — 본인이, 오늘 것만.
+   *
+   * 식대는 출퇴근 시각으로 자동으로 센다. 그런데 찍고 나가서 손님과 밖에서 먹는 날이
+   * 있어 찍힌 것과 먹은 것이 늘 같지는 않다. 체크를 켜고 끄면 그날은 그 값으로 센다.
+   *
+   * null 로 적으면 다시 자동 판정으로 돌아간다 — 잘못 눌렀을 때 되돌릴 자리를 남긴다.
+   *
+   * 출근 전에는 적지 않는다. 기록이 없는 날에 이것만으로 줄을 만들면 달력과 근무시간
+   * 순위에 출근 안 한 날이 빈 줄로 끼어든다.
+   */
+  async setMeal(employeeId: string, used: boolean | null) {
+    const date = toDateOnly(todayKst());
+    const existing = await this.prisma.attendanceRecord.findUnique({
+      where: { employeeId_date: { employeeId, date } },
+      select: { id: true, clockIn: true },
+    });
+    if (!existing?.clockIn) throw new BadRequestException('출근 등록을 먼저 해주세요.');
+
+    const row = await this.prisma.attendanceRecord.update({
+      where: { id: existing.id },
+      data: { mealUsed: used },
+    });
+    return { ...row, date: formatDateOnly(row.date) };
+  }
+
   /** 오늘 내 기록 — 출퇴근 버튼 상태 판단용 */
   async today(employeeId: string) {
     const row = await this.prisma.attendanceRecord.findUnique({

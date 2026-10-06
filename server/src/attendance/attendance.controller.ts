@@ -68,6 +68,16 @@ export class AttendanceController {
   }
 
 
+  /**
+   * 구내식당 체크 — 켜면 그날 식대를 주고, 끄면 안 준다.
+   *
+   * 본인 것만 적는다. 남의 식대를 올렸다 내렸다 할 수 있으면 체크란이 아니라 급여 수정이다.
+   */
+  @Patch('meal')
+  meal(@CurrentUser() user: AuthUser, @Body() dto: { used?: boolean | null }) {
+    return this.attendance.setMeal(user.id, dto.used ?? null);
+  }
+
   // ── 정정 요청 ──
 
   @Get('corrections')

@@ -146,18 +146,25 @@ export class PayrollService {
    *
    * 급여표의 이름과 직원 이름을 맞춘다. 근태 계정이 없는 사람은 0일이다(며칠 나왔는지
    * 알 방법이 없다). 'HH:mm' 은 앞자리를 0으로 채워 넣으므로 글자로 견줘도 시각 순서다.
+   *
+   * 구내식당 체크를 켜거나 끈 날은 그 값으로 센다 — 찍고 나가서 손님과 밖에서 먹는 날이
+   * 있어 찍힌 것과 먹은 것이 늘 같지 않다. 안 건드린 날은 그대로 시각으로 판정한다.
    */
   async mealAllowances(month: string) {
     const records = await this.prisma.attendanceRecord.findMany({
       where: { date: monthRange(month) },
-      select: { clockIn: true, clockOut: true, employee: { select: { name: true } } },
+      select: { clockIn: true, clockOut: true, mealUsed: true, employee: { select: { name: true } } },
     });
 
     const days = new Map<string, number>();
+    /** 사람이 직접 켜고 끈 날 수 — 숫자가 시각과 안 맞을 때 왜 그런지 보여준다 */
+    const marked = new Map<string, number>();
     for (const r of records) {
-      if (!r.clockIn || !r.clockOut) continue;
-      if (r.clockIn > MEAL_IN_BY || r.clockOut < MEAL_OUT_FROM) continue;
       const name = r.employee.name.trim();
+      if (r.mealUsed !== null) marked.set(name, (marked.get(name) ?? 0) + 1);
+
+      const auto = !!r.clockIn && !!r.clockOut && r.clockIn <= MEAL_IN_BY && r.clockOut >= MEAL_OUT_FROM;
+      if (!(r.mealUsed ?? auto)) continue;
       days.set(name, (days.get(name) ?? 0) + 1);
     }
 
@@ -165,7 +172,14 @@ export class PayrollService {
     const rows = entries.map((e) => {
       const name = e.name.trim();
       const count = days.get(name) ?? 0;
-      return { name, days: count, amount: count * MEAL_PER_DAY, matched: days.has(name) };
+      return {
+        name,
+        days: count,
+        amount: count * MEAL_PER_DAY,
+        matched: days.has(name),
+        /** 그 사람이 구내식당 체크를 손으로 건드린 날 수 */
+        marked: marked.get(name) ?? 0,
+      };
     });
 
     return { month, perDay: MEAL_PER_DAY, inBy: MEAL_IN_BY, outFrom: MEAL_OUT_FROM, rows };

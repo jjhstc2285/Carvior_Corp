@@ -116,6 +116,8 @@ export interface AttendanceRecord {
   date: string; // YYYY-MM-DD
   clockIn: string | null; // HH:mm
   clockOut: string | null; // HH:mm
+  /** 구내식당에서 먹었는가 — null 이면 출퇴근 시각으로 자동 판정한다 */
+  mealUsed?: boolean | null;
 }
 
 export interface CorrectionRequest {
