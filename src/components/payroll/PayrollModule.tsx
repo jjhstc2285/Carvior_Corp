@@ -27,10 +27,21 @@ const INPUT =
 /** 공제를 누가 지는가 — 종이에 적혀 있던 말 그대로 */
 const BURDENS = ['본인all', '세금 all 회사부담', '공제없음'];
 
-/** 실 이체 = 급여 − 회사공제 − 본인공제 + 식대 */
-function netOf(r: PayrollEntry, meal: number): number {
-  return r.monthlyPay - r.companyDeduction - r.selfDeduction + meal;
+/**
+ * 실 이체 = 급여 − 회사공제 − 본인공제 ± 식대
+ *
+ * 구내식당(함바집)은 회사가 식당에 직접 낸다. 밥을 현물로 준 것이라 급여에 또 얹으면
+ * 두 번 주는 셈이 되고, 먹은 만큼 급여에서 빼는 게 상계다.
+ *
+ * 식대를 따로 챙겨 주던 때도 있어 더하기로도 둘 수 있게 했다. 화면 위에서 고르고,
+ * 고른 것은 그 브라우저에 남는다.
+ */
+function netOf(r: PayrollEntry, meal: number, offset: boolean): number {
+  return r.monthlyPay - r.companyDeduction - r.selfDeduction + (offset ? -meal : meal);
 }
+
+/** 식대를 상계(차감)할지 — 켜 두면 급여에서 뺀다 */
+const LS_MEAL_OFFSET = 'payrollMealOffset';
 
 /** 그 달 식비 — 서버가 근태를 세어 내려준다 */
 interface MealRow {
@@ -59,6 +70,8 @@ export default function PayrollModule() {
   */
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   const [meal, setMeal] = useState<Meal | null>(null);
+  /* 구내식당은 회사가 직접 내므로 급여에서 빼는 게 기본이다 */
+  const [mealOffset, setMealOffset] = useState(() => localStorage.getItem(LS_MEAL_OFFSET) !== 'add');
 
   // 잠금 — 번호를 받기 전에는 아무것도 안 보여준다
   const [locked, setLocked] = useState(!getPayrollPass());
@@ -181,10 +194,10 @@ export default function PayrollModule() {
       company: live.reduce((s, r) => s + r.companyDeduction, 0),
       self: live.reduce((s, r) => s + r.selfDeduction, 0),
       meal: live.reduce((s, r) => s + mealOf(r.name).amount, 0),
-      net: live.reduce((s, r) => s + netOf(r, mealOf(r.name).amount), 0),
+      net: live.reduce((s, r) => s + netOf(r, mealOf(r.name).amount, mealOffset), 0),
       days: live.reduce((s, r) => s + mealOf(r.name).days, 0),
     };
-  }, [rows, mealOf]);
+  }, [rows, mealOf, mealOffset]);
 
   if (denied) {
     return (
@@ -235,13 +248,33 @@ export default function PayrollModule() {
             <Wallet size={18} className="text-indigo-600" /> 인건비
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            급여에서 공제를 빼고 식대를 더한 <b>실 이체액</b>을 자동으로 냅니다 — 금액을 고치면 바로 따라갑니다.
+            급여에서 공제를 빼고 식대를 {mealOffset ? <b>상계(차감)</b> : <b>더한</b>} <b>실 이체액</b>을 자동으로
+            냅니다 — 금액을 고치면 바로 따라갑니다.
             <br />
             식대는 근태에서 냅니다 — <b>{meal?.inBy ?? '09:30'}까지 찍고 {meal?.outFrom ?? '18:00'}을 넘겨 찍은 날</b>만
             하루 {(meal?.perDay ?? 9000).toLocaleString()}원입니다.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/*
+            구내식당은 회사가 식당에 직접 낸다. 밥을 현물로 준 것이라 급여에 또 얹으면
+            두 번 주는 셈이고, 먹은 만큼 빼는 게 상계다. 따로 챙겨 주던 때도 있어 더하기로도 둔다.
+          */}
+          <label className="text-xs text-slate-500">
+            식대 처리
+            <select
+              value={mealOffset ? 'offset' : 'add'}
+              onChange={e => {
+                const next = e.target.value === 'offset';
+                setMealOffset(next);
+                localStorage.setItem(LS_MEAL_OFFSET, next ? 'offset' : 'add');
+              }}
+              className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400"
+            >
+              <option value="offset">상계(급여에서 뺌)</option>
+              <option value="add">더하기(급여에 얹음)</option>
+            </select>
+          </label>
           {/* 어느 달 근태로 식비를 낼지 — 지난달 급여를 이번 달 근태로 세면 안 된다 */}
           <label className="text-xs text-slate-500">
             식대 기준 달
@@ -284,8 +317,11 @@ export default function PayrollModule() {
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
-          <p className="text-xs font-medium text-slate-400">식대 합계</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">{totals.meal.toLocaleString()}</p>
+          <p className="text-xs font-medium text-slate-400">식대 합계 {mealOffset && <span className="text-red-500">상계</span>}</p>
+          <p className={`mt-1 text-2xl font-bold ${mealOffset ? 'text-red-600' : 'text-slate-800'}`}>
+            {mealOffset && '−'}
+            {totals.meal.toLocaleString()}
+          </p>
           <p className="text-[11px] text-slate-400">
             {dayjs(month).format('M월')} · {totals.days}일 · 하루 {(meal?.perDay ?? 9000).toLocaleString()}원
           </p>
@@ -317,7 +353,7 @@ export default function PayrollModule() {
                 <th className="px-2.5 py-2.5 text-right font-medium">회사공제</th>
                 <th className="px-2.5 py-2.5 text-right font-medium">본인공제</th>
                 <th className="px-2.5 py-2.5 font-medium">부담</th>
-                <th className="px-2.5 py-2.5 text-right font-medium">식대</th>
+                <th className="px-2.5 py-2.5 text-right font-medium">식대{mealOffset && <span className="ml-0.5 text-red-500">(−)</span>}</th>
                 <th className="px-2.5 py-2.5 text-right font-medium">실 이체</th>
                 <th className="px-2.5 py-2.5 font-medium">메모</th>
                 <th className="px-2.5 py-2.5 text-center font-medium">지급중</th>
@@ -413,7 +449,7 @@ export default function PayrollModule() {
 
                   {/* 실 이체는 적는 칸이 아니다 — 위 숫자를 고치면 따라온다 */}
                   <td className="whitespace-nowrap px-2.5 py-1.5 text-right font-bold text-indigo-700">
-                    {netOf(r, mealOf(r.name).amount).toLocaleString()}
+                    {netOf(r, mealOf(r.name).amount, mealOffset).toLocaleString()}
                   </td>
 
                   <td className="px-2.5 py-1.5">

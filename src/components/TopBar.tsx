@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Car, Loader2, Menu, MessageSquare, RefreshCw } from 'lucide-react';
+import { Car, Eye, Loader2, Menu, MessageSquare, RefreshCw } from 'lucide-react';
 import { useStore } from '../store';
 import type { Role } from '../types';
 import NotificationBell from './NotificationBell';
@@ -13,9 +13,14 @@ interface Props {
   /** 안 읽은 메시지 수 — 0이면 배지를 감춘다 */
   chatUnread: number;
   onOpenChat: () => void;
+  /**
+   * 직원 화면으로 보기 — 관리자에게만 넘어온다.
+   * 보기만 바꾸는 것이고 권한은 그대로다(확인용).
+   */
+  preview?: { on: boolean; toggle: () => void };
 }
 
-export default function TopBar({ title, role, onMenuClick, chatUnread, onOpenChat }: Props) {
+export default function TopBar({ title, role, onMenuClick, chatUnread, onOpenChat, preview }: Props) {
   const { refresh, loading, error } = useStore();
   const [lookupOpen, setLookupOpen] = useState(false);
 
@@ -60,6 +65,19 @@ export default function TopBar({ title, role, onMenuClick, chatUnread, onOpenCha
           </button>
 
           {role === 'ADMIN' && <NotificationBell />}
+
+          {/* 직원 눈으로 어떻게 보이는지 — 가린 숫자가 정말 가려졌는지 여기서 본다 */}
+          {preview && (
+            <button
+              onClick={preview.toggle}
+              title={preview.on ? '관리자 화면으로 돌아갑니다' : '직원 눈으로 어떻게 보이는지 확인합니다'}
+              className={`rounded-lg p-2 ${
+                preview.on ? 'bg-amber-100 text-amber-700' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+              }`}
+            >
+              <Eye size={16} />
+            </button>
+          )}
 
           <button
             onClick={() => void refresh()}

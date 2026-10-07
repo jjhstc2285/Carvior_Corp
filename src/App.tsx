@@ -109,8 +109,23 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   return <ParkingModule isAdmin={role === 'ADMIN'} />;
 }
 
+/**
+ * 직원 화면으로 보기.
+ *
+ * 관리자 화면에는 직원에게 안 보여야 할 숫자가 섞여 있다(판매수익 같은 것). 가렸는지
+ * 확인하려면 직원 계정으로 다시 로그인해야 했는데, 그러자고 남의 계정 비밀번호를 물어
+ * 볼 수는 없다.
+ *
+ * 켜면 그 자리에서 직원 눈으로 바뀐다. 보기만 바뀌는 것이고 서버는 그대로 관리자로
+ * 본다 — 가려지는 게 화면뿐인 값이 있으면 이걸로는 안 잡힌다. 그래서 '확인용'이다.
+ *
+ * 새로 고치면 꺼진다. 켜 둔 걸 잊고 "왜 안 보이지" 하는 일이 없게, 켜져 있는 동안에는
+ * 위에 띠를 하나 두른다.
+ */
 function AuthedApp({ role }: { role: Role }) {
   const { user } = useAuth();
+  const [asEmployee, setAsEmployee] = useState(false);
+  const shownRole: Role = asEmployee ? 'EMPLOYEE' : role;
   const seeLedger = canSeeLedger(user);
   const isCeo = usePropertyAccess();
   const canSeePayroll = usePayrollAccess();
@@ -152,6 +167,18 @@ function AuthedApp({ role }: { role: Role }) {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
+      {/* 직원 눈으로 보는 중 — 켜 둔 걸 잊지 않게 띠를 두른다 */}
+      {asEmployee && (
+        <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-amber-500 px-3 py-1.5 text-xs font-bold text-white">
+          직원 화면으로 보는 중입니다 — 보기만 바뀐 것이고 권한은 그대로입니다
+          <button
+            onClick={() => setAsEmployee(false)}
+            className="rounded-full bg-white/25 px-2.5 py-0.5 font-bold hover:bg-white/40"
+          >
+            관리자 화면으로
+          </button>
+        </div>
+      )}
       <Sidebar
         active={shownModule}
         onChange={setModule}
@@ -165,12 +192,13 @@ function AuthedApp({ role }: { role: Role }) {
       <div className="min-w-0 flex-1">
         <TopBar
           title={MODULE_TITLE[shownModule]}
-          role={role}
+          role={shownRole}
           onMenuClick={() => setMobileNavOpen(true)}
           chatUnread={chatUnread}
           onOpenChat={() => setModule('chat')}
+          preview={role === 'ADMIN' ? { on: asEmployee, toggle: () => setAsEmployee(v => !v) } : undefined}
         />
-        <ModuleContent module={shownModule} role={role} />
+        <ModuleContent module={shownModule} role={shownRole} />
       </div>
 
       {/* 어느 화면에 있어도 실시간 알림·메시지를 놓치지 않게 앱 전체에 하나만 띄운다 */}
