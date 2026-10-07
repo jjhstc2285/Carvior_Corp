@@ -142,6 +142,37 @@ export class VehiclePhotosService {
     return { id: set.id };
   }
 
+  /**
+   * 두 칸의 사진을 맞바꾼다.
+   *
+   * 현장에서 급히 찍어 올리다 보면 좌·우가 뒤바뀌거나 계기판이 실내 칸에 들어간다.
+   * 지웠다 다시 올리게 하면 그 사진을 다시 찾아야 하고, LTE로 한 장을 또 올려야 한다.
+   *
+   * 한쪽이 비어 있으면 그냥 옮긴다. 한 번에 지우고 한 번에 넣는다 — 중간에 끊겨도
+   * 두 칸에 같은 사진이 남는 꼴이 안 된다.
+   */
+  async swapPhotos(setId: string, from: VehiclePhotoSlot, to: VehiclePhotoSlot) {
+    if (from === to) return { id: setId };
+
+    const rows = await this.prisma.vehiclePhoto.findMany({
+      where: { setId, slot: { in: [from, to] } },
+      select: { slot: true, url: true },
+    });
+    const a = rows.find((r) => r.slot === from);
+    const b = rows.find((r) => r.slot === to);
+    if (!a && !b) return { id: setId };
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.vehiclePhoto.deleteMany({ where: { setId, slot: { in: [from, to] } } });
+      const made = [
+        ...(a ? [{ setId, slot: to, url: a.url }] : []),
+        ...(b ? [{ setId, slot: from, url: b.url }] : []),
+      ];
+      if (made.length > 0) await tx.vehiclePhoto.createMany({ data: made });
+    });
+    return { id: setId };
+  }
+
   async removePhoto(setId: string, slot: VehiclePhotoSlot) {
     await this.prisma.vehiclePhoto.deleteMany({ where: { setId, slot } });
   }
@@ -197,6 +228,13 @@ export class VehiclePhotosController {
   @Post('photos')
   putPhoto(@CurrentUser() user: AuthUser, @Body() dto: PutPhotoDto) {
     return this.service.putPhoto(user, dto);
+  }
+
+  /** 두 칸의 사진을 맞바꾼다 — 끌어서 옮길 때 쓴다 */
+  @Post('sets/:id/swap')
+  swap(@Param('id') id: string, @Body() dto: { from?: VehiclePhotoSlot; to?: VehiclePhotoSlot }) {
+    if (!dto.from || !dto.to) throw new BadRequestException('어느 칸끼리 바꿀지 없습니다.');
+    return this.service.swapPhotos(id, dto.from, dto.to);
   }
 
   @Delete('sets/:id/photos/:slot')

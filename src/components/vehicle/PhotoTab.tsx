@@ -33,6 +33,14 @@ const SLOTS = [
 
 type SlotKey = (typeof SLOTS)[number]['key'];
 
+/**
+ * 칸끼리 끌어 옮길 때 싣는 이름.
+ *
+ * 파일을 끌어다 놓는 것과 같은 자리에서 받으므로, 안에서 온 것인지 밖에서 온 것인지를
+ * 이 이름으로 가린다 — 안에서 온 것이면 파일이 아니라 칸 이름이 실려 있다.
+ */
+const DRAG_SLOT = 'application/x-anyone-photo-slot';
+
 interface PhotoSet {
   id: string;
   vehicleNumber: string;
@@ -230,6 +238,8 @@ export default function PhotoTab() {
 /** 한 차·한 날의 여섯 칸 */
 function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () => Promise<void>; onRemove: () => void }) {
   const filled = SLOTS.filter(s => set.photos[s.key]).length;
+  /** 지금 끌고 있는 칸 — 놓을 자리를 밝게 띄우려고 묶음이 들고 있는다 */
+  const [dragging, setDragging] = useState<SlotKey | null>(null);
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -342,10 +352,33 @@ function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () =>
         한 장을 눌러 크게 본 뒤 옆으로 넘기면 나머지가 이어서 나온다 — 흠집을 볼 때는 한
         장씩 닫았다 여는 게 아니라 쭉 넘겨 보게 된다. 휴대폰에서는 쓸어 넘기면 된다.
       */}
+      {/*
+        칸끼리 끌어서 옮긴다(PC).
+
+        급히 찍어 올리다 보면 좌·우가 뒤바뀌거나 계기판이 실내 칸에 들어간다. 지웠다 다시
+        올리게 하면 그 사진을 다시 찾아야 하고 LTE로 또 올려야 한다 — 끌어다 놓으면 끝이다.
+
+        휴대폰에서는 안 된다. 손가락으로 끄는 건 화면을 넘기는 손짓과 겹쳐서, 사진을
+        옮기려다 목록이 넘어가거나 그 반대가 된다. 거기서는 지우고 다시 올리는 쪽이 낫다.
+      */}
+      {/* 끌 수 있다는 걸 모르면 아무도 안 쓴다 — 사진이 두 장 넘게 있을 때만 적는다 */}
+      {filled > 1 && (
+        <p className="mb-1.5 hidden text-[11px] text-slate-400 sm:block">
+          사진을 끌어다 다른 칸에 놓으면 자리가 바뀝니다 — 좌·우가 뒤바뀌었을 때 다시 올릴 필요가 없습니다.
+        </p>
+      )}
       <Image.PreviewGroup>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {SLOTS.map(slot => (
-            <PhotoSlot key={slot.key} set={set} slot={slot.key} label={slot.label} onChanged={onChanged} />
+            <PhotoSlot
+              key={slot.key}
+              set={set}
+              slot={slot.key}
+              label={slot.label}
+              onChanged={onChanged}
+              dragging={dragging}
+              onDragSlot={setDragging}
+            />
           ))}
         </div>
       </Image.PreviewGroup>
@@ -364,16 +397,40 @@ function PhotoSlot({
   slot,
   label,
   onChanged,
+  dragging,
+  onDragSlot,
 }: {
   set: PhotoSet;
   slot: SlotKey;
   label: string;
   onChanged: () => Promise<void>;
+  /** 지금 끌고 있는 칸 */
+  dragging: SlotKey | null;
+  onDragSlot: (slot: SlotKey | null) => void;
 }) {
   const url = set.photos[slot];
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * 끌어다 놓은 칸과 맞바꾼다.
+   *
+   * 한쪽이 비어 있으면 그냥 옮겨진다. 서버가 한 번에 지우고 한 번에 넣으므로, 중간에
+   * 끊겨도 두 칸에 같은 사진이 남지 않는다.
+   */
+  const swapWith = async (from: SlotKey) => {
+    if (from === slot) return;
+    setBusy(true);
+    try {
+      await api(`/vehicle-photos/sets/${set.id}/swap`, { method: 'POST', body: { from, to: slot } });
+      await onChanged();
+    } catch (e) {
+      void alertError('사진을 옮기지 못했습니다', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const upload = async (file: File | undefined) => {
     if (!file?.type.startsWith('image/')) return;
@@ -420,11 +477,27 @@ function PhotoSlot({
           e.preventDefault();
           e.stopPropagation();
           setOver(false);
+          // 안에서 끌어온 사진이 먼저다 — 그때는 파일이 아니라 칸 이름이 실려 온다
+          const from = e.dataTransfer.getData(DRAG_SLOT) as SlotKey | '';
+          if (from) {
+            onDragSlot(null);
+            void swapWith(from);
+            return;
+          }
           void upload(e.dataTransfer.files[0]);
         }}
+        /* 사진이 있는 칸만 끌 수 있다. 휴대폰은 이 손짓이 안 먹는다(그게 맞다) */
+        draggable={!!url && !busy}
+        onDragStart={e => {
+          if (!url) return;
+          e.dataTransfer.setData(DRAG_SLOT, slot);
+          e.dataTransfer.effectAllowed = 'move';
+          onDragSlot(slot);
+        }}
+        onDragEnd={() => onDragSlot(null)}
         className={`relative aspect-[4/3] overflow-hidden rounded-lg border bg-slate-50 transition-colors ${
           over ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200'
-        }`}
+        } ${dragging === slot ? 'opacity-40' : ''} ${url ? 'cursor-move' : ''}`}
       >
         {url ? (
           <>
