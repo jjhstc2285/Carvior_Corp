@@ -26,21 +26,34 @@ body {
   color: #fff;
   font-size: 30px;
   border: 1px solid rgba(255, 255, 255, 0.35);
-  transition: background 0.15s, transform 0.15s;
+  /*
+    transform 은 건드리지 않는다.
+
+    세로 가운데 맞춤을 저쪽이 transform 으로 한다(translateY). 여기서 scale 을 얹으면
+    그 맞춤이 통째로 덮여서, 마우스를 올리는 순간 단추가 아래로 뚝 떨어진다.
+  */
+  transition: background 0.15s;
 }
 
 .ant-image-preview-switch-left:hover,
 .ant-image-preview-switch-right:hover {
-  background: rgba(0, 0, 0, 0.85);
-  transform: scale(1.06);
+  background: rgba(0, 0, 0, 0.9);
 }
 
+/*
+  화살표를 사진 쪽으로 당긴다.
+
+  넓은 화면에서 양 끝에 붙여 두면 사진은 가운데 있는데 단추는 화면 귀퉁이에 있다 —
+  볼 때마다 눈이 양쪽 끝까지 갔다 와야 한다. 가운데에서 일정한 거리에 둔다.
+
+  좁은 화면에서는 가운데에서 떼면 서로 겹치므로 그때는 가장자리에서 16px로 둔다.
+*/
 .ant-image-preview-switch-left {
-  inset-inline-start: 20px;
+  inset-inline-start: max(16px, calc(50% - 360px));
 }
 
 .ant-image-preview-switch-right {
-  inset-inline-end: 20px;
+  inset-inline-end: max(16px, calc(50% - 360px));
 }
 
 /* 아이콘도 같이 키운다 — 칸만 커지면 가운데 점처럼 보인다 */
@@ -63,5 +76,4 @@ body {
 .ant-image-preview-switch-left-disabled:hover,
 .ant-image-preview-switch-right-disabled:hover {
   background: rgba(0, 0, 0, 0.25);
-  transform: none;
 }
