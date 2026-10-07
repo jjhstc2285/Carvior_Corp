@@ -787,32 +787,52 @@ export class SettlementsService {
     return this.brokerageView(updated);
   }
 
-  /** 승인 취소 — 자기가 찍은 것만 되돌린다. */
+  /**
+   * 반려 — 한 단계 아래로 돌려보낸다.
+   *
+   * 본부장이 누르면 담당자에게, 대표가 누르면 본부장에게 간다.
+   *
+   * 아직 안 찍고 돌려보내는 것(반려)과 이미 찍은 걸 되돌리는 것(승인 취소)을 따로 두지
+   * 않는다 — 누르는 사람에게는 둘 다 "이건 아니다, 다시"이고 가는 곳도 같다.
+   *
+   * 대표가 되돌리면 본부장 승인까지 같이 지운다. 안 그러면 대표가 아니라고 한 건이
+   * 본부장 쪽에는 '이미 본 건'으로 남아, 아무도 다시 안 보고 그대로 올라온다.
+   *
+   * 본부장을 안 거치는 건은 대표가 담당자에게 바로 돌려보낸다 — 중간에 아무도 없다.
+   */
   async revokeBrokerage(id: string, user: AuthUser) {
     const role = approvalRoleOf(user.name);
     if (!role) throw new ForbiddenException('정산을 승인할 수 있는 계정이 아닙니다.');
 
     const row = await this.prisma.brokerageSettlement.findUnique({
       where: { id },
-      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, ...OWNER_NAME },
+      select: {
+        submittedAt: true,
+        chiefApprovedAt: true,
+        ceoApprovedAt: true,
+        vehicleNumber: true,
+        vehicleName: true,
+        employeeId: true,
+        ...OWNER_NAME,
+      },
     });
     if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
-    const stage = stageOf(row, needsChief(row.employee?.name));
-
-    if (role === 'CEO') {
-      if (stage !== 'DONE') throw new ForbiddenException('취소할 승인이 없습니다.');
-    } else if (stage !== 'CHIEF') {
-      throw new ForbiddenException(stage === 'DONE' ? '대표 승인이 먼저 취소돼야 합니다.' : '취소할 승인이 없습니다.');
-    }
+    const withChief = needsChief(row.employee?.name);
+    const stage = stageOf(row, withChief);
+    const back = this.revokeStep(role, stage, withChief);
 
     const updated = await this.prisma.brokerageSettlement.update({
       where: { id },
-      data:
-        role === 'CEO'
-          ? { ceoApprovedAt: null, ceoApprover: '', status: SettlementStatus.IN_PROGRESS }
-          : { chiefApprovedAt: null, chiefApprover: '' },
+      data: { ...back.data, status: SettlementStatus.IN_PROGRESS },
       include: EMPLOYEE_SELECT,
     });
+
+    const car = `${row.vehicleNumber} ${row.vehicleName}`.trim();
+    if (back.to === 'CHIEF') {
+      void this.notifyApprover(CHIEF_APPROVER, `${car} 알선 정산을 대표가 반려했습니다.`, user.name);
+    } else {
+      void this.notifyEmployee(row.employeeId, `${car} 알선 정산이 반려됐습니다. 고쳐서 다시 올려 주세요. (${user.name})`);
+    }
     return this.brokerageView(updated);
   }
 
@@ -1066,37 +1086,85 @@ export class SettlementsService {
     return this.withVehicleCost(updated);
   }
 
-  /** 승인을 취소한다. 자기가 찍은 것만 되돌린다 — 대표가 찍은 걸 본부장이 지울 수는 없다. */
+  /**
+   * 반려 — 한 단계 아래로 돌려보낸다.
+   *
+   * 본부장이 누르면 담당자에게, 대표가 누르면 본부장에게 간다.
+   *
+   * 아직 안 찍고 돌려보내는 것(반려)과 이미 찍은 걸 되돌리는 것(승인 취소)을 따로 두지
+   * 않는다 — 누르는 사람에게는 둘 다 "이건 아니다, 다시"이고 가는 곳도 같다.
+   *
+   * 대표가 되돌리면 본부장 승인까지 같이 지운다. 안 그러면 대표가 아니라고 한 건이
+   * 본부장 쪽에는 '이미 본 건'으로 남아, 아무도 다시 안 보고 그대로 올라온다.
+   *
+   * 본부장을 안 거치는 건은 대표가 담당자에게 바로 돌려보낸다 — 중간에 아무도 없다.
+   */
   async revokePurchase(id: string, user: AuthUser) {
     const role = approvalRoleOf(user.name);
     if (!role) throw new ForbiddenException('정산을 승인할 수 있는 계정이 아닙니다.');
 
     const row = await this.prisma.purchaseSettlement.findUnique({
       where: { id },
-      select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, ...OWNER_NAME },
+      select: {
+        submittedAt: true,
+        chiefApprovedAt: true,
+        ceoApprovedAt: true,
+        vehicleNumber: true,
+        vehicleName: true,
+        employeeId: true,
+        ...OWNER_NAME,
+      },
     });
     if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
-    const stage = stageOf(row, needsChief(row.employee?.name));
-
-    if (role === 'CEO') {
-      if (stage !== 'DONE') throw new ForbiddenException('취소할 승인이 없습니다.');
-    } else {
-      if (stage !== 'CHIEF') {
-        throw new ForbiddenException(
-          stage === 'DONE' ? '대표 승인이 먼저 취소돼야 합니다.' : '취소할 승인이 없습니다.',
-        );
-      }
-    }
+    const withChief = needsChief(row.employee?.name);
+    const stage = stageOf(row, withChief);
+    const back = this.revokeStep(role, stage, withChief);
 
     const updated = await this.prisma.purchaseSettlement.update({
       where: { id },
-      data:
-        role === 'CEO'
-          ? { ceoApprovedAt: null, ceoApprover: '', status: SettlementStatus.IN_PROGRESS }
-          : { chiefApprovedAt: null, chiefApprover: '' },
+      data: { ...back.data, status: SettlementStatus.IN_PROGRESS },
       include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
     });
+
+    const car = `${row.vehicleNumber} ${row.vehicleName}`.trim();
+    if (back.to === 'CHIEF') {
+      void this.notifyApprover(CHIEF_APPROVER, `${car} 매입 정산을 대표가 반려했습니다.`, user.name);
+    } else {
+      void this.notifyEmployee(row.employeeId, `${car} 매입 정산이 반려됐습니다. 고쳐서 다시 올려 주세요. (${user.name})`);
+    }
     return this.withVehicleCost(updated);
+  }
+
+  /**
+   * 누가 어느 자리에서 되돌릴 수 있고, 어디로 가는가.
+   *
+   * 알선·매입이 같은 규칙이라 한 곳에 둔다 — 두 벌로 두면 한쪽만 고쳐 놓고 왜 다르게
+   * 도는지 한참 찾게 된다.
+   */
+  private revokeStep(
+    role: 'CHIEF' | 'CEO',
+    stage: ReturnType<typeof stageOf>,
+    withChief: boolean,
+  ): { to: 'CHIEF' | 'OWNER'; data: Record<string, null | string> } {
+    if (role === 'CHIEF') {
+      if (!withChief) throw new ForbiddenException('이 정산은 대표만 결재합니다.');
+      if (stage !== 'SUBMITTED' && stage !== 'CHIEF') {
+        throw new ForbiddenException(
+          stage === 'DONE' ? '대표가 먼저 되돌려야 합니다.' : '아직 올라오지 않은 정산입니다.',
+        );
+      }
+      // 담당자에게 — 올린 것까지 지운다. 고쳐서 다시 올려야 한다
+      return { to: 'OWNER', data: { submittedAt: null, chiefApprovedAt: null, chiefApprover: '' } };
+    }
+
+    const mine = withChief ? ['CHIEF', 'DONE'] : ['SUBMITTED', 'DONE'];
+    if (!mine.includes(stage)) throw new ForbiddenException('아직 올라오지 않은 정산입니다.');
+
+    return withChief
+      ? // 본부장에게 — 본부장 승인까지 지운다. 안 지우면 아무도 다시 안 본다
+        { to: 'CHIEF', data: { ceoApprovedAt: null, ceoApprover: '', chiefApprovedAt: null, chiefApprover: '' } }
+      : // 본부장을 안 거치는 건은 담당자에게 바로 간다
+        { to: 'OWNER', data: { ceoApprovedAt: null, ceoApprover: '', submittedAt: null } };
   }
 
   /** 이름으로 찾아 알린다. 그 이름을 가진 직원이 없으면 조용히 넘어간다. */

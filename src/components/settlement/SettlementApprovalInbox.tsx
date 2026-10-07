@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { Check, ChevronDown, ChevronUp, Stamp } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Stamp, Undo2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
 import { useAuth } from '../../authStore';
@@ -101,14 +101,14 @@ export default function SettlementApprovalInbox() {
     return false;
   };
 
-  const approve = async (s: Pending) => {
+  const step = async (s: Pending, action: 'approve' | 'revoke') => {
     setBusyId(s.id);
     try {
       const path = s.kind === '매입' ? 'purchase' : 'brokerage';
-      await api(`/settlements/${path}/${s.id}/approve`, { method: 'POST' });
+      await api(`/settlements/${path}/${s.id}/${action}`, { method: 'POST' });
       await load();
     } catch (e) {
-      void alertError('승인하지 못했습니다', e instanceof ApiError ? e.message : '');
+      void alertError(action === 'approve' ? '승인하지 못했습니다' : '반려하지 못했습니다', e instanceof ApiError ? e.message : '');
     } finally {
       setBusyId(null);
     }
@@ -201,13 +201,27 @@ export default function SettlementApprovalInbox() {
             </span>
 
             {myTurn(s) && (
-              <button
-                disabled={busyId === s.id}
-                onClick={() => void approve(s)}
-                className="flex shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-              >
-                <Check size={12} /> 승인
-              </button>
+              <>
+                {/*
+                  반려 — 한 단계 아래로 돌려보낸다.
+                  본부장이 누르면 담당자에게, 대표가 누르면 본부장에게 간다(본부장 승인도 같이 풀린다).
+                */}
+                <button
+                  disabled={busyId === s.id}
+                  onClick={() => void step(s, 'revoke')}
+                  className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                  title={role === 'CEO' && s.chiefRequired !== false ? '본부장에게 돌려보냅니다' : '담당자에게 돌려보냅니다'}
+                >
+                  <Undo2 size={12} /> 반려
+                </button>
+                <button
+                  disabled={busyId === s.id}
+                  onClick={() => void step(s, 'approve')}
+                  className="flex shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  <Check size={12} /> 승인
+                </button>
+              </>
             )}
           </li>
         ))}

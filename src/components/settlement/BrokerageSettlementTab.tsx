@@ -112,6 +112,32 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
     me?.name === '안원용' ? 'CHIEF' : me?.name === '유진욱' ? 'CEO' : null;
   const [busyId, setBusyId] = useState<string | null>(null);
 
+
+  /*
+    되돌리기 — 누가 어느 자리에서 누를 수 있는가.
+
+    본부장은 자기 차례(올라옴)와 자기가 찍은 뒤, 대표는 자기 차례와 찍은 뒤다.
+    서버가 같은 규칙을 다시 본다(settlements.service.ts revokeStep) — 여기서는 버튼만 가린다.
+  */
+  const myTurn = (stage?: string, chiefRequired?: boolean) =>
+    approverRole === 'CHIEF'
+      ? stage === 'SUBMITTED' && chiefRequired !== false
+      : stage === 'CHIEF' || (stage === 'SUBMITTED' && chiefRequired === false);
+
+  const stamped = (stage?: string) =>
+    approverRole === 'CHIEF' ? stage === 'CHIEF' : stage === 'DONE';
+
+  const canUndo = (s: { stage?: string; chiefRequired?: boolean }) =>
+    !!approverRole && (myTurn(s.stage, s.chiefRequired) || stamped(s.stage));
+
+  /** 이미 찍은 걸 되돌리는 것과 안 찍고 돌려보내는 것 — 말만 다르고 가는 곳은 같다 */
+  const undoLabel = (s: { stage?: string }) => (stamped(s.stage) ? '승인 취소' : '반려');
+
+  const undoHint = (s: { chiefRequired?: boolean }) =>
+    approverRole === 'CEO' && s.chiefRequired !== false
+      ? '본부장에게 돌려보냅니다 — 본부장 승인도 같이 풀립니다'
+      : '담당자에게 돌려보냅니다 — 고쳐서 다시 올려야 합니다';
+
   /** 결재 한 걸음. 서버가 순서와 자격을 다시 본다 — 여기서는 버튼만 가린다. */
   const step = async (s: BrokerageSettlement, action: 'submit' | 'approve' | 'revoke') => {
     setBusyId(s.id);
@@ -601,16 +627,20 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                               <Check size={12} /> 승인
                             </button>
                           )}
-                          {/* 내가 찍은 것만 되돌린다 */}
-                          {((approverRole === 'CHIEF' && s.stage === 'CHIEF') ||
-                            (approverRole === 'CEO' && s.stage === 'DONE')) && (
+                          {/*
+                            반려 — 한 단계 아래로 돌려보낸다.
+
+                            내 차례일 때도, 이미 찍은 뒤에도 같은 버튼이다. 누르는 사람에게는
+                            둘 다 "이건 아니다, 다시"이고 가는 곳도 같다.
+                          */}
+                          {canUndo(s) && (
                             <button
                               disabled={busyId === s.id}
                               onClick={() => void step(s, 'revoke')}
                               className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 disabled:opacity-50"
-                              title="승인을 취소하면 다시 고칠 수 있습니다"
+                              title={undoHint(s)}
                             >
-                              <Undo2 size={12} /> 승인 취소
+                              <Undo2 size={12} /> {undoLabel(s)}
                             </button>
                           )}
                           <button
