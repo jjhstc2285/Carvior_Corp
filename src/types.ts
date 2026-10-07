@@ -835,6 +835,15 @@ export function saleProfit(
 // 상담 → 계약 → 판매완료 → (정산) 순으로 간다. 보류·종결은 그 흐름에서 빠지는 갈래다.
 export type ConsultationStatus = 'IN_PROGRESS' | 'CONTRACTED' | 'SOLD' | 'ON_HOLD' | 'CLOSED';
 
+/** 고르는 차례 — 흐름대로 늘어놓는다(진행중 → 계약 → 판매완료, 그리고 빠지는 갈래) */
+export const CONSULTATION_STATUSES: ConsultationStatus[] = [
+  'IN_PROGRESS',
+  'CONTRACTED',
+  'SOLD',
+  'ON_HOLD',
+  'CLOSED',
+];
+
 export const CONSULTATION_STATUS_LABEL: Record<ConsultationStatus, string> = {
   IN_PROGRESS: '진행중',
   CONTRACTED: '계약',

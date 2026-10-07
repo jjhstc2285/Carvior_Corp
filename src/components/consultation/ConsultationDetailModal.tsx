@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import dayjs from 'dayjs';
 import { Paperclip, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
+import { api, ApiError } from '../../lib/api';
+import { alertError } from '../../lib/alert';
 import {
   CONSULTATION_KIND_LABEL,
   CONSULTATION_STATUS_LABEL,
+  CONSULTATION_STATUSES,
   PAY_METHOD_LABEL,
   type ConsultationRecord,
+  type ConsultationStatus,
 } from '../../types';
 import { effectiveKind } from '../../lib/consultationStats';
 
@@ -38,8 +43,28 @@ export default function ConsultationDetailModal({
   onEdit?: () => void;
   onClose: () => void;
 }) {
-  const { state } = useStore();
+  const { state, refresh } = useStore();
   const owner = state.employees.find(e => e.id === c.employeeId);
+  const [busy, setBusy] = useState(false);
+
+  /*
+    담당자와 상태만은 이 창에서 바로 바꾼다.
+
+    보려고 연 창이라 나머지는 읽기만 한다 — 금액이나 내용이 보던 중에 바뀌면 무엇을 보고
+    판단한 건지 남지 않는다. 그런데 이 둘은 다르다. 손님을 누가 이어받을지, 지금 어디까지
+    왔는지는 보다가 바로 정해지는 값이고, 그때마다 수정 창을 따로 열게 하면 아무도 안 고친다.
+  */
+  const patch = async (body: { employeeId?: string; status?: ConsultationStatus }) => {
+    setBusy(true);
+    try {
+      await api(`/consultations/${c.id}`, { method: 'PATCH', body });
+      await refresh();
+    } catch (e) {
+      void alertError('고치지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  };
   // 내용에 '수출'이라 적혀 수출로 넘어간 건이 있다 — 목록에서 가르는 것과 같은 기준으로 보여준다
   const kind = effectiveKind(c);
 
@@ -68,12 +93,44 @@ export default function ConsultationDetailModal({
         </div>
 
         <div className="mt-3 divide-y divide-slate-50">
-          <Row label="상태">{CONSULTATION_STATUS_LABEL[c.status]}</Row>
+          <Row label="상태">
+            <select
+              value={c.status}
+              disabled={busy}
+              onChange={e => void patch({ status: e.target.value as ConsultationStatus })}
+              className="rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-400 disabled:opacity-50"
+            >
+              {CONSULTATION_STATUSES.map(v => (
+                <option key={v} value={v}>
+                  {CONSULTATION_STATUS_LABEL[v]}
+                </option>
+              ))}
+            </select>
+          </Row>
           <Row label="상담일시">
             {dayjs(c.date).format('YYYY년 M월 D일 (ddd)')}
             {c.time && c.time !== '00:00' && <span className="ml-1 text-slate-500">{c.time}</span>}
           </Row>
-          <Row label="담당자">{owner?.name ?? '—'}</Row>
+          <Row label="담당자">
+            <select
+              value={c.employeeId}
+              disabled={busy}
+              onChange={e => void patch({ employeeId: e.target.value })}
+              className="rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-400 disabled:opacity-50"
+            >
+              {/* 지금 담당이 그만뒀어도 목록에서 사라지면 안 된다 — 그 줄이 비어 보인다 */}
+              {!state.employees.some(e => e.id === c.employeeId) && (
+                <option value={c.employeeId}>{owner?.name ?? '(알 수 없음)'}</option>
+              )}
+              {state.employees
+                .filter(e => e.active !== false || e.id === c.employeeId)
+                .map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} {e.position}
+                  </option>
+                ))}
+            </select>
+          </Row>
           <Row label="손님번호">{c.customerPhone || c.customerName || '—'}</Row>
           <Row label="유입 경로">{c.platform || '—'}</Row>
           <Row label="방문 일정">
