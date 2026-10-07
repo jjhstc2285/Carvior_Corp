@@ -252,7 +252,26 @@ export interface SaleFields {
  * 현금 수수료·할부 피·보험 피·차대금업은 적어두기만 하고 여기서는 안 센다.
  * 아직 안 판 차는 차량판매가가 0이라 총합계만큼 마이너스로 나온다 — 판 다음에 본다.
  */
-export function saleProfit(salePrice: number, grandTotalWon: number): number {
+export function saleProfit(
+  salePrice: number,
+  grandTotalWon: number,
+  /** 상사 정산서 맨 아래 '실제지급액' — 적혀 있으면 이걸 기준으로 낸다 */
+  payoutAmount = 0,
+  purchasePrice = 0,
+): number {
+  /*
+    실제지급액을 적었으면 그 숫자에서 낸다.
+
+    상사는 판매가에서 매입가와 재고금융을 빼고, 부가세와 원천세까지 뗀 뒤에 통장으로
+    넣어 준다. 그 숫자가 실제지급액이다. 그러니 거기서 더 뺄 것은 우리가 따로 쓴 돈뿐이다
+    — 이전비·구전·플랫폼 수수료·상품화·차량비용.
+
+    매입가는 이미 저쪽 계산에서 빠졌으므로 다시 빼지 않는다. 총합계에서 매입가만 덜어
+    내고 뺀다 — 두 번 빼면 매입가만큼 손해로 보인다.
+
+    이렇게 하면 재고금융 이자도 세금도 우리가 따로 적을 필요가 없다. 이미 빠진 금액이다.
+  */
+  if (payoutAmount > 0) return payoutAmount - (grandTotalWon - purchasePrice);
   return salePrice - grandTotalWon;
 }
 

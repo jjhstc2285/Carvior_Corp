@@ -77,6 +77,14 @@ const COLUMNS: Column[] = [
   { key: 'vehicleCost', label: '차량비용(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'totalWon', label: '총합계(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'salePrice', label: '차량판매가', align: 'text-right', headClass: 'text-emerald-600' },
+  // 상사 정산서 맨 아래 숫자 — 적힌 건은 판매수익을 이걸로 낸다
+  {
+    key: 'payoutAmount',
+    label: '실제지급액',
+    align: 'text-right',
+    headClass: 'text-emerald-600',
+    title: '상사 정산서 맨 아래 금액. 적으면 판매수익을 이 금액으로 냅니다 — 매입가·재고금융·세금은 상사가 이미 뺀 뒤입니다',
+  },
   // 매도정산 — 차장·본부장만 보인다. 그 밖의 사람에게는 열 자체를 안 그린다
   { key: 'share', label: '매도정산', align: 'text-right' },
   {
@@ -312,7 +320,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
   /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
   const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
   // 서버가 계산해 주지만, 목록을 손에서 고치는 동안에는 없을 수 있어 같은 식으로 다시 낸다.
-  const profitOf = (s: PurchaseSettlement) => s.saleProfit ?? saleProfit(s.salePrice, totalWonOf(s));
+  const profitOf = (s: PurchaseSettlement) =>
+    s.saleProfit ?? saleProfit(s.salePrice, totalWonOf(s), s.payoutAmount ?? 0, s.purchasePrice);
 
   /*
     담당자 칩.
@@ -546,6 +555,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
       '기타(원)': costOf(s).etc,
       '차량비용 합계(원)': costOf(s).total,
       '총합계(원)': totalWonOf(s),
+      '실제지급액(원)': s.payoutAmount ?? 0,
       담당자: employeeOf(s.employeeId)?.name ?? '',
       결재: SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT'],
       '본부장 승인': s.chiefApprover || '',
@@ -969,7 +979,24 @@ export default function PurchaseSettlementTab({ role }: Props) {
                         </span>
                       </div>
                     ),
-                    profit: <span className="font-semibold text-emerald-700">{MAN(profitOf(s))}</span>,
+                    // 적힌 건만 값이 있다 — 적힌 줄은 판매수익이 이 금액 기준으로 나온다
+                    payoutAmount: (
+                      <span className={(s.payoutAmount ?? 0) > 0 ? 'font-semibold text-emerald-700' : 'text-slate-300'}>
+                        {(s.payoutAmount ?? 0) > 0 ? MAN(s.payoutAmount ?? 0) : '—'}
+                      </span>
+                    ),
+                    profit: (
+                      <span
+                        className="font-semibold text-emerald-700"
+                        title={
+                          (s.payoutAmount ?? 0) > 0
+                            ? '실제지급액 − (총합계 − 매입가)'
+                            : '차량판매가 − 총합계'
+                        }
+                      >
+                        {MAN(profitOf(s))}
+                      </span>
+                    ),
                     owner: <span className="text-slate-500">{employeeOf(s.employeeId)?.name}</span>,
                     // 눌러서 크게 본다 — 결재하는 쪽이 표에서 바로 확인한다
                     contract: s.contractPhotos ? (

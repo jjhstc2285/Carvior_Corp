@@ -52,6 +52,8 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const [brokerFeePayout, setBrokerFeePayout] = useState<BrokerFeePayout>(editing?.brokerFeePayout ?? 'CASH');
   // 판 값 — 상담이 판매완료로 끝나면 채운다. 아직 안 팔았으면 비워둔다.
   const [salePrice, setSalePrice] = useState(editing ? String(editing.salePrice) : '');
+  /* 상사 정산서 맨 아래 숫자 — 적으면 판매수익을 이걸로 낸다 */
+  const [payoutAmount, setPayoutAmount] = useState(editing?.payoutAmount ? String(editing.payoutAmount) : '');
   const [cashCommission, setCashCommission] = useState(editing ? String(editing.cashCommission) : '0');
   const [installmentFee, setInstallmentFee] = useState(editing ? String(editing.installmentFee) : '0');
   const [insuranceFee, setInsuranceFee] = useState(editing ? String(editing.insuranceFee) : '0');
@@ -186,6 +188,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     brokerFee: moneyToNumber(brokerFee),
     platformFee: moneyToNumber(platformFee),
     salePrice: moneyToNumber(salePrice),
+    payoutAmount: moneyToNumber(payoutAmount),
     cashCommission: moneyToNumber(cashCommission),
     installmentFee: moneyToNumber(installmentFee),
     insuranceFee: moneyToNumber(insuranceFee),
@@ -194,7 +197,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const prepTotal = purchasePrepTotal(prepCosts);
   const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal, nums.transferFee, nums.brokerFee, nums.platformFee);
   // 폼에서는 차량비용(주유·배터리)을 모른다 — 표에서는 그것까지 더한 총합계로 낸다.
-  const profit = saleProfit(nums.salePrice, grandTotal);
+  const profit = saleProfit(nums.salePrice, grandTotal, nums.payoutAmount, nums.purchasePrice);
 
   /* 보내고 나서 닫는다 — 안 기다리고 닫으면 실패해도 저장된 것처럼 보인다 */
   const [saving, setSaving] = useState(false);
@@ -214,6 +217,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         vehicleNumber: vehicleNumber.trim(),
         ...nums,
         brokerFeePayout,
+        payoutAmount: moneyToNumber(payoutAmount),
         platformFee: nums.platformFee,
         contractPhotos,
         prepCosts,
@@ -292,8 +296,16 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             <b>총 진행 판매금액</b>을 씁니다) — 여기서 고쳐도
             알선 정산을 다시 저장하면 그 값으로 돌아갑니다.
           </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MoneyField label="차량판매가" value={salePrice} onChange={setSalePrice} />
+            {/*
+              상사 정산서 맨 아래 숫자.
+
+              적어 두면 판매수익을 이 금액으로 낸다 — 매입가도 재고금융 이자도 세금도
+              상사가 이미 빼고 넣어 준 돈이라, 거기서 더 뺄 것은 우리가 쓴 돈뿐이다.
+              안 적으면 예전처럼 차량판매가에서 비용을 빼서 낸다.
+            */}
+            <MoneyField label="실제지급액(상사)" value={payoutAmount} onChange={setPayoutAmount} />
             <MoneyField label="현금 수수료" value={cashCommission} onChange={setCashCommission} />
             <MoneyField label="할부 피" value={installmentFee} onChange={setInstallmentFee} />
             <MoneyField label="보험 피" value={insuranceFee} onChange={setInsuranceFee} />
@@ -322,7 +334,11 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상품화총비용" value={grandTotal} strong />
           <CalcRow
             label="판매수익"
-            formula="차량판매가 − 총비용 (주유·배터리 같은 차량비용은 표에서 더합니다 · 세금은 상사 정산에서 이미 떼고 들어옵니다)"
+            formula={
+              nums.payoutAmount > 0
+                ? '실제지급액 − (총비용 − 매입가) — 매입가·재고금융·세금은 상사가 이미 뺀 금액입니다'
+                : '차량판매가 − 총비용 (주유·배터리 같은 차량비용은 표에서 더합니다 · 세금은 상사 정산에서 이미 떼고 들어옵니다)'
+            }
             value={profit}
             strong
           />
