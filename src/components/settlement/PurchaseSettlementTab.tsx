@@ -30,6 +30,7 @@ import {
 } from '../../types';
 import PurchaseSettlementForm from './PurchaseSettlementForm';
 import PendingPurchaseDrafts from './PendingPurchaseDrafts';
+import MissingInputPanel from './MissingInputPanel';
 import { ContractPhotoThumb } from './ContractPhotos';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
@@ -55,10 +56,15 @@ const MAN = (n: number) => n.toLocaleString();
  * 상품화 여섯 가지는 목록에서 펴서 만든다(광택·세차 … 진단비).
  */
 const COLUMNS: Column[] = [
-  // 판 날이다. 안 판 차는 매입일에 머문다 — 정산은 판 다음에 하는 일이다
-  { key: 'date', label: '정산일자' },
-  // 차가 들어온 날 — 재고를 언제부터 들고 있었는지의 기점이다(차량관리의 제시일자)
-  { key: 'offerDate', label: '제시일자', title: '차가 들어온 날 — 차량관리의 제시일자입니다. 아래 작은 숫자는 그날부터 센 재고일수입니다' },
+  /*
+    차가 들어온 날과 나간 날.
+
+    '정산일자'라고 적어 뒀는데 실은 차가 나간 날이고, '제시일자'는 차가 들어온 날이다.
+    적힌 이름이 하는 일과 다르면 보는 사람이 매번 다시 묻는다 — 입고·출고로 적는다.
+    (담긴 칸 이름은 그대로다. 화면 글자만 바꾼다)
+  */
+  { key: 'offerDate', label: '입고일자', title: '차가 들어온 날 — 차량관리의 제시일자입니다. 옆의 작은 숫자는 그날부터 센 재고일수입니다' },
+  { key: 'date', label: '출고일자', title: '차가 나간 날 — 정산을 적는 날입니다. 아직 안 판 차는 매입일에 머물러 있습니다' },
   { key: 'vehicleName', label: '차량명' },
   { key: 'vehicleNumber', label: '차량번호' },
   {
@@ -149,6 +155,15 @@ export default function PurchaseSettlementTab({ role }: Props) {
    */
   /** 한 달치를 지우는 건 무거운 일이라 사무장·대표만. 서버도 같은 기준으로 다시 본다. */
   const canClear = role === 'ADMIN' || ['대표', '사무장'].some(k => (me?.position ?? '').includes(k));
+
+  /*
+    승인이 찍혀 잠긴 줄도 고칠 수 있는 자리.
+
+    모르고 찍어 버린 건이 생기는데, 되돌릴 사람이 아무도 없으면 그 줄은 영영 틀린 채로
+    남는다. 테스트 계정 하나만 연다 — 서버도 같은 기준으로 다시 본다(approvers.ts).
+  */
+  const canBreakLock = me?.name === '테스트관리자' || (me?.position ?? '').includes('테스트');
+  const lockedFor = (s: PurchaseSettlement) => !!s.locked && !canBreakLock;
   /* 판금집 청구서 넣는 창 */
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [vatOpen, setVatOpen] = useState(false);
@@ -574,6 +589,22 @@ export default function PurchaseSettlementTab({ role }: Props) {
       {/* 매입은 있는데 정산 줄이 없는 차 — 계약팀이 채울 빈칸부터 만든다 */}
       {seesAll && <PendingPurchaseDrafts onCreated={() => void refresh()} />}
 
+      {/*
+        정산 전에 아직 안 채워진 것 — 입고일자·판매완료·실제지급액·계약서·결재.
+
+        한 군데가 비면 정산이 멈추는데, 멈춘 줄은 표 수백 줄 어딘가에 섞여 있어 아무도
+        못 본다. 다 채워진 달에는 아무것도 안 그린다.
+      */}
+      {seesAll && (
+        <MissingInputPanel
+          rows={filtered}
+          onOpen={s => {
+            setEditing(s);
+            setFormOpen(true);
+          }}
+        />
+      )}
+
       {awaitingSale.length > 0 && (
         <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
           <div className="mb-2.5 flex items-center gap-1.5">
@@ -873,7 +904,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
             label: s.vehicleName || s.vehicleNumber,
             sublabel: `${SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']} · 합계 ${NUM(totalWonOf(s))}원`,
             tone: s.locked ? 'locked' : s.status === 'COMPLETED' ? 'done' : 'progress',
-            onSelect: s.locked ? undefined : () => { setEditing(s); setFormOpen(true); },
+            onSelect: lockedFor(s) ? undefined : () => { setEditing(s); setFormOpen(true); },
           }))}
         />
       ) : (
@@ -1070,18 +1101,18 @@ export default function PurchaseSettlementTab({ role }: Props) {
                           </button>
                         )}
                         <button
-                          disabled={s.locked}
+                          disabled={lockedFor(s)}
                           onClick={() => {
                             setEditing(s);
                             setFormOpen(true);
                           }}
                           className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
-                          title={s.locked ? '승인된 정산은 고칠 수 없습니다' : '수정'}
+                          title={lockedFor(s) ? '승인된 정산은 고칠 수 없습니다' : s.locked ? '승인된 정산입니다 — 테스트 계정이라 고칠 수 있습니다' : '수정'}
                         >
                           <Pencil size={14} />
                         </button>
                         <button
-                          disabled={s.locked}
+                          disabled={lockedFor(s)}
                           onClick={() =>
                             void confirmDanger('매입 정산 내역을 삭제할까요?', '상품화 비용 명세도 함께 지워집니다.').then(
                               ok => {

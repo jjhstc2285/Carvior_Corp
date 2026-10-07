@@ -110,3 +110,18 @@ export const SETTLEMENT_VIEWERS = ['이우주', '안원용'];
 export function canSeePurchaseSettlements(user: { name: string }): boolean {
   return SETTLEMENT_VIEWERS.includes(user.name.trim());
 }
+
+/**
+ * 승인이 찍혀 잠긴 정산을 그래도 고칠 수 있는 자리.
+ *
+ * 승인 뒤에는 못 고치는 게 원칙이다 — 무엇을 보고 찍었는지가 안 남는다. 그런데 모르고
+ * 찍어 버린 건이 생기고, 그때 되돌릴 사람이 아무도 없으면 그 줄은 영영 틀린 채로 남는다.
+ *
+ * 테스트 계정 하나만 연다. 관리자 권한으로 열어 두면 관리자가 하나 더 생겼을 때 같이
+ * 열린다 — 승인자를 이름으로 못 박는 것과 같은 이유다.
+ */
+export const LOCK_BREAKER = '테스트관리자';
+
+export function canEditLocked(user: { name: string; position: string }): boolean {
+  return user.name.trim() === LOCK_BREAKER || user.position.includes('테스트');
+}

@@ -185,8 +185,8 @@ export class SettlementsController {
   }
 
   @Patch('brokerage/:id')
-  updateBrokerage(@Param('id') id: string, @Body() dto: UpdateBrokerageDto) {
-    return this.settlements.updateBrokerage(id, dto);
+  updateBrokerage(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateBrokerageDto) {
+    return this.settlements.updateBrokerage(id, dto, user);
   }
 
   @Delete('brokerage/:id')
@@ -229,8 +229,8 @@ export class SettlementsController {
   }
 
   @Patch('purchase/:id')
-  updatePurchase(@Param('id') id: string, @Body() dto: UpdatePurchaseDto) {
-    return this.settlements.updatePurchase(id, dto);
+  updatePurchase(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdatePurchaseDto) {
+    return this.settlements.updatePurchase(id, dto, user);
   }
 
   @Delete('purchase/:id')

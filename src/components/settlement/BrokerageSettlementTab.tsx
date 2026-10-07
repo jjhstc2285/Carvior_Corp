@@ -110,6 +110,15 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
    */
   const approverRole: 'CHIEF' | 'CEO' | null =
     me?.name === '안원용' ? 'CHIEF' : me?.name === '유진욱' ? 'CEO' : null;
+
+  /*
+    승인이 찍혀 잠긴 줄도 고칠 수 있는 자리.
+
+    모르고 찍어 버린 건이 생기는데, 되돌릴 사람이 아무도 없으면 그 줄은 영영 틀린 채로
+    남는다. 테스트 계정 하나만 연다 — 서버도 같은 기준으로 다시 본다(approvers.ts).
+  */
+  const canBreakLock = me?.name === '테스트관리자' || (me?.position ?? '').includes('테스트');
+  const lockedFor = (s: BrokerageSettlement) => !!s.locked && !canBreakLock;
   const [busyId, setBusyId] = useState<string | null>(null);
 
 
@@ -644,19 +653,19 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                             </button>
                           )}
                           <button
-                            disabled={s.locked}
+                            disabled={lockedFor(s)}
                             onClick={() => {
                               setEditing(s);
                               setPreset(undefined);
                               setFormOpen(true);
                             }}
                             className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:text-slate-200 disabled:hover:bg-transparent"
-                            title={s.locked ? '승인된 정산은 고칠 수 없습니다' : '수정'}
+                            title={lockedFor(s) ? '승인된 정산은 고칠 수 없습니다' : s.locked ? '승인된 정산입니다 — 테스트 계정이라 고칠 수 있습니다' : '수정'}
                           >
                             <Pencil size={14} />
                           </button>
                           <button
-                            disabled={s.locked}
+                            disabled={lockedFor(s)}
                             onClick={() =>
                               void confirmDanger(`${kindLabel} 정산 내역을 삭제할까요?`).then(ok => {
                                 if (ok) void deleteBrokerageSettlement(s.id);

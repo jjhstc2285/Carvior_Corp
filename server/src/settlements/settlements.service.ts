@@ -22,6 +22,7 @@ import { normalizePlate } from '../vehicles/vehicle.rules';
 import {
   approvalRoleOf,
   canConfirmCash,
+  canEditLocked,
   CEO_APPROVER,
   CHIEF_APPROVER,
   isLocked,
@@ -562,8 +563,8 @@ export class SettlementsService {
     return this.brokerageView(row);
   }
 
-  async updateBrokerage(id: string, dto: UpdateBrokerageDto) {
-    await this.assertBrokerageEditable(id);
+  async updateBrokerage(id: string, dto: UpdateBrokerageDto, user?: AuthUser) {
+    await this.assertBrokerageEditable(id, user);
     const row = await this.prisma.brokerageSettlement.update({
       where: { id },
       data: {
@@ -928,12 +929,14 @@ export class SettlementsService {
    *
    * 승인한 뒤에 금액이 바뀌면 무엇을 보고 찍었는지가 남지 않는다. 고쳐야 하면 승인을 먼저 취소한다.
    */
-  private async assertBrokerageEditable(id: string): Promise<void> {
+  private async assertBrokerageEditable(id: string, user?: AuthUser): Promise<void> {
     const row = await this.prisma.brokerageSettlement.findUnique({
       where: { id },
       select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, ...OWNER_NAME },
     });
     if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    // 모르고 찍어 버린 건을 되돌릴 사람이 하나는 있어야 한다(approvers.ts)
+    if (user && canEditLocked(user)) return;
     if (isLocked(stageOf(row, needsChief(row.employee?.name)))) {
       throw new ForbiddenException('승인된 정산은 고칠 수 없습니다. 승인을 먼저 취소해 주세요.');
     }
@@ -1011,12 +1014,14 @@ export class SettlementsService {
    * 본부장이 찍은 다음부터는 못 고친다 — 승인한 뒤에 금액이 바뀌면 무엇을 보고 찍었는지가
    * 남지 않는다. 고쳐야 하면 승인을 먼저 취소한다.
    */
-  private async assertEditable(id: string): Promise<void> {
+  private async assertEditable(id: string, user?: AuthUser): Promise<void> {
     const row = await this.prisma.purchaseSettlement.findUnique({
       where: { id },
       select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, ...OWNER_NAME },
     });
     if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    // 모르고 찍어 버린 건을 되돌릴 사람이 하나는 있어야 한다(approvers.ts)
+    if (user && canEditLocked(user)) return;
     if (isLocked(stageOf(row, needsChief(row.employee?.name)))) {
       throw new ForbiddenException('승인된 정산은 고칠 수 없습니다. 승인을 먼저 취소해 주세요.');
     }
@@ -1347,8 +1352,8 @@ export class SettlementsService {
    * 명세는 통째로 갈아끼운다 — 줄 단위로 맞춰가며 고치는 것보다 화면에서 온 목록이 정답이다.
    * 명세를 아예 안 보내면 건드리지 않는다(다른 칸만 고치는 경우).
    */
-  async updatePurchase(id: string, dto: UpdatePurchaseDto) {
-    await this.assertEditable(id);
+  async updatePurchase(id: string, dto: UpdatePurchaseDto, user?: AuthUser) {
+    await this.assertEditable(id, user);
     const { prepCosts, ...rest } = dto;
 
     const row = await this.prisma.purchaseSettlement.update({
