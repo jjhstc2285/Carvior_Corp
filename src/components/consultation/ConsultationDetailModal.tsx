@@ -14,6 +14,9 @@ import {
 } from '../../types';
 import { effectiveKind } from '../../lib/consultationStats';
 
+/** 상담을 맡는 팀 — 전환율도 이 팀만 센다(VisitReviewSection 과 같은 기준) */
+const CONSULTATION_TEAM = '알선팀';
+
 /**
  * 상담 상세.
  *
@@ -46,6 +49,9 @@ export default function ConsultationDetailModal({
   const { state, refresh } = useStore();
   const owner = state.employees.find(e => e.id === c.employeeId);
   const [busy, setBusy] = useState(false);
+
+  /** 담당으로 고를 수 있는 사람 — 상담을 맡는 팀이다 */
+  const candidates = state.employees.filter(e => e.active !== false && e.department === CONSULTATION_TEAM);
 
   /*
     담당자와 상태만은 이 창에서 바로 바꾼다.
@@ -118,17 +124,25 @@ export default function ConsultationDetailModal({
               onChange={e => void patch({ employeeId: e.target.value })}
               className="rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-400 disabled:opacity-50"
             >
-              {/* 지금 담당이 그만뒀어도 목록에서 사라지면 안 된다 — 그 줄이 비어 보인다 */}
-              {!state.employees.some(e => e.id === c.employeeId) && (
-                <option value={c.employeeId}>{owner?.name ?? '(알 수 없음)'}</option>
+              {/*
+                상담은 알선팀이 맡는다 — 고르는 목록도 그 팀만이다.
+
+                전 직원을 늘어놓으면 사무장·대표까지 담당으로 잡히고, 그러면 전환율에
+                팀이 아닌 사람이 끼어든다(그 숫자는 실적이 아니라 잡음이다).
+
+                지금 담당이 알선팀이 아니거나 그만둔 사람이어도 그 사람만은 남긴다 —
+                목록에 없으면 고르지도 않은 사람으로 값이 튄다.
+              */}
+              {owner && !candidates.some(e => e.id === owner.id) && (
+                <option value={owner.id}>
+                  {owner.name} {owner.position}
+                </option>
               )}
-              {state.employees
-                .filter(e => e.active !== false || e.id === c.employeeId)
-                .map(e => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} {e.position}
-                  </option>
-                ))}
+              {candidates.map(e => (
+                <option key={e.id} value={e.id}>
+                  {e.name} {e.position}
+                </option>
+              ))}
             </select>
           </Row>
           <Row label="손님번호">{c.customerPhone || c.customerName || '—'}</Row>
