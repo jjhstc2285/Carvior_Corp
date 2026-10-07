@@ -303,12 +303,26 @@ export default function PurchaseSettlementTab({ role }: Props) {
   */
   const seesShare = SETTLEMENT_VIEWERS.includes((me?.name ?? '').trim());
 
+  /*
+    판매수익은 아무나 보는 값이 아니다.
+
+    그 차에서 회사에 얼마가 남았는지다 — 경영 숫자지 계약팀이 일하는 데 필요한 값이
+    아니다. 계약팀은 비용과 정산금액을 적는 자리고, 남는 돈은 적는 일과 상관이 없다.
+
+    그런데 담당자 칩에까지 '수익 126만' 이 붙어서, 계약팀 사람에게 남의 차 순익이
+    줄줄이 보였다. 더구나 그 수익은 그 사람이 번 돈도 아니다 — 정산을 적어 올린
+    사람일 뿐이다. 보이면 자기 실적으로 읽힌다.
+
+    대표와, 매도정산을 하는 두 사람만 본다.
+  */
+  const seesProfit = role === 'ADMIN' || seesShare;
+
   const columns = useMemo(
     () =>
-      COLUMNS.filter(c => c.key !== 'share' || seesShare).map(c =>
+      COLUMNS.filter(c => (c.key !== 'share' || seesShare) && (c.key !== 'profit' || seesProfit)).map(c =>
         c.key === 'contract' && seesShare ? { ...c, label: '매도정산' } : c,
       ),
-    [seesShare],
+    [seesShare, seesProfit],
   );
 
   /* 제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다 */
@@ -715,7 +729,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
           </p>
           <p className="text-[10px] text-slate-400">{totals.count}건 중 {totals.platformCount}건</p>
         </div>
-        {/* 담당자 칩을 누르면 그 사람이 판 차만 더해진다 */}
+        {/* 담당자 칩을 누르면 그 사람이 판 차만 더해진다. 회사에 남는 돈이라 대표만 본다 */}
+        {seesProfit && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-2">
           <p className="text-xs font-medium text-emerald-700/80">판매수익 합계</p>
           <p className={`text-xl font-bold ${totals.profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
@@ -726,6 +741,17 @@ export default function PurchaseSettlementTab({ role }: Props) {
             {totals.sold > 0 && ` · 대당 ${MAN(Math.round(totals.profit / totals.sold))}원`}
           </p>
         </div>
+        )}
+        {/* 대표가 아닌 사람에게는 몇 대 팔렸는지까지만 보여준다 */}
+        {!seesProfit && (
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <p className="text-xs font-medium text-slate-400">판매 대수</p>
+            <p className="text-xl font-bold text-emerald-700">
+              {totals.sold}<span className="ml-1 text-sm font-medium text-slate-400">대</span>
+            </p>
+            <p className="text-[10px] text-slate-400">{totals.count}건 중</p>
+          </div>
+        )}
       </div>
 
       {/* 위 '상품화총비용 합계'를 항목 6개로 쪼갠 것 — 세로 합이 그 카드 숫자와 같다 */}
@@ -798,7 +824,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
             <button
               key={employee.id}
               onClick={() => setEmployeeFilter(v => (v === employee.id ? 'all' : employee.id))}
-              title={`${employee.name} ${employee.position} · ${count}건 중 결재완료 ${done}건 · ${sold}대 판매, 판매수익 ${NUM(profit)}원${
+              title={`${employee.name} ${employee.position} · ${count}건 중 결재완료 ${done}건 · ${sold}대 판매${
+                seesProfit ? `, 판매수익 ${NUM(profit)}원` : ''
+              }${
                 bonus > 0
                   ? ` · 인센티브 ${NUM(bonus)}원 (${PURCHASE_BONUS_MIN}건 넘는 ${done - PURCHASE_BONUS_MIN}건치)`
                   : ` · 결재완료 ${PURCHASE_BONUS_MIN}건을 넘으면 넘는 만큼 건당 ${NUM(PURCHASE_BONUS_PER_CASE)}원`
@@ -814,11 +842,15 @@ export default function PurchaseSettlementTab({ role }: Props) {
               <span className="text-slate-400">{employee.position}</span>
               <span className="font-bold text-indigo-600">{count}</span>
               {done > 0 && <span className="text-[11px] text-slate-400">완료 {done}</span>}
-              {sold > 0 && (
-                <span className={`text-[11px] font-semibold ${profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                  수익 {MAN(profit)}
-                </span>
-              )}
+              {/* 판 대수는 일한 양이라 다 보고, 남은 돈은 대표만 본다 */}
+              {sold > 0 &&
+                (seesProfit ? (
+                  <span className={`text-[11px] font-semibold ${profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    수익 {MAN(profit)}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-400">판매 {sold}</span>
+                ))}
               {bonus > 0 && (
                 <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
                   +{NUM(bonus)}
