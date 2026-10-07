@@ -511,6 +511,38 @@ export class ConsultationsService {
     return this.toView(updated);
   }
 
+  /**
+   * 리콜 — 안 된 건에 다시 전화를 걸어 보고 그 결과를 남긴다.
+   *
+   * 담당자가 아닌 사람이 하는 일이다. 팀장이 손님에게 직접 걸어 "문제가 있었나, 우리
+   * 직원이 실수한 게 있나, 다른 차를 보겠나"를 묻는다. 아직 알선팀에 팀장이 없어
+   * 대표가 본다 — 자리가 생기면 여기 한 줄만 늘린다.
+   *
+   * 건 사람과 때는 서버가 박는다. 화면에서 보내면 누가 걸었는지를 믿을 수 없다.
+   */
+  async saveRecall(id: string, user: AuthUser, result: string, note: string) {
+    if (user.role !== Role.ADMIN) {
+      throw new BadRequestException('리콜은 대표(관리자)만 적을 수 있습니다.');
+    }
+    const row = await this.prisma.consultation.findUnique({ where: { id }, select: { id: true } });
+    if (!row) throw new NotFoundException('상담을 찾을 수 없습니다.');
+
+    const clean = note.trim();
+    const kept = result.trim().slice(0, 20);
+    const updated = await this.prisma.consultation.update({
+      where: { id },
+      data: {
+        recallResult: kept,
+        recallNote: clean,
+        // 둘 다 비우면 안 건 것으로 되돌린다
+        recallBy: kept || clean ? user.name : '',
+        recallAt: kept || clean ? new Date() : null,
+      },
+      include: this.include,
+    });
+    return this.toView(updated);
+  }
+
   async remove(id: string) {
     await this.assertExists(id);
     await this.prisma.consultation.delete({ where: { id } });

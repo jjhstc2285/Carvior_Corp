@@ -19,6 +19,7 @@ import { ContractPhotoThumb } from './ContractPhotos';
 import BrokerageSettlementForm from './BrokerageSettlementForm';
 import PendingSettlementVehicles from './PendingSettlementVehicles';
 import VisitReviewSection from '../consultation/VisitReviewSection';
+import ContractGoalPanel from './ContractGoalPanel';
 import CapitalQuotaPanel from '../consultation/CapitalQuotaPanel';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
@@ -334,6 +335,9 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
         누르면 그 상담이 바로 열리고, 왜 안 됐는지는 그 자리에서 적는다.
         대표만 전원을 보고 나머지는 자기 것만 본다.
       */}
+      {/* 이번 달 계약이 어디까지 왔나 — 목표를 적어 두고 본다. 대표만 본다 */}
+      {kind === 'BROKERAGE' && role === 'ADMIN' && <ContractGoalPanel month={month} allMonths={allMonths} />}
+
       {kind === 'BROKERAGE' && <VisitReviewSection role={role} month={month} allMonths={allMonths} />}
 
       {/*

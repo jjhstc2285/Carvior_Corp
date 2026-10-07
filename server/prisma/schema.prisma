@@ -579,6 +579,20 @@ model Consultation {
   missReviewBy String    @default("") @db.VarChar(30)
   missReviewAt DateTime?
 
+  /**
+   * 리콜 — 안 된 건에 다른 사람이 다시 전화를 걸어 보는 것.
+   *
+   * 담당자가 적는 리뷰와는 다른 일이다. 리뷰는 "왜 안 됐나"를 담당자가 적는 것이고,
+   * 리콜은 팀장(지금은 대표)이 손님에게 직접 걸어 "문제가 있었나, 우리 직원이 실수한
+   * 게 있나, 다른 차를 보겠나"를 묻는 것이다. 같은 칸에 섞으면 누가 한 말인지 모른다.
+   *
+   * 결과는 몇 가지로 끊어 둔다 — 사람마다 다르게 적으면 달마다 견줄 수가 없다.
+   */
+  recallAt     DateTime?
+  recallBy     String    @default("") @db.VarChar(30)
+  recallResult String    @default("") @db.VarChar(20)
+  recallNote   String    @default("") @db.Text
+
   // 출고할 때 카톡방에 "12가3456 입금1000만원 동주 출고완료"처럼 올린다.
   // 그 입금액을 여기 남겨두면 정산으로 넘길 때 다시 묻지 않아도 된다(만원).
   depositAmount Int @default(0)

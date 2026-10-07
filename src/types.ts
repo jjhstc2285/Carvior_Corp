@@ -1131,6 +1131,15 @@ export interface ConsultationRecord {
   missReview?: string;
   missReviewBy?: string;
   missReviewAt?: string | null;
+
+  /**
+   * 리콜 — 안 된 건에 팀장(지금은 대표)이 다시 전화를 걸어 본 기록.
+   * 담당자가 적는 리뷰와 다른 일이라 칸을 따로 둔다.
+   */
+  recallResult?: string;
+  recallNote?: string;
+  recallBy?: string;
+  recallAt?: string | null;
   /** 출고 시 입금액(만원) — 카톡방에 올리는 "입금1000만원"이 이 값이다 */
   depositAmount: number;
   nextContactDate: string | null; // 다음 연락 예정일

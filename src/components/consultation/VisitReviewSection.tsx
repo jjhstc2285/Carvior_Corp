@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { ChevronDown, ChevronRight, MessageSquarePlus, UserX } from 'lucide-react';
+import { ChevronDown, ChevronRight, MessageSquarePlus, PhoneOutgoing, UserX } from 'lucide-react';
 import { useStore } from '../../store';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
@@ -43,6 +43,16 @@ const STATUS_CLASS: Record<string, string> = {
  */
 const REASONS = ['가격', '차량 상태', '할부 안 됨', '다른 차 구매', '단순 비교', '재방문 예정', '연락 두절', '기타'];
 
+/**
+ * 리콜 결과 — 다시 걸어 보고 무엇을 들었나.
+ *
+ * 담당자가 적는 리뷰와 다른 일이다. 팀장(지금은 대표)이 손님에게 직접 걸어 "문제가
+ * 있었나, 우리 직원이 실수한 게 있나, 다른 차를 보겠나"를 묻는다.
+ *
+ * 몇 가지로 끊어 둔다 — 사람마다 다르게 적으면 달마다 견줄 수가 없다.
+ */
+const RECALL_RESULTS = ['통화함', '부재중', '다른 차 보기로', '타사 구매', '응대 불만', '그냥 둠'];
+
 export default function VisitReviewSection({
   role,
   month,
@@ -58,6 +68,8 @@ export default function VisitReviewSection({
   const [status, setStatus] = useState<ConsultationStatus | 'all'>('all');
   const [detail, setDetail] = useState<ConsultationRecord | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  /** 지금 리콜을 적고 있는 줄 — 리뷰와 따로 연다(쓰는 사람도 내용도 다르다) */
+  const [recalling, setRecalling] = useState<string | null>(null);
 
   const today = dayjs().format('YYYY-MM-DD');
 
@@ -107,6 +119,19 @@ export default function VisitReviewSection({
 
   /** 아직 왜 안 됐는지 안 적은 건 — 이게 줄어드는 게 이 화면의 쓸모다 */
   const unwritten = shown.filter(c => !c.missReason && !c.missReview).length;
+
+  /** 아직 안 걸어 본 건 — 대표가 돌릴 목록이다 */
+  const notRecalled = shown.filter(c => !c.recallResult && !c.recallNote).length;
+
+  const saveRecall = async (c: ConsultationRecord, result: string, note: string) => {
+    try {
+      await api(`/consultations/${c.id}/recall`, { method: 'POST', body: { result, note } });
+      await refresh();
+      setEditing(null);
+    } catch (e) {
+      void alertError('리콜을 적지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
 
   const saveReview = async (c: ConsultationRecord, reason: string, review: string) => {
     try {
@@ -215,7 +240,13 @@ export default function VisitReviewSection({
                     {misses.filter(c => c.status === s && (picked === 'all' || ownerOf(c) === picked)).length}
                   </button>
                 ))}
-                {unwritten > 0 && <span className="ml-auto text-[11px] text-slate-400">리뷰 안 적은 건 {unwritten}</span>}
+                <span className="ml-auto text-[11px] text-slate-400">
+                  {unwritten > 0 && `리뷰 안 적은 건 ${unwritten}`}
+                  {unwritten > 0 && role === 'ADMIN' && notRecalled > 0 && ' · '}
+                  {role === 'ADMIN' && notRecalled > 0 && (
+                    <b className="font-bold text-emerald-700">리콜 안 돌린 건 {notRecalled}</b>
+                  )}
+                </span>
               </div>
 
               {shown.length === 0 ? (
@@ -253,10 +284,24 @@ export default function VisitReviewSection({
                               ? 'text-indigo-600 hover:bg-indigo-50'
                               : 'text-slate-400 hover:bg-slate-200'
                           }`}
-                          title="왜 안 됐는지 적기"
+                          title="왜 안 됐는지 적기 — 담당자가 적습니다"
                         >
                           <MessageSquarePlus size={13} />
                         </button>
+                        {/* 리콜은 담당자가 아닌 사람이 하는 일이다 — 지금은 대표만 */}
+                        {role === 'ADMIN' && (
+                          <button
+                            onClick={() => setRecalling(e => (e === c.id ? null : c.id))}
+                            className={`shrink-0 rounded-md px-1.5 py-1 ${
+                              c.recallResult || c.recallNote
+                                ? 'text-emerald-600 hover:bg-emerald-50'
+                                : 'text-slate-400 hover:bg-slate-200'
+                            }`}
+                            title="리콜 — 다시 걸어 보고 결과를 적습니다"
+                          >
+                            <PhoneOutgoing size={13} />
+                          </button>
+                        )}
                       </div>
 
                       {/* 적어 둔 리뷰 — 적은 사람과 때를 같이 보여준다 */}
@@ -277,8 +322,27 @@ export default function VisitReviewSection({
                         </p>
                       )}
 
+                      {/* 걸어 본 결과 — 누가 언제 걸었는지 같이 보여준다 */}
+                      {(c.recallResult || c.recallNote) && recalling !== c.id && (
+                        <p className="mt-1 flex flex-wrap items-center gap-1.5 pl-10 text-[11px]">
+                          <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-bold text-emerald-700">
+                            리콜{c.recallResult && ` · ${c.recallResult}`}
+                          </span>
+                          <span className="text-slate-600">{c.recallNote}</span>
+                          {c.recallBy && (
+                            <span className="text-slate-400">
+                              — {c.recallBy}
+                              {c.recallAt && ` ${dayjs(c.recallAt).format('M/D')}`}
+                            </span>
+                          )}
+                        </p>
+                      )}
+
                       {editing === c.id && (
                         <ReviewEditor row={c} onSave={saveReview} onCancel={() => setEditing(null)} />
+                      )}
+                      {recalling === c.id && (
+                        <RecallEditor row={c} onSave={saveRecall} onCancel={() => setRecalling(null)} />
                       )}
                     </div>
                   ))}
@@ -354,6 +418,80 @@ function ReviewEditor({
           저장
         </button>
         <button onClick={onCancel} className="shrink-0 rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-slate-100">
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 리콜 적는 칸.
+ *
+ * 리뷰와 생김새는 같지만 쓰는 사람도 내용도 다르다. 리뷰는 담당자가 "왜 안 됐나"를
+ * 적는 것이고, 리콜은 팀장(지금은 대표)이 손님에게 직접 걸어 들은 말을 적는 것이다.
+ *
+ * 둘 다 비우고 저장하면 안 건 것으로 되돌아간다.
+ */
+function RecallEditor({
+  row,
+  onSave,
+  onCancel,
+}: {
+  row: ConsultationRecord;
+  onSave: (c: ConsultationRecord, result: string, note: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [result, setResult] = useState(row.recallResult ?? '');
+  const [text, setText] = useState(row.recallNote ?? '');
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await onSave(row, result, text);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2">
+      <p className="mb-1 text-[11px] font-bold text-emerald-800">
+        리콜 — 다시 걸어서 물어본 결과
+        <span className="ml-1 font-normal text-emerald-700/70">
+          문제가 있었는지 · 우리 직원이 실수한 게 있는지 · 다른 차를 보겠는지
+        </span>
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {RECALL_RESULTS.map(r => (
+          <button
+            key={r}
+            onClick={() => setResult(v => (v === r ? '' : r))}
+            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+              result === r ? 'bg-emerald-600 text-white' : 'bg-white text-slate-500 hover:bg-emerald-100'
+            }`}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+      <div className="mt-1.5 flex gap-1.5">
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && void save()}
+          placeholder="손님이 뭐라고 하셨는지 한 줄로"
+          className="min-w-0 flex-1 rounded-lg border border-emerald-200 px-2 py-1 text-xs outline-none focus:border-emerald-400"
+        />
+        <button
+          onClick={() => void save()}
+          disabled={busy}
+          className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+        >
+          저장
+        </button>
+        <button onClick={onCancel} className="shrink-0 rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-white">
           취소
         </button>
       </div>

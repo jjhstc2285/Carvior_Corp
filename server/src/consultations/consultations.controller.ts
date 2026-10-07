@@ -123,6 +123,19 @@ export class ConsultationsController {
     return this.consultations.saveVisitReview(id, user, dto.reason ?? '', dto.review ?? '');
   }
 
+  /**
+   * 리콜 — 안 된 건에 다시 전화를 걸어 보고 결과를 남긴다.
+   * 담당자가 아닌 사람이 하는 일이라 대표(관리자)만 적는다.
+   */
+  @Post(':id/recall')
+  recall(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: { result?: string; note?: string },
+  ) {
+    return this.consultations.saveRecall(id, user, dto.result ?? '', dto.note ?? '');
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.consultations.findOne(id);
