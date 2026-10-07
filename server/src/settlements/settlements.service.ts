@@ -1,13 +1,14 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConsultationKind, NotificationType, Prisma, SettlementStatus, VehicleExpenseKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { formatDateOnly, monthRange, toDateOnly, todayKst } from '../common/date.util';
+import { formatDateOnly, formatDateOnlyOrNull, monthRange, toDateOnly, todayKst } from '../common/date.util';
 import {
   EMPTY_VEHICLE_COST,
   brokerageProfit,
   brokerageSettlementAmount,
   netProfit,
   prepBreakdown,
+  profitShareAmount,
   purchaseGrandTotal,
   purchaseGrandTotalWon,
   transferFeeOf,
@@ -67,6 +68,8 @@ interface PurchaseRow extends SaleFields {
   salePrice: number;
   /** 플랫폼 수수료 — 헤이딜러·엔카 경매장에서 사오면 내는 돈 */
   platformFee: number;
+  /** 매도정산 배분 — NEW(신차 30%) / PERSON(개인 50%) / 빈 글자(안 정함) */
+  profitShare: string;
   prepCosts: { kind: PrepCostKind; amount: number }[];
 }
 
@@ -861,8 +864,39 @@ export class SettlementsService {
       orderBy: { submittedAt: 'asc' },
     });
 
-    const costs = await this.vehicleCostsByPlate(rows.map((r) => r.vehicleNumber));
-    return rows.map((r) => this.toPurchaseView(r, costs.get(normalizePlate(r.vehicleNumber))));
+    const plates = rows.map((r) => r.vehicleNumber);
+    const [costs, offers] = await Promise.all([this.vehicleCostsByPlate(plates), this.offerDatesOf(plates)]);
+    return rows.map((r) =>
+      this.toPurchaseView(r, costs.get(normalizePlate(r.vehicleNumber)), offers.get(normalizePlate(r.vehicleNumber))),
+    );
+  }
+
+  /**
+   * 차가 들어온 날 — 차량관리의 제시일자를 차량번호로 붙인다.
+   *
+   * 정산에 따로 적지 않는다. 두 군데 적으면 어긋나고, 어긋나면 어느 쪽이 맞는지 아무도
+   * 모른다. 차가 들어온 날은 차량관리가 원본이다.
+   *
+   * 못 붙여도 목록은 그대로 나와야 한다 — 날짜 하나 때문에 정산이 안 보이면 그게 더 큰 일이다.
+   */
+  private async offerDatesOf(vehicleNumbers: string[]): Promise<Map<string, string | null>> {
+    const plates = [...new Set(vehicleNumbers.map(normalizePlate).filter(Boolean))];
+    const out = new Map<string, string | null>();
+    if (plates.length === 0) return out;
+
+    try {
+      const CHUNK = 500;
+      for (let i = 0; i < plates.length; i += CHUNK) {
+        const found = await this.prisma.managedVehicle.findMany({
+          where: { vehicleNumber: { in: plates.slice(i, i + CHUNK) } },
+          select: { vehicleNumber: true, offerDate: true },
+        });
+        for (const v of found) out.set(normalizePlate(v.vehicleNumber), formatDateOnlyOrNull(v.offerDate));
+      }
+    } catch (e) {
+      this.logger.warn(`제시일자를 붙이지 못했습니다: ${(e as Error).message}`);
+    }
+    return out;
   }
 
   /**
@@ -1202,7 +1236,12 @@ export class SettlementsService {
     }
   }
 
-  private toPurchaseView<T extends PurchaseRow>(row: T, cost: VehicleCostSummary | undefined) {
+  private toPurchaseView<T extends PurchaseRow>(
+    row: T,
+    cost: VehicleCostSummary | undefined,
+    /** 차가 들어온 날(제시일자) — 차량관리에서 붙인다. 없으면 null */
+    offerDate?: string | null,
+  ) {
     const vehicleCost = cost ?? EMPTY_VEHICLE_COST;
     // 상품화총비용과 항목별 합계는 명세를 더해서 낸다 — 저장하지 않는다.
     const prepTotal = purchasePrepTotal(row.prepCosts);
@@ -1216,6 +1255,10 @@ export class SettlementsService {
     const transferFee = transferFeeOf(row.purchasePrice);
     // 담당자에 따라 본부장을 거치는지가 갈린다.
     const withChief = needsChief(row.employee?.name);
+    const profit = saleProfit(
+      row.salePrice,
+      purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee, row.platformFee),
+    );
     return {
       ...row,
       transferFee,
@@ -1234,17 +1277,27 @@ export class SettlementsService {
       locked: isLocked(stageOf(row, withChief)),
       /** 본부장을 안 거치는 건 — 화면에서 '대표 승인 대기'로 적는다 */
       chiefRequired: withChief,
-      saleProfit: saleProfit(
-        row.salePrice,
-        purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee, row.platformFee),
-      ),
+      saleProfit: profit,
+      /**
+       * 차가 들어온 날 — 재고를 언제부터 들고 있었는지의 기점이다.
+       *
+       * 차량관리의 제시일자를 차량번호로 붙인다. 정산에 따로 적지 않는다 — 두 군데 적으면
+       * 어긋나고, 어느 쪽이 맞는지 아무도 모른다.
+       */
+      offerDate: offerDate ?? null,
+      /** 그 사람이 가져가는 몫 — 안 정한 건은 0이다 */
+      shareAmount: profitShareAmount(profit, row.profitShare),
     };
   }
 
   /** 단건 응답도 목록과 같은 모양이 되게 차량비용을 붙여준다. */
   private async withVehicleCost<T extends PurchaseRow & { vehicleNumber: string }>(row: T) {
-    const costs = await this.vehicleCostsByPlate([row.vehicleNumber]);
-    return this.toPurchaseView(row, costs.get(normalizePlate(row.vehicleNumber)));
+    const [costs, offers] = await Promise.all([
+      this.vehicleCostsByPlate([row.vehicleNumber]),
+      this.offerDatesOf([row.vehicleNumber]),
+    ]);
+    const plate = normalizePlate(row.vehicleNumber);
+    return this.toPurchaseView(row, costs.get(plate), offers.get(plate));
   }
 
   async createPurchase(dto: CreatePurchaseDto) {
@@ -1262,6 +1315,7 @@ export class SettlementsService {
         brokerFee: dto.brokerFee ?? 0,
         platformFee: dto.platformFee ?? 0,
         ...(dto.brokerFeePayout ? { brokerFeePayout: dto.brokerFeePayout } : {}),
+        profitShare: dto.profitShare ?? '',
         contractPhotos: dto.contractPhotos ?? '',
         salePrice: dto.salePrice ?? 0,
         cashCommission: dto.cashCommission ?? 0,

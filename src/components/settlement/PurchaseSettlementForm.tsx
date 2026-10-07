@@ -7,7 +7,6 @@ import {
   BROKER_FEE_PAYOUTS,
   BROKER_FEE_PAYOUT_LABEL,
   EXTRA_FEE_RATE,
-  SALE_TAX_RATE,
   acquisitionTax,
   dealerTransferFee,
   extraTransferFee,
@@ -323,7 +322,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상품화총비용" value={grandTotal} strong />
           <CalcRow
             label="판매수익"
-            formula={`차량판매가 − 총비용 − 세금 ${percentLabel(SALE_TAX_RATE)}% (주유·배터리 같은 차량비용은 표에서 더합니다)`}
+            formula="차량판매가 − 총비용 (주유·배터리 같은 차량비용은 표에서 더합니다 · 세금은 상사 정산에서 이미 떼고 들어옵니다)"
             value={profit}
             strong
           />

@@ -236,24 +236,24 @@ export interface SaleFields {
   brokerFee: number;
 }
 
-/** 판매수익에서 떼는 세금 */
-export const SALE_TAX_RATE = 0.133;
-
 /**
- * 판매수익 = (차량판매가 − 총합계) − 세금 13.3%
+ * 판매수익 = 차량판매가 − 총합계
  *
  * 그 차에 들어간 돈을 다 더한 게 총합계(총비용 + 주유·배터리·주차 같은 차량비용)다.
- * 판 값에서 그걸 빼면 남은 돈이 나오고, 거기서 세금을 뗀 게 실제로 손에 쥐는 돈이다.
+ * 판 값에서 그걸 빼면 그 차에서 남은 돈이다.
  *
- * 손해면 그대로 둔다 — 뗄 세금이 없는데 13.3%를 빼면 손해가 줄어든 것처럼 보인다.
+ * 세금은 안 뗀다.
+ *
+ * 예전에는 여기서 13.3%를 뺐다. 그런데 세금은 상사(삼장)가 정산해 줄 때 이미 떼고
+ * 넣어 준다 — 판매가에서 매입가와 재고금융을 뺀 금액에 부가세와 원천세를 매긴다.
+ * 우리가 여기서 또 떼면 두 번 뗀 숫자가 되고, 매는 밑금액도 저쪽과 다르다.
+ * 상사 정산서와 견줄 수 있게 뺀 돈 그대로 둔다.
  *
  * 현금 수수료·할부 피·보험 피·차대금업은 적어두기만 하고 여기서는 안 센다.
  * 아직 안 판 차는 차량판매가가 0이라 총합계만큼 마이너스로 나온다 — 판 다음에 본다.
  */
 export function saleProfit(salePrice: number, grandTotalWon: number): number {
-  const gross = salePrice - grandTotalWon;
-  if (gross <= 0) return gross;
-  return Math.round(gross * (1 - SALE_TAX_RATE));
+  return salePrice - grandTotalWon;
 }
 
 // ── 차량비용(주유·배터리·주차) 연동 ──
@@ -297,4 +297,29 @@ export function purchaseGrandTotalWon(
   platformFee = 0,
 ): number {
   return purchaseGrandTotal(purchasePrice, prepTotal, transferFee, brokerFee, platformFee) + vehicleCost.total;
+}
+
+/**
+ * 매도정산 — 판매수익을 나누는 비율.
+ *
+ * 차장·본부장이 매도 쪽을 맡은 건은 그 차 판매수익의 일부를 가져간다. 신차에서 넘어온
+ * 차와 개인에게서 사온 차가 다르다.
+ *
+ * 비어 있으면 안 정한 것이라 0원이다 — 정하지 않은 건을 섞어 더하면 합계가 사실보다 커진다.
+ */
+export const PROFIT_SHARES = [
+  { key: 'NEW', label: '신차', rate: 0.3 },
+  { key: 'PERSON', label: '개인', rate: 0.5 },
+] as const;
+
+export type ProfitShareKey = (typeof PROFIT_SHARES)[number]['key'];
+
+export function profitShareRate(key: string | null | undefined): number {
+  return PROFIT_SHARES.find((s) => s.key === key)?.rate ?? 0;
+}
+
+/** 그 사람이 가져가는 몫 — 손해 본 차는 0이다(마이너스를 나눠 가질 수는 없다) */
+export function profitShareAmount(saleProfitWon: number, key: string | null | undefined): number {
+  if (saleProfitWon <= 0) return 0;
+  return Math.round(saleProfitWon * profitShareRate(key));
 }

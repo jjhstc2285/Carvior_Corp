@@ -9,7 +9,7 @@ import PanelInvoiceModal from './PanelInvoiceModal';
 import PerformanceVatModal from './PerformanceVatModal';
 import { canEditPanelInvoice } from '../../lib/panelInvoice';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
-import { moneyToNumber, percentLabel, toMoneyValue } from '../../lib/money';
+import { moneyToNumber, toMoneyValue } from '../../lib/money';
 import { canSeeAllSettlements, SETTLEMENT_VIEWERS } from '../../lib/permissions';
 import {
   EMPTY_PREP_BREAKDOWN,
@@ -17,8 +17,8 @@ import {
   PREP_COST_KINDS,
   PREP_COST_LABEL,
   prepBreakdown,
+  PROFIT_SHARES,
   saleProfit,
-  SALE_TAX_RATE,
   SETTLEMENT_STAGE_CLASS,
   SETTLEMENT_STAGE_LABEL,
   purchaseGrandTotal,
@@ -57,6 +57,8 @@ const MAN = (n: number) => n.toLocaleString();
 const COLUMNS: Column[] = [
   // 판 날이다. 안 판 차는 매입일에 머문다 — 정산은 판 다음에 하는 일이다
   { key: 'date', label: '정산일자' },
+  // 차가 들어온 날 — 재고를 언제부터 들고 있었는지의 기점이다(차량관리의 제시일자)
+  { key: 'offerDate', label: '제시일자', title: '차가 들어온 날 — 차량관리의 제시일자입니다. 아래 작은 숫자는 그날부터 센 재고일수입니다' },
   { key: 'vehicleName', label: '차량명' },
   { key: 'vehicleNumber', label: '차량번호' },
   {
@@ -75,12 +77,14 @@ const COLUMNS: Column[] = [
   { key: 'vehicleCost', label: '차량비용(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'totalWon', label: '총합계(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'salePrice', label: '차량판매가', align: 'text-right', headClass: 'text-emerald-600' },
+  // 매도정산 — 차장·본부장만 보인다. 그 밖의 사람에게는 열 자체를 안 그린다
+  { key: 'share', label: '매도정산', align: 'text-right' },
   {
     key: 'profit',
     label: '판매수익',
     align: 'text-right',
     headClass: 'text-emerald-600',
-    title: `차량판매가 − 총합계 − 세금 ${percentLabel(SALE_TAX_RATE)}%`,
+    title: '차량판매가 − 총합계 (세금은 상사 정산에서 이미 떼고 들어옵니다)',
   },
   { key: 'owner', label: '담당자' },
   { key: 'contract', label: '계약서', align: 'text-center' },
@@ -258,8 +262,24 @@ export default function PurchaseSettlementTab({ role }: Props) {
     }
   };
 
+  /*
+    보는 사람에 따라 열이 조금 다르다.
+
+    차장·본부장은 이 표에서 매도정산을 한다 — 계약서 칸이 그들에게는 매도정산 자리고,
+    배분(신차 30% / 개인 50%) 칸이 하나 더 붙는다. 계약팀에게는 예전 그대로 계약서다.
+  */
+  const seesShare = SETTLEMENT_VIEWERS.includes((me?.name ?? '').trim());
+
+  const columns = useMemo(
+    () =>
+      COLUMNS.filter(c => c.key !== 'share' || seesShare).map(c =>
+        c.key === 'contract' && seesShare ? { ...c, label: '매도정산' } : c,
+      ),
+    [seesShare],
+  );
+
   /* 제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다 */
-  const cols = useColumnOrder('purchaseSettlementColOrder', COLUMNS, { dense: true });
+  const cols = useColumnOrder('purchaseSettlementColOrder', columns, { dense: true });
 
   const filtered = scoped
     .filter(s => allMonths || s.date.startsWith(month))
@@ -378,6 +398,39 @@ export default function PurchaseSettlementTab({ role }: Props) {
       void alertError('식대를 적지 못했습니다', e instanceof ApiError ? e.message : '');
     }
   };
+
+  /**
+   * 매도정산 배분을 정한다 — 신차냐 개인이냐.
+   *
+   * 같은 걸 다시 누르면 지운다(안 정한 것으로 되돌린다). 잘못 눌렀을 때 되돌릴 자리가
+   * 없으면 지우려고 정산을 열어야 한다.
+   */
+  const setShare = async (s: PurchaseSettlement, key: string) => {
+    try {
+      await api(`/settlements/purchase/${s.id}`, {
+        method: 'PATCH',
+        body: { profitShare: s.profitShare === key ? '' : key },
+      });
+      await refresh();
+    } catch (e) {
+      void alertError('매도정산을 정하지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
+  /**
+   * 차를 며칠 들고 있었나 — 제시일자부터 센다.
+   *
+   * 판 차는 판 날까지, 아직 안 판 차는 오늘까지 센다. 안 판 차는 지금도 늘고 있는
+   * 숫자라서, 오래 들고 있는 차가 눈에 띄어야 한다.
+   */
+  const stockDays = (s: PurchaseSettlement) => {
+    if (!s.offerDate) return 0;
+    const end = s.salePrice > 0 ? dayjs(s.date) : dayjs();
+    return Math.max(0, end.diff(dayjs(s.offerDate), 'day'));
+  };
+
+  /** 그 사람이 가져가는 몫 합계 — 판 차만 센다(안 판 차는 0이다) */
+  const shareTotal = filtered.reduce((sum, s) => sum + (s.shareAmount ?? 0), 0);
 
   /** 항목 칸에 마우스를 올리면 어느 업체에 얼마 썼는지 보인다. */
   const vendorsOf = (s: PurchaseSettlement, kind: PrepCostKind) => {
@@ -535,7 +588,11 @@ export default function PurchaseSettlementTab({ role }: Props) {
         </div>
       )}
 
-      <div className={`mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 ${seesMeal ? 'lg:grid-cols-8' : 'lg:grid-cols-7'}`}>
+      <div
+        className={`mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 ${
+          seesMeal && seesShare ? 'lg:grid-cols-9' : seesMeal || seesShare ? 'lg:grid-cols-8' : 'lg:grid-cols-7'
+        }`}
+      >
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">총 건수</p>
           <p className="text-xl font-bold text-slate-800">{totals.count}<span className="ml-1 text-sm font-medium text-slate-400">건</span></p>
@@ -548,6 +605,18 @@ export default function PurchaseSettlementTab({ role }: Props) {
           <p className="text-xs font-medium text-slate-400">상품화총비용 합계</p>
           <p className="text-xl font-bold text-amber-600">{MAN(prepShown)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
+        {/* 매도정산 — 그 사람이 이 달에 가져가는 몫. 안 정한 건은 안 들어간다 */}
+        {seesShare && (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 px-3 py-2">
+            <p className="text-xs font-medium text-indigo-700/80">매도정산</p>
+            <p className="text-xl font-bold text-indigo-700">
+              {MAN(shareTotal)}<span className="ml-1 text-sm font-medium text-slate-400">원</span>
+            </p>
+            <p className="text-[10px] text-slate-400">
+              신차 30% · 개인 50% · {filtered.filter(s => (s.shareAmount ?? 0) > 0).length}대
+            </p>
+          </div>
+        )}
         {/*
           식대 — 정산금액 바로 왼쪽이다. 아래 정산금액 합계에 이 값이 더해져 있어서,
           두 숫자가 떨어져 있으면 어디서 더해진 건지 알 수가 없다.
@@ -821,6 +890,22 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
                   {cols.cells({
                     date: <span className="text-slate-600">{dayjs(s.date).format('M/D')}</span>,
+                    /*
+                      차가 들어온 날과, 그날부터 센 재고일수.
+
+                      판 차는 판 날까지, 아직 안 판 차는 오늘까지 센다 — 안 판 차는 지금도
+                      늘고 있는 숫자다. 오래 들고 있는 차가 눈에 띄어야 한다.
+                    */
+                    offerDate: s.offerDate ? (
+                      <span className="text-slate-600">
+                        {dayjs(s.offerDate).format('YY.M.D')}
+                        <span className={`ml-1 text-[11px] ${stockDays(s) >= 60 ? 'font-bold text-red-500' : 'text-slate-400'}`}>
+                          {stockDays(s)}일
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-300" title="차량관리에 이 차량번호의 제시일자가 없습니다">—</span>
+                    ),
                     vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
                     vehicleNumber: <span className="font-mono text-slate-600">{s.vehicleNumber}</span>,
                     transferFee: <span className="text-slate-500">{MAN(s.transferFee)}</span>,
@@ -857,6 +942,33 @@ export default function PurchaseSettlementTab({ role }: Props) {
                     ),
                     totalWon: <span className="font-semibold text-sky-700">{NUM(totalWonOf(s))}</span>,
                     salePrice: <span className="text-slate-600">{s.salePrice > 0 ? MAN(s.salePrice) : '—'}</span>,
+                    /*
+                      매도정산 — 신차 30% / 개인 50%.
+
+                      같은 걸 다시 누르면 지운다. 안 정한 건은 0원이라 합계에 안 들어간다 —
+                      정하지 않은 건을 섞어 더하면 받을 돈이 사실보다 커진다.
+                    */
+                    share: (
+                      <div className="flex items-center justify-end gap-1">
+                        {PROFIT_SHARES.map(p => (
+                          <button
+                            key={p.key}
+                            onClick={() => void setShare(s, p.key)}
+                            title={`${p.label} — 판매수익의 ${Math.round(p.rate * 100)}%`}
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              s.profitShare === p.key
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                        <span className={`ml-1 font-semibold ${(s.shareAmount ?? 0) > 0 ? 'text-indigo-700' : 'text-slate-300'}`}>
+                          {(s.shareAmount ?? 0) > 0 ? MAN(s.shareAmount ?? 0) : '—'}
+                        </span>
+                      </div>
+                    ),
                     profit: <span className="font-semibold text-emerald-700">{MAN(profitOf(s))}</span>,
                     owner: <span className="text-slate-500">{employeeOf(s.employeeId)?.name}</span>,
                     // 눌러서 크게 본다 — 결재하는 쪽이 표에서 바로 확인한다

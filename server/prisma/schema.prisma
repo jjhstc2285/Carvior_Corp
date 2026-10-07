@@ -767,6 +767,20 @@ model PurchaseSettlement {
   // 구전 지급방식. 금액은 방식에 맞춰 brokerFee 에 적는다.
   brokerFeePayout BrokerFeePayout @default(CASH)
 
+  /**
+   * 매도정산 — 이 차 판매수익을 몇 대 몇으로 나누는가.
+   *
+   * 차장·본부장이 매도 쪽을 맡은 건은 판매수익의 일부를 가져간다. 신차에서 넘어온 차와
+   * 개인에게서 사온 차가 비율이 다르다.
+   *
+   *   NEW    신차 — 30%
+   *   PERSON 개인 — 50%
+   *
+   * 비어 있으면 아직 안 정한 것이다(0원). 비율은 화면·서버 한 곳(settlement.calc.ts)에만
+   * 적어 둔다 — 바뀌는 값이라 두 곳에 두면 한쪽만 고친다.
+   */
+  profitShare String @default("") @db.VarChar(10)
+
   // ── 판매 쪽 ──
   // 상담이 판매완료로 끝나면 여기까지 채운다. 산 값(위)과 판 값(아래)이 한 줄에 있어야
   // 그 차 한 대에서 얼마가 남았는지가 보인다.

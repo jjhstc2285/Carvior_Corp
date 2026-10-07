@@ -119,6 +119,9 @@ export class CreatePurchaseDto {
   /** 플랫폼 수수료 — 헤이딜러·엔카 경매장에서 사오면 내는 돈 */
   @IsOptional() @Money() platformFee?: number;
   @IsOptional() @IsEnum(BrokerFeePayout) brokerFeePayout?: BrokerFeePayout;
+
+  /** 매도정산 배분 — NEW(신차 30%) / PERSON(개인 50%). 빈 글자면 아직 안 정한 것이다 */
+  @IsOptional() @IsString() @MaxLength(10) profitShare?: string;
   /** 계약서 사진 경로 — 줄바꿈으로 이어 담는다 */
   @IsOptional() @IsString() contractPhotos?: string;
   @IsOptional() @Money() salePrice?: number;
@@ -149,6 +152,9 @@ export class UpdatePurchaseDto {
   /** 플랫폼 수수료 — 헤이딜러·엔카 경매장에서 사오면 내는 돈 */
   @IsOptional() @Money() platformFee?: number;
   @IsOptional() @IsEnum(BrokerFeePayout) brokerFeePayout?: BrokerFeePayout;
+
+  /** 매도정산 배분 — NEW(신차 30%) / PERSON(개인 50%). 빈 글자면 아직 안 정한 것이다 */
+  @IsOptional() @IsString() @MaxLength(10) profitShare?: string;
   @IsOptional() @Money() salePrice?: number;
   @IsOptional() @Money() cashCommission?: number;
   @IsOptional() @Money() installmentFee?: number;
