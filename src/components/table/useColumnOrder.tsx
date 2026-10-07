@@ -41,9 +41,25 @@ export function useColumnOrder(storageKey: string, columns: Column[], options: O
   const [order, setOrder] = useState<string[]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? '[]') as string[];
-      const known = saved.filter(k => columns.some(c => c.key === k));
-      // 기억해 둔 차례에 없는 새 칸은 뒤에 붙인다 — 칸이 늘어도 차례가 깨지지 않는다
-      return [...known, ...keys().filter(k => !known.includes(k))];
+      const merged = saved.filter(k => columns.some(c => c.key === k));
+
+      /*
+        새로 생긴 칸은 제자리에 끼워 넣는다.
+
+        예전에는 뒤에 붙였다. 그런데 칸이 스무 개 넘는 표에서 맨 끝은 화면 밖이라,
+        칸을 새로 만들어 놓고도 "안 보인다"가 된다. 한 번이라도 열 순서를 만진 사람은
+        영영 못 보고, 열 순서 초기화를 눌러야 한다는 걸 알 방법도 없다.
+
+        원래 차례에서 왼쪽 이웃을 찾아 그 뒤에 넣는다 — 정산일자 옆에 두려고 만든 칸은
+        정산일자 옆에 생긴다. 사람이 끌어 옮겨 둔 차례는 그대로 둔다.
+      */
+      const all = keys();
+      all.forEach((key, i) => {
+        if (merged.includes(key)) return;
+        const leftNeighbor = all.slice(0, i).reverse().find(k => merged.includes(k));
+        merged.splice(leftNeighbor ? merged.indexOf(leftNeighbor) + 1 : 0, 0, key);
+      });
+      return merged;
     } catch {
       return keys();
     }
