@@ -935,7 +935,21 @@ export default function PurchaseSettlementTab({ role }: Props) {
               {filtered.map(s => (
                 <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
                   {cols.cells({
-                    date: <span className="text-slate-600">{dayjs(s.date).format('M/D')}</span>,
+                    /*
+                      아직 안 판 차는 출고일자를 비워 둔다.
+
+                      매입관리에서 정산 줄이 만들어질 때 이 날짜에는 매입일이 들어간다.
+                      그걸 그대로 출고일자로 적어 두면 "들어온 날과 나간 날이 같은데 재고는
+                      이레"처럼 읽힌다 — 실은 아직 안 나간 차다.
+                    */
+                    date:
+                      s.salePrice > 0 ? (
+                        <span className="text-slate-600">{dayjs(s.date).format('M/D')}</span>
+                      ) : (
+                        <span className="text-slate-300" title="아직 안 판 차입니다 — 차량판매가를 적으면 출고일자가 찍힙니다">
+                          —
+                        </span>
+                      ),
                     /*
                       차가 들어온 날과, 그날부터 센 재고일수.
 
@@ -945,8 +959,16 @@ export default function PurchaseSettlementTab({ role }: Props) {
                     intakeDate: s.intakeDate ? (
                       <span className="text-slate-600">
                         {dayjs(s.intakeDate).format('YY.M.D')}
-                        <span className={`ml-1 text-[11px] ${stockDays(s) >= 60 ? 'font-bold text-red-500' : 'text-slate-400'}`}>
-                          {stockDays(s)}일
+                        {/* 안 판 차는 지금도 늘고 있는 숫자다 — '이레째'로 적어 둔다 */}
+                        <span
+                          className={`ml-1 text-[11px] ${stockDays(s) >= 60 ? 'font-bold text-red-500' : 'text-slate-400'}`}
+                          title={
+                            s.salePrice > 0
+                              ? '입고일부터 출고일까지'
+                              : '아직 안 판 차입니다 — 입고일부터 오늘까지 세고 있습니다'
+                          }
+                        >
+                          {stockDays(s)}일{s.salePrice > 0 ? '' : '째'}
                         </span>
                       </span>
                     ) : (
