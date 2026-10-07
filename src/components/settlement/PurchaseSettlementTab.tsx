@@ -113,13 +113,18 @@ const COLUMNS: Column[] = [
 ];
 
 /**
- * 매입 정산 인센티브.
+ * 계약팀 인센티브.
  *
- * 그 달에 결재까지 끝난 건이 스무 건을 넘으면 건당 2만 원이 붙는다. 올려만 두고 승인이
- * 안 난 건은 안 센다 — 끝까지 간 것만 일한 것으로 본다.
+ * 그 달에 결재까지 끝난 건이 스무 건을 넘으면, 그 **넘는 만큼**만 건당 1만 원이 붙는다.
+ * 스무 건까지는 0원이다 — 서른일곱 건이면 열일곱 건치, 17만 원이다.
+ *
+ * 전체 건수에 곱하지 않는다. 스무 건을 채우는 순간 앞의 스무 건까지 같이 값이 붙어서,
+ * 열아홉 건과 스무 건 사이에서 돈이 스무 배로 뛴다.
+ *
+ * 올려만 두고 승인이 안 난 건은 안 센다 — 끝까지 간 것만 일한 것으로 본다.
  */
 const PURCHASE_BONUS_MIN = 20;
-const PURCHASE_BONUS_PER_CASE = 20_000;
+const PURCHASE_BONUS_PER_CASE = 10_000;
 
 /** 그 달 한 사람 식대 — 서버가 달·사람으로 한 줄씩 들고 있다 */
 interface MealRow {
@@ -373,7 +378,8 @@ export default function PurchaseSettlementTab({ role }: Props) {
           employee: e,
           ...c,
           /** 승인 스무 건을 넘기면 건당 2만 원 */
-          bonus: c.done >= PURCHASE_BONUS_MIN ? c.done * PURCHASE_BONUS_PER_CASE : 0,
+          /** 스무 건을 넘는 만큼만 센다 */
+          bonus: Math.max(0, c.done - PURCHASE_BONUS_MIN) * PURCHASE_BONUS_PER_CASE,
         };
       })
       .sort((a, b) => b.done - a.done || b.count - a.count || a.employee.name.localeCompare(b.employee.name));
@@ -793,7 +799,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
               key={employee.id}
               onClick={() => setEmployeeFilter(v => (v === employee.id ? 'all' : employee.id))}
               title={`${employee.name} ${employee.position} · ${count}건 중 결재완료 ${done}건 · ${sold}대 판매, 판매수익 ${NUM(profit)}원${
-                bonus > 0 ? ` · 인센티브 ${NUM(bonus)}원` : ` · 결재완료 ${PURCHASE_BONUS_MIN}건부터 건당 ${NUM(PURCHASE_BONUS_PER_CASE)}원`
+                bonus > 0
+                  ? ` · 인센티브 ${NUM(bonus)}원 (${PURCHASE_BONUS_MIN}건 넘는 ${done - PURCHASE_BONUS_MIN}건치)`
+                  : ` · 결재완료 ${PURCHASE_BONUS_MIN}건을 넘으면 넘는 만큼 건당 ${NUM(PURCHASE_BONUS_PER_CASE)}원`
               }`}
               className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs transition-colors ${
                 employeeFilter === employee.id
