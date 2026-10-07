@@ -73,11 +73,22 @@ export default function VisitReviewSection({
 
   const today = dayjs().format('YYYY-MM-DD');
 
-  /** 전환율을 볼 사람 — 대표는 알선팀 전원, 나머지는 본인뿐이다 */
+  /*
+    누가 누구 것을 보는가.
+
+    알선팀은 서로 다 본다. 같이 받고 같이 맞는 손님이라 누가 몇 건을 했고 어느 손님이
+    그냥 갔는지를 팀이 같이 보는 게 맞다 — 혼자만 보면 옆자리가 놓친 손님을 아무도
+    이어받지 못한다.
+
+    알선팀도 대표도 아닌 사람은 자기 것만 본다(그런 사람이 이 화면에 올 일은 드물다).
+  */
+  const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
+  const seesTeam = role === 'ADMIN' || me?.department === VISIT_TEAM;
+
   const people = useMemo(() => {
     const team = state.employees.filter(e => e.active !== false && e.department === VISIT_TEAM);
-    return role === 'ADMIN' ? team : team.filter(e => e.id === state.currentEmployeeId);
-  }, [state.employees, role, state.currentEmployeeId]);
+    return seesTeam ? team : team.filter(e => e.id === state.currentEmployeeId);
+  }, [state.employees, seesTeam, state.currentEmployeeId]);
 
   /** 그 달 알선 상담 — 정산이 달마다 하는 일이라 달로 끊어 본다(상담일 기준) */
   const scoped = useMemo(
@@ -108,10 +119,10 @@ export default function VisitReviewSection({
       .filter(c => !!c.visitDate && c.visitDate <= today)
       .filter(c => allMonths || (c.visitDate ?? '').startsWith(month))
       .filter(c => MISS_STATUS.includes(c.status))
-      // 대표가 아니면 내가 맡은 것만 — 남이 놓친 손님까지 볼 자리가 아니다
-      .filter(c => role === 'ADMIN' || ids.has(c.visitDealerId ?? c.employeeId))
+      // 알선팀은 서로 다 본다. 그 밖의 사람은 자기가 맡은 것만
+      .filter(c => seesTeam || ids.has(c.visitDealerId ?? c.employeeId))
       .sort((a, b) => (b.visitDate ?? '').localeCompare(a.visitDate ?? ''));
-  }, [state.consultations, month, allMonths, today, people, role]);
+  }, [state.consultations, month, allMonths, today, people, seesTeam]);
 
   const shown = misses
     .filter(c => picked === 'all' || ownerOf(c) === picked)
@@ -153,7 +164,7 @@ export default function VisitReviewSection({
       >
         {open ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
         <span className="shrink-0 text-xs font-bold text-slate-600">
-          {role === 'ADMIN' ? '담당자별' : '내'} 상담 → 계약 전환율
+          {seesTeam ? '담당자별' : '내'} 상담 → 계약 전환율
         </span>
         <span className="text-[11px] text-slate-400">
           {allMonths ? '전체' : dayjs(month).format('M월')} · {VISIT_TEAM} · 계약 = 계약 + 판매완료 · 계약보류는 계약으로
