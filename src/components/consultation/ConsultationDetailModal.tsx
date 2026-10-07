@@ -50,8 +50,9 @@ export default function ConsultationDetailModal({
   const owner = state.employees.find(e => e.id === c.employeeId);
   const [busy, setBusy] = useState(false);
 
-  /** 담당으로 고를 수 있는 사람 — 상담을 맡는 팀이다 */
+  /** 담당 딜러로 고를 수 있는 사람 — 상담과 방문을 맡는 팀이다 */
   const candidates = state.employees.filter(e => e.active !== false && e.department === CONSULTATION_TEAM);
+  const dealer = state.employees.find(e => e.id === c.visitDealerId);
 
   /*
     담당자와 상태만은 이 창에서 바로 바꾼다.
@@ -60,7 +61,7 @@ export default function ConsultationDetailModal({
     판단한 건지 남지 않는다. 그런데 이 둘은 다르다. 손님을 누가 이어받을지, 지금 어디까지
     왔는지는 보다가 바로 정해지는 값이고, 그때마다 수정 창을 따로 열게 하면 아무도 안 고친다.
   */
-  const patch = async (body: { employeeId?: string; status?: ConsultationStatus }) => {
+  const patch = async (body: { visitDealerId?: string; status?: ConsultationStatus }) => {
     setBusy(true);
     try {
       await api(`/consultations/${c.id}`, { method: 'PATCH', body });
@@ -117,25 +118,28 @@ export default function ConsultationDetailModal({
             {dayjs(c.date).format('YYYY년 M월 D일 (ddd)')}
             {c.time && c.time !== '00:00' && <span className="ml-1 text-slate-500">{c.time}</span>}
           </Row>
-          <Row label="담당자">
+          {/* 적은 사람은 안 바뀐다 — 그날 전화를 받은 사람이 누구였는지는 기록이다 */}
+          <Row label="상담 적은 사람">{owner?.name ?? '—'}</Row>
+          <Row label="담당 딜러">
             <select
-              value={c.employeeId}
+              value={c.visitDealerId ?? ''}
               disabled={busy}
-              onChange={e => void patch({ employeeId: e.target.value })}
+              onChange={e => void patch({ visitDealerId: e.target.value })}
               className="rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-400 disabled:opacity-50"
             >
               {/*
-                상담은 알선팀이 맡는다 — 고르는 목록도 그 팀만이다.
+                손님을 맞을 사람 — 알선팀만 고른다.
 
                 전 직원을 늘어놓으면 사무장·대표까지 담당으로 잡히고, 그러면 전환율에
                 팀이 아닌 사람이 끼어든다(그 숫자는 실적이 아니라 잡음이다).
 
-                지금 담당이 알선팀이 아니거나 그만둔 사람이어도 그 사람만은 남긴다 —
+                지금 딜러가 알선팀이 아니거나 그만둔 사람이어도 그 사람만은 남긴다 —
                 목록에 없으면 고르지도 않은 사람으로 값이 튄다.
               */}
-              {owner && !candidates.some(e => e.id === owner.id) && (
-                <option value={owner.id}>
-                  {owner.name} {owner.position}
+              <option value="">미지정</option>
+              {dealer && !candidates.some(e => e.id === dealer.id) && (
+                <option value={dealer.id}>
+                  {dealer.name} {dealer.position}
                 </option>
               )}
               {candidates.map(e => (
