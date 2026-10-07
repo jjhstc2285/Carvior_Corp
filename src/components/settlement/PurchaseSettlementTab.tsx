@@ -63,7 +63,12 @@ const COLUMNS: Column[] = [
     적힌 이름이 하는 일과 다르면 보는 사람이 매번 다시 묻는다 — 입고·출고로 적는다.
     (담긴 칸 이름은 그대로다. 화면 글자만 바꾼다)
   */
-  { key: 'offerDate', label: '입고일자', title: '차가 들어온 날 — 차량관리의 제시일자입니다. 옆의 작은 숫자는 그날부터 센 재고일수입니다' },
+  {
+    key: 'intakeDate',
+    label: '입고일자',
+    title:
+      '차가 들어온 날 — 매입 관리의 매입일입니다(매입 기록이 없으면 재고금융의 제시일자). 옆의 작은 숫자는 그날부터 센 재고일수입니다',
+  },
   { key: 'date', label: '출고일자', title: '차가 나간 날 — 정산을 적는 날입니다. 아직 안 판 차는 매입일에 머물러 있습니다' },
   { key: 'vehicleName', label: '차량명' },
   { key: 'vehicleNumber', label: '차량번호' },
@@ -448,9 +453,9 @@ export default function PurchaseSettlementTab({ role }: Props) {
    * 숫자라서, 오래 들고 있는 차가 눈에 띄어야 한다.
    */
   const stockDays = (s: PurchaseSettlement) => {
-    if (!s.offerDate) return 0;
+    if (!s.intakeDate) return 0;
     const end = s.salePrice > 0 ? dayjs(s.date) : dayjs();
-    return Math.max(0, end.diff(dayjs(s.offerDate), 'day'));
+    return Math.max(0, end.diff(dayjs(s.intakeDate), 'day'));
   };
 
   /** 그 사람이 가져가는 몫 합계 — 판 차만 센다(안 판 차는 0이다) */
@@ -937,15 +942,17 @@ export default function PurchaseSettlementTab({ role }: Props) {
                       판 차는 판 날까지, 아직 안 판 차는 오늘까지 센다 — 안 판 차는 지금도
                       늘고 있는 숫자다. 오래 들고 있는 차가 눈에 띄어야 한다.
                     */
-                    offerDate: s.offerDate ? (
+                    intakeDate: s.intakeDate ? (
                       <span className="text-slate-600">
-                        {dayjs(s.offerDate).format('YY.M.D')}
+                        {dayjs(s.intakeDate).format('YY.M.D')}
                         <span className={`ml-1 text-[11px] ${stockDays(s) >= 60 ? 'font-bold text-red-500' : 'text-slate-400'}`}>
                           {stockDays(s)}일
                         </span>
                       </span>
                     ) : (
-                      <span className="text-slate-300" title="차량관리에 이 차량번호의 제시일자가 없습니다">—</span>
+                      <span className="text-slate-300" title="매입 관리에 이 차량번호의 매입 기록이 없습니다(재고금융의 제시일자도 비어 있습니다)">
+                        —
+                      </span>
                     ),
                     vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
                     vehicleNumber: <span className="font-mono text-slate-600">{s.vehicleNumber}</span>,

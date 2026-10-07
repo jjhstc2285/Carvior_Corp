@@ -583,8 +583,11 @@ export interface PurchaseSettlement {
   profitShare?: string;
   /** 그 사람이 가져가는 몫(원) — 서버가 판매수익에 비율을 곱해 내려준다 */
   shareAmount?: number;
-  /** 차가 들어온 날(제시일자) — 차량관리에서 붙여 준다. 재고를 언제부터 들고 있었나 */
-  offerDate?: string | null;
+  /**
+   * 차가 들어온 날(입고일) — 매입 관리의 매입일을 서버가 차량번호로 붙여 준다.
+   * 매입 기록이 없으면 재고금융의 제시일자로 대신한다. 재고를 언제부터 들고 있었나.
+   */
+  intakeDate?: string | null;
   /** 계약서 사진 경로 — 줄바꿈으로 이어 담는다. 결재하는 쪽에서 화면으로 본다 */
   contractPhotos?: string;
   prepCosts: PurchasePrepCost[]; // 상품화 비용 명세

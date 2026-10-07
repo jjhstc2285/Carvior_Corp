@@ -50,10 +50,10 @@ export default function MissingInputPanel({
     const sold = rows.filter(s => s.salePrice > 0);
     return [
       {
-        key: 'offerDate',
+        key: 'intakeDate',
         label: '입고일자 없음',
-        who: '차량관리 — 차 받을 때 제시일자를 적습니다',
-        rows: rows.filter(s => !s.offerDate),
+        who: '매입 관리에 매입 기록이 없습니다 — 매입 등록을 하거나, 재고금융에서 사무장이 제시일자를 적으면 채워집니다',
+        rows: rows.filter(s => !s.intakeDate),
         tone: 'bg-amber-100 text-amber-800',
       },
       {
@@ -137,7 +137,7 @@ export default function MissingInputPanel({
                     <span className="font-mono text-xs text-slate-700 hover:underline">{s.vehicleNumber}</span>
                     <span className="text-xs text-slate-500">{s.vehicleName}</span>
                     <span className="ml-auto text-[11px] text-slate-400">
-                      {s.offerDate ? `입고 ${dayjs(s.offerDate).format('M/D')}` : '입고일 없음'}
+                      {s.intakeDate ? `입고 ${dayjs(s.intakeDate).format('M/D')}` : '입고일 없음'}
                       {s.salePrice > 0 && ` · 출고 ${dayjs(s.date).format('M/D')}`}
                     </span>
                   </button>

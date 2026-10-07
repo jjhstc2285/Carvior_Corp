@@ -868,21 +868,27 @@ export class SettlementsService {
     });
 
     const plates = rows.map((r) => r.vehicleNumber);
-    const [costs, offers] = await Promise.all([this.vehicleCostsByPlate(plates), this.offerDatesOf(plates)]);
+    const [costs, offers] = await Promise.all([this.vehicleCostsByPlate(plates), this.intakeDatesOf(plates)]);
     return rows.map((r) =>
       this.toPurchaseView(r, costs.get(normalizePlate(r.vehicleNumber)), offers.get(normalizePlate(r.vehicleNumber))),
     );
   }
 
   /**
-   * 차가 들어온 날 — 차량관리의 제시일자를 차량번호로 붙인다.
+   * 차가 들어온 날(입고일) — 매입 관리의 매입일을 차량번호로 붙인다.
    *
-   * 정산에 따로 적지 않는다. 두 군데 적으면 어긋나고, 어긋나면 어느 쪽이 맞는지 아무도
-   * 모른다. 차가 들어온 날은 차량관리가 원본이다.
+   * 매입 관리가 원본이다. 정산에 따로 적지 않는다 — 두 군데 적으면 어긋나고, 어긋나면
+   * 어느 쪽이 맞는지 아무도 모른다.
+   *
+   * 매입 기록이 없으면 재고금융의 제시일자로 대신한다. 제시일자는 캐피탈에 제시한
+   * 날이라 차가 들어온 날보다 며칠 뒤지만, 없는 것보다는 낫다 — 재고를 언제부터
+   * 들고 있었는지를 세는 자리다. (제시일자는 사무장이 재고금융 화면에서 적는다)
+   *
+   * 같은 차를 두 번 사 오는 일이 있다(팔았다 되사오는 경우). 그때는 최근 것이 맞다.
    *
    * 못 붙여도 목록은 그대로 나와야 한다 — 날짜 하나 때문에 정산이 안 보이면 그게 더 큰 일이다.
    */
-  private async offerDatesOf(vehicleNumbers: string[]): Promise<Map<string, string | null>> {
+  private async intakeDatesOf(vehicleNumbers: string[]): Promise<Map<string, string | null>> {
     const plates = [...new Set(vehicleNumbers.map(normalizePlate).filter(Boolean))];
     const out = new Map<string, string | null>();
     if (plates.length === 0) return out;
@@ -890,14 +896,29 @@ export class SettlementsService {
     try {
       const CHUNK = 500;
       for (let i = 0; i < plates.length; i += CHUNK) {
-        const found = await this.prisma.managedVehicle.findMany({
-          where: { vehicleNumber: { in: plates.slice(i, i + CHUNK) } },
-          select: { vehicleNumber: true, offerDate: true },
-        });
-        for (const v of found) out.set(normalizePlate(v.vehicleNumber), formatDateOnlyOrNull(v.offerDate));
+        const slice = plates.slice(i, i + CHUNK);
+        const [intakes, vehicles] = await Promise.all([
+          this.prisma.purchaseIntake.findMany({
+            where: { vehicleNumber: { in: slice } },
+            select: { vehicleNumber: true, date: true },
+            // 오래된 것부터 넣어 최근 것이 덮어쓰게 한다
+            orderBy: { date: 'asc' },
+          }),
+          this.prisma.managedVehicle.findMany({
+            where: { vehicleNumber: { in: slice } },
+            select: { vehicleNumber: true, offerDate: true },
+          }),
+        ]);
+
+        for (const v of vehicles) {
+          const day = formatDateOnlyOrNull(v.offerDate);
+          if (day) out.set(normalizePlate(v.vehicleNumber), day);
+        }
+        // 매입일이 있으면 그게 맞다 — 제시일자를 덮어쓴다
+        for (const r of intakes) out.set(normalizePlate(r.vehicleNumber), formatDateOnly(r.date));
       }
     } catch (e) {
-      this.logger.warn(`제시일자를 붙이지 못했습니다: ${(e as Error).message}`);
+      this.logger.warn(`입고일자를 붙이지 못했습니다: ${(e as Error).message}`);
     }
     return out;
   }
@@ -1246,8 +1267,8 @@ export class SettlementsService {
   private toPurchaseView<T extends PurchaseRow>(
     row: T,
     cost: VehicleCostSummary | undefined,
-    /** 차가 들어온 날(제시일자) — 차량관리에서 붙인다. 없으면 null */
-    offerDate?: string | null,
+    /** 차가 들어온 날(입고일) — 매입 관리에서 붙인다. 없으면 null */
+    intakeDate?: string | null,
   ) {
     const vehicleCost = cost ?? EMPTY_VEHICLE_COST;
     // 상품화총비용과 항목별 합계는 명세를 더해서 낸다 — 저장하지 않는다.
@@ -1290,10 +1311,10 @@ export class SettlementsService {
       /**
        * 차가 들어온 날 — 재고를 언제부터 들고 있었는지의 기점이다.
        *
-       * 차량관리의 제시일자를 차량번호로 붙인다. 정산에 따로 적지 않는다 — 두 군데 적으면
-       * 어긋나고, 어느 쪽이 맞는지 아무도 모른다.
+       * 매입 관리의 매입일을 차량번호로 붙인다(없으면 재고금융의 제시일자). 정산에 따로
+       * 적지 않는다 — 두 군데 적으면 어긋나고, 어느 쪽이 맞는지 아무도 모른다.
        */
-      offerDate: offerDate ?? null,
+      intakeDate: intakeDate ?? null,
       /** 그 사람이 가져가는 몫 — 안 정한 건은 0이다 */
       shareAmount: profitShareAmount(profit, row.profitShare),
     };
@@ -1303,7 +1324,7 @@ export class SettlementsService {
   private async withVehicleCost<T extends PurchaseRow & { vehicleNumber: string }>(row: T) {
     const [costs, offers] = await Promise.all([
       this.vehicleCostsByPlate([row.vehicleNumber]),
-      this.offerDatesOf([row.vehicleNumber]),
+      this.intakeDatesOf([row.vehicleNumber]),
     ]);
     const plate = normalizePlate(row.vehicleNumber);
     return this.toPurchaseView(row, costs.get(plate), offers.get(plate));
