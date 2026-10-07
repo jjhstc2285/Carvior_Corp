@@ -889,33 +889,38 @@ export class SettlementsService {
    * 못 붙여도 목록은 그대로 나와야 한다 — 날짜 하나 때문에 정산이 안 보이면 그게 더 큰 일이다.
    */
   private async intakeDatesOf(vehicleNumbers: string[]): Promise<Map<string, string | null>> {
-    const plates = [...new Set(vehicleNumbers.map(normalizePlate).filter(Boolean))];
+    const wanted = new Set(vehicleNumbers.map(normalizePlate).filter(Boolean));
     const out = new Map<string, string | null>();
-    if (plates.length === 0) return out;
+    if (wanted.size === 0) return out;
 
     try {
-      const CHUNK = 500;
-      for (let i = 0; i < plates.length; i += CHUNK) {
-        const slice = plates.slice(i, i + CHUNK);
-        const [intakes, vehicles] = await Promise.all([
-          this.prisma.purchaseIntake.findMany({
-            where: { vehicleNumber: { in: slice } },
-            select: { vehicleNumber: true, date: true },
-            // 오래된 것부터 넣어 최근 것이 덮어쓰게 한다
-            orderBy: { date: 'asc' },
-          }),
-          this.prisma.managedVehicle.findMany({
-            where: { vehicleNumber: { in: slice } },
-            select: { vehicleNumber: true, offerDate: true },
-          }),
-        ]);
+      /*
+        번호로 바로 묻지 않는다.
 
-        for (const v of vehicles) {
-          const day = formatDateOnlyOrNull(v.offerDate);
-          if (day) out.set(normalizePlate(v.vehicleNumber), day);
-        }
-        // 매입일이 있으면 그게 맞다 — 제시일자를 덮어쓴다
-        for (const r of intakes) out.set(normalizePlate(r.vehicleNumber), formatDateOnly(r.date));
+        차량번호는 손으로 적는 값이라 '124도 7252' 처럼 공백이 섞여 저장돼 있다. 공백을
+        걷어낸 번호로 in 질의를 걸면 저장된 글자와 달라 한 건도 안 걸린다 — 재고금융에
+        날짜를 다 적어 뒀는데도 한 줄도 안 올라온 이유가 이것이다.
+
+        번호와 날짜만 읽어와서 공백을 걷어낸 뒤 맞춘다.
+      */
+      const [intakes, vehicles] = await Promise.all([
+        this.prisma.purchaseIntake.findMany({
+          select: { vehicleNumber: true, date: true },
+          // 오래된 것부터 넣어 최근 것이 덮어쓰게 한다(되사온 차는 최근 매입일이 맞다)
+          orderBy: { date: 'asc' },
+        }),
+        this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true, offerDate: true } }),
+      ]);
+
+      for (const v of vehicles) {
+        const plate = normalizePlate(v.vehicleNumber);
+        const day = formatDateOnlyOrNull(v.offerDate);
+        if (day && wanted.has(plate)) out.set(plate, day);
+      }
+      // 매입일이 있으면 그게 맞다 — 제시일자를 덮어쓴다
+      for (const r of intakes) {
+        const plate = normalizePlate(r.vehicleNumber);
+        if (wanted.has(plate)) out.set(plate, formatDateOnly(r.date));
       }
     } catch (e) {
       this.logger.warn(`입고일자를 붙이지 못했습니다: ${(e as Error).message}`);
@@ -983,8 +988,15 @@ export class SettlementsService {
       orderBy: { date: 'desc' },
     });
 
-    const costs = await this.vehicleCostsByPlate(rows.map((r) => r.vehicleNumber));
-    return rows.map((r) => this.toPurchaseView(r, costs.get(normalizePlate(r.vehicleNumber))));
+    const plates = rows.map((r) => r.vehicleNumber);
+    const [costs, intakeDates] = await Promise.all([
+      this.vehicleCostsByPlate(plates),
+      this.intakeDatesOf(plates),
+    ]);
+    return rows.map((r) => {
+      const plate = normalizePlate(r.vehicleNumber);
+      return this.toPurchaseView(r, costs.get(plate), intakeDates.get(plate));
+    });
   }
 
   /**
@@ -995,13 +1007,20 @@ export class SettlementsService {
    * 차량관리에 없는 번호면 0원으로 나온다.
    */
   private async vehicleCostsByPlate(vehicleNumbers: string[]): Promise<Map<string, VehicleCostSummary>> {
-    const plates = [...new Set(vehicleNumbers.map(normalizePlate).filter(Boolean))];
-    if (plates.length === 0) return new Map();
+    const plates = new Set(vehicleNumbers.map(normalizePlate).filter(Boolean));
+    if (plates.size === 0) return new Map();
 
-    const vehicles = await this.prisma.managedVehicle.findMany({
-      where: { vehicleNumber: { in: plates } },
-      select: { id: true, vehicleNumber: true },
-    });
+    /*
+      띄어쓰기 때문에 번호로 바로 못 묻는다.
+
+      차량번호는 사람이 손으로 적는 값이라 '124도 7252' 처럼 공백이 섞여 저장돼 있다.
+      공백을 걷어낸 번호로 in 질의를 걸면 저장된 쪽과 글자가 달라 한 대도 안 걸린다 —
+      그래서 이력이 통째로 안 붙었다.
+
+      번호만 다 읽어와서 공백을 걷어낸 뒤 맞춘다. 두 칸짜리 조회라 가볍다.
+    */
+    const all = await this.prisma.managedVehicle.findMany({ select: { id: true, vehicleNumber: true } });
+    const vehicles = all.filter((v) => plates.has(normalizePlate(v.vehicleNumber)));
     if (vehicles.length === 0) return new Map();
 
     const grouped = await this.prisma.vehicleExpenseLog.groupBy({

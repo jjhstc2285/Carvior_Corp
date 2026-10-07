@@ -203,13 +203,21 @@ export class ConsultationsService {
     if (unique.length === 0) return out;
 
     try {
-      const CHUNK = 500;
-      for (let i = 0; i < unique.length; i += CHUNK) {
-        const rows = await this.prisma.managedVehicle.findMany({
-          where: { vehicleNumber: { in: unique.slice(i, i + CHUNK) } },
-          select: { vehicleNumber: true, offerDate: true },
-        });
-        for (const r of rows) out.set(normalizePlate(r.vehicleNumber), formatDateOnlyOrNull(r.offerDate));
+      /*
+        번호로 바로 묻지 않는다.
+
+        차량번호는 손으로 적는 값이라 '124도 7252' 처럼 공백이 섞여 저장돼 있다. 공백을
+        걷어낸 번호로 in 질의를 걸면 저장된 글자와 달라 한 건도 안 걸린다.
+
+        번호와 날짜만 읽어와서 공백을 걷어낸 뒤 맞춘다.
+      */
+      const want = new Set(unique);
+      const rows = await this.prisma.managedVehicle.findMany({
+        select: { vehicleNumber: true, offerDate: true },
+      });
+      for (const r of rows) {
+        const plate = normalizePlate(r.vehicleNumber);
+        if (want.has(plate)) out.set(plate, formatDateOnlyOrNull(r.offerDate));
       }
     } catch (e) {
       this.logger.warn(`제시일자를 붙이지 못했습니다: ${(e as Error).message}`);
