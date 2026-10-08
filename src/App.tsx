@@ -66,7 +66,7 @@ import PropertyModule from './components/property/PropertyModule';
 import PayrollModule from './components/payroll/PayrollModule';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
-  adminSheet: '관리 시트',
+  adminSheet: '플랫폼 매물 점검',
   attendance: '출퇴근 관리',
   workLog: '업무 일지',
   approval: '결재 관리',

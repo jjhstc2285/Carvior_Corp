@@ -64,7 +64,7 @@ const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon:
       { key: 'property', label: '부동산 정보', icon: Home },
       { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
       { key: 'condolence', label: '경조사비 대장', icon: HeartHandshake },
-      { key: 'adminSheet', label: '관리 시트', icon: Table2 },
+      { key: 'adminSheet', label: '플랫폼 매물 점검', icon: Table2 },
     ],
   },
   {
