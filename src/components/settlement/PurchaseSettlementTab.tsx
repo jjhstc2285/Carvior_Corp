@@ -425,8 +425,15 @@ export default function PurchaseSettlementTab({ role }: Props) {
   */
   const mealPeople = useMemo(() => {
     const named = state.employees.filter(e => SETTLEMENT_VIEWERS.includes(e.name.trim()));
-    return role === 'ADMIN' ? named : named.filter(e => e.id === state.currentEmployeeId);
-  }, [state.employees, role, state.currentEmployeeId]);
+    const mine = role === 'ADMIN' ? named : named.filter(e => e.id === state.currentEmployeeId);
+    /*
+      담당자 칩을 누르면 카드도 그 사람 것만 남는다.
+
+      표는 걸러졌는데 식대와 월급은 두 사람 것이 그대로 떠 있었다. 이우주 차장을 눌러
+      놓고 안원용 본부장 월급을 보고 있으면, 합계가 무엇을 더한 값인지 알 수가 없다.
+    */
+    return employeeFilter === 'all' ? mine : mine.filter(e => e.id === employeeFilter);
+  }, [state.employees, role, state.currentEmployeeId, employeeFilter]);
 
   const seesMeal = mealPeople.length > 0;
   const [meals, setMeals] = useState<MealRow[]>([]);
