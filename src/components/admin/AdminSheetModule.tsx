@@ -19,8 +19,12 @@ import { ExternalLink, RefreshCw, Table2 } from 'lucide-react';
  * 안내가 뜨는데, 그건 우리 화면 문제가 아니라서 새 창으로 여는 길을 같이 둔다.
  */
 
-/** 보는 시트 — 바뀌면 여기 한 줄만 고친다 */
-const SHEET_ID = '1mddXpb3V5BbDj4IVY4Z5SSJynlngApt8aULN-tRbT_E';
+/**
+ * 보는 시트 — 바뀌면 여기 한 줄만 고친다.
+ *
+ * 오토벨 칸을 걷어낸 시트다(엔카·차차차만 본다). 장 구성은 전과 같다.
+ */
+const SHEET_ID = '1osyn_fV_WK9LuGUXnONt_an17igRobbIGwS0fnJ5LR0';
 const SHEET_GID = '1128555042';
 
 /** 새 창에서 열 주소 — 평소 쓰는 그 화면 그대로다 */
