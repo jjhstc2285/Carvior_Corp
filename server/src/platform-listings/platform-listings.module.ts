@@ -33,8 +33,8 @@ import { normalizePlate } from '../vehicles/vehicle.rules';
 const SHEET_CSV_DEFAULT =
   'https://docs.google.com/spreadsheets/d/1mddXpb3V5BbDj4IVY4Z5SSJynlngApt8aULN-tRbT_E/export?format=csv&gid=1128555042';
 
-/** 이 자리는 대표와 관리팀만 본다 — 화면과 같은 기준이다(src/lib/permissions.ts) */
-const SHEET_TEAM = '관리팀';
+/** 이 자리는 대표와 광고팀만 본다 — 화면과 같은 기준이다(src/lib/permissions.ts) */
+const SHEET_TEAM = '광고팀';
 
 function canSee(user: AuthUser): boolean {
   return user.role === Role.ADMIN || (user.department ?? '').trim() === SHEET_TEAM;
@@ -244,7 +244,7 @@ export class PlatformListingsController {
   constructor(private readonly service: PlatformListingsService) {}
 
   private assert(user: AuthUser): void {
-    if (!canSee(user)) throw new ForbiddenException('플랫폼 매물은 대표와 관리팀만 봅니다.');
+    if (!canSee(user)) throw new ForbiddenException('플랫폼 매물은 대표와 광고팀만 봅니다.');
   }
 
   @Get()
