@@ -17,6 +17,7 @@ import SellableVehicles from './SellableVehicles';
 import CallInbox from './CallInbox';
 import ConsultationDetailModal from './ConsultationDetailModal';
 import VisitAssignPanel, { VisitDealerSelect, visitDealers } from './VisitAssignPanel';
+import VisitReviewSection from './VisitReviewSection';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
@@ -110,12 +111,16 @@ type StatusView = 'open' | 'all' | ConsultationStatus;
 const PAGE_SIZE = 100;
 
 /*
-  담당자별 전환율은 알선 정산으로 옮겼다.
+  담당자별 전환율과 '그냥 간 손님'은 알선 정산에도 있고 여기에도 있다.
 
-  숫자만 봐서는 왜 그런지 알 수가 없어, 그냥 간 손님 목록과 그 이유(리뷰)를 한 자리에
-  두기로 했다 — 그게 정산을 보는 자리다. (components/consultation/VisitReviewSection.tsx)
+  한 벌을 두 자리에서 쓴다(VisitReviewSection). 정산을 볼 때는 숫자 뒤에 누가 있는지를
+  보려고 열고, 상담을 볼 때는 오늘 다시 걸 사람을 찾으려고 연다 — 보는 까닭이 다를 뿐
+  보는 것은 같아서, 화면을 둘로 만들면 한쪽만 고쳐 놓고 왜 다른지 찾게 된다.
+
+  여기서는 이번 달만 본다. 상담 화면에는 달을 고르는 자리가 없고, 지난달 것은 정산에서
+  달을 골라 본다.
 */
-export default function ConsultationModule({ kind }: Props) {
+export default function ConsultationModule({ role, kind }: Props) {
   const { state, deleteConsultation, refresh } = useStore();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusView>('open');
@@ -295,6 +300,11 @@ export default function ConsultationModule({ kind }: Props) {
         우리 물건을 우리가 파는 자리에서만 띄운다(수출·기타는 손님이 오지 않는다).
       */}
       {(kind === 'SALE' || kind === 'BROKERAGE') && <VisitAssignPanel />}
+
+      {/* 전환율과 그냥 간 손님 — 오늘 다시 걸 사람을 여기서 찾는다(알선만) */}
+      {kind === 'BROKERAGE' && (
+        <VisitReviewSection role={role} month={dayjs().format('YYYY-MM')} allMonths={false} />
+      )}
 
       {/* 상품화된 차를 눌러 그 차로 상담을 연다 — 차량번호를 옮겨 치지 않게 */}
       {/* 우리 물건을 우리가 파는 자리(판매·알선)에서만 — 수출·기타는 고를 차가 다르다 */}
