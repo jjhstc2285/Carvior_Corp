@@ -84,7 +84,6 @@ const COLUMNS: Column[] = [
   { key: 'brokerFee', label: '구전', align: 'text-right' },
   { key: 'platformFee', label: '플랫폼 수수료', align: 'text-right' },
   { key: 'grandTotal', label: '총비용', align: 'text-right' },
-  { key: 'settlementAmount', label: '정산금액', align: 'text-right' },
   { key: 'vehicleCost', label: '차량비용(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'totalWon', label: '총합계(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'salePrice', label: '차량판매가', align: 'text-right', headClass: 'text-emerald-600' },
@@ -105,6 +104,13 @@ const COLUMNS: Column[] = [
     headClass: 'text-emerald-600',
     title: '차량판매가 − 총합계 (세금은 상사 정산에서 이미 떼고 들어옵니다)',
   },
+  /*
+    정산금액은 판매수익 바로 오른쪽이다.
+
+    예전에는 총비용 옆에 있었다. 그런데 이 둘은 나란히 놓고 견주는 값이다 — 그 차에서
+    남은 돈과, 실제로 정산해 받을 돈. 떨어져 있으면 가로로 스무 칸을 건너가며 본다.
+  */
+  { key: 'settlementAmount', label: '정산금액', align: 'text-right' },
   { key: 'owner', label: '담당자' },
   { key: 'contract', label: '계약서', align: 'text-center' },
   { key: 'stage', label: '결재' },
