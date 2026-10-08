@@ -123,6 +123,14 @@ const COLUMNS: Column[] = [
  *
  * 올려만 두고 승인이 안 난 건은 안 센다 — 끝까지 간 것만 일한 것으로 본다.
  */
+/**
+ * 본부장 월급 — 정산받을 금액에 같이 붙는다.
+ *
+ * 한 사람 한 금액이라 적어 둘 칸을 만들지 않았다. 바뀌면 이 줄만 고친다.
+ * 이름으로 못 박는다 — 직급으로 가리면 본부장이 하나 더 생겼을 때 같이 붙는다.
+ */
+const CHIEF_SALARY = { name: '안원용', amount: 2_000_000 };
+
 const PURCHASE_BONUS_MIN = 20;
 const PURCHASE_BONUS_PER_CASE = 10_000;
 
@@ -437,6 +445,19 @@ export default function PurchaseSettlementTab({ role }: Props) {
       .reduce((sum, m) => sum + m.amount, 0);
   const mealTotal = mealPeople.reduce((sum, p) => sum + mealOf(p.id), 0);
 
+  /*
+    본부장 월급.
+
+    안원용 본부장은 매도정산과 식대 말고 월급이 같이 붙는다. 달마다 같은 금액이라
+    적어 둘 칸을 만들지 않고 여기 한 줄로 둔다 — 바뀌면 이 줄만 고친다.
+
+    전체 기간을 보고 있을 때는 안 더한다. 달마다 한 번 붙는 돈이라 몇 달치인지가
+    정해지지 않으면 더할 수가 없다.
+  */
+  const salaryPerson = mealPeople.find(p => p.name.trim() === CHIEF_SALARY.name);
+  const salaryTotal = !allMonths && salaryPerson ? CHIEF_SALARY.amount : 0;
+
+
   const saveMeal = async (employeeId: string, amount: number) => {
     try {
       setMeals(await api<MealRow[]>('/settlements/purchase/meal', {
@@ -656,7 +677,11 @@ export default function PurchaseSettlementTab({ role }: Props) {
 
       <div
         className={`mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 ${
-          seesMeal && seesShare ? 'lg:grid-cols-9' : seesMeal || seesShare ? 'lg:grid-cols-8' : 'lg:grid-cols-7'
+          [seesMeal, seesShare, !!salaryPerson].filter(Boolean).length >= 2
+            ? 'lg:grid-cols-9'
+            : seesMeal || seesShare || salaryPerson
+              ? 'lg:grid-cols-8'
+              : 'lg:grid-cols-7'
         }`}
       >
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
@@ -680,6 +705,19 @@ export default function PurchaseSettlementTab({ role }: Props) {
             </p>
             <p className="text-[10px] text-slate-400">
               신차 30% · 개인 50% · {filtered.filter(s => (s.shareAmount ?? 0) > 0).length}대
+            </p>
+          </div>
+        )}
+        {/* 본부장 월급 — 달마다 같은 금액이라 적는 칸 없이 붙는다 */}
+        {salaryPerson && (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 px-3 py-2">
+            <p className="text-xs font-medium text-indigo-700/80">월급</p>
+            <p className="text-xl font-bold text-indigo-700">
+              {MAN(allMonths ? CHIEF_SALARY.amount : salaryTotal)}
+              <span className="ml-1 text-sm font-medium text-slate-400">원</span>
+            </p>
+            <p className="text-[10px] text-slate-400">
+              {salaryPerson.name} · {allMonths ? '달을 고르면 더합니다' : `${dayjs(month).format('M월')} 한 달치`}
             </p>
           </div>
         )}
@@ -711,9 +749,14 @@ export default function PurchaseSettlementTab({ role }: Props) {
         )}
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
           <p className="text-xs font-medium text-slate-400">정산금액 합계</p>
-          <p className="text-xl font-bold text-indigo-600">{MAN(totals.settlement + mealTotal)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
-          {seesMeal && mealTotal > 0 && (
-            <p className="text-[10px] text-slate-400">정산 {MAN(totals.settlement)} + 식대 {MAN(mealTotal)}</p>
+          <p className="text-xl font-bold text-indigo-600">{MAN(totals.settlement + mealTotal + salaryTotal)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
+          {/* 어디서 더해진 돈인지 적는다 — 숫자만 보면 아무도 못 맞춰 본다 */}
+          {(mealTotal > 0 || salaryTotal > 0) && (
+            <p className="text-[10px] text-slate-400">
+              정산 {MAN(totals.settlement)}
+              {mealTotal > 0 && ` + 식대 ${MAN(mealTotal)}`}
+              {salaryTotal > 0 && ` + 월급 ${MAN(salaryTotal)}`}
+            </p>
           )}
         </div>
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
