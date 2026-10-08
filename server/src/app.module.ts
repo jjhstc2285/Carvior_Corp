@@ -29,7 +29,6 @@ import { ApprovalsModule } from './approvals/approvals.module';
 import { AdsModule } from './ads/ads.module';
 import { ParkBoardModule } from './parkboard/parkboard.module';
 import { PayrollModule } from './payroll/payroll.module';
-import { PlatformListingsModule } from './platform-listings/platform-listings.module';
 import { ReferralModule } from './referral/referral.module';
 import { CleaningModule } from './cleaning/cleaning.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
@@ -73,7 +72,6 @@ import { RolesGuard } from './auth/roles.guard';
     AdsModule,
     ParkBoardModule,
     PayrollModule,
-    PlatformListingsModule,
     ReferralModule,
   ],
   providers: [
