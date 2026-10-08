@@ -15,4 +15,5 @@ export type ModuleKey =
   | 'payroll'
   | 'cleaning'
   | 'condolence'
+  | 'adminSheet'
   | 'chat';

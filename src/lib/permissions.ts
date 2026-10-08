@@ -55,3 +55,19 @@ export function canSeeAllSettlements(
   if (user.role !== 'EMPLOYEE' || department === '계약팀') return true;
   return SETTLEMENT_VIEWERS.includes((name ?? '').trim());
 }
+
+/**
+ * 관리 시트를 볼 수 있는가 — 대표(관리자)와 관리팀.
+ *
+ * 메뉴를 감추는 것이지 시트를 잠그는 게 아니다. 시트를 실제로 누가 보느냐는 구글
+ * 공유 설정이 정한다 — 링크를 아는 사람은 주소창에 치면 열린다. 둘을 같이 좁혀야 한다.
+ */
+export const SHEET_TEAM = '관리팀';
+
+export function canSeeAdminSheet(
+  user: { role: 'EMPLOYEE' | 'ADMIN' } | null,
+  department?: string | null,
+): boolean {
+  if (!user) return false;
+  return user.role === 'ADMIN' || (department ?? '').trim() === SHEET_TEAM;
+}

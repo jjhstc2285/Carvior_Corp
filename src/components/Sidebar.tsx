@@ -1,4 +1,4 @@
-import { Building2, CalendarClock, Car, Contact, Handshake, HeartHandshake, Home, Landmark, Megaphone, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Sparkles, Stamp, Wallet, X } from 'lucide-react';
+import { Building2, CalendarClock, Car, Contact, Handshake, HeartHandshake, Home, Landmark, Megaphone, MessageSquare, MessageSquareText, NotebookPen, ParkingSquare, ReceiptText, Sparkles, Stamp, Table2, Wallet, X } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 
 interface Props {
@@ -14,6 +14,8 @@ interface Props {
   isCeo?: boolean;
   /** 인건비를 볼 수 있는 계정인가 — 서버가 정해 준 값 */
   canSeePayroll?: boolean;
+  /** 관리 시트를 볼 수 있는가 — 대표와 관리팀 */
+  canSeeSheet?: boolean;
 }
 
 /**
@@ -62,6 +64,7 @@ const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon:
       { key: 'property', label: '부동산 정보', icon: Home },
       { key: 'cleaning', label: '청소 관리 대장', icon: Sparkles },
       { key: 'condolence', label: '경조사비 대장', icon: HeartHandshake },
+      { key: 'adminSheet', label: '관리 시트', icon: Table2 },
     ],
   },
   {
@@ -79,6 +82,7 @@ export default function Sidebar({
   canSeeLedger,
   isCeo = false,
   canSeePayroll = false,
+  canSeeSheet = false,
 }: Props) {
   /*
     볼 수 없는 메뉴는 아예 안 그린다. 거르고 나서 빈 갈래는 제목까지 지운다 —
@@ -90,7 +94,9 @@ export default function Sidebar({
     // 부동산은 대표만 — 메뉴에서부터 안 보인다
     (key !== 'property' || isCeo) &&
     // 인건비도 마찬가지다. 누가 얼마 받는지는 메뉴에 있는 것만으로도 말이 나온다
-    (key !== 'payroll' || canSeePayroll);
+    (key !== 'payroll' || canSeePayroll) &&
+    // 관리 시트는 대표와 관리팀만 — 메뉴에서부터 안 보인다
+    (key !== 'adminSheet' || canSeeSheet);
 
   const groups = NAV_GROUPS.map(g => ({ ...g, items: g.items.filter(i => canSee(i.key)) })).filter(
     g => g.items.length > 0,

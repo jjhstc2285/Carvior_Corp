@@ -39,6 +39,8 @@ import dayjs from 'dayjs';
 import type { ModuleKey } from './modules';
 import type { Role } from './types';
 import Sidebar from './components/Sidebar';
+import AdminSheetModule from './components/admin/AdminSheetModule';
+import { canSeeAdminSheet } from './lib/permissions';
 import TopBar from './components/TopBar';
 import EmployeeView from './components/EmployeeView';
 import AdminView from './components/AdminView';
@@ -64,6 +66,7 @@ import PropertyModule from './components/property/PropertyModule';
 import PayrollModule from './components/payroll/PayrollModule';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
+  adminSheet: '관리 시트',
   attendance: '출퇴근 관리',
   workLog: '업무 일지',
   approval: '결재 관리',
@@ -106,6 +109,7 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
   if (module === 'ad') return <AdModule role={role} />;
+  if (module === 'adminSheet') return <AdminSheetModule />;
   return <ParkingModule isAdmin={role === 'ADMIN'} />;
 }
 
@@ -143,6 +147,8 @@ function AuthedApp({ role }: { role: Role }) {
   const today = dayjs().format('YYYY-MM-DD');
   const myRecord = state.records.find(r => r.employeeId === state.currentEmployeeId && r.date === today);
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
+  /** 관리 시트 — 대표(관리자)와 관리팀만. 메뉴에서부터 안 보인다 */
+  const canSeeSheet = canSeeAdminSheet({ role }, me?.department);
 
   useAutoAwayStatus({
     working: Boolean(myRecord?.clockIn) && !myRecord?.clockOut,
@@ -162,7 +168,8 @@ function AuthedApp({ role }: { role: Role }) {
   const blocked =
     (officeOnly.includes(module) && !seeLedger) ||
     (module === 'property' && !isCeo) ||
-    (module === 'payroll' && !canSeePayroll);
+    (module === 'payroll' && !canSeePayroll) ||
+    (module === 'adminSheet' && !canSeeSheet);
   const shownModule: ModuleKey = blocked ? 'attendance' : module;
 
   return (
@@ -188,6 +195,7 @@ function AuthedApp({ role }: { role: Role }) {
         canSeeLedger={seeLedger}
         isCeo={isCeo}
         canSeePayroll={canSeePayroll}
+        canSeeSheet={canSeeSheet}
       />
       <div className="min-w-0 flex-1">
         <TopBar
