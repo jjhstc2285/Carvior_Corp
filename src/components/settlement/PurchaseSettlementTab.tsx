@@ -499,8 +499,25 @@ export default function PurchaseSettlementTab({ role }: Props) {
     return Math.max(0, end.diff(dayjs(s.intakeDate), 'day'));
   };
 
-  /** 그 사람이 가져가는 몫 합계 — 판 차만 센다(안 판 차는 0이다) */
-  const shareTotal = filtered.reduce((sum, s) => sum + (s.shareAmount ?? 0), 0);
+  /**
+   * 정산완료 — 이미 받은 건으로 표시한다.
+   *
+   * 줄을 지우지 않는다. 지우면 그 차가 얼마였는지가 같이 사라져서, 다음 달에 "이 차
+   * 정산했던가"를 다시 묻게 된다. 표시만 남기고 합계에서 뺀다.
+   */
+  const setSharePaid = async (s: PurchaseSettlement, paid: boolean) => {
+    try {
+      await api(`/settlements/purchase/${s.id}`, { method: 'PATCH', body: { profitSharePaid: paid } });
+      await refresh();
+    } catch (e) {
+      void alertError('정산완료를 바꾸지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
+  /** 그 사람이 가져가는 몫 합계 — 판 차만, 아직 안 받은 것만 센다 */
+  const shareTotal = filtered.reduce((sum, s) => sum + (s.profitSharePaid ? 0 : s.shareAmount ?? 0), 0);
+  /** 이미 받은 몫 — 얼마를 받았는지도 보여야 한다 */
+  const sharePaidTotal = filtered.reduce((sum, s) => sum + (s.profitSharePaid ? s.shareAmount ?? 0 : 0), 0);
 
   /** 항목 칸에 마우스를 올리면 어느 업체에 얼마 썼는지 보인다. */
   const vendorsOf = (s: PurchaseSettlement, kind: PrepCostKind) => {
@@ -704,7 +721,13 @@ export default function PurchaseSettlementTab({ role }: Props) {
               {MAN(shareTotal)}<span className="ml-1 text-sm font-medium text-slate-400">원</span>
             </p>
             <p className="text-[10px] text-slate-400">
-              신차 30% · 개인 50% · {filtered.filter(s => (s.shareAmount ?? 0) > 0).length}대
+              신차 30% · 개인 50% · {filtered.filter(s => (s.shareAmount ?? 0) > 0 && !s.profitSharePaid).length}대
+              {sharePaidTotal > 0 && (
+                <>
+                  {' · '}
+                  <span className="text-rose-500">받음 {MAN(sharePaidTotal)}</span>
+                </>
+              )}
             </p>
           </div>
         )}
@@ -1016,7 +1039,20 @@ export default function PurchaseSettlementTab({ role }: Props) {
                 <tr><td colSpan={cols.count} className="px-5 py-10 text-center text-sm text-slate-400">매입 정산 내역이 없습니다.</td></tr>
               )}
               {filtered.map(s => (
-                <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
+                /*
+                  이미 받은 건은 연한 빨강으로 깔고 줄을 긋는다.
+
+                  글자는 그대로 읽혀야 한다 — 얼마짜리 차였는지 다시 볼 일이 있어서
+                  지우지 않고 표시만 남기는 것이다. 그래서 진한 색이 아니라 파스텔이다.
+                */
+                <tr
+                  key={s.id}
+                  className={`border-b border-slate-50 last:border-0 ${
+                    s.profitSharePaid
+                      ? 'bg-rose-50 text-slate-500 line-through decoration-rose-300 hover:bg-rose-100/70'
+                      : 'hover:bg-slate-50/60'
+                  }`}
+                >
                   {cols.cells({
                     /*
                       아직 안 판 차는 출고일자를 비워 둔다.
@@ -1117,7 +1153,29 @@ export default function PurchaseSettlementTab({ role }: Props) {
                             {p.label}
                           </button>
                         ))}
-                        <span className={`ml-1 font-semibold ${(s.shareAmount ?? 0) > 0 ? 'text-indigo-700' : 'text-slate-300'}`}>
+                        {/* 받은 건은 눌러서 되돌릴 수 있다 — 잘못 누르는 일이 있다 */}
+                        <button
+                          onClick={() => void setSharePaid(s, !s.profitSharePaid)}
+                          title={
+                            s.profitSharePaid
+                              ? '이미 받은 건입니다 — 누르면 되돌립니다'
+                              : '정산을 받았으면 누릅니다. 합계에서 빠지고 줄에 빨간 줄이 그어집니다'
+                          }
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                            s.profitSharePaid ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                          }`}
+                        >
+                          완료
+                        </button>
+                        <span
+                          className={`ml-1 font-semibold ${
+                            s.profitSharePaid
+                              ? 'text-rose-400 line-through'
+                              : (s.shareAmount ?? 0) > 0
+                                ? 'text-indigo-700'
+                                : 'text-slate-300'
+                          }`}
+                        >
                           {(s.shareAmount ?? 0) > 0 ? MAN(s.shareAmount ?? 0) : '—'}
                         </span>
                       </div>

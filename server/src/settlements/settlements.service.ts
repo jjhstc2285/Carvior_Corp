@@ -71,6 +71,8 @@ interface PurchaseRow extends SaleFields {
   platformFee: number;
   /** 매도정산 배분 — NEW(신차 30%) / PERSON(개인 50%) / 빈 글자(안 정함) */
   profitShare: string;
+  /** 매도정산을 이미 받았는가 */
+  profitSharePaid: boolean;
   /** 상사 정산서의 실제지급액 — 0이면 안 적은 것이다 */
   payoutAmount: number;
   prepCosts: { kind: PrepCostKind; amount: number }[];
@@ -1365,6 +1367,7 @@ export class SettlementsService {
         platformFee: dto.platformFee ?? 0,
         ...(dto.brokerFeePayout ? { brokerFeePayout: dto.brokerFeePayout } : {}),
         profitShare: dto.profitShare ?? '',
+        profitSharePaid: dto.profitSharePaid ?? false,
         payoutAmount: dto.payoutAmount ?? 0,
         contractPhotos: dto.contractPhotos ?? '',
         salePrice: dto.salePrice ?? 0,

@@ -1,6 +1,7 @@
 import { applyDecorators } from '@nestjs/common';
 import {
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -123,6 +124,9 @@ export class CreatePurchaseDto {
   /** 매도정산 배분 — NEW(신차 30%) / PERSON(개인 50%). 빈 글자면 아직 안 정한 것이다 */
   @IsOptional() @IsString() @MaxLength(10) profitShare?: string;
 
+  /** 매도정산을 이미 받았는가 — 받은 건은 이번 달 받을 돈에서 뺀다 */
+  @IsOptional() @IsBoolean() profitSharePaid?: boolean;
+
   /** 상사 정산서의 실제지급액(원) — 적으면 판매수익을 이 금액으로 낸다 */
   @IsOptional() @Money() payoutAmount?: number;
   /** 계약서 사진 경로 — 줄바꿈으로 이어 담는다 */
@@ -158,6 +162,9 @@ export class UpdatePurchaseDto {
 
   /** 매도정산 배분 — NEW(신차 30%) / PERSON(개인 50%). 빈 글자면 아직 안 정한 것이다 */
   @IsOptional() @IsString() @MaxLength(10) profitShare?: string;
+
+  /** 매도정산을 이미 받았는가 — 받은 건은 이번 달 받을 돈에서 뺀다 */
+  @IsOptional() @IsBoolean() profitSharePaid?: boolean;
 
   /** 상사 정산서의 실제지급액(원) — 적으면 판매수익을 이 금액으로 낸다 */
   @IsOptional() @Money() payoutAmount?: number;

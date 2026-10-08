@@ -806,6 +806,14 @@ model PurchaseSettlement {
    */
   profitShare String @default("") @db.VarChar(10)
 
+  /**
+   * 매도정산을 이미 받았는가.
+   *
+   * 받은 건은 이번 달 받을 돈에서 빠져야 한다. 줄을 지우면 그 차가 얼마였는지가 같이
+   * 사라지므로 지우지 않고 표시만 남긴다 — 표에서는 연한 빨강으로 줄이 그어진다.
+   */
+  profitSharePaid Boolean @default(false)
+
   // ── 판매 쪽 ──
   // 상담이 판매완료로 끝나면 여기까지 채운다. 산 값(위)과 판 값(아래)이 한 줄에 있어야
   // 그 차 한 대에서 얼마가 남았는지가 보인다.

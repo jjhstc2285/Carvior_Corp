@@ -581,6 +581,8 @@ export interface PurchaseSettlement {
   payoutAmount?: number;
   /** 매도정산 배분 — NEW(신차 30%) / PERSON(개인 50%). 빈 글자면 아직 안 정한 것 */
   profitShare?: string;
+  /** 매도정산을 이미 받았는가 — 받은 건은 이번 달 받을 돈에서 뺀다 */
+  profitSharePaid?: boolean;
   /** 그 사람이 가져가는 몫(원) — 서버가 판매수익에 비율을 곱해 내려준다 */
   shareAmount?: number;
   /**
