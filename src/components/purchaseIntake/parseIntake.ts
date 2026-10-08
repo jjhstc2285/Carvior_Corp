@@ -81,14 +81,26 @@ function toDate(value: string): string | undefined {
  * 총액은 읽지 않는다 — 저장하지 않고 두 값을 더해서 쓴다.
  */
 function parseAmounts(value: string): { purchaseAmount: number; brokerFee?: number } {
-  const broker = value.match(/구전[^\d]*([\d,]+\s*만?\s*원?)/);
+  /*
+    구전 금액은 '총'이 나오기 전까지만 찾는다.
+
+    "2600만원 + 구전 없음 총 2600만원" 처럼 구전 자리에 금액이 없는 양식이 온다. 숫자를
+    멀리까지 찾으면 그 뒤의 총액을 구전으로 집어서, 같은 2600만원이 매입가에도 구전에도
+    들어간다 — 총액이 두 배가 된다.
+
+    구전이라는 말이 있는데 그 자리에 금액이 없으면 '없음'이다. 0으로 못 박아 둔다 —
+    안 적고 넘어가면 예전에 적어 둔 구전이 그대로 남는다.
+  */
+  const brokerPart = value.match(/구전([^총]*)/);
+  const brokerMoney = brokerPart?.[1].match(/([\d,]+\s*만?\s*원?)/);
+
   // 구전·총액 부분을 걷어낸 나머지에서 첫 금액을 매입가로 본다.
   const rest = value.replace(/구전[^+]*/g, '').replace(/총[^+]*/g, '');
   const first = rest.match(/([\d,]+\s*만?\s*원?)/);
 
   return {
     purchaseAmount: first ? toWon(first[1]) : toWon(value),
-    ...(broker ? { brokerFee: toWon(broker[1]) } : {}),
+    ...(brokerPart ? { brokerFee: brokerMoney ? toWon(brokerMoney[1]) : 0 } : {}),
   };
 }
 
