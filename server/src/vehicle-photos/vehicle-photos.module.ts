@@ -6,16 +6,19 @@ import {
   Get,
   HttpCode,
   Injectable,
+  Logger,
   Module,
   Param,
   Post,
   Query,
+  type OnModuleInit,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'node:fs';
+import { unlink } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
@@ -36,6 +39,18 @@ import { normalizePlate } from '../vehicles/vehicle.rules';
  */
 
 const PHOTO_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'vehicles');
+
+/**
+ * 사진을 얼마나 들고 있나 — 올린 날부터 한 달.
+ *
+ * 차 한 대에 여섯 장씩, 한 달에 백 대면 육백 장이 쌓인다. 상품화 사진은 그 차를 파는
+ * 동안 쓰는 것이고 팔고 나면 다시 열어 볼 일이 거의 없다. 그대로 두면 상자 디스크가
+ * 먼저 찬다.
+ *
+ * 지워지기 닷새 전부터 화면에 빨간 날짜가 뜬다 — 남겨야 할 사진은 그 사이에 내려받는다.
+ */
+const KEEP_DAYS = 30;
+const WARN_DAYS = 5;
 const MAX_PHOTO_SIZE = 12 * 1024 * 1024;
 const ALLOWED_PHOTO = /^image\/(jpeg|png|webp|heic|heif)$/;
 
@@ -56,6 +71,12 @@ if (!existsSync(PHOTO_DIR)) mkdirSync(PHOTO_DIR, { recursive: true });
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** 지워질 날까지 며칠 남았나 — 0이면 오늘, 음수는 이미 지날 때가 지난 것이다 */
+function daysLeftOf(createdAt: Date): number {
+  const gone = createdAt.getTime() + KEEP_DAYS * 24 * 60 * 60 * 1000;
+  return Math.ceil((gone - Date.now()) / (24 * 60 * 60 * 1000));
+}
+
 class UpsertSetDto {
   @IsString() @MaxLength(30) vehicleNumber!: string;
   @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
@@ -72,8 +93,58 @@ class PutPhotoDto {
 }
 
 @Injectable()
-export class VehiclePhotosService {
+export class VehiclePhotosService implements OnModuleInit {
+  private readonly logger = new Logger(VehiclePhotosService.name);
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * 하루에 한 번 묵은 사진을 치운다.
+   *
+   * 뜰 때 한 번 먼저 돌린다 — 상자가 밤에 꺼져 있다 아침에 켜지면 정해진 시각이
+   * 지나가 버린다. 치우다 넘어져도 앱은 그대로 떠야 한다(사진 때문에 전산이 멈추면 안 된다).
+   */
+  onModuleInit(): void {
+    const run = () =>
+      void this.sweepOld().catch((e: Error) => this.logger.warn(`사진 정리에 실패했습니다: ${e.message}`));
+    run();
+    setInterval(run, 24 * 60 * 60 * 1000).unref();
+  }
+
+  /**
+   * 한 달이 지난 묶음을 치운다.
+   *
+   * 줄만 지우면 올린 파일은 상자에 그대로 남는다 — 지우는 뜻이 자리를 비우는 것이라
+   * 파일까지 같이 지운다. 파일이 이미 없어도 넘어간다(손으로 지운 적이 있다).
+   *
+   * 하루에 한 번 돈다. 뜰 때 한 번 돌리는 이유는, 상자가 밤에 꺼져 있다 아침에 켜지면
+   * 정해진 시각이 지나가 버리기 때문이다.
+   */
+  async sweepOld(): Promise<number> {
+    const cutoff = new Date(Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000);
+    const old = await this.prisma.vehiclePhotoSet.findMany({
+      where: { createdAt: { lt: cutoff } },
+      select: { id: true, vehicleNumber: true, photos: { select: { url: true } } },
+    });
+    if (old.length === 0) return 0;
+
+    for (const set of old) {
+      for (const photo of set.photos) {
+        // /uploads/vehicles/xxx.jpg → 상자 안의 그 파일
+        const name = photo.url.split('/').pop();
+        if (!name) continue;
+        try {
+          await unlink(join(PHOTO_DIR, name));
+        } catch {
+          // 이미 없으면 그만이다 — 줄은 그대로 지운다
+        }
+      }
+    }
+
+    await this.prisma.vehiclePhotoSet.deleteMany({ where: { id: { in: old.map((s) => s.id) } } });
+    this.logger.log(`한 달 지난 상품화 사진 ${old.length}묶음을 지웠습니다.`);
+    return old.length;
+  }
 
   async list(params: { vehicleNumber?: string; month?: string }) {
     const where: Record<string, unknown> = {};
@@ -99,6 +170,10 @@ export class VehiclePhotosService {
       shotOn: formatDateOnly(r.shotOn),
       memo: r.memo,
       recordedBy: r.recordedBy?.name ?? '',
+      /** 올린 날 — 여기서부터 보관 기간을 센다 */
+      createdAt: r.createdAt.toISOString(),
+      /** 지워질 날까지 며칠 남았나. 0이면 오늘 지워진다 */
+      daysLeft: daysLeftOf(r.createdAt),
       // 화면은 칸 이름으로 바로 꺼내 쓴다
       photos: Object.fromEntries(r.photos.map((p) => [p.slot, p.url])) as Record<string, string>,
     }));

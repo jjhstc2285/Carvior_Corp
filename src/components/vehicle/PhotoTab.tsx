@@ -49,7 +49,22 @@ interface PhotoSet {
   memo: string;
   recordedBy: string;
   photos: Partial<Record<SlotKey, string>>;
+  /** 올린 날 — 여기서부터 보관 기간을 센다 */
+  createdAt?: string;
+  /** 지워질 날까지 며칠 남았나. 서버가 내려준다 */
+  daysLeft?: number;
 }
+
+/**
+ * 사진은 올린 날부터 한 달만 들고 있는다.
+ *
+ * 차 한 대에 여섯 장씩, 한 달에 백 대면 육백 장이 쌓인다. 상품화 사진은 그 차를 파는
+ * 동안 쓰는 것이고 팔고 나면 다시 열어 볼 일이 거의 없다.
+ *
+ * 닷새 전부터 빨간 날짜를 띄운다 — 남겨야 할 사진은 그 사이에 내려받는다. 조용히
+ * 사라지면 "분명히 올렸는데 없다"가 된다.
+ */
+const WARN_DAYS = 5;
 
 
 /**
@@ -171,6 +186,11 @@ export default function PhotoTab() {
 
   return (
     <div className="space-y-4">
+      {/* 사진이 조용히 사라지면 "분명히 올렸는데 없다"가 된다 — 미리 적어 둔다 */}
+      <p className="rounded-lg bg-slate-100 px-3 py-2 text-[11px] text-slate-500">
+        상품화 사진은 <b>올린 날부터 한 달</b> 보관하고 지워집니다. 지워지기 <b>닷새 전부터 빨간 날짜</b>가 뜨니,
+        남겨야 할 사진은 그 전에 내려받으세요.
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={() => setPickOpen(v => !v)}
@@ -311,6 +331,18 @@ function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () =>
           {filled}/{SLOTS.length}
         </span>
         {set.recordedBy && <span className="text-[11px] text-slate-400">{set.recordedBy}</span>}
+
+        {/* 지워질 때가 가까우면 빨갛게 — 남길 사진은 그 전에 내려받는다 */}
+        {typeof set.daysLeft === 'number' && set.daysLeft <= WARN_DAYS && (
+          <span
+            className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white"
+            title={`올린 지 한 달이 지나면 지워집니다. ${
+              set.createdAt ? `${dayjs(set.createdAt).add(30, 'day').format('M월 D일')}에 지워집니다.` : ''
+            } 남길 사진은 그 전에 내려받으세요.`}
+          >
+            {set.daysLeft <= 0 ? '오늘 삭제' : `D-${set.daysLeft}`}
+          </span>
+        )}
 
         {/* 여섯 장을 한 번에 — 갤러리에서 찍은 차례대로 고르면 빈 칸에 차례로 들어간다 */}
         <button
