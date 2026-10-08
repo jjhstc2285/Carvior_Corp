@@ -532,6 +532,30 @@ export default function PurchaseSettlementTab({ role }: Props) {
   /** 이미 받은 몫 — 얼마를 받았는지도 보여야 한다 */
   const sharePaidTotal = filtered.reduce((sum, s) => sum + (s.profitSharePaid ? s.shareAmount ?? 0 : 0), 0);
 
+  /**
+   * 정산받을 금액 — 지금 보고 있는 사람이 받아 갈 돈.
+   *
+   * 받는 길이 자리마다 다르다. 계약팀은 결재를 끝낸 건수로 인센티브를 받고, 차장·본부장은
+   * 매도정산과 식대를 받는다(본부장은 월급도 여기 붙는다).
+   *
+   * 무엇이 더해졌는지 조각을 같이 돌려준다. 합계만 띄우면 "이 돈이 어디서 나왔냐"를
+   * 매달 다시 묻게 된다.
+   */
+  const payout = useMemo(() => {
+    const bonus = owners
+      .filter(o => employeeFilter === 'all' || o.employee.id === employeeFilter)
+      .reduce((sum, o) => sum + o.bonus, 0);
+
+    const parts: string[] = [];
+    if (shareTotal > 0) parts.push(`매도정산 ${MAN(shareTotal)}`);
+    if (mealTotal > 0) parts.push(`식대 ${MAN(mealTotal)}`);
+    if (salaryTotal > 0) parts.push(`월급 ${MAN(salaryTotal)}`);
+    if (bonus > 0) parts.push(`인센티브 ${MAN(bonus)}`);
+
+    return { total: shareTotal + mealTotal + salaryTotal + bonus, parts };
+  }, [owners, employeeFilter, shareTotal, mealTotal, salaryTotal]);
+
+
   /** 항목 칸에 마우스를 올리면 어느 업체에 얼마 썼는지 보인다. */
   const vendorsOf = (s: PurchaseSettlement, kind: PrepCostKind) => {
     const lines = (s.prepCosts ?? []).filter(c => c.kind === kind);
@@ -783,15 +807,27 @@ export default function PurchaseSettlementTab({ role }: Props) {
             )}
           </div>
         )}
+        {/*
+          정산받을 금액 — 사람이 받아 갈 돈.
+
+          예전에는 '정산금액 합계'였다. 그런데 그건 차 한 대씩의 정산금액(총비용)을 더한
+          값이라, 계약팀을 골라 놓고 천팔백만원이 떠 있었다 — 받을 돈이 아니라 차에 들어간
+          돈이다. 사람을 고르고 보는 자리이므로 그 사람이 받아 갈 돈으로 바꾼다.
+
+          받는 길이 자리마다 다르다. 계약팀은 결재를 끝낸 건수로 인센티브를 받고, 차장·
+          본부장은 매도정산과 식대(그리고 월급)를 받는다. 무엇이 더해졌는지 아래에 적는다 —
+          숫자만 보면 아무도 못 맞춰 본다.
+        */}
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-          <p className="text-xs font-medium text-slate-400">정산금액 합계</p>
-          <p className="text-xl font-bold text-indigo-600">{MAN(totals.settlement + mealTotal + salaryTotal)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
-          {/* 어디서 더해진 돈인지 적는다 — 숫자만 보면 아무도 못 맞춰 본다 */}
-          {(mealTotal > 0 || salaryTotal > 0) && (
+          <p className="text-xs font-medium text-slate-400">정산받을 금액</p>
+          <p className="text-xl font-bold text-indigo-600">
+            {MAN(payout.total)}<span className="ml-1 text-sm font-medium text-slate-400">원</span>
+          </p>
+          {payout.parts.length > 0 ? (
+            <p className="text-[10px] text-slate-400">{payout.parts.join(' + ')}</p>
+          ) : (
             <p className="text-[10px] text-slate-400">
-              정산 {MAN(totals.settlement)}
-              {mealTotal > 0 && ` + 식대 ${MAN(mealTotal)}`}
-              {salaryTotal > 0 && ` + 월급 ${MAN(salaryTotal)}`}
+              {employeeFilter === 'all' ? '담당자를 누르면 그 사람 것만 봅니다' : '이 달에 받을 것이 없습니다'}
             </p>
           )}
         </div>
