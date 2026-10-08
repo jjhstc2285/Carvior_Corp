@@ -44,13 +44,14 @@ const COLUMNS: Column[] = [
   { key: 'vehicleNumber', label: '차량번호' },
   { key: 'vehicleName', label: '차량명' },
   /*
-    사 온 값과 구전 — 수출에서만 띄운다.
+    사 온 데 든 돈 — 수출에서만 띄운다.
 
-    수출은 사 온 값을 같이 놓고 봐야 남는 게 보인다. 수수료만 봐서는 그 차가 얼마짜리였는지
-    알 수가 없다. 매입 관리가 원본이라 차량번호로 붙여만 온다(여기서 고치지 않는다).
+    매입금액과 구전을 한 칸으로 합친다. 둘을 갈라 놓으면 눈으로 더해 가며 봐야 하는데,
+    정작 견주는 값은 '이 차에 얼마가 들어갔나' 하나다. 쪼갠 값은 칸에 마우스를 올리면 뜬다.
+
+    매입 관리가 원본이라 차량번호로 붙여만 온다(여기서 고치지 않는다).
   */
-  { key: 'purchaseAmount', label: '매입금액', align: 'text-right' },
-  { key: 'intakeBrokerFee', label: '구전', align: 'text-right' },
+  { key: 'purchaseTotal', label: '매입총액', align: 'text-right', title: '매입금액 + 구전 — 매입 관리에서 붙여 옵니다' },
   { key: 'totalSaleAmount', label: '총 진행 판매금액', align: 'text-right' },
   { key: 'ownerDeposit', label: '실차주입금', align: 'text-right' },
   { key: 'profit', label: '수익금', align: 'text-right' },
@@ -190,13 +191,13 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
   */
   /* 제목줄을 끌어 열 순서를 바꾼다 — 알선과 수출이 차례를 따로 기억한다 */
   /*
-    매입금액·구전은 수출에서만 띄운다.
+    매입총액은 수출에서만 띄운다.
 
     알선은 남의 차를 놓아 주고 수수료를 받는 일이라 우리가 사 온 값이 없다 — 늘 빈 칸이
     두 개 늘어날 뿐이다. 수출은 우리가 사서 내보내므로 사 온 값을 같이 놓고 본다.
   */
   const columns = useMemo(
-    () => COLUMNS.filter(c => (c.key !== 'purchaseAmount' && c.key !== 'intakeBrokerFee') || kind === 'EXPORT'),
+    () => COLUMNS.filter(c => c.key !== 'purchaseTotal' || kind === 'EXPORT'),
     [kind],
   );
 
@@ -540,17 +541,26 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                     {cols.cells({
                       date: <span className="text-slate-600">{dayjs(s.date).format('M/D')}</span>,
                       vehicleNumber: <span className="font-mono text-slate-600">{s.vehicleNumber}</span>,
-                    /* 매입 관리에서 붙여 온 값 — 없으면 그 차가 매입 관리에 없다는 뜻이다 */
-                    purchaseAmount: (
-                      <span className={(s.purchaseAmount ?? 0) > 0 ? 'text-slate-600' : 'text-slate-300'}>
-                        {(s.purchaseAmount ?? 0) > 0 ? NUM(s.purchaseAmount ?? 0) : '—'}
-                      </span>
-                    ),
-                    intakeBrokerFee: (
-                      <span className={(s.intakeBrokerFee ?? 0) > 0 ? 'text-slate-600' : 'text-slate-300'}>
-                        {(s.intakeBrokerFee ?? 0) > 0 ? NUM(s.intakeBrokerFee ?? 0) : '—'}
-                      </span>
-                    ),
+                    /*
+                      매입 관리에서 붙여 온 값 — 없으면 그 차가 매입 관리에 없다는 뜻이다.
+                      합쳐 띄우고, 쪼갠 값은 마우스를 올리면 뜬다.
+                    */
+                    purchaseTotal: (() => {
+                      const buy = s.purchaseAmount ?? 0;
+                      const fee = s.intakeBrokerFee ?? 0;
+                      return buy + fee > 0 ? (
+                        <span
+                          className="font-medium text-slate-700"
+                          title={`매입금액 ${NUM(buy)}${fee > 0 ? ` + 구전 ${NUM(fee)}` : ''}`}
+                        >
+                          {NUM(buy + fee)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300" title="매입 관리에 이 차량번호가 없습니다">
+                          —
+                        </span>
+                      );
+                    })(),
                       vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
                       totalSaleAmount: <span className="text-slate-600">{NUM(s.totalSaleAmount)}</span>,
                       ownerDeposit: <span className="text-slate-500">{NUM(s.ownerDeposit)}</span>,
