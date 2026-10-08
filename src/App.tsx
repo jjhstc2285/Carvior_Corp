@@ -163,7 +163,8 @@ function AuthedApp({ role }: { role: Role }) {
   });
 
   // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
-  const officeOnly: ModuleKey[] = ['dealerFee'];
+  // 거래처·경조사비도 장부 쪽이다 — 단가와 나간 돈이 적혀 있다
+  const officeOnly: ModuleKey[] = ['dealerFee', 'vendor', 'condolence'];
   // 누가 보는지는 서버가 정한다 — 대표 · 사무장 · 테스트 계정
   const blocked =
     (officeOnly.includes(module) && !seeLedger) ||

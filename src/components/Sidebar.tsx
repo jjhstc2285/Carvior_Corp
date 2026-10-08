@@ -95,8 +95,17 @@ export default function Sidebar({
     (key !== 'property' || isCeo) &&
     // 인건비도 마찬가지다. 누가 얼마 받는지는 메뉴에 있는 것만으로도 말이 나온다
     (key !== 'payroll' || canSeePayroll) &&
-    // 관리 시트는 대표와 관리팀만 — 메뉴에서부터 안 보인다
-    (key !== 'adminSheet' || canSeeSheet);
+    // 플랫폼 매물 점검은 대표와 광고팀만 — 메뉴에서부터 안 보인다
+    (key !== 'adminSheet' || canSeeSheet) &&
+    /*
+      거래처 대장과 경조사비 대장도 장부 쪽이다.
+
+      거래처는 단가와 결제 조건이 적혀 있고, 경조사비는 누구에게 얼마가 나갔는지가
+      남는다 — 둘 다 일하는 데 필요해서 보는 값이 아니라 챙기는 사람이 보는 값이다.
+      메뉴가 길면 매일 쓰는 것도 찾기 어려워지니 여기서 줄인다.
+    */
+    (key !== 'vendor' || canSeeLedger) &&
+    (key !== 'condolence' || canSeeLedger);
 
   const groups = NAV_GROUPS.map(g => ({ ...g, items: g.items.filter(i => canSee(i.key)) })).filter(
     g => g.items.length > 0,

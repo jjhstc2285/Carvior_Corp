@@ -140,7 +140,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const get = async <T,>(label: string, run: () => Promise<T>, fallback: T): Promise<T> => {
       try {
         return await run();
-      } catch {
+      } catch (e) {
+        /*
+          볼 자리가 아니어서 막힌 건 고장이 아니다.
+
+          매입 정산은 계약팀과 관리자만 본다. 그런데 명단은 로그인할 때 한꺼번에 받아오는
+          터라, 계약팀이 아닌 사람은 들어올 때마다 '매입 정산을 불러오지 못했습니다'가
+          떴다 — 광고 관리를 보는 중에도 뜬다. 고칠 것이 없는데 뜨는 알림은 곧 아무도
+          안 읽게 되고, 진짜 고장도 같이 묻힌다.
+
+          막힌 건 빈 목록으로 두고 조용히 넘어간다. 그 화면은 어차피 메뉴에서도 안 보인다.
+        */
+        if (e instanceof ApiError && (e.status === 403 || e.status === 401)) return fallback;
         failed.push(label);
         return fallback;
       }
