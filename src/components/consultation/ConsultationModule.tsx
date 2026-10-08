@@ -275,6 +275,17 @@ export default function ConsultationModule({ role, kind }: Props) {
       </div>
 
       {/*
+        전환율과 '그냥 간 손님' — 네 탭 어디서나 같은 자리에 둔다.
+
+        통화함보다 위다. 전화를 받기 전에 "이 손님 지난번에 왔다 그냥 가셨네"를 먼저
+        보는 게 순서다 — 받고 나서 보면 이미 통화가 끝나 있다.
+
+        탭을 가리지 않는다. 손님은 알선으로 왔다가 판매로 넘어가고 수출로도 간다.
+        어느 탭을 보고 있든 다시 걸 사람은 같은 사람이다.
+      */}
+      <VisitReviewSection role={role} month={dayjs().format('YYYY-MM')} allMonths={false} openToAll />
+
+      {/*
         채널톡으로 들어온 전화 — 통화 내용을 그대로 상담으로 옮긴다.
         지금 보고 있는 탭이 그대로 상담 종류가 된다(알선 탭에서 옮기면 알선 상담이다).
       */}
@@ -300,11 +311,6 @@ export default function ConsultationModule({ role, kind }: Props) {
         우리 물건을 우리가 파는 자리에서만 띄운다(수출·기타는 손님이 오지 않는다).
       */}
       {(kind === 'SALE' || kind === 'BROKERAGE') && <VisitAssignPanel />}
-
-      {/* 전환율과 그냥 간 손님 — 오늘 다시 걸 사람을 여기서 찾는다(알선만) */}
-      {kind === 'BROKERAGE' && (
-        <VisitReviewSection role={role} month={dayjs().format('YYYY-MM')} allMonths={false} openToAll />
-      )}
 
       {/* 상품화된 차를 눌러 그 차로 상담을 연다 — 차량번호를 옮겨 치지 않게 */}
       {/* 우리 물건을 우리가 파는 자리(판매·알선)에서만 — 수출·기타는 고를 차가 다르다 */}
