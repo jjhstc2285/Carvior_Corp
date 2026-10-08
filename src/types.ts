@@ -401,6 +401,12 @@ export interface BrokerageSettlement {
   kind: ConsultationKind;
   vehicleNumber: string;
   vehicleName: string;
+  /**
+   * 그 차를 얼마에 사 왔고 구전을 얼마 줬나 — 매입 관리에서 차량번호로 붙여 준다.
+   * 매입 기록이 없으면 0이다. 수출 정산에서 사 온 값과 같이 놓고 본다.
+   */
+  purchaseAmount?: number;
+  intakeBrokerFee?: number;
   totalSaleAmount: number; // 총 진행 판매금액
   ownerDeposit: number; // 실차주입금
   transferFee: number; // 이전비

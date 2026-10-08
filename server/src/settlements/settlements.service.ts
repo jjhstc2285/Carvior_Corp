@@ -492,7 +492,11 @@ export class SettlementsService {
       insuranceFee: number;
       etcCost: number;
     },
-  >(row: T) {
+  >(
+    row: T,
+    /** 그 차를 얼마에 사 왔고 구전을 얼마 줬나 — 매입 관리에서 붙인다. 없으면 0 */
+    intake?: { purchaseAmount: number; brokerFee: number },
+  ) {
     const withChief = needsChief(row.employee?.name);
     const stage = stageOf(
       {
@@ -513,7 +517,44 @@ export class SettlementsService {
       locked: isLocked(stage),
       chiefRequired: withChief,
       profit: brokerageProfit(row),
+      /**
+       * 그 차를 얼마에 사 왔고, 구전을 얼마 줬나.
+       *
+       * 수출은 사 온 값을 같이 놓고 봐야 남는 게 보인다 — 수수료만 봐서는 그 차가
+       * 얼마짜리였는지 알 수가 없다. 매입 관리가 원본이라 차량번호로 붙여만 온다.
+       */
+      purchaseAmount: intake?.purchaseAmount ?? 0,
+      intakeBrokerFee: intake?.brokerFee ?? 0,
     };
+  }
+
+  /**
+   * 차량번호로 매입 기록을 모아온다 — 얼마에 샀고 구전을 얼마 줬나.
+   *
+   * 차량번호는 손으로 적는 값이라 '124도 7252' 처럼 공백이 섞여 저장돼 있다. 공백을
+   * 걷어낸 번호로 바로 물으면 저장된 글자와 달라 한 건도 안 걸린다 — 읽어와서 맞춘다.
+   *
+   * 같은 차를 두 번 사 오는 일이 있다. 그때는 최근 것이 맞다.
+   */
+  private async intakesByPlate(vehicleNumbers: string[]): Promise<Map<string, { purchaseAmount: number; brokerFee: number }>> {
+    const want = new Set(vehicleNumbers.map(normalizePlate).filter(Boolean));
+    const out = new Map<string, { purchaseAmount: number; brokerFee: number }>();
+    if (want.size === 0) return out;
+
+    try {
+      const rows = await this.prisma.purchaseIntake.findMany({
+        select: { vehicleNumber: true, purchaseAmount: true, brokerFee: true },
+        // 오래된 것부터 넣어 최근 것이 덮어쓰게 한다
+        orderBy: { date: 'asc' },
+      });
+      for (const r of rows) {
+        const plate = normalizePlate(r.vehicleNumber);
+        if (want.has(plate)) out.set(plate, { purchaseAmount: r.purchaseAmount, brokerFee: r.brokerFee });
+      }
+    } catch (e) {
+      this.logger.warn(`매입금액을 붙이지 못했습니다: ${(e as Error).message}`);
+    }
+    return out;
   }
 
   async findBrokerage(params: ListParams) {
@@ -528,7 +569,8 @@ export class SettlementsService {
       include: EMPLOYEE_SELECT,
       orderBy: { date: 'desc' },
     });
-    return rows.map((r) => this.brokerageView(r));
+    const intakes = await this.intakesByPlate(rows.map((r) => r.vehicleNumber));
+    return rows.map((r) => this.brokerageView(r, intakes.get(normalizePlate(r.vehicleNumber))));
   }
 
   async createBrokerage(dto: CreateBrokerageDto) {

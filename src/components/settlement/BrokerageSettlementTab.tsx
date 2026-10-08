@@ -43,6 +43,14 @@ const COLUMNS: Column[] = [
   { key: 'date', label: '일자' },
   { key: 'vehicleNumber', label: '차량번호' },
   { key: 'vehicleName', label: '차량명' },
+  /*
+    사 온 값과 구전 — 수출에서만 띄운다.
+
+    수출은 사 온 값을 같이 놓고 봐야 남는 게 보인다. 수수료만 봐서는 그 차가 얼마짜리였는지
+    알 수가 없다. 매입 관리가 원본이라 차량번호로 붙여만 온다(여기서 고치지 않는다).
+  */
+  { key: 'purchaseAmount', label: '매입금액', align: 'text-right' },
+  { key: 'intakeBrokerFee', label: '구전', align: 'text-right' },
   { key: 'totalSaleAmount', label: '총 진행 판매금액', align: 'text-right' },
   { key: 'ownerDeposit', label: '실차주입금', align: 'text-right' },
   { key: 'profit', label: '수익금', align: 'text-right' },
@@ -181,7 +189,18 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
     kind 가 없던 시절에 적은 건이 있어서, 안 적힌 건은 알선으로 본다 — 그때는 알선뿐이었다.
   */
   /* 제목줄을 끌어 열 순서를 바꾼다 — 알선과 수출이 차례를 따로 기억한다 */
-  const cols = useColumnOrder(`settlementColOrder-${kind}`, COLUMNS, { dense: true });
+  /*
+    매입금액·구전은 수출에서만 띄운다.
+
+    알선은 남의 차를 놓아 주고 수수료를 받는 일이라 우리가 사 온 값이 없다 — 늘 빈 칸이
+    두 개 늘어날 뿐이다. 수출은 우리가 사서 내보내므로 사 온 값을 같이 놓고 본다.
+  */
+  const columns = useMemo(
+    () => COLUMNS.filter(c => (c.key !== 'purchaseAmount' && c.key !== 'intakeBrokerFee') || kind === 'EXPORT'),
+    [kind],
+  );
+
+  const cols = useColumnOrder(`settlementColOrder-${kind}`, columns, { dense: true });
 
   // 그 달에 한정한다 — 칩에 적힌 건수가 목록과 다르면 어느 쪽이 맞는지 알 수 없다
   const ofKind = state.brokerageSettlements
@@ -521,6 +540,17 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                     {cols.cells({
                       date: <span className="text-slate-600">{dayjs(s.date).format('M/D')}</span>,
                       vehicleNumber: <span className="font-mono text-slate-600">{s.vehicleNumber}</span>,
+                    /* 매입 관리에서 붙여 온 값 — 없으면 그 차가 매입 관리에 없다는 뜻이다 */
+                    purchaseAmount: (
+                      <span className={(s.purchaseAmount ?? 0) > 0 ? 'text-slate-600' : 'text-slate-300'}>
+                        {(s.purchaseAmount ?? 0) > 0 ? NUM(s.purchaseAmount ?? 0) : '—'}
+                      </span>
+                    ),
+                    intakeBrokerFee: (
+                      <span className={(s.intakeBrokerFee ?? 0) > 0 ? 'text-slate-600' : 'text-slate-300'}>
+                        {(s.intakeBrokerFee ?? 0) > 0 ? NUM(s.intakeBrokerFee ?? 0) : '—'}
+                      </span>
+                    ),
                       vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
                       totalSaleAmount: <span className="text-slate-600">{NUM(s.totalSaleAmount)}</span>,
                       ownerDeposit: <span className="text-slate-500">{NUM(s.ownerDeposit)}</span>,
