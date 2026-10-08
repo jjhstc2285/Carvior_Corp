@@ -841,7 +841,20 @@ export function saleProfit(
 }
 
 // 상담 → 계약 → 판매완료 → (정산) 순으로 간다. 보류·종결은 그 흐름에서 빠지는 갈래다.
-export type ConsultationStatus = 'IN_PROGRESS' | 'CONTRACTED' | 'SOLD' | 'ON_HOLD' | 'CLOSED';
+export type ConsultationStatus =
+  | 'IN_PROGRESS'
+  | 'CONTRACTED'
+  | 'SOLD'
+  | 'ON_HOLD'
+  | 'CLOSED'
+  /**
+   * 방문취소 — 약속은 잡혔는데 손님이 안 온 것(노쇼 포함).
+   *
+   * 맡은 딜러는 그 시간을 비워 두고 기다렸을 뿐 손님을 맞은 게 아니다. 방문 배정에서
+   * 안 세고, 그 시간도 다시 빈 자리가 된다. 종결과는 다르다 — 종결은 상담이 끝난
+   * 것이고, 이건 그날 안 온 것뿐이라 다시 부를 손님이다.
+   */
+  | 'VISIT_CANCELED';
 
 /** 고르는 차례 — 흐름대로 늘어놓는다(진행중 → 계약 → 판매완료, 그리고 빠지는 갈래) */
 export const CONSULTATION_STATUSES: ConsultationStatus[] = [
@@ -849,6 +862,7 @@ export const CONSULTATION_STATUSES: ConsultationStatus[] = [
   'CONTRACTED',
   'SOLD',
   'ON_HOLD',
+  'VISIT_CANCELED',
   'CLOSED',
 ];
 
@@ -857,6 +871,7 @@ export const CONSULTATION_STATUS_LABEL: Record<ConsultationStatus, string> = {
   CONTRACTED: '계약',
   SOLD: '판매완료',
   ON_HOLD: '보류',
+  VISIT_CANCELED: '방문취소',
   CLOSED: '종결',
 };
 

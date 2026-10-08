@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { CalendarCheck, Loader2, Shuffle } from 'lucide-react';
+import { CalendarCheck, Loader2, Shuffle, UserRoundX } from 'lucide-react';
 import { useStore } from '../../store';
 import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess } from '../../lib/alert';
@@ -96,7 +96,34 @@ export default function VisitAssignPanel() {
       .sort((a, b) => (a.hour ?? 99) - (b.hour ?? 99));
   }, [state.consultations, date]);
 
-  const unassigned = visits.filter(v => !v.c.visitDealerId).length;
+  /** 손님이 안 온 건(노쇼 포함) — 상태 하나로 가린다 */
+  const isCanceled = (c: ConsultationRecord) => c.status === 'VISIT_CANCELED';
+
+  /** 취소한 건은 셈에서 뺀다 — 자리가 비어 있는 것과 같다 */
+  const unassigned = visits.filter(v => !v.c.visitDealerId && !isCanceled(v.c)).length;
+  const canceled = visits.filter(v => isCanceled(v.c)).length;
+
+  /*
+    손님이 취소했다고 적는다.
+
+    맡은 딜러는 그 시간을 비워 두고 기다렸을 뿐 손님을 맞은 게 아니다. 취소로 적으면
+    배정 셈에서 빠져서, 다음 손님이 올 때 그 딜러가 먼저 받는다.
+
+    줄은 지우지 않는다 — 약속이 있었다는 것과 손님이 안 왔다는 것 둘 다 남아야, 나중에
+    그 손님에게 다시 걸 때 무슨 일이 있었는지 알 수 있다.
+  */
+  const setCanceled = async (c: ConsultationRecord, next: boolean) => {
+    try {
+      // 되돌리면 진행중으로 — 그날 안 왔을 뿐 다시 부를 손님이다
+      await api(`/consultations/${c.id}`, {
+        method: 'PATCH',
+        body: { status: next ? 'VISIT_CANCELED' : 'IN_PROGRESS' },
+      });
+      await refresh();
+    } catch (e) {
+      void alertError('취소로 바꾸지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
 
   const setDealer = async (c: ConsultationRecord, dealerId: string) => {
     try {
@@ -142,7 +169,7 @@ export default function VisitAssignPanel() {
         />
         <span className="text-[11px] text-indigo-700/70">
           {visits.length > 0
-            ? `방문 ${visits.length}건 · 아직 안 정한 건 ${unassigned}건`
+            ? `방문 ${visits.length}건 · 아직 안 정한 건 ${unassigned}건${canceled > 0 ? ` · 취소 ${canceled}건` : ''}`
             : '그날 예약된 방문이 없습니다'}
         </span>
         <button
@@ -159,7 +186,12 @@ export default function VisitAssignPanel() {
       {visits.length > 0 && (
         <div className="mt-2.5 space-y-1">
           {visits.map(({ c, hour }) => (
-            <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-1.5">
+            <div
+              key={c.id}
+              className={`flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 ${
+                isCanceled(c) ? 'bg-slate-100 text-slate-400 line-through decoration-slate-300' : 'bg-white'
+              }`}
+            >
               <span className="w-14 shrink-0 text-xs font-bold text-indigo-700">
                 {hour === null ? <span className="text-amber-600">시각?</span> : `${String(hour).padStart(2, '0')}시`}
               </span>
@@ -173,6 +205,20 @@ export default function VisitAssignPanel() {
                 onPick={id => setDealer(c, id)}
                 className="ml-auto"
               />
+              {/* 손님이 안 오기로 한 건 — 맡은 딜러가 다음 손님을 먼저 받는다 */}
+              <button
+                onClick={() => void setCanceled(c, !isCanceled(c))}
+                title={
+                  isCanceled(c)
+                    ? '방문취소로 적혀 있습니다 — 누르면 진행중으로 되돌립니다'
+                    : '손님이 안 왔으면 누릅니다(노쇼 포함). 맡은 딜러가 다음 손님을 먼저 받습니다'
+                }
+                className={`shrink-0 rounded-md px-1.5 py-1 ${
+                  isCanceled(c) ? 'bg-slate-300 text-white' : 'text-slate-400 hover:bg-slate-200'
+                }`}
+              >
+                <UserRoundX size={13} />
+              </button>
             </div>
           ))}
         </div>
@@ -182,7 +228,7 @@ export default function VisitAssignPanel() {
       {visits.length > 0 && dealers.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {dealers.map(d => {
-            const count = visits.filter(v => v.c.visitDealerId === d.id).length;
+            const count = visits.filter(v => v.c.visitDealerId === d.id && !isCanceled(v.c)).length;
             return (
               <span
                 key={d.id}

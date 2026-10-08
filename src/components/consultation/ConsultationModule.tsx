@@ -95,6 +95,8 @@ const STATUS_COLOR: Record<ConsultationStatus, string> = {
   CONTRACTED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
   SOLD: 'bg-indigo-600 text-white ring-indigo-700/20',
   ON_HOLD: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  // 손님이 안 온 건 — 끝난 건(종결)과 눈으로 갈려야 한다
+  VISIT_CANCELED: 'bg-rose-50 text-rose-600 ring-rose-500/20',
   CLOSED: 'bg-gray-100 text-gray-600 ring-gray-500/20',
 };
 

@@ -435,7 +435,17 @@ export class ConsultationsService {
 
     const [rows, dealers] = await Promise.all([
       this.prisma.consultation.findMany({
-        where: { visitDate: day, status: { not: ConsultationStatus.CLOSED } },
+        /*
+          취소한 방문은 아예 안 본다.
+
+          맡은 딜러는 그 시간을 비워 두고 기다렸을 뿐 손님을 맞은 게 아니다. '한 건
+          맡았다'로 세면 다음 손님이 올 때 그 딜러는 이미 몫을 채운 사람이 되어 뒤로
+          밀린다 — 그 시간도 다시 빈 자리로 돌려준다.
+        */
+        where: {
+          visitDate: day,
+          status: { notIn: [ConsultationStatus.CLOSED, ConsultationStatus.VISIT_CANCELED] },
+        },
         select: { id: true, visitTime: true, visitDealerId: true, vehicleNumber: true, vehicleName: true },
         orderBy: { createdAt: 'asc' },
       }),

@@ -45,7 +45,8 @@ export function isContracted(status: ConsultationStatus): boolean {
  * 보류는 계약이 미뤄진 것뿐이라 모수에 남기고, 몇 건인지 따로 보여준다.
  */
 export function countsToward(status: ConsultationStatus): boolean {
-  return status !== 'CLOSED';
+  // 방문취소(노쇼)도 뺀다 — 손님이 오지도 않은 건을 '못 판 건'으로 세면 전환율이 거짓이 된다
+  return status !== 'CLOSED' && status !== 'VISIT_CANCELED';
 }
 
 export interface ConversionStat {
@@ -68,7 +69,7 @@ export function conversionOf(rows: { status: ConsultationStatus }[]): Conversion
   let closed = 0;
 
   for (const r of rows) {
-    if (r.status === 'CLOSED') {
+    if (!countsToward(r.status)) {
       closed += 1;
       continue;
     }

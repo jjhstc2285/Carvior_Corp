@@ -72,6 +72,7 @@ export class CreateConsultationDto extends PayFields {
   /** 그날 손님을 맞을 담당 딜러 — 빈 글자면 아직 안 정한 것이다 */
   @IsOptional() @IsString() @MaxLength(40) visitDealerId?: string | null;
 
+
   /** 출고 입금액(만원) */
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) depositAmount?: number;
 
