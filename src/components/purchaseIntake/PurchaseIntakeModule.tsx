@@ -23,11 +23,37 @@ export default function PurchaseIntakeModule() {
   const [editing, setEditing] = useState<PurchaseIntake | null>(null);
   const [carviorOpen, setCarviorOpen] = useState(false);
 
+  /*
+    들고 있는 차만 볼지, 나간 차까지 볼지.
+
+    매입 목록은 사 온 차가 그대로 쌓인다. 팔려 나간 차도 같은 줄에 남아 있어서, 몇 대를
+    들고 있는지 세려면 눈으로 걸러야 했다 — 이백 대가 넘으면 그게 안 된다.
+    들고 있는 차를 먼저 본다. 나간 차는 눌러서 본다.
+  */
+  const [stock, setStock] = useState<'stock' | 'sold' | 'all'>('stock');
+
   const half = useMemo(() => halfYearRange(month), [month]);
   const api = usePurchaseIntake(period === 'month' ? month : '', query, period === 'half' ? half : null);
   const periodLabel = period === 'month' ? dayjs(month).format('M월') : period === 'half' ? half.label : '전체';
 
-  const total = api.items.reduce((sum, r) => sum + r.totalAmount, 0);
+  /**
+   * 나간 차인가 — 판매가가 적혔으면 나간 것이다.
+   *
+   * 매입 정산에 차량판매가를 적으면 여기 따라 붙는다. 아직 안 적힌 차는 '들고 있는 차'로
+   * 남는다 — 실제로는 팔렸는데 안 적힌 건이 섞일 수 있고, 그건 정산에서 채울 일이다.
+   */
+  const isSold = (r: PurchaseIntake) => (r.salePrice ?? 0) > 0;
+
+  const soldAll = api.items.filter(isSold).length;
+  const stockAll = api.items.length - soldAll;
+
+  /** 아래 숫자와 목록은 모두 고른 쪽만 센다 — 카드와 목록이 다른 걸 세면 안 된다 */
+  const items = useMemo(
+    () => (stock === 'all' ? api.items : api.items.filter(r => (stock === 'sold' ? isSold(r) : !isSold(r)))),
+    [api.items, stock],
+  );
+
+  const total = items.reduce((sum, r) => sum + r.totalAmount, 0);
   /*
     매입가와 구전을 갈라 본다.
 
@@ -35,12 +61,12 @@ export default function PurchaseIntakeModule() {
     사람에게 주는 돈이고, 지급방식에 따라 원천징수까지 따라붙는다 — 한 덩어리로 묶어
     두면 얼마를 누구에게 줬는지 세어볼 자리가 없다.
   */
-  const purchaseTotal = api.items.reduce((sum, r) => sum + r.purchaseAmount, 0);
-  const brokerTotal = api.items.reduce((sum, r) => sum + r.brokerFee, 0);
+  const purchaseTotal = items.reduce((sum, r) => sum + r.purchaseAmount, 0);
+  const brokerTotal = items.reduce((sum, r) => sum + r.brokerFee, 0);
   /** 구전을 준 건이 몇 대인가 — 안 준 건이 섞여 있어 대수로는 못 나눈다 */
-  const brokerCount = api.items.filter(r => r.brokerFee > 0).length;
+  const brokerCount = items.filter(r => r.brokerFee > 0).length;
   // 매입만 봐서는 부가세가 안 나온다 — 그 차들이 얼마에 팔렸는지까지 맞춰봐야 한다.
-  const saleTotal = api.items.reduce((sum, r) => sum + (r.salePrice ?? 0), 0);
+  const saleTotal = items.reduce((sum, r) => sum + (r.salePrice ?? 0), 0);
   /*
     부가세는 차값만 놓고 맞춰본다.
 
@@ -48,7 +74,7 @@ export default function PurchaseIntakeModule() {
     더 못 판 것처럼 잡히고, 남은 기간에 더 팔아야 할 금액도 부풀어 보인다.
   */
   const vat = vatBalance(purchaseTotal, saleTotal);
-  const soldCount = api.items.filter(r => (r.salePrice ?? 0) > 0).length;
+  const soldCount = items.filter(r => (r.salePrice ?? 0) > 0).length;
 
   /*
     대산에 이번 달 몇 대를 맡겼는가.
@@ -56,7 +82,7 @@ export default function PurchaseIntakeModule() {
     백 대를 채워야 제휴 단가를 받는다. 한 대에 판을 두 곳 했어도 그건 한 대다 —
     곳수로 세면 실제보다 빨리 채운 것처럼 보이고, 그 숫자를 믿고 있다가 못 받는다.
   */
-  const daesanCars = api.items.filter(r => (r.prepVendor ?? '') === '대산' && (r.panelCount ?? 0) > 0).length;
+  const daesanCars = items.filter(r => (r.prepVendor ?? '') === '대산' && (r.panelCount ?? 0) > 0).length;
 
   /*
     검차 리포트 주소를 카비어에서 받아 붙인다.
@@ -90,7 +116,7 @@ export default function PurchaseIntakeModule() {
   };
 
   const handleExport = () => {
-    const rows = api.items.map(r => ({
+    const rows = items.map(r => ({
       날짜: r.date,
       고객이름: r.customerName,
       고객번호: r.customerPhone,
@@ -172,7 +198,7 @@ export default function PurchaseIntakeModule() {
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">{periodLabel} 매입 대수</p>
           <p className="mt-1 text-xl font-bold text-slate-800 sm:text-2xl">
-            {api.items.length}
+            {items.length}
             <span className="ml-1 text-sm font-medium text-slate-400">대</span>
           </p>
         </div>
@@ -201,7 +227,7 @@ export default function PurchaseIntakeModule() {
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
           <p className="text-[11px] text-slate-400">
-            {api.items.length}대 중 {brokerCount}대 지급
+            {items.length}대 중 {brokerCount}대 지급
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
@@ -210,7 +236,7 @@ export default function PurchaseIntakeModule() {
             {NUM(saleTotal) || 0}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
-          <p className="text-[11px] text-slate-400">{api.items.length}대 중 {soldCount}대 판매</p>
+          <p className="text-[11px] text-slate-400">{items.length}대 중 {soldCount}대 판매</p>
         </div>
 
         {/*
@@ -304,25 +330,44 @@ export default function PurchaseIntakeModule() {
           ))}
         </div>
         {period === 'half' && <span className="text-xs font-medium text-slate-500">{half.label}</span>}
+
+        {/* 들고 있는 차가 먼저다 — 나간 차는 눌러서 본다 */}
+        <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
+          {([
+            ['stock', '재고', stockAll],
+            ['sold', '출고', soldAll],
+            ['all', '전체', api.items.length],
+          ] as const).map(([key, label, count]) => (
+            <button
+              key={key}
+              onClick={() => setStock(key)}
+              className={`rounded-md px-2.5 py-1.5 transition-colors ${
+                stock === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
+              }`}
+            >
+              {label} <span className="font-bold">{count}</span>
+            </button>
+          ))}
+        </div>
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="고객이름·차량번호·차명·세부모델·매입처 검색"
           className="w-64 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
         />
-        <span className="ml-auto text-xs text-slate-400">{api.loading ? '불러오는 중…' : `총 ${api.items.length}건`}</span>
+        <span className="ml-auto text-xs text-slate-400">{api.loading ? '불러오는 중…' : `총 ${items.length}건`}</span>
       </div>
 
       {api.error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{api.error}</p>}
 
       <div className="space-y-3">
-        {api.items.length === 0 && (
+        {items.length === 0 && (
           <div className="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center text-sm text-slate-400">
             {api.loading ? '불러오는 중…' : '등록된 매입 내역이 없습니다.'}
           </div>
         )}
 
-        {api.items.map(r => (
+        {items.map(r => (
           <div key={r.id} className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
