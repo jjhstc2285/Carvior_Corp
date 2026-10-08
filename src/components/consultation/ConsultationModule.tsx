@@ -303,7 +303,7 @@ export default function ConsultationModule({ role, kind }: Props) {
 
       {/* 전환율과 그냥 간 손님 — 오늘 다시 걸 사람을 여기서 찾는다(알선만) */}
       {kind === 'BROKERAGE' && (
-        <VisitReviewSection role={role} month={dayjs().format('YYYY-MM')} allMonths={false} />
+        <VisitReviewSection role={role} month={dayjs().format('YYYY-MM')} allMonths={false} openToAll />
       )}
 
       {/* 상품화된 차를 눌러 그 차로 상담을 연다 — 차량번호를 옮겨 치지 않게 */}

@@ -57,10 +57,20 @@ export default function VisitReviewSection({
   role,
   month,
   allMonths,
+  openToAll = false,
 }: {
   role: 'EMPLOYEE' | 'ADMIN';
   month: string;
   allMonths: boolean;
+  /**
+   * 누구나 보게 열지.
+   *
+   * 상담 화면에서는 켠다 — 거기서는 원래 전 직원이 상담을 다 본다. 전화를 받아 넘기는
+   * 사람(TM)이 "이 손님 지난번에 왔다 그냥 가셨네"를 알아야 다음 통화가 달라진다.
+   *
+   * 정산 화면에서는 안 켠다. 거기는 실적과 돈을 보는 자리라 팀 밖으로 열 값이 아니다.
+   */
+  openToAll?: boolean;
 }) {
   const { state, refresh } = useStore();
   const [open, setOpen] = useState(true);
@@ -83,7 +93,7 @@ export default function VisitReviewSection({
     알선팀도 대표도 아닌 사람은 자기 것만 본다(그런 사람이 이 화면에 올 일은 드물다).
   */
   const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
-  const seesTeam = role === 'ADMIN' || me?.department === VISIT_TEAM;
+  const seesTeam = openToAll || role === 'ADMIN' || me?.department === VISIT_TEAM;
 
   const people = useMemo(() => {
     const team = state.employees.filter(e => e.active !== false && e.department === VISIT_TEAM);
