@@ -34,6 +34,39 @@ interface Listing {
   syncedAt: string | null;
 }
 
+/** 플랫폼 할 일 — 특이차량, 그리고 플랫폼마다 손봐야 하는 차 */
+interface Issue {
+  id: string;
+  site: string;
+  kind: string;
+  vehicleNumber: string;
+  issue: string;
+  note: string;
+}
+
+/** 엔카 계정별 등록 현황 */
+interface Account {
+  id: string;
+  vehicleNumber: string;
+  encarId: string;
+  status: string;
+  duplicate: string;
+}
+
+/**
+ * 세부 탭.
+ *
+ * 시트 장마다 메뉴를 하나씩 만들면 왼쪽이 금세 스무 줄이 된다 — 같은 일(플랫폼에 올린
+ * 값 챙기기)이라 한 메뉴 안에서 나눈다.
+ */
+const VIEWS = [
+  { key: 'listing', label: '매물 점검' },
+  { key: 'issue', label: '특이사항' },
+  { key: 'account', label: '엔카 계정' },
+] as const;
+
+type View = (typeof VIEWS)[number]['key'];
+
 /** 보는 플랫폼 — 늘리려면 여기와 서버에 한 줄씩 */
 const SITES = [
   { key: 'encar', label: '엔카' },
@@ -75,7 +108,10 @@ const STATE_CLASS: Record<string, string> = {
 };
 
 export default function AdminSheetModule() {
+  const [view, setView] = useState<View>('listing');
   const [rows, setRows] = useState<Listing[]>([]);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [query, setQuery] = useState('');
@@ -85,7 +121,14 @@ export default function AdminSheetModule() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setRows(await api<Listing[]>('/platform-listings'));
+      const [listing, issue, account] = await Promise.all([
+        api<Listing[]>('/platform-listings'),
+        api<Issue[]>('/platform-listings/issues'),
+        api<Account[]>('/platform-listings/accounts'),
+      ]);
+      setRows(listing);
+      setIssues(issue);
+      setAccounts(account);
     } catch (e) {
       void alertError('목록을 불러오지 못했습니다', e instanceof ApiError ? e.message : '');
     } finally {
@@ -100,13 +143,14 @@ export default function AdminSheetModule() {
   const pull = async () => {
     setImporting(true);
     try {
-      const res = await api<{ added: number; updated: number; skipped: number }>('/platform-listings/import', {
-        method: 'POST',
-      });
+      const res = await api<{ added: number; updated: number; skipped: number; issues: number; accounts: number }>(
+        '/platform-listings/import',
+        { method: 'POST' },
+      );
       await load();
       void alertSuccess(
         '시트에서 가져왔습니다',
-        `새로 ${res.added}대 · 고침 ${res.updated}대${res.skipped > 0 ? ` · 차량번호 없어 건너뜀 ${res.skipped}줄` : ''}`,
+        `매물 새로 ${res.added}대 · 고침 ${res.updated}대 / 특이사항 ${res.issues}건 / 엔카 계정 ${res.accounts}대`,
       );
     } catch (e) {
       void alertError('가져오지 못했습니다', e instanceof ApiError ? e.message : '');
@@ -161,7 +205,11 @@ export default function AdminSheetModule() {
           <Table2 size={18} className="text-emerald-600" /> 플랫폼 매물 점검
         </h1>
         <p className="text-xs text-slate-400">
-          우리 판매금액과 엔카·차차차에 올라간 값이 같은지 봅니다 — 금액은 <b>만원</b>입니다
+          {view === 'listing'
+            ? '우리 판매금액과 엔카·차차차에 올라간 값이 같은지 봅니다 — 금액은 만원입니다'
+            : view === 'issue'
+              ? '손대면 안 되는 차와, 플랫폼마다 올리거나 내려야 하는 차입니다'
+              : '이 차가 어느 엔카 아이디로 올라가 있나 — 고치러 들어갈 계정을 바로 찾습니다'}
           {lastSync && ` · 마지막 가져오기 ${dayjs(lastSync).format('M/D HH:mm')}`}
         </p>
 
@@ -186,6 +234,29 @@ export default function AdminSheetModule() {
         </div>
       </div>
 
+      {/* 시트 장마다 메뉴를 만들면 왼쪽이 금세 스무 줄이 된다 — 한 메뉴 안에서 나눈다 */}
+      <div className="mb-3 flex w-fit rounded-lg bg-slate-100 p-0.5 text-sm">
+        {VIEWS.map(v => (
+          <button
+            key={v.key}
+            onClick={() => setView(v.key)}
+            className={`rounded-md px-4 py-1.5 font-medium transition-colors ${
+              view === v.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {v.label}
+            <span className="ml-1.5 text-xs text-slate-400">
+              {v.key === 'listing' ? rows.length : v.key === 'issue' ? issues.length : accounts.length}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {view === 'issue' && <IssueTable rows={issues} />}
+      {view === 'account' && <AccountTable rows={accounts} />}
+
+      {view === 'listing' && (
+        <>
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div className="rounded-2xl border border-red-200 bg-red-50/50 px-3.5 py-2.5">
           <p className="text-xs font-medium text-red-700/80">가격 불일치</p>
@@ -338,6 +409,9 @@ export default function AdminSheetModule() {
         </table>
       </div>
 
+        </>
+      )}
+
       <p className="mt-2 text-[11px] text-slate-400">
         가져오기는 <b>차량번호로 맞춰 덮어씁니다</b> — 시트에 없는 차는 안 지웁니다(시트가 한 번 비어서 오면 통째로
         날아가므로). 지우는 건 줄 오른쪽 휴지통으로 합니다. 금액은 눌러서 바로 고칩니다. 0은 <b>안 올라가 있음</b>입니다.
@@ -374,5 +448,116 @@ function Money({ value, onSave, tone }: { value: number; onSave: (next: number) 
         tone ?? 'text-slate-700'
       }`}
     />
+  );
+}
+
+/** 할 일 종류마다 색을 달리 둔다 — 섞여 있어도 눈으로 갈린다 */
+const KIND_CLASS: Record<string, string> = {
+  특이: 'bg-slate-200 text-slate-700',
+  미등록: 'bg-amber-100 text-amber-800',
+  판매완료신고: 'bg-red-100 text-red-700',
+};
+
+/**
+ * 특이사항 — 손대면 안 되는 차와, 플랫폼마다 올리거나 내려야 하는 차.
+ *
+ * 시트에서는 한 장에 셋이 옆으로 붙어 있다. 여기서는 종류로 묶어 놓는다 — 오늘 할 일이
+ * 종류별로 몇 건인지가 먼저 보여야 한다.
+ */
+function IssueTable({ rows }: { rows: Issue[] }) {
+  const kinds = ['특이', '미등록', '판매완료신고'];
+
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
+        시트에서 가져오기를 눌러 주세요.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {kinds.map(kind => {
+        const list = rows.filter(r => r.kind === kind);
+        if (list.length === 0) return null;
+        return (
+          <div key={kind} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2">
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${KIND_CLASS[kind]}`}>{kind}</span>
+              <span className="text-xs text-slate-400">
+                {kind === '특이'
+                  ? '계약중·상담 — 값을 건드리면 안 되는 차입니다'
+                  : kind === '미등록'
+                    ? '아직 안 올라간 차 — 올려야 합니다'
+                    : '팔렸는데 아직 안 내린 차 — 판매완료로 신고해야 합니다'}
+              </span>
+              <span className="ml-auto text-xs font-bold text-slate-600">{list.length}건</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 p-3">
+              {list.map(r => (
+                <span
+                  key={r.id}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs"
+                  title={[r.site, r.issue, r.note].filter(Boolean).join(' · ')}
+                >
+                  {r.site && <span className="mr-1 text-[10px] font-bold text-indigo-600">{r.site}</span>}
+                  <span className="font-mono text-slate-700">{r.vehicleNumber}</span>
+                  {r.issue && <span className="ml-1 text-slate-500">{r.issue}</span>}
+                  {r.note && <span className="ml-1 text-[11px] text-slate-400">{r.note}</span>}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * 엔카 계정별 등록 현황.
+ *
+ * 아이디가 셋이라(대표·팀장·매니저) 어느 계정에 올렸는지를 모르면 고치러 들어갈 때마다
+ * 셋을 다 열어 본다. 아이디로 묶어 두면 한 번에 간다.
+ */
+function AccountTable({ rows }: { rows: Account[] }) {
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
+        시트에서 가져오기를 눌러 주세요.
+      </p>
+    );
+  }
+
+  const ids = [...new Set(rows.map(r => r.encarId || '(아이디 없음)'))].sort();
+
+  return (
+    <div className="space-y-3">
+      {ids.map(id => {
+        const list = rows.filter(r => (r.encarId || '(아이디 없음)') === id);
+        return (
+          <div key={id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2">
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-700">{id}</span>
+              <span className="ml-auto text-xs font-bold text-slate-600">{list.length}대</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 p-3">
+              {list.map(r => (
+                <span
+                  key={r.id}
+                  className={`rounded-lg border px-2 py-1 font-mono text-xs ${
+                    r.duplicate ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-700'
+                  }`}
+                  title={[r.status, r.duplicate && `중복: ${r.duplicate}`].filter(Boolean).join(' · ')}
+                >
+                  {r.vehicleNumber}
+                  {r.duplicate && <span className="ml-1 text-[10px] font-bold">중복</span>}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
