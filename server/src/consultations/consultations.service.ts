@@ -514,16 +514,16 @@ export class ConsultationsService {
   /**
    * 리콜 — 안 된 건에 다시 전화를 걸어 보고 그 결과를 남긴다.
    *
-   * 담당자가 아닌 사람이 하는 일이다. 팀장이 손님에게 직접 걸어 "문제가 있었나, 우리
-   * 직원이 실수한 게 있나, 다른 차를 보겠나"를 묻는다. 아직 알선팀에 팀장이 없어
-   * 대표가 본다 — 자리가 생기면 여기 한 줄만 늘린다.
+   * 담당자가 아닌 사람이 하는 일이다. 손님에게 직접 걸어 "문제가 있었나, 우리 직원이
+   * 실수한 게 있나, 다른 차를 보겠나"를 묻는다.
    *
-   * 건 사람과 때는 서버가 박는다. 화면에서 보내면 누가 걸었는지를 믿을 수 없다.
+   * 자리를 가리지 않는다. 처음에는 대표만 열어 뒀는데, 정작 낮에 자리에 앉아 전화를
+   * 돌리는 사람은 따로 있다 — 걸 수 있는 사람이 못 적으면 아무 데도 안 남는다.
+   *
+   * 건 사람과 때는 서버가 박는다. 화면에서 보내면 누가 걸었는지를 믿을 수 없고,
+   * 이름이 박히니 아무나 적어도 책임은 남는다.
    */
   async saveRecall(id: string, user: AuthUser, result: string, note: string) {
-    if (user.role !== Role.ADMIN) {
-      throw new BadRequestException('리콜은 대표(관리자)만 적을 수 있습니다.');
-    }
     const row = await this.prisma.consultation.findUnique({ where: { id }, select: { id: true } });
     if (!row) throw new NotFoundException('상담을 찾을 수 없습니다.');
 

@@ -95,6 +95,14 @@ export default function VisitReviewSection({
   const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
   const seesTeam = openToAll || role === 'ADMIN' || me?.department === VISIT_TEAM;
 
+  /*
+    리콜을 돌릴 수 있는 자리.
+
+    상담 화면에서는 누구나 돈다 — 낮에 자리에 앉아 전화를 거는 사람이 거기 있다.
+    정산 화면은 대표만. 거기까지 열면 실적 보는 자리에서 남의 손님에게 전화를 건다.
+  */
+  const canRecall = openToAll || role === 'ADMIN';
+
   const people = useMemo(() => {
     const team = state.employees.filter(e => e.active !== false && e.department === VISIT_TEAM);
     return seesTeam ? team : team.filter(e => e.id === state.currentEmployeeId);
@@ -263,8 +271,8 @@ export default function VisitReviewSection({
                 ))}
                 <span className="ml-auto text-[11px] text-slate-400">
                   {unwritten > 0 && `리뷰 안 적은 건 ${unwritten}`}
-                  {unwritten > 0 && role === 'ADMIN' && notRecalled > 0 && ' · '}
-                  {role === 'ADMIN' && notRecalled > 0 && (
+                  {unwritten > 0 && canRecall && notRecalled > 0 && ' · '}
+                  {canRecall && notRecalled > 0 && (
                     <b className="font-bold text-emerald-700">리콜 안 돌린 건 {notRecalled}</b>
                   )}
                 </span>
@@ -310,7 +318,7 @@ export default function VisitReviewSection({
                           <MessageSquarePlus size={13} />
                         </button>
                         {/* 리콜은 담당자가 아닌 사람이 하는 일이다 — 지금은 대표만 */}
-                        {role === 'ADMIN' && (
+                        {canRecall && (
                           <button
                             onClick={() => setRecalling(e => (e === c.id ? null : c.id))}
                             className={`shrink-0 rounded-md px-1.5 py-1 ${
