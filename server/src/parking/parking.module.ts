@@ -456,6 +456,21 @@ export class ParkingService {
    * 칸(lot+zone+slot)이 유니크라 맞바꿀 때 곧장 갱신하면 제약에 걸린다.
    * 그래서 상대를 잠깐 임시 자리로 빼두고 세 번에 나눠 옮긴다.
    */
+  /**
+   * 공지에 적을 자리.
+   *
+   * 화면에서는 '고색동 213-4'를 'A주차장'으로도 부른다(src/lib/parkingLayout.ts).
+   * 공지에 담긴 이름이 화면과 다르면 받은 사람이 어디인지 다시 묻는다.
+   */
+  private spotLabel(lot: string, zone: string, slot: string): string {
+    const alias: Record<string, string> = {
+      '고색동 213-4': '고색동 213-4(A주차장)',
+      '고색동 205-1': '고색동 205-1(B주차장)',
+      '고색동 203-2': '고색동 203-2(C주차장)',
+    };
+    return `${alias[lot] ?? lot} ${zone} ${slot}`;
+  }
+
   async move(dto: MoveParkingDto) {
     const source = await this.prisma.parkingVehicle.findUnique({ where: { id: dto.id } });
     if (!source) throw new NotFoundException('옮길 차량을 찾을 수 없습니다.');
@@ -501,6 +516,35 @@ export class ParkingService {
       });
       return [a, b];
     });
+
+    /*
+      옮긴 것도 알린다.
+
+      그동안 등록할 때만 알림이 갔다. 그런데 차를 실제로 움직이는 일은 대부분 '옮기기'다 —
+      찾으러 간 사람은 공지에 뜬 옛 자리로 가고, 거기 없으면 돌아다니게 된다.
+
+      자리를 맞바꾼 건 한 줄로 묶어 보낸다. 두 통으로 오면 먼저 온 쪽만 보고 움직인다.
+    */
+    const from = this.spotLabel(source.lot, source.zone, source.slot);
+    const to = this.spotLabel(dto.lot, dto.zone, dto.slot);
+
+    if (moved.length === 1) {
+      this.telegram.notify(
+        `🅿️ <b>주차 이동</b>
+<b>${source.vehicleNumber}</b> ${source.vehicleModel}
+자리: ${to}
+이전: ${from}`,
+      );
+    } else {
+      const other = moved.find((m) => m.id !== source.id);
+      this.telegram.notify(
+        `🅿️ <b>주차 자리 맞바꿈</b>
+` +
+          `<b>${source.vehicleNumber}</b> ${source.vehicleModel} → ${to}
+` +
+          (other ? `<b>${other.vehicleNumber}</b> ${other.vehicleModel} → ${from}` : ''),
+      );
+    }
 
     return moved;
   }
