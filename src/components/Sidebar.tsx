@@ -16,6 +16,8 @@ interface Props {
   canSeePayroll?: boolean;
   /** 관리 시트를 볼 수 있는가 — 대표와 관리팀 */
   canSeeSheet?: boolean;
+  /** 관리자인가 — 경조사비 대장은 여기까지만 연다 */
+  isAdmin?: boolean;
 }
 
 /**
@@ -83,6 +85,7 @@ export default function Sidebar({
   isCeo = false,
   canSeePayroll = false,
   canSeeSheet = false,
+  isAdmin = false,
 }: Props) {
   /*
     볼 수 없는 메뉴는 아예 안 그린다. 거르고 나서 빈 갈래는 제목까지 지운다 —
@@ -105,7 +108,14 @@ export default function Sidebar({
       메뉴가 길면 매일 쓰는 것도 찾기 어려워지니 여기서 줄인다.
     */
     (key !== 'vendor' || canSeeLedger) &&
-    (key !== 'condolence' || canSeeLedger);
+    /*
+      경조사비 대장은 관리자만.
+
+      누구에게 얼마를 냈는지가 이름과 함께 줄줄이 적힌 장부다 — 사무장·본부장까지
+      열어 두면 "저 집엔 얼마 냈더라"가 사내에서 오간다. 번호까지 걸어 두지만,
+      메뉴에서부터 안 보이는 쪽이 먼저다.
+    */
+    (key !== 'condolence' || isAdmin);
 
   const groups = NAV_GROUPS.map(g => ({ ...g, items: g.items.filter(i => canSee(i.key)) })).filter(
     g => g.items.length > 0,
