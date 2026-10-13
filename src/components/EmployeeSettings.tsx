@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RotateCcw, UserMinus, Users2 } from 'lucide-react';
+import { RotateCcw, Trash2, UserMinus, Users2 } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../lib/alert';
 import { useStore } from '../store';
@@ -66,6 +66,31 @@ export default function EmployeeSettings() {
    * 손댈 자리가 없었다. 돈 장부(상조회비·부동산)를 직급으로 가르므로 틀린 채로 두면
    * 봐야 할 사람이 못 보거나 안 볼 사람이 본다.
    */
+  /**
+   * 아주 지운다 — 남긴 기록이 없을 때만.
+   *
+   * 지울 수 있는지는 서버가 센다. 화면에서 미리 세려면 상담·정산·출퇴근을 다 받아와야
+   * 하는데, 그건 이 화면이 할 일이 아니다 — 눌러 보고 막히면 무엇에 걸렸는지 알려 준다.
+   */
+  const hardRemove = async (employee: Employee) => {
+    const ok = await confirmDanger(
+      `${employee.name}님을 아주 지울까요?`,
+      '되돌릴 수 없습니다. 남긴 기록(상담·정산·출퇴근 등)이 하나라도 있으면 지워지지 않습니다.',
+    );
+    if (!ok) return;
+
+    setBusyId(employee.id);
+    try {
+      await api(`/employees/${employee.id}/hard`, { method: 'DELETE' });
+      await load();
+      await alertSuccess(`${employee.name}님을 지웠습니다`);
+    } catch (e) {
+      await alertError('지우지 못했습니다', e instanceof Error ? e.message : '');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const setPosition = async (employee: Employee, position: string) => {
     const next = position.trim();
     if (!next || next === employee.position) return;
@@ -283,6 +308,24 @@ export default function EmployeeSettings() {
                           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
                         >
                           <RotateCcw size={12} /> 복직
+                        </button>
+                      )}
+                      {/*
+                        아주 지우기 — 퇴사한 사람에게만.
+
+                        잘못 만든 계정이나 하루 만에 그만둔 사람까지 목록에 영영 남으면
+                        누가 다니는지 세기가 어려워진다. 다만 남긴 기록이 하나라도 있으면
+                        서버가 막는다 — 지우면 그 상담·정산의 담당자가 빈칸이 되고,
+                        빈칸이 된 정산은 누가 올린 건지 영영 알 수 없다.
+                      */}
+                      {!e.active && (
+                        <button
+                          onClick={() => void hardRemove(e)}
+                          disabled={busyId === e.id}
+                          title="남긴 기록이 없으면 아주 지웁니다"
+                          className="ml-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                        >
+                          <Trash2 size={12} /> 지우기
                         </button>
                       )}
                     </td>

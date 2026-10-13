@@ -167,6 +167,43 @@ export class EmployeesService {
     await this.invalidate();
   }
 
+  /**
+   * 아주 지운다 — 남긴 기록이 하나도 없을 때만.
+   *
+   * 퇴사 처리는 줄을 남겨 둔다(지난 상담·정산·출퇴근에 그 사람 이름이 걸려 있다). 그런데
+   * 잘못 만든 계정이나 하루 만에 그만둔 사람까지 목록에 영영 남으면, 정작 누가 다니는지
+   * 세기가 어려워진다.
+   *
+   * 걸린 기록이 하나라도 있으면 안 지운다. 지우면 그 기록의 담당자가 빈칸이 되고, 빈칸이
+   * 된 정산은 누가 올린 건지 영영 알 수 없다 — 무엇에 걸려 있는지 세어서 알려준다.
+   */
+  async hardRemove(id: string): Promise<void> {
+    await this.assertExists(id);
+    await this.assertNotLastAdmin(id);
+
+    const counted = await Promise.all([
+      this.prisma.consultation.count({ where: { employeeId: id } }),
+      this.prisma.attendanceRecord.count({ where: { employeeId: id } }),
+      this.prisma.purchaseSettlement.count({ where: { employeeId: id } }),
+      this.prisma.brokerageSettlement.count({ where: { employeeId: id } }),
+      this.prisma.purchaseIntake.count({ where: { employeeId: id } }),
+      this.prisma.parkingVehicle.count({ where: { employeeId: id } }),
+    ]);
+    const labels = ['상담', '출퇴근', '매입 정산', '알선·수출 정산', '매입', '주차'];
+    const held = counted
+      .map((n, i) => (n > 0 ? `${labels[i]} ${n}건` : ''))
+      .filter(Boolean);
+
+    if (held.length > 0) {
+      throw new BadRequestException(
+        `남긴 기록이 있어 지울 수 없습니다(${held.join(' · ')}). 퇴사 처리로 목록에서만 내려 주세요.`,
+      );
+    }
+
+    await this.prisma.employee.delete({ where: { id } });
+    await this.invalidate();
+  }
+
   private async assertExists(id: string): Promise<void> {
     const exists = await this.prisma.employee.findUnique({ where: { id }, select: { id: true } });
     if (!exists) throw new NotFoundException('해당 직원을 찾을 수 없습니다.');

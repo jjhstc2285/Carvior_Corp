@@ -50,4 +50,17 @@ export class EmployeesController {
   async deactivate(@Param('id') id: string) {
     await this.employees.deactivate(id);
   }
+
+  /**
+   * 아주 지운다 — 남긴 기록이 하나도 없을 때만.
+   *
+   * 잘못 만든 계정이나 하루 만에 그만둔 사람까지 목록에 영영 남으면 누가 다니는지
+   * 세기가 어려워진다. 기록이 걸려 있으면 서버가 막고 무엇에 걸렸는지 알려준다.
+   */
+  @Roles(Role.ADMIN)
+  @Delete(':id/hard')
+  @HttpCode(204)
+  async hardRemove(@Param('id') id: string) {
+    await this.employees.hardRemove(id);
+  }
 }
