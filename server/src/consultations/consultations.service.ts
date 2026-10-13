@@ -575,50 +575,27 @@ export class ConsultationsService {
     const to = new Date(Date.UTC(y, m, 1));
 
     /*
-      정산에 적힌 것이 맞다.
+      정산에 적힌 것만 센다.
 
-      할부 캐피탈과 실행액은 상담에도 적고 알선 정산에도 적는다. 상담은 손님과 이야기할
-      때 적는 값이라 비어 있거나 바뀐 건이 많고, 정산은 돈이 오간 뒤에 적는 자리라 거기
-      적힌 값이 실제와 맞다.
+      할부 캐피탈과 실행액은 상담에도 적고 알선 정산에도 적는다. 그런데 상담은 손님과
+      이야기할 때 적는 값이라 "할부로 하겠다"까지만 적힌 건이 섞인다 — 실제로 깔렸는지는
+      모른다. 정산은 돈이 오간 뒤에 적는 자리라 거기 적힌 값이 실제다.
 
-      그래서 정산을 먼저 담고, 같은 차가 상담에도 있으면 상담 쪽은 건너뛴다. 둘 다 세면
-      한 대를 두 번 깔아 준 것이 되어 약정을 채운 줄 알고 있다가 못 채운다.
+      약정은 실제로 깔린 금액으로 센다. 안 깔린 것까지 세면 채운 줄 알고 있다가 못 채운다.
 
       정산에는 '현금이냐 할부냐' 칸이 없다 — 캐피탈 이름이 적혀 있으면 할부를 쓴 것이다.
     */
-    const [settlements, consults] = await Promise.all([
-      this.prisma.brokerageSettlement.findMany({
-        where: { date: { gte: from, lt: to }, installmentCapital: { not: '' } },
-        select: { vehicleNumber: true, installmentCapital: true, installmentAmount: true },
-      }),
-      this.prisma.consultation.findMany({
-        where: {
-          date: { gte: from, lt: to },
-          payMethod: PayMethod.INSTALLMENT,
-          installmentCapital: { not: '' },
-          status: { not: ConsultationStatus.CLOSED },
-        },
-        select: { vehicleNumber: true, installmentCapital: true, installmentAmount: true },
-      }),
-    ]);
+    const settlements = await this.prisma.brokerageSettlement.findMany({
+      where: { date: { gte: from, lt: to }, installmentCapital: { not: '' } },
+      select: { installmentCapital: true, installmentAmount: true },
+    });
 
     const counted = new Map<string, { amount: number; count: number }>();
-    const seen = new Set<string>();
-
-    const add = (capital: string, amount: number) => {
-      const key = capital.trim();
-      if (!key) return;
-      const before = counted.get(key) ?? { amount: 0, count: 0 };
-      counted.set(key, { amount: before.amount + amount, count: before.count + 1 });
-    };
-
     for (const r of settlements) {
-      seen.add(normalizePlate(r.vehicleNumber));
-      add(r.installmentCapital, r.installmentAmount);
-    }
-    for (const r of consults) {
-      if (seen.has(normalizePlate(r.vehicleNumber))) continue;
-      add(r.installmentCapital, r.installmentAmount);
+      const key = r.installmentCapital.trim();
+      if (!key) continue;
+      const before = counted.get(key) ?? { amount: 0, count: 0 };
+      counted.set(key, { amount: before.amount + r.installmentAmount, count: before.count + 1 });
     }
 
     return {
