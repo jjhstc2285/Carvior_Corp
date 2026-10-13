@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -60,6 +61,9 @@ const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 // ── DTO ──────────────────────────────
 
 export class CreatePurchaseIntakeDto {
+  /** 되사온 차 — 같은 번호가 가까운 날짜에 있어도 그대로 넣는다 */
+  @IsOptional() @IsBoolean() allowDuplicate?: boolean;
+
   @IsOptional() @Matches(DATE_PATTERN, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) date?: string;
 
   // 고객 이름·번호는 안 받아오는 경우가 있다(대리점에서 넘어온 차 등).
@@ -405,8 +409,50 @@ export class PurchaseIntakeService {
     return rows.map((r) => this.toView(r, registered, sales));
   }
 
+  /**
+   * 같은 차가 이미 들어와 있는가.
+   *
+   * 한 차를 두 사람이 각자 적어 넣는 일이 잦다 — 차명을 한글로 적은 줄과 영문으로 적은
+   * 줄이 따로 생긴다. 그러면 매입 대수가 실제보다 많아 보이고, 상사 대장과 맞춰볼 때
+   * 그 차이를 사람이 하나씩 찾아내야 한다(9월에만 스물네 대가 그랬다).
+   *
+   * 되사오는 차가 있으므로 아주 막지는 않는다. 가까운 날짜(석 달)에 같은 번호가 있으면
+   * 멈춰 세우고, 정말 다시 사온 것이면 '다시 매입'으로 넘어간다.
+   */
+  private async findRecentSame(vehicleNumber: string, within = 90) {
+    const from = new Date(Date.now() - within * 24 * 60 * 60 * 1000);
+    return this.prisma.purchaseIntake.findFirst({
+      where: { vehicleNumber, date: { gte: toDateOnly(formatDateOnly(from)) } },
+      orderBy: { date: 'desc' },
+      select: { id: true, date: true, vehicleName: true, employee: { select: { name: true } } },
+    });
+  }
+
+  /** 차량번호를 치는 동안 먼저 알려 준다 — 저장을 누르고 나서 막히면 적은 게 날아간다 */
+  async checkDuplicate(vehicleNumber: string) {
+    const found = await this.findRecentSame(normalizePlate(vehicleNumber));
+    if (!found) return { duplicate: false };
+    return {
+      duplicate: true,
+      date: formatDateOnly(found.date),
+      vehicleName: found.vehicleName,
+      who: found.employee?.name ?? '',
+    };
+  }
+
   async create(user: AuthUser, dto: CreatePurchaseIntakeDto) {
     const vehicleNumber = normalizePlate(dto.vehicleNumber);
+
+    // 같은 차를 두 번 넣는 걸 막는다 — 되사온 차는 '다시 매입'으로 넘어간다
+    if (!dto.allowDuplicate) {
+      const same = await this.findRecentSame(vehicleNumber);
+      if (same) {
+        throw new BadRequestException(
+          `이미 등록된 차입니다 — ${formatDateOnly(same.date)} ${same.employee?.name ?? ''} 등록 (${same.vehicleName}). ` +
+            '정말 다시 사온 차라면 [다시 매입]으로 등록해 주세요.',
+        );
+      }
+    }
 
     const row = await this.prisma.purchaseIntake.create({
       data: {
@@ -1072,6 +1118,12 @@ export class PurchaseIntakeController {
   @Get('check')
   async check(@Query('plate') plate = '') {
     return this.intake.checkOf(plate);
+  }
+
+  /** 같은 차가 이미 들어와 있는지 — 차량번호를 치는 동안 먼저 알려 준다 */
+  @Get('duplicate')
+  duplicate(@Query('plate') plate = '') {
+    return this.intake.checkDuplicate(plate);
   }
 
   @Post()

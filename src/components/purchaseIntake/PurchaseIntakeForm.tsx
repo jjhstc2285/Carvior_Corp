@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { AlertTriangle, ClipboardPaste, LineChart, X } from 'lucide-react';
 import { isValidPlate, normalizePlate, PLATE_MESSAGE } from '../../lib/vehicle';
@@ -11,6 +11,7 @@ import {
 
 /** 이만큼 벌어지면 저장할 때 관리자에게 알림이 간다 — 서버 기준과 같아야 한다. */
 const MILEAGE_GAP_ALERT_KM = 1000;
+import { api } from '../../lib/api';
 import { digitsOnly, moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
 import { needsRegistrationCheck, stockDeadline } from '../../lib/stockFinance';
 import { parseIntakeText } from './parseIntake';
@@ -49,6 +50,17 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? '');
   const [detailModel, setDetailModel] = useState(editing?.detailModel ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
+  /*
+    같은 차가 이미 들어와 있는가.
+
+    한 차를 두 사람이 각자 적어 넣는 일이 잦다 — 한글 차명으로 한 줄, 영문으로 한 줄.
+    그러면 매입 대수가 실제보다 많아 보이고, 상사 대장과 맞춰볼 때 그 차이를 사람이
+    하나씩 찾아야 한다. 번호를 치는 동안 먼저 알려 준다 — 저장을 누르고 나서 막히면
+    적은 것이 날아간다.
+  */
+  const [dup, setDup] = useState<{ date: string; vehicleName: string; who: string } | null>(null);
+  /** 되사온 차 — 알고도 그대로 넣는다 */
+  const [againOk, setAgainOk] = useState(false);
   const [modelYear, setModelYear] = useState(editing?.modelYear ?? '');
   const [firstRegisteredOn, setFirstRegisteredOn] = useState(editing?.firstRegisteredOn ?? '');
   const [fuel, setFuel] = useState(editing?.fuel ?? '');
@@ -162,6 +174,26 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
     if (filled.length) setPasteOpen(false);
   };
 
+  /* 번호를 다 치고 잠깐 멈추면 물어본다 — 글자마다 물으면 서버가 바쁘다 */
+  useEffect(() => {
+    const plate = normalizePlate(vehicleNumber);
+    if (editing || !isValidPlate(plate)) {
+      setDup(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const r = await api<{ duplicate: boolean; date?: string; vehicleName?: string; who?: string }>(
+          `/purchase-intake/duplicate?plate=${encodeURIComponent(plate)}`,
+        );
+        setDup(r.duplicate ? { date: r.date ?? '', vehicleName: r.vehicleName ?? '', who: r.who ?? '' } : null);
+      } catch {
+        // 못 물어봐도 등록은 막지 않는다 — 서버가 저장할 때 한 번 더 본다
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [vehicleNumber, editing]);
+
   const handleSubmit = async () => {
     const plate = normalizePlate(vehicleNumber);
     if (!vehicleName.trim() || !plate) {
@@ -204,6 +236,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       purchaseAmount: moneyToNumber(purchaseAmount),
       brokerFee: moneyToNumber(brokerFee),
       brokerFeeType,
+      // 되사온 차라고 사람이 확인했을 때만 중복을 통과시킨다
+      allowDuplicate: againOk,
     });
     setSaving(false);
 
@@ -303,6 +337,26 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           {/* 카비어에서 받아온 건 등급이 없어 비어 있다. 시세 조회에서 등급을 고르면 여기가 채워진다. */}
           {field('세부모델', text(detailModel, setDetailModel, '2.4 GDI 프레스티지'), 'col-span-2 sm:col-span-4')}
           {field('차량번호 *', text(vehicleNumber, setVehicleNumber, '154오8037'))}
+          {/*
+            이미 들어와 있는 차라고 알려 준다.
+
+            막기만 하면 "왜 안 되지"가 되고, 그냥 두면 같은 차가 두 줄이 된다 —
+            언제 누가 넣었는지를 보여 주고, 정말 되사온 차면 눌러서 넘어가게 한다.
+          */}
+          {dup && (
+            <div className="col-span-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                <AlertTriangle size={13} /> 이미 등록된 차입니다
+              </p>
+              <p className="mt-0.5 text-[11px] text-amber-800">
+                {dup.date} {dup.who && `${dup.who} 등록`} — {dup.vehicleName}
+              </p>
+              <label className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-900">
+                <input type="checkbox" checked={againOk} onChange={e => setAgainOk(e.target.checked)} className="h-3.5 w-3.5" />
+                되사온 차입니다 — 그대로 등록하겠습니다
+              </label>
+            </div>
+          )}
           {field('연식', text(modelYear, setModelYear, '2020'))}
           {field(
             '연료',

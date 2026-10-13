@@ -11,7 +11,15 @@ import type { PurchaseIntake } from '../../types';
 export type PurchaseIntakeInput = Omit<
   PurchaseIntake,
   'id' | 'totalAmount' | 'employeeId' | 'employee' | 'createdAt' | 'updatedAt'
->;
+> & {
+  /**
+   * 되사온 차 — 같은 번호가 가까운 날짜에 있어도 그대로 넣는다.
+   *
+   * 저장하는 값이 아니라 '알고도 넣는다'는 표시다. 서버는 이게 없으면 같은 차를
+   * 두 번 넣지 못하게 막는다.
+   */
+  allowDuplicate?: boolean;
+};
 
 export interface PurchaseIntakeApi {
   items: PurchaseIntake[];
