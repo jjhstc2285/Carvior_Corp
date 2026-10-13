@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useStore } from '../../store';
-import { conversionOf, isOfKind } from '../../lib/consultationStats';
+import { conversionOf, isContracted, isOfKind } from '../../lib/consultationStats';
+import { REASONS } from '../consultation/VisitReviewSection';
 
 /**
  * 그 달 계약이 어디까지 왔나.
@@ -48,6 +49,39 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
       .filter(c => isOfKind(c, 'BROKERAGE'))
       .filter(c => allMonths || c.date.startsWith(month));
     return conversionOf(rows);
+  }, [state.consultations, month, allMonths]);
+
+  /**
+   * 못 간 건이 왜 못 갔나 — 적어 둔 사유를 모은다.
+   *
+   * 달성률만 띄우면 "몇 퍼센트"까지만 알고 그래서 무엇을 고쳐야 하는지는 모른다. 예산이
+   * 모자라서 못 간 것과 할부가 부결돼서 못 간 것은 다음에 할 일이 아주 다르다.
+   *
+   * 아직 안 적은 건도 같이 센다 — 그 숫자가 크면 아래 사유 분포 자체를 믿을 수 없다.
+   */
+  const reasons = useMemo(() => {
+    const open = state.consultations
+      .filter(c => isOfKind(c, 'BROKERAGE'))
+      .filter(c => allMonths || c.date.startsWith(month))
+      .filter(c => !isContracted(c.status));
+
+    const counted = new Map<string, number>();
+    let blank = 0;
+    for (const c of open) {
+      const key = (c.missReason ?? '').trim();
+      if (!key) {
+        blank += 1;
+        continue;
+      }
+      counted.set(key, (counted.get(key) ?? 0) + 1);
+    }
+
+    // 적어 둔 차례(REASONS)대로 늘어놓는다 — 달마다 자리가 바뀌면 견주기 어렵다
+    const rows = REASONS.map(r => ({ reason: r, count: counted.get(r) ?? 0 })).filter(r => r.count > 0);
+    for (const [reason, count] of counted) {
+      if (!REASONS.includes(reason)) rows.push({ reason, count });
+    }
+    return { rows, blank, total: open.length };
   }, [state.consultations, month, allMonths]);
 
   /** 목표 대비 — 목표가 0이면 비율을 낼 수 없다 */
@@ -158,6 +192,55 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
           </div>
         </div>
       </div>
+
+      {/*
+        왜 못 갔나.
+
+        달성률만 띄우면 몇 퍼센트까지만 알고 무엇을 고쳐야 하는지는 모른다. 예산이 모자라
+        못 간 것과 할부가 부결돼 못 간 것은 다음에 할 일이 아주 다르다.
+
+        아직 안 적은 건을 같이 적는다 — 그 숫자가 크면 이 분포 자체를 믿으면 안 된다.
+      */}
+      {reasons.total > 0 && (
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <div className="mb-1.5 flex flex-wrap items-baseline gap-2">
+            <p className="text-xs font-bold text-slate-600">못 간 건 — 적어 둔 사유</p>
+            <p className="text-[11px] text-slate-400">
+              계약으로 안 간 {reasons.total}건
+              {reasons.blank > 0 && (
+                <>
+                  {' · '}
+                  <b className="font-bold text-amber-600">아직 안 적음 {reasons.blank}건</b>
+                </>
+              )}
+            </p>
+          </div>
+
+          {reasons.rows.length === 0 ? (
+            <p className="text-[11px] text-slate-400">
+              아래 목록에서 💬 를 눌러 왜 안 됐는지 적어 주세요 — 적힌 것이 여기 모입니다.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {reasons.rows.map(r => (
+                <div key={r.reason} className="flex items-center gap-2">
+                  <span className="w-20 shrink-0 text-[11px] font-medium text-slate-600">{r.reason}</span>
+                  {/* 막대로 그린다 — 숫자만 늘어놓으면 어느 쪽이 큰지 세어 가며 본다 */}
+                  <div className="h-3 min-w-0 flex-1 overflow-hidden rounded bg-slate-100">
+                    <div
+                      className="h-full rounded bg-indigo-500"
+                      style={{ width: `${Math.round((r.count / reasons.total) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="w-16 shrink-0 text-right text-[11px] text-slate-500">
+                    {r.count}건 · {Math.round((r.count / reasons.total) * 100)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
