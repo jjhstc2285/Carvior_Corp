@@ -75,15 +75,19 @@ export default function EmployeeSettings() {
   const hardRemove = async (employee: Employee) => {
     const ok = await confirmDanger(
       `${employee.name}님을 아주 지울까요?`,
-      '되돌릴 수 없습니다. 남긴 기록(상담·정산·출퇴근 등)이 하나라도 있으면 지워지지 않습니다.',
+      '되돌릴 수 없습니다. 그동안 올린 상담·정산·매입은 그대로 남고 담당자만 (퇴사자)로 바뀝니다. ' +
+        '본인 것만 있는 줄(전화번호·출퇴근·알림)은 같이 지워집니다.',
     );
     if (!ok) return;
 
     setBusyId(employee.id);
     try {
-      await api(`/employees/${employee.id}/hard`, { method: 'DELETE' });
+      const res = await api<{ moved: number }>(`/employees/${employee.id}/hard`, { method: 'DELETE' });
       await load();
-      await alertSuccess(`${employee.name}님을 지웠습니다`);
+      await alertSuccess(
+        `${employee.name}님을 지웠습니다`,
+        res?.moved ? `기록 ${res.moved}건은 담당자를 (퇴사자)로 바꿔 그대로 남겼습니다.` : undefined,
+      );
     } catch (e) {
       await alertError('지우지 못했습니다', e instanceof Error ? e.message : '');
     } finally {

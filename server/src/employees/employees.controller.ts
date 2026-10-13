@@ -55,12 +55,12 @@ export class EmployeesController {
    * 아주 지운다 — 남긴 기록이 하나도 없을 때만.
    *
    * 잘못 만든 계정이나 하루 만에 그만둔 사람까지 목록에 영영 남으면 누가 다니는지
-   * 세기가 어려워진다. 기록이 걸려 있으면 서버가 막고 무엇에 걸렸는지 알려준다.
+   * 세기가 어려워진다. 그 사람이 올린 기록은 '(퇴사자)' 앞으로 넘기고 사람 줄만 지운다 —
+   * 상담·정산·매입은 회사 기록이지 그 사람 것이 아니다.
    */
   @Roles(Role.ADMIN)
   @Delete(':id/hard')
-  @HttpCode(204)
-  async hardRemove(@Param('id') id: string) {
-    await this.employees.hardRemove(id);
+  hardRemove(@Param('id') id: string) {
+    return this.employees.hardRemove(id);
   }
 }
