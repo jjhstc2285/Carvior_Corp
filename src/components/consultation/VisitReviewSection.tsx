@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, MessageSquarePlus, PhoneOutgoing, UserX } fr
 import { useStore } from '../../store';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
-import { conversionOf, isOfKind } from '../../lib/consultationStats';
+import { conversionOf } from '../../lib/consultationStats';
 import ConsultationDetailModal from './ConsultationDetailModal';
 import { CONSULTATION_STATUS_LABEL, type ConsultationRecord, type ConsultationStatus } from '../../types';
 
@@ -108,12 +108,15 @@ export default function VisitReviewSection({
     return seesTeam ? team : team.filter(e => e.id === state.currentEmployeeId);
   }, [state.employees, seesTeam, state.currentEmployeeId]);
 
-  /** 그 달 알선 상담 — 정산이 달마다 하는 일이라 달로 끊어 본다(상담일 기준) */
+  /*
+    그 달 상담 — 달로 끊어 본다(상담일 기준).
+
+    종류는 안 가린다. 알선만 세게 해 뒀더니 0으로 떴다 — 실제로는 판매 상담과 수출로
+    적고 있어서 알선 상담이 한 건도 없는 달이 있다. 아래 '그냥 간 손님' 목록도 종류를
+    안 가리므로, 여기서만 가리면 위아래 숫자가 어긋난다.
+  */
   const scoped = useMemo(
-    () =>
-      state.consultations
-        .filter(c => isOfKind(c, 'BROKERAGE'))
-        .filter(c => allMonths || c.date.startsWith(month)),
+    () => state.consultations.filter(c => allMonths || c.date.startsWith(month)),
     [state.consultations, month, allMonths],
   );
 

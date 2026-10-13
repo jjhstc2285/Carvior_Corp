@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useStore } from '../../store';
-import { conversionOf, isContracted, isOfKind } from '../../lib/consultationStats';
+import { conversionOf, isContracted } from '../../lib/consultationStats';
 import { REASONS } from '../consultation/VisitReviewSection';
 
 /**
@@ -45,9 +45,13 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
 
   /** 그 달 알선 상담 — 상담일 기준 */
   const stat = useMemo(() => {
-    const rows = state.consultations
-      .filter(c => isOfKind(c, 'BROKERAGE'))
-      .filter(c => allMonths || c.date.startsWith(month));
+    /*
+      종류를 안 가린다.
+
+      알선만 세게 해 뒀더니 0으로 떴다 — 실제로는 판매 상담과 수출로 적고 있어서
+      알선 상담이 한 건도 없는 달이 있다. 계약은 어느 탭에서 적었든 계약이다.
+    */
+    const rows = state.consultations.filter(c => allMonths || c.date.startsWith(month));
     return conversionOf(rows);
   }, [state.consultations, month, allMonths]);
 
@@ -61,7 +65,6 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
    */
   const reasons = useMemo(() => {
     const open = state.consultations
-      .filter(c => isOfKind(c, 'BROKERAGE'))
       .filter(c => allMonths || c.date.startsWith(month))
       .filter(c => !isContracted(c.status));
 
