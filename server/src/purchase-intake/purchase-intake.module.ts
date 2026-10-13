@@ -377,18 +377,30 @@ export class PurchaseIntakeService {
       .slice(0, 255);
   }
 
+  /**
+   * 입고일 — 조합 전산에 제시를 잡은 날.
+   *
+   * 조합 전산이 우선이다. 검차자가 8월에 적어 넣었어도 서류를 9월에 받아 조합에 9월로
+   * 잡았으면 그 차는 9월 매입이다 — 그래서 그동안 사무장이 매입일을 손으로 고쳐 맞췄다.
+   *
+   * 제시일자가 곧 그 날짜다(9월 상사 대장 120대와 한 대도 안 틀렸다). 그러니 달을 셀
+   * 때는 제시일자로 센다. 아직 제시를 안 잡은 차는 셀 날짜가 그것뿐이라 매입일로 둔다.
+   *
+   * 매입일은 그대로 남긴다 — 언제 검차했는지는 그것대로 알아야 하는 값이고, 고쳐
+   * 덮으면 그 기록이 사라진다.
+   */
+  private intakeOnOf(date: Date, offerDate: Date | null | undefined): string {
+    return formatDateOnly(offerDate ?? date);
+  }
+
   async findAll(params: PurchaseIntakeQueryDto) {
+    /*
+      달로 거르는 일은 읽어와서 한다.
+
+      제시일자는 다른 표(차량관리)에 있어서 번호를 맞춰 봐야 알 수 있다. 매입 기록이
+      사백 줄 남짓이라 다 읽어도 가볍고, 질의를 꼬아 붙이는 것보다 어긋날 일이 적다.
+    */
     const where: Prisma.PurchaseIntakeWhereInput = {
-      ...(params.month
-        ? { date: monthRange(params.month) }
-        : params.from || params.to
-          ? {
-              date: {
-                ...(params.from ? { gte: toDateOnly(params.from) } : {}),
-                ...(params.to ? { lte: toDateOnly(params.to) } : {}),
-              },
-            }
-          : {}),
       ...(params.q
         ? {
             OR: [
@@ -408,8 +420,28 @@ export class PurchaseIntakeService {
       include: { employee: { select: { id: true, name: true, position: true } } },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     });
-    const [registered, sales] = await Promise.all([this.registeredPlates(), this.salePrices()]);
-    return rows.map((r) => this.toView(r, registered, sales));
+    const [registered, sales, offers] = await Promise.all([
+      this.registeredPlates(),
+      this.salePrices(),
+      this.offerDates(),
+    ]);
+
+    const from = params.month ? `${params.month}-01` : params.from ?? '';
+    const to = params.month
+      ? formatDateOnly(new Date(Date.UTC(Number(params.month.slice(0, 4)), Number(params.month.slice(5, 7)), 0)))
+      : params.to ?? '';
+
+    return rows
+      .map((r) => ({ row: r, on: this.intakeOnOf(r.date, offers.get(normalizePlate(r.vehicleNumber))) }))
+      .filter(({ on }) => (!from || on >= from) && (!to || on <= to))
+      .sort((a, b) => b.on.localeCompare(a.on))
+      .map(({ row, on }) => ({ ...this.toView(row, registered, sales), intakeOn: on }));
+  }
+
+  /** 차량번호별 제시일자 — 조합에 제시를 잡은 날이다(번호에 공백이 섞여 있어 걷어내 맞춘다) */
+  private async offerDates(): Promise<Map<string, Date | null>> {
+    const rows = await this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true, offerDate: true } });
+    return new Map(rows.map((v) => [normalizePlate(v.vehicleNumber), v.offerDate]));
   }
 
   /**

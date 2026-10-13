@@ -1487,6 +1487,12 @@ export interface PurchaseIntake {
   prepared?: boolean;
   /** 이 차가 얼마에 팔렸는지(원). 아직 안 팔았으면 0 */
   salePrice?: number;
+  /**
+   * 입고일 — 조합 전산에 제시를 잡은 날(없으면 매입일).
+   *
+   * 조합 전산이 우선이라 달을 셀 때는 이 날짜로 센다. 매입일은 '언제 검차했나'로 그대로 남는다.
+   */
+  intakeOn?: string;
   /** 서버 파생값 — 실매입금액 + 구전. 저장하지 않는다. */
   totalAmount: number;
 

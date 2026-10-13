@@ -119,7 +119,8 @@ export default function PurchaseIntakeModule() {
 
   const handleExport = () => {
     const rows = items.map(r => ({
-      날짜: r.date,
+      입고일: r.intakeOn ?? r.date,
+      '매입일(검차)': r.date,
       고객이름: r.customerName,
       고객번호: r.customerPhone,
       매입처: r.source,
@@ -309,7 +310,7 @@ export default function PurchaseIntakeModule() {
           type="month"
           value={month}
           disabled={period === 'all'}
-          title="반기로 볼 때는 이 달이 속한 반기를 봅니다"
+          title="조합 전산에 제시를 잡은 날(입고일)로 셉니다 · 반기로 볼 때는 이 달이 속한 반기를 봅니다"
           onChange={e => setMonth(e.target.value)}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400 disabled:bg-slate-50 disabled:text-slate-400"
         />
@@ -451,8 +452,17 @@ export default function PurchaseIntakeModule() {
                     ) : null;
                   })()}
                 </div>
+                {/*
+                  입고일은 조합 전산에 제시를 잡은 날이다 — 달을 세는 기준이 그것이다.
+                  검차한 날과 다르면 둘 다 보여준다. 어느 쪽으로 세는지 모르면 숫자를 못 믿는다.
+                */}
                 <p className="mt-1 text-xs text-slate-400">
-                  {r.date} · 등록자 {r.employee?.name ?? '-'}
+                  입고 {r.intakeOn ?? r.date}
+                  {r.intakeOn && r.intakeOn !== r.date && (
+                    <span className="ml-1 text-slate-300">(검차 {r.date})</span>
+                  )}
+                  {' · 등록자 '}
+                  {r.employee?.name ?? '-'}
                   {r.source && ` · ${r.source}`}
                 </p>
               </div>
