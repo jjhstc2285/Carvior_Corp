@@ -7,6 +7,7 @@ import { CHECK_ITEMS, DAESAN_BULK_GOAL } from '../../lib/inspectionCheck';
 import IntakeCheckBar from './IntakeCheckBar';
 import PurchaseIntakeForm from './PurchaseIntakeForm';
 import CarviorImportModal from './CarviorImportModal';
+import StockAgePanel from './StockAgePanel';
 import { usePurchaseIntake } from './usePurchaseIntake';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api as callApi, ApiError } from '../../lib/api';
@@ -359,6 +360,12 @@ export default function PurchaseIntakeModule() {
       </div>
 
       {api.error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">{api.error}</p>}
+
+      {/*
+        장기 재고 — 들어온 지 오래된 차. 목록 바로 위에 둔다.
+        오래된 차가 새 차 사이에 섞여 있으면 눈에 안 띈다.
+      */}
+      <StockAgePanel />
 
       <div className="space-y-3">
         {items.length === 0 && (
