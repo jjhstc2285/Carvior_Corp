@@ -158,40 +158,30 @@ export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
             읽었으면 바로 안다. 달력이 필요하면 옆 칸을 쓴다 — 치는 쪽이 대개 빠르다.
           */}
           {/*
-            한 줄을 통째로 쓴다.
+            일자는 치는 대로 읽는다 — 칸 하나다.
 
-            반쪽 칸에 치는 칸과 달력을 나란히 두니 치는 칸이 손가락만 하게 눌렸다 —
-            정작 많이 쓰는 쪽이 작아지면 안 된다. 치는 칸이 넓고, 달력은 옆에 작게 둔다.
+            달력을 옆에 같이 뒀더니 그쪽이 자리를 다 먹고 치는 칸이 손가락만 하게 남았다.
+            치는 쪽이 빠르고, 읽은 날짜를 바로 아래 적어 주므로 달력이 없어도 틀릴 일이 없다.
+
+            '10/13'·'1013'·'1/5'·'26-10-13' 다 된다. 해를 안 적으면 올해로 본다.
           */}
-          <label className="col-span-2 text-xs text-slate-500">
+          <label className="text-xs text-slate-500">
             일자
-            <div className="mt-1 flex gap-1.5">
-              <input
-                value={dateText}
-                onChange={e => {
-                  setDateText(e.target.value);
-                  const read = parseEventDate(e.target.value);
-                  if (read) setEventOn(read);
-                }}
-                inputMode="numeric"
-                placeholder="10/13 · 1013 · 26-10-13 — 치는 대로 읽습니다"
-                className={`${INPUT} min-w-0 flex-1`}
-              />
-              <input
-                type="date"
-                value={eventOn}
-                onChange={e => {
-                  setEventOn(e.target.value);
-                  setDateText(dayjs(e.target.value).format('M/D'));
-                }}
-                title="달력에서 고릅니다"
-                className={`${INPUT} w-[10rem] shrink-0`}
-              />
-            </div>
+            <input
+              value={dateText}
+              onChange={e => {
+                setDateText(e.target.value);
+                const read = parseEventDate(e.target.value);
+                if (read) setEventOn(read);
+              }}
+              inputMode="numeric"
+              placeholder="10/13"
+              className={`mt-1 ${INPUT}`}
+            />
             <span className="mt-0.5 block text-[11px] text-slate-400">
               {parseEventDate(dateText) || !dateText.trim()
                 ? dayjs(eventOn).format('YYYY년 M월 D일 (ddd)')
-                : '날짜를 못 읽었습니다 — 10/13 처럼 적어 주세요'}
+                : '못 읽었습니다 — 10/13 처럼'}
             </span>
           </label>
         </div>
