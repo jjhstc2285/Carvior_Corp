@@ -157,7 +157,13 @@ export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
             '10/13'·'1013'·'26-10-13' 다 된다. 읽은 날짜를 옆에 적어 보여 주므로 잘못
             읽었으면 바로 안다. 달력이 필요하면 옆 칸을 쓴다 — 치는 쪽이 대개 빠르다.
           */}
-          <label className="text-xs text-slate-500">
+          {/*
+            한 줄을 통째로 쓴다.
+
+            반쪽 칸에 치는 칸과 달력을 나란히 두니 치는 칸이 손가락만 하게 눌렸다 —
+            정작 많이 쓰는 쪽이 작아지면 안 된다. 치는 칸이 넓고, 달력은 옆에 작게 둔다.
+          */}
+          <label className="col-span-2 text-xs text-slate-500">
             일자
             <div className="mt-1 flex gap-1.5">
               <input
@@ -167,7 +173,8 @@ export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
                   const read = parseEventDate(e.target.value);
                   if (read) setEventOn(read);
                 }}
-                placeholder="10/13"
+                inputMode="numeric"
+                placeholder="10/13 · 1013 · 26-10-13 — 치는 대로 읽습니다"
                 className={`${INPUT} min-w-0 flex-1`}
               />
               <input
@@ -177,7 +184,8 @@ export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
                   setEventOn(e.target.value);
                   setDateText(dayjs(e.target.value).format('M/D'));
                 }}
-                className={`${INPUT} w-[9.5rem] shrink-0`}
+                title="달력에서 고릅니다"
+                className={`${INPUT} w-[10rem] shrink-0`}
               />
             </div>
             <span className="mt-0.5 block text-[11px] text-slate-400">
