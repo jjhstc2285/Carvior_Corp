@@ -110,6 +110,9 @@ export class CreatePurchaseIntakeDto {
 
 /** 수정용 — 등록용을 그대로 쓰면 한 칸만 고치는 요청이 필수값 누락으로 거절된다. */
 export class UpdatePurchaseIntakeDto {
+  /** 새로 넣을 때 쓰는 표시 — 수정에서는 아무 일도 안 한다(받아만 두고 버린다) */
+  @IsOptional() @IsBoolean() allowDuplicate?: boolean;
+
   @IsOptional() @Matches(DATE_PATTERN, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) date?: string;
 
   @IsOptional() @IsString() @MaxLength(20) customerPhone?: string;

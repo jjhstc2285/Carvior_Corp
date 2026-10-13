@@ -236,8 +236,14 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
       purchaseAmount: moneyToNumber(purchaseAmount),
       brokerFee: moneyToNumber(brokerFee),
       brokerFeeType,
-      // 되사온 차라고 사람이 확인했을 때만 중복을 통과시킨다
-      allowDuplicate: againOk,
+      /*
+        중복 통과 표시는 새로 넣을 때만 보낸다.
+
+        서버가 DTO에 없는 칸을 받으면 통째로 막는다(forbidNonWhitelisted). 수정은
+        같은 차를 다시 넣는 일이 아니라 이 칸을 받지 않는데, 같이 보내는 바람에
+        실차 확인자만 고쳐도 저장이 안 됐다.
+      */
+      ...(editing ? {} : { allowDuplicate: againOk }),
     });
     setSaving(false);
 
