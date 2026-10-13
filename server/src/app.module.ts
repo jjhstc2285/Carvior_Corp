@@ -29,6 +29,7 @@ import { ApprovalsModule } from './approvals/approvals.module';
 import { AdsModule } from './ads/ads.module';
 import { ParkBoardModule } from './parkboard/parkboard.module';
 import { PayrollModule } from './payroll/payroll.module';
+import { PrepScheduleModule } from './prep-schedule/prep-schedule.module';
 import { StockAgeModule } from './stock-age/stock-age.module';
 import { ReferralModule } from './referral/referral.module';
 import { CleaningModule } from './cleaning/cleaning.module';
@@ -74,6 +75,7 @@ import { RolesGuard } from './auth/roles.guard';
     ParkBoardModule,
     PayrollModule,
     ReferralModule,
+    PrepScheduleModule,
     StockAgeModule,
   ],
   providers: [
