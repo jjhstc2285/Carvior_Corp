@@ -33,6 +33,8 @@ class CreateDto {
   @IsEnum(CondolenceKind) kind!: CondolenceKind;
   @IsString() @MaxLength(40) person!: string;
   @IsOptional() @IsString() @MaxLength(30) relation?: string;
+  /** 연락처 — 적어 두기만 한다(문자는 따로 정한다) */
+  @IsOptional() @IsString() @MaxLength(20) phone?: string;
   @IsOptional() @IsString() @MaxLength(30) subject?: string;
   @Matches(DATE) eventOn!: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) amount?: number;
@@ -46,6 +48,8 @@ class UpdateDto {
   @IsOptional() @IsEnum(CondolenceKind) kind?: CondolenceKind;
   @IsOptional() @IsString() @MaxLength(40) person?: string;
   @IsOptional() @IsString() @MaxLength(30) relation?: string;
+  /** 연락처 — 적어 두기만 한다(문자는 따로 정한다) */
+  @IsOptional() @IsString() @MaxLength(20) phone?: string;
   @IsOptional() @IsString() @MaxLength(30) subject?: string;
   @IsOptional() @Matches(DATE) eventOn?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) amount?: number;
@@ -77,6 +81,7 @@ export class CondolenceService {
       kind: r.kind,
       person: r.person,
       relation: r.relation,
+      phone: r.phone,
       subject: r.subject,
       eventOn: formatDateOnly(r.eventOn),
       amount: r.amount,
@@ -102,6 +107,7 @@ export class CondolenceService {
         kind: dto.kind,
         person: dto.person.trim(),
         relation: dto.relation ?? '',
+        phone: dto.phone ?? '',
         subject: dto.subject ?? '',
         eventOn: toDateOnly(dto.eventOn),
         amount: dto.amount ?? 0,

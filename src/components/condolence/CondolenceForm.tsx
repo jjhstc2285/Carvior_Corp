@@ -3,7 +3,16 @@ import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { moneyToNumber, toMoneyValue, withCommas } from '../../lib/money';
-import { DEFAULT_WREATH, KINDS, KIND_LABEL, SUBJECTS, type Condolence, type CondolenceKind } from './condolence';
+import {
+  DEFAULT_WREATH,
+  KINDS,
+  KIND_LABEL,
+  parseEventDate,
+  QUICK_AMOUNTS,
+  SUBJECTS,
+  type Condolence,
+  type CondolenceKind,
+} from './condolence';
 
 /**
  * 경조사 한 건 적기.
@@ -29,6 +38,9 @@ export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
   const [relation, setRelation] = useState(editing?.relation ?? '');
   const [subject, setSubject] = useState(editing?.subject ?? '');
   const [eventOn, setEventOn] = useState(editing?.eventOn ?? dayjs().format('YYYY-MM-DD'));
+  /* 날짜는 치는 대로 읽는다 — 달력을 띄워 고르는 건 지난 날짜로 갈 때 품이 많이 든다 */
+  const [dateText, setDateText] = useState(() => dayjs(editing?.eventOn ?? undefined).format('M/D'));
+  const [phone, setPhone] = useState(editing?.phone ?? '');
   const [amount, setAmount] = useState(editing ? String(editing.amount) : '');
   const [wreath, setWreath] = useState(editing?.wreath ?? false);
   const [wreathPrice, setWreathPrice] = useState(String(editing?.wreathPrice || DEFAULT_WREATH));
@@ -54,6 +66,7 @@ export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
         relation: relation.trim(),
         subject,
         eventOn,
+        phone: phone.trim(),
         amount: moneyToNumber(amount),
         wreath,
         wreathPrice: wreath ? moneyToNumber(wreathPrice) : 0,
@@ -108,6 +121,16 @@ export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
             />
           </label>
           <label className="text-xs text-slate-500">
+            연락처 <span className="text-slate-300">(선택)</span>
+            <input
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              inputMode="tel"
+              placeholder="010-0000-0000"
+              className={`mt-1 ${INPUT}`}
+            />
+          </label>
+          <label className="text-xs text-slate-500">
             소속 <span className="text-slate-300">(선택)</span>
             <input
               value={relation}
@@ -128,9 +151,40 @@ export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
               ))}
             </select>
           </label>
+          {/*
+            일자는 치는 대로 읽는다.
+
+            '10/13'·'1013'·'26-10-13' 다 된다. 읽은 날짜를 옆에 적어 보여 주므로 잘못
+            읽었으면 바로 안다. 달력이 필요하면 옆 칸을 쓴다 — 치는 쪽이 대개 빠르다.
+          */}
           <label className="text-xs text-slate-500">
             일자
-            <input type="date" value={eventOn} onChange={e => setEventOn(e.target.value)} className={`mt-1 ${INPUT}`} />
+            <div className="mt-1 flex gap-1.5">
+              <input
+                value={dateText}
+                onChange={e => {
+                  setDateText(e.target.value);
+                  const read = parseEventDate(e.target.value);
+                  if (read) setEventOn(read);
+                }}
+                placeholder="10/13"
+                className={`${INPUT} min-w-0 flex-1`}
+              />
+              <input
+                type="date"
+                value={eventOn}
+                onChange={e => {
+                  setEventOn(e.target.value);
+                  setDateText(dayjs(e.target.value).format('M/D'));
+                }}
+                className={`${INPUT} w-[9.5rem] shrink-0`}
+              />
+            </div>
+            <span className="mt-0.5 block text-[11px] text-slate-400">
+              {parseEventDate(dateText) || !dateText.trim()
+                ? dayjs(eventOn).format('YYYY년 M월 D일 (ddd)')
+                : '날짜를 못 읽었습니다 — 10/13 처럼 적어 주세요'}
+            </span>
           </label>
         </div>
 
@@ -145,6 +199,37 @@ export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
               className={`mt-1 ${INPUT}`}
             />
           </label>
+          {/*
+            자주 내는 금액은 눌러서 넣는다.
+
+            20만원을 치려고 0을 다섯 번 누르면 하나 더 치거나 덜 치기 쉽다. 경조사비는
+            몇 가지로 거의 정해져 있어서 눌러 넣는 쪽이 빠르고 덜 틀린다.
+          */}
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {QUICK_AMOUNTS.map(v => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setAmount(String(v))}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                  moneyToNumber(amount) === v
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {v / 10000}만
+              </button>
+            ))}
+            {moneyToNumber(amount) > 0 && (
+              <button
+                type="button"
+                onClick={() => setAmount('')}
+                className="rounded-full px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-100"
+              >
+                지우기
+              </button>
+            )}
+          </div>
 
           {/*
             화환은 켜고 끄는 단추다. 늘 45,000원이라 금액을 매번 치게 하면 안 켠다 —

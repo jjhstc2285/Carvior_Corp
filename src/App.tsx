@@ -93,7 +93,18 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'vehicle') return <VehicleModule />;
   if (module === 'chat') return <ChatModule role={role} />;
   if (module === 'cleaning') return <CleaningModule role={role} />;
-  if (module === 'condolence') return <CondolenceModule />;
+  /*
+    경조사비 대장은 번호를 한 번 더 받는다.
+
+    누구에게 얼마를 냈는지가 사람 이름과 함께 줄줄이 적힌 장부다 — 자리를 비운 사이
+    열린 화면이 그대로 남으면 안 된다. 부동산·상조회비와 같은 번호를 쓴다.
+  */
+  if (module === 'condolence')
+    return (
+      <LedgerLock title="경조사비 대장">
+        <CondolenceModule />
+      </LedgerLock>
+    );
   if (module === 'purchaseIntake') return <PurchaseIntakeModule />;
   if (module === 'stockFinance') return <StockFinanceModule />;
   if (module === 'vendor') return <VendorModule role={role} />;

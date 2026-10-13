@@ -27,6 +27,13 @@ export default function CondolenceModule() {
   const [years, setYears] = useState<number[]>([dayjs().year()]);
   const [rows, setRows] = useState<Condolence[]>([]);
   const [kindFilter, setKindFilter] = useState<CondolenceKind | 'all'>('all');
+  /*
+    경조사와 명절 선물세트를 나눈다.
+
+    성격이 다른 돈이다 — 경조사는 그 집 일이 있을 때 한 번 내는 것이고, 명절 세트는
+    해마다 돌리는 것이다. 한 표에 섞여 있으면 "올해 경조사비 얼마 썼나"가 안 나온다.
+  */
+  const [book, setBook] = useState<'condolence' | 'holiday'>('condolence');
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Condolence | null>(null);
@@ -57,9 +64,10 @@ export default function CondolenceModule() {
   const filtered = useMemo(() => {
     const q = query.trim();
     return rows
+      .filter(r => (book === 'holiday' ? r.kind === 'HOLIDAY' : r.kind !== 'HOLIDAY'))
       .filter(r => kindFilter === 'all' || r.kind === kindFilter)
       .filter(r => !q || r.person.includes(q) || r.memo.includes(q) || r.place.includes(q));
-  }, [rows, kindFilter, query]);
+  }, [rows, book, kindFilter, query]);
 
   /** 화환은 따로 센다 — 합쳐 두면 얼마를 냈는지가 사라진다 */
   const sum = useMemo(
@@ -91,6 +99,8 @@ export default function CondolenceModule() {
     { key: 'kind', label: '구분', value: r => KIND_LABEL[r.kind] },
     { key: 'person', label: '대상', value: r => r.person },
     { key: 'subject', label: '관계', value: r => r.subject },
+    // 받은 쪽은 나중에 갚는다 — 그때 연락할 번호를 대장에서 바로 본다
+    { key: 'phone', label: '연락처', value: r => r.phone },
     { key: 'amount', label: '금액', value: r => r.amount, align: 'text-right' },
     { key: 'wreath', label: '화환', value: r => (r.wreath ? r.wreathPrice : null), align: 'text-right' },
     { key: 'total', label: '합계', value: r => r.amount + (r.wreath ? r.wreathPrice : 0), align: 'text-right' },
@@ -205,6 +215,30 @@ export default function CondolenceModule() {
           <Plus size={14} /> 등록
         </button>
 
+        {/* 성격이 다른 돈이라 장부를 나눈다 — 섞이면 "올해 경조사비 얼마 썼나"가 안 나온다 */}
+        <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
+          {([
+            ['condolence', '경조사'],
+            ['holiday', '명절 선물'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => {
+                setBook(key);
+                setKindFilter('all');
+              }}
+              className={`rounded-md px-2.5 py-1.5 transition-colors ${
+                book === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
+              }`}
+            >
+              {label}{' '}
+              <span className="font-bold">
+                {rows.filter(r => (key === 'holiday' ? r.kind === 'HOLIDAY' : r.kind !== 'HOLIDAY')).length}
+              </span>
+            </button>
+          ))}
+        </div>
+
         <select
           value={year}
           onChange={e => setYear(Number(e.target.value))}
@@ -217,18 +251,21 @@ export default function CondolenceModule() {
           ))}
         </select>
 
-        <select
-          value={kindFilter}
-          onChange={e => setKindFilter(e.target.value as CondolenceKind | 'all')}
-          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
-        >
-          <option value="all">전체 구분</option>
-          {KINDS.map(k => (
-            <option key={k} value={k}>
-              {KIND_LABEL[k]}
-            </option>
-          ))}
-        </select>
+        {/* 명절 장부는 구분이 하나뿐이라 고를 게 없다 */}
+        {book === 'condolence' && (
+          <select
+            value={kindFilter}
+            onChange={e => setKindFilter(e.target.value as CondolenceKind | 'all')}
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+          >
+            <option value="all">전체 구분</option>
+            {KINDS.filter(k => k !== 'HOLIDAY').map(k => (
+              <option key={k} value={k}>
+                {KIND_LABEL[k]}
+              </option>
+            ))}
+          </select>
+        )}
 
         <input
           value={query}
