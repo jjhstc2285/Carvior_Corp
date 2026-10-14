@@ -420,10 +420,11 @@ export class PurchaseIntakeService {
       include: { employee: { select: { id: true, name: true, position: true } } },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     });
-    const [registered, sales, offers] = await Promise.all([
+    const [registered, sales, offers, soldDates] = await Promise.all([
       this.registeredPlates(),
       this.salePrices(),
       this.offerDates(),
+      this.soldDates(),
     ]);
 
     const from = params.month ? `${params.month}-01` : params.from ?? '';
@@ -431,17 +432,51 @@ export class PurchaseIntakeService {
       ? formatDateOnly(new Date(Date.UTC(Number(params.month.slice(0, 4)), Number(params.month.slice(5, 7)), 0)))
       : params.to ?? '';
 
+    /*
+      들어온 달과 나간 달을 따로 본다.
+
+      9월을 고르면 '9월에 들어온 차'와 '9월에 나간 차'를 둘 다 봐야 한다. 전에는 들어온
+      달로만 잘라서, 9월 출고가 '9월에 들어와서 팔린 차'(22대)로 나왔다 — 9월에 나간
+      차는 99대인데 그 대부분이 그 전에 들어온 차라 아예 안 보였다.
+
+      그래서 들어온 날이든 나간 날이든 그 달에 걸리면 담아 보낸다. 어느 쪽으로 걸렸는지는
+      화면이 두 날짜를 보고 가른다.
+    */
     return rows
-      .map((r) => ({ row: r, on: this.intakeOnOf(r.date, offers.get(normalizePlate(r.vehicleNumber))) }))
-      .filter(({ on }) => (!from || on >= from) && (!to || on <= to))
+      .map((r) => {
+        const plate = normalizePlate(r.vehicleNumber);
+        return {
+          row: r,
+          on: this.intakeOnOf(r.date, offers.get(plate)),
+          soldOn: formatDateOnlyOrNull(soldDates.get(plate) ?? null),
+        };
+      })
+      .filter(({ on, soldOn }) => {
+        const inRange = (day: string | null) => !!day && (!from || day >= from) && (!to || day <= to);
+        return (!from && !to) || inRange(on) || inRange(soldOn);
+      })
       .sort((a, b) => b.on.localeCompare(a.on))
-      .map(({ row, on }) => ({ ...this.toView(row, registered, sales), intakeOn: on }));
+      .map(({ row, on, soldOn }) => ({ ...this.toView(row, registered, sales), intakeOn: on, soldOn }));
   }
 
   /** 차량번호별 제시일자 — 조합에 제시를 잡은 날이다(번호에 공백이 섞여 있어 걷어내 맞춘다) */
   private async offerDates(): Promise<Map<string, Date | null>> {
     const rows = await this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true, offerDate: true } });
     return new Map(rows.map((v) => [normalizePlate(v.vehicleNumber), v.offerDate]));
+  }
+
+  /**
+   * 차량번호별 매도일자 — 차가 실제로 나간 날.
+   *
+   * 나간 것을 정산의 판매가로 가리던 때가 있었는데, 판매가는 한참 뒤에 적힌다(9월 매도
+   * 아흔아홉 대 중 예순 대가 아직 비어 있었다). 나갔는지는 차량관리가 원본이다.
+   */
+  private async soldDates(): Promise<Map<string, Date | null>> {
+    const rows = await this.prisma.managedVehicle.findMany({
+      where: { soldDate: { not: null } },
+      select: { vehicleNumber: true, soldDate: true },
+    });
+    return new Map(rows.map((v) => [normalizePlate(v.vehicleNumber), v.soldDate]));
   }
 
   /**

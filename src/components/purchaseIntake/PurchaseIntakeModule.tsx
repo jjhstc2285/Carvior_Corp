@@ -38,21 +38,32 @@ export default function PurchaseIntakeModule() {
   const api = usePurchaseIntake(period === 'month' ? month : '', query, period === 'half' ? half : null);
   const periodLabel = period === 'month' ? dayjs(month).format('M월') : period === 'half' ? half.label : '전체';
 
-  /**
-   * 나간 차인가 — 판매가가 적혔으면 나간 것이다.
-   *
-   * 매입 정산에 차량판매가를 적으면 여기 따라 붙는다. 아직 안 적힌 차는 '들고 있는 차'로
-   * 남는다 — 실제로는 팔렸는데 안 적힌 건이 섞일 수 있고, 그건 정산에서 채울 일이다.
-   */
-  const isSold = (r: PurchaseIntake) => (r.salePrice ?? 0) > 0;
+  /*
+    들어온 달과 나간 달을 따로 본다.
+
+    9월을 고르면 '9월에 들어온 차'와 '9월에 나간 차'는 서로 다른 집합이다. 9월에 팔린
+    차는 대개 그 전에 들어온 차다 — 들어온 달로만 자르면 그 차들이 통째로 안 보인다.
+
+    나갔는지는 차량관리의 매도일자로 본다. 정산의 판매가로 가리던 때가 있었는데,
+    판매가는 한참 뒤에 적힌다(9월 매도 아흔아홉 대 중 예순 대가 아직 비어 있었다).
+  */
+  const inMonth = (day?: string | null) => {
+    if (!day) return false;
+    if (period === 'all') return true;
+    if (period === 'half') return day >= half.from && day <= half.to;
+    return day.startsWith(month);
+  };
+
+  const isSold = (r: PurchaseIntake) => inMonth(r.soldOn);
+  const isStock = (r: PurchaseIntake) => !r.soldOn && inMonth(r.intakeOn ?? r.date);
 
   const soldAll = api.items.filter(isSold).length;
-  const stockAll = api.items.length - soldAll;
+  const stockAll = api.items.filter(isStock).length;
 
   /** 아래 숫자와 목록은 모두 고른 쪽만 센다 — 카드와 목록이 다른 걸 세면 안 된다 */
   const items = useMemo(
-    () => (stock === 'all' ? api.items : api.items.filter(r => (stock === 'sold' ? isSold(r) : !isSold(r)))),
-    [api.items, stock],
+    () => api.items.filter(r => (stock === 'sold' ? isSold(r) : stock === 'stock' ? isStock(r) : true)),
+    [api.items, stock, period, month, half],
   );
 
   const total = items.reduce((sum, r) => sum + r.totalAmount, 0);
@@ -199,7 +210,10 @@ export default function PurchaseIntakeModule() {
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-xs font-medium text-slate-400">{periodLabel} 매입 대수</p>
+          {/* 고른 쪽 이름으로 적는다 — '매입 대수'라고만 쓰면 나간 차를 보고 있어도 매입으로 읽힌다 */}
+          <p className="text-xs font-medium text-slate-400">
+            {periodLabel} {stock === 'sold' ? '나간 대수' : stock === 'stock' ? '들어온 대수' : '전체 대수'}
+          </p>
           <p className="mt-1 text-xl font-bold text-slate-800 sm:text-2xl">
             {items.length}
             <span className="ml-1 text-sm font-medium text-slate-400">대</span>
@@ -239,7 +253,17 @@ export default function PurchaseIntakeModule() {
             {NUM(saleTotal) || 0}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>
           </p>
-          <p className="text-[11px] text-slate-400">{items.length}대 중 {soldCount}대 판매</p>
+          {/*
+            판매가는 정산에 적어야 들어온다. 한참 뒤에 적히는 값이라 금액이 빈 차가 많다 —
+            몇 대치 금액인지 밝혀 둔다. 안 밝히면 합계를 대수로 나눠 보고 "차가 왜 이렇게
+            싸냐"가 된다.
+          */}
+          <p className="text-[11px] text-slate-400">
+            {items.length}대 중 <b className="font-bold text-emerald-700">{soldCount}대</b> 금액 적힘
+            {items.length > soldCount && (
+              <span className="text-amber-600"> · {items.length - soldCount}대 아직 안 적음</span>
+            )}
+          </p>
         </div>
 
         {/*
@@ -337,8 +361,8 @@ export default function PurchaseIntakeModule() {
         {/* 들고 있는 차가 먼저다 — 나간 차는 눌러서 본다 */}
         <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
           {([
-            ['stock', '재고', stockAll],
-            ['sold', '출고', soldAll],
+            ['stock', '들어옴(재고)', stockAll],
+            ['sold', '나감(매도)', soldAll],
             ['all', '전체', api.items.length],
           ] as const).map(([key, label, count]) => (
             <button

@@ -1493,6 +1493,8 @@ export interface PurchaseIntake {
    * 조합 전산이 우선이라 달을 셀 때는 이 날짜로 센다. 매입일은 '언제 검차했나'로 그대로 남는다.
    */
   intakeOn?: string;
+  /** 매도일자 — 차가 실제로 나간 날. 아직 안 나갔으면 null */
+  soldOn?: string | null;
   /** 서버 파생값 — 실매입금액 + 구전. 저장하지 않는다. */
   totalAmount: number;
 
