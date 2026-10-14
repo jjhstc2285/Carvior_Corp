@@ -10,6 +10,7 @@ import CarviorImportModal from './CarviorImportModal';
 import StockAgePanel from './StockAgePanel';
 import PrepSchedulePanel from './PrepSchedulePanel';
 import PullFromSettlementPanel from './PullFromSettlementPanel';
+import { goTo } from '../../lib/goto';
 import { usePurchaseIntake } from './usePurchaseIntake';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api as callApi, ApiError } from '../../lib/api';
@@ -99,6 +100,17 @@ export default function PurchaseIntakeModule() {
   */
   const vat = vatBalance(purchaseTotal, saleTotal);
   const soldCount = items.filter(r => (r.salePrice ?? 0) > 0).length;
+  /*
+    판매가가 아직 안 적힌 차.
+
+    몇 대인지만 알려 주고 끝내면 "그걸 어디서 적는데"가 된다. 매입 관리에서 세는 숫자인데
+    적는 자리는 매입 정산의 차량판매가 칸이라 화면이 바뀐다. 번호를 들고 그 자리로
+    보내 준다 — 가서 그 차들만 걸러 보면 바로 채우기 시작할 수 있다.
+  */
+  const blankPlates = useMemo(
+    () => items.filter(r => !((r.salePrice ?? 0) > 0)).map(r => r.vehicleNumber),
+    [items],
+  );
   /** 들어온 차 중 그새 나간 차 — 매입 대수에서 재고를 가려 보는 숫자다 */
   const goneCount = items.filter(r => !!r.soldOn).length;
 
@@ -287,8 +299,23 @@ export default function PurchaseIntakeModule() {
           */}
           <p className="text-[11px] text-slate-400">
             {items.length}대 중 <b className="font-bold text-emerald-700">{soldCount}대</b> 금액 적힘
-            {items.length > soldCount && (
-              <span className="text-amber-600"> · {items.length - soldCount}대 아직 안 적음</span>
+            {blankPlates.length > 0 && (
+              <>
+                {' · '}
+                <button
+                  onClick={() =>
+                    goTo('settlement', {
+                      tab: 'purchase',
+                      plates: blankPlates,
+                      label: '판매가 안 적힌 차',
+                    })
+                  }
+                  title="매입 정산으로 가서 이 차들만 봅니다 — 차량판매가 칸에 적습니다"
+                  className="rounded font-bold text-amber-600 underline decoration-dotted underline-offset-2 hover:text-amber-700"
+                >
+                  {blankPlates.length}대 아직 안 적음 →
+                </button>
+              </>
             )}
           </p>
         </div>

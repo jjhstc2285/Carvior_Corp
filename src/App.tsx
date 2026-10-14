@@ -37,6 +37,7 @@ import { useAutoAwayStatus } from './hooks/useAutoAwayStatus';
 import { api } from './lib/api';
 import dayjs from 'dayjs';
 import type { ModuleKey } from './modules';
+import { GOTO_EVENT } from './lib/goto';
 import type { Role } from './types';
 import Sidebar from './components/Sidebar';
 import AdminSheetModule from './components/admin/AdminSheetModule';
@@ -168,6 +169,22 @@ function AuthedApp({ role }: { role: Role }) {
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
   /** 관리 시트 — 대표(관리자)와 관리팀만. 메뉴에서부터 안 보인다 */
   const canSeeSheet = canSeeAdminSheet({ role }, me?.department) && !asEmployee;
+
+  /*
+    다른 화면에서 "여기로 보내 달라"고 하면 옮겨 준다.
+
+    숫자를 보여 준 자리와 그 숫자를 채우는 자리가 다른 때가 많다 — 매입 관리에서 센
+    판매가 빈 차를 매입 정산에서 채운다. 받는 사람이 메뉴를 다시 짚게 두면 그 사이에
+    몇 대였는지를 잊는다.
+  */
+  useEffect(() => {
+    const onGoto = (e: Event) => {
+      const next = (e as CustomEvent<{ module: ModuleKey }>).detail?.module;
+      if (next) setModule(next);
+    };
+    window.addEventListener(GOTO_EVENT, onGoto);
+    return () => window.removeEventListener(GOTO_EVENT, onGoto);
+  }, []);
 
   useAutoAwayStatus({
     working: Boolean(myRecord?.clockIn) && !myRecord?.clockOut,

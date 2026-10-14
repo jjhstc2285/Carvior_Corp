@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import { Check, Download, FileSpreadsheet, Lock, Pencil, Percent, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
+import type { Focus } from '../../lib/goto';
 import { useDragScroll } from '../../lib/useDragScroll';
 import EmployeeAvatar from '../EmployeeAvatar';
 import PanelInvoiceModal from './PanelInvoiceModal';
@@ -38,6 +39,8 @@ import SettlementCalendar, { SettlementViewToggle, type SettlementView } from '.
 
 interface Props {
   role: 'EMPLOYEE' | 'ADMIN';
+  /** 다른 화면에서 들고 온 차 — 그 차들만 걸러 본다 */
+  focus?: Focus | null;
 }
 
 const NUM = (n: number) => n.toLocaleString();
@@ -148,7 +151,7 @@ interface MealRow {
   writer: string;
 }
 
-export default function PurchaseSettlementTab({ role }: Props) {
+export default function PurchaseSettlementTab({ role, focus }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
   /** 표를 잡고 끌어서 옆으로 넘긴다 — 칸이 스무 개가 넘어 화면 밖으로 나간다 */
   const dragRef = useDragScroll<HTMLDivElement>();
@@ -158,6 +161,20 @@ export default function PurchaseSettlementTab({ role }: Props) {
   const [allMonths, setAllMonths] = useState(false);
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [query, setQuery] = useState('');
+  /*
+    다른 화면에서 들고 온 차만 본다.
+
+    매입 관리에서 "판매가 열아홉 대 안 적음"을 누르면 그 열아홉 대를 들고 온다. 번호만
+    적어 주고 끝내면 받는 사람이 백 줄짜리 표에서 하나씩 찾아야 한다 — 찾는 동안 무엇을
+    찾고 있었는지를 잊는다.
+
+    해제할 수 있게 둔다. 걸러 둔 줄만 보이면 옆 차와 견줘 볼 수가 없다.
+  */
+  const [onlyFocused, setOnlyFocused] = useState(!!focus?.plates?.length);
+  const focusSet = useMemo(
+    () => new Set((focus?.plates ?? []).map(p => p.replace(/\s+/g, ''))),
+    [focus],
+  );
   const [formOpen, setFormOpen] = useState(false);
   /** 기본은 표다 — 매일 쓰는 건 표고, 달력은 가끔 펼쳐 본다 */
   const [view, setView] = useState<SettlementView>('list');
@@ -346,6 +363,7 @@ export default function PurchaseSettlementTab({ role }: Props) {
     .filter(s => allMonths || s.date.startsWith(month))
     .filter(s => statusFilter === 'all' || s.status === statusFilter)
     .filter(s => !seesAll || employeeFilter === 'all' || s.employeeId === employeeFilter)
+    .filter(s => !onlyFocused || focusSet.size === 0 || focusSet.has(s.vehicleNumber.replace(/\s+/g, '')))
     .filter(s => !query.trim() || s.vehicleNumber.includes(query.trim()) || s.vehicleName.includes(query.trim()))
     .sort((a, b) => b.date.localeCompare(a.date));
 
@@ -977,6 +995,17 @@ export default function PurchaseSettlementTab({ role }: Props) {
       )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        {focusSet.size > 0 && (
+          <button
+            onClick={() => setOnlyFocused(v => !v)}
+            title={onlyFocused ? '눌러서 전체를 봅니다' : '눌러서 들고 온 차만 봅니다'}
+            className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+              onlyFocused ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            }`}
+          >
+            {focus?.label ?? '들고 온 차'} {focusSet.size}대{onlyFocused ? ' 만 보는 중 · 해제' : ' 만 보기'}
+          </button>
+        )}
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="차량번호·차량명 검색"
           className="w-52 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
         <input

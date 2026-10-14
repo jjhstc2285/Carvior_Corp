@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { takeFocus, type Focus } from '../../lib/goto';
 import { useStore } from '../../store';
 import { canSeeAllSettlements } from '../../lib/permissions';
 import BrokerageSettlementTab from './BrokerageSettlementTab';
@@ -36,7 +37,14 @@ const TABS: { key: Tab; label: string; desc: string }[] = [
 ];
 
 export default function SettlementModule({ role }: Props) {
-  const [tab, setTab] = useState<Tab>('brokerage');
+  /*
+    다른 화면에서 차를 들고 왔으면 그 탭부터 연다.
+
+    한 번만 집는다 — 남겨 두면 나중에 정산을 그냥 열었을 때도 걸림쇠가 걸린 채로 떠서
+    "왜 몇 대만 보이지"가 된다.
+  */
+  const [focus] = useState<Focus | null>(takeFocus);
+  const [tab, setTab] = useState<Tab>(focus?.tab === 'purchase' ? 'purchase' : 'brokerage');
 
   /*
     매입 정산은 계약팀과 관리자만 본다.
@@ -74,7 +82,7 @@ export default function SettlementModule({ role }: Props) {
 
       {tab === 'brokerage' && <BrokerageSettlementTab role={role} kind="BROKERAGE" />}
       {tab === 'export' && <BrokerageSettlementTab role={role} kind="EXPORT" />}
-      {tab === 'purchase' && seesPurchase && <PurchaseSettlementTab role={role} />}
+      {tab === 'purchase' && seesPurchase && <PurchaseSettlementTab role={role} focus={focus} />}
       {tab === 'incentive' && <DealerIncentiveTab />}
     </div>
   );
