@@ -9,6 +9,7 @@ import PurchaseIntakeForm from './PurchaseIntakeForm';
 import CarviorImportModal from './CarviorImportModal';
 import StockAgePanel from './StockAgePanel';
 import PrepSchedulePanel from './PrepSchedulePanel';
+import PullFromSettlementPanel from './PullFromSettlementPanel';
 import { usePurchaseIntake } from './usePurchaseIntake';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api as callApi, ApiError } from '../../lib/api';
@@ -417,6 +418,14 @@ export default function PurchaseIntakeModule() {
         장기 재고 — 들어온 지 오래된 차. 목록 바로 위에 둔다.
         오래된 차가 새 차 사이에 섞여 있으면 눈에 안 띈다.
       */}
+      {/*
+        정산에만 있고 매입 등록이 없는 차 — 제일 위에 둔다.
+
+        여기가 비어야 아래 두 자리(상품화 · 장기 재고)의 숫자를 믿을 수 있다. 매입 등록이
+        없는 차는 그 두 자리에도 안 뜨기 때문이다.
+      */}
+      <PullFromSettlementPanel onDone={() => void api.reload()} />
+
       {/*
         상품화 진행 — 들어온 차를 나흘 안에 광고까지 올린다.
         장기 재고보다 먼저 둔다. 오래 묵은 차를 줄이는 길이 결국 빨리 올리는 것이다.

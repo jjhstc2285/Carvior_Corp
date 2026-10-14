@@ -498,6 +498,132 @@ export class PurchaseIntakeService {
     });
   }
 
+  /**
+   * 정산에만 있고 매입 등록이 없는 차 — 정산에서 끌어와 매입 줄을 만든다.
+   *
+   * 정산은 돈이 걸려 있어 다들 꼬박꼬박 적는다. 매입 등록은 안 적어도 당장 아쉬운 사람이
+   * 없어서 빠진다 — 9월 매도 아흔아홉 대 중 쉰한 대가 그랬다. 그런데 재고일수도,
+   * 상품화 일정도, 장기재고 알림도 전부 매입 등록에서 시작한다. 없으면 그 차는 매입
+   * 관리에 아예 안 뜬다.
+   *
+   * 정산에 적힌 것만 옮긴다 — 차명·매입가·구전·담당자. 고객이름·매입처·실차 확인자는
+   * 정산에 없는 값이라 비워 두고, 특이사항에 끌어왔다고 적어 둔다. 지어내는 것보다
+   * 비워 두고 누가 채우게 하는 쪽이 낫다.
+   *
+   * 매입일은 제시일자(조합 전산에 올린 날)로 잡는다. 검차한 날은 어디에도 안 남아 있고,
+   * 매입 관리가 달을 가르는 기준이 제시일자라 그 날짜라야 제 달에 앉는다. 제시일자가
+   * 없으면 정산일로 대신한다.
+   */
+  private async pullable() {
+    const [setts, intakes, vehicles] = await Promise.all([
+      this.prisma.purchaseSettlement.findMany({
+        where: { purchasePrice: { gt: 0 } },
+        select: {
+          vehicleNumber: true,
+          vehicleName: true,
+          purchasePrice: true,
+          brokerFee: true,
+          date: true,
+          employeeId: true,
+          employee: { select: { name: true } },
+        },
+        orderBy: { date: 'asc' },
+      }),
+      this.prisma.purchaseIntake.findMany({ select: { vehicleNumber: true } }),
+      this.prisma.managedVehicle.findMany({
+        select: { vehicleNumber: true, offerDate: true, modelYear: true, mileage: true, fuel: true },
+      }),
+    ]);
+
+    const have = new Set(intakes.map((r) => normalizePlate(r.vehicleNumber)));
+    const cars = new Map(vehicles.map((v) => [normalizePlate(v.vehicleNumber), v]));
+
+    // 같은 차에 정산이 둘인 경우가 있다(수출로 한 번, 판매로 한 번). 늦은 쪽이 맞다 —
+    // 오래된 것부터 넣어 뒤엣것이 덮어쓰게 둔다.
+    const picked = new Map<string, (typeof setts)[number]>();
+    for (const s of setts) {
+      const plate = normalizePlate(s.vehicleNumber);
+      if (!plate || have.has(plate)) continue;
+      picked.set(plate, s);
+    }
+
+    return [...picked.entries()].map(([plate, s]) => {
+      const car = cars.get(plate);
+      return {
+        plate,
+        vehicleName: (s.vehicleName ?? '').trim(),
+        date: car?.offerDate ?? s.date,
+        fromOffer: !!car?.offerDate,
+        purchaseAmount: s.purchasePrice,
+        brokerFee: s.brokerFee ?? 0,
+        employeeId: s.employeeId,
+        employeeName: s.employee?.name ?? '',
+        modelYear: car?.modelYear ?? '',
+        mileage: car?.mileage ?? 0,
+        fuel: car?.fuel ?? '',
+      };
+    });
+  }
+
+  /** 끌어올 수 있는 차 — 만들기 전에 무엇이 들어오는지 먼저 본다 */
+  async findPullable() {
+    const rows = await this.pullable();
+    return rows
+      .map((r) => ({
+        vehicleNumber: r.plate,
+        vehicleName: r.vehicleName,
+        date: formatDateOnly(r.date),
+        fromOffer: r.fromOffer,
+        purchaseAmount: r.purchaseAmount,
+        brokerFee: r.brokerFee,
+        employeeName: r.employeeName,
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  /**
+   * 끌어와서 매입 줄을 만든다.
+   *
+   * 정산 줄은 이미 있으니 새로 만들지 않는다 — 만들면 한 차에 정산이 둘이 된다.
+   * 차량관리에는 차명만 채워 넣는다(값·연식·주행거리는 건드리지 않는다). 매도일자만
+   * 적으려고 만든 줄이라 차명이 비어 있는 차가 많은데, 그건 채워 주는 게 맞다.
+   */
+  async pullFromSettlements(user: AuthUser) {
+    const rows = await this.pullable();
+    if (rows.length === 0) return { made: 0, rows: [] as string[] };
+
+    const made: string[] = [];
+    for (const r of rows) {
+      try {
+        await this.prisma.purchaseIntake.create({
+          data: {
+            date: toDateOnly(formatDateOnly(r.date)),
+            // 정산에 없는 값이다 — 비워 두고 사람이 채우게 한다
+            customerName: '',
+            customerPhone: '',
+            vehicleName: r.vehicleName || r.plate,
+            vehicleNumber: r.plate,
+            modelYear: r.modelYear,
+            mileage: r.mileage,
+            fuel: r.fuel,
+            purchaseAmount: r.purchaseAmount,
+            brokerFee: r.brokerFee,
+            // 정산에 없는 값은 비워 둔다. 지어내면 누가 채워야 하는지가 사라진다.
+            note: '정산에서 끌어옴 — 고객·매입처·검차일 확인 필요',
+            employeeId: r.employeeId || user.id,
+          },
+        });
+        if (r.vehicleName) await this.syncManagedVehicle(r.plate, r.vehicleName);
+        made.push(r.plate);
+      } catch (e) {
+        this.logger.warn(`매입 줄 만들기 실패(${r.plate}): ${(e as Error).message}`);
+      }
+    }
+
+    this.logger.log(`정산에서 매입 줄 ${made.length}대를 끌어왔습니다.`);
+    return { made: made.length, rows: made };
+  }
+
   /** 차량번호를 치는 동안 먼저 알려 준다 — 저장을 누르고 나서 막히면 적은 게 날아간다 */
   async checkDuplicate(vehicleNumber: string) {
     const found = await this.findRecentSame(normalizePlate(vehicleNumber));
@@ -1210,6 +1336,18 @@ export class PurchaseIntakeController {
   @HttpCode(204)
   async remove(@Param('id') id: string) {
     await this.intake.remove(id);
+  }
+
+  /** 정산에만 있고 매입 등록이 없는 차 — 무엇이 들어오는지 먼저 본다 */
+  @Get('pullable')
+  findPullable() {
+    return this.intake.findPullable();
+  }
+
+  /** 정산에서 끌어와 매입 줄을 만든다 */
+  @Post('pull')
+  pull(@CurrentUser() user: AuthUser) {
+    return this.intake.pullFromSettlements(user);
   }
 
   /** 매입했는데 정산 줄이 아직 없는 차 — 정산 화면에서 만들어 채운다. */
