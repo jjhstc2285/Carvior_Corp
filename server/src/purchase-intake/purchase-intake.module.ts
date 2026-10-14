@@ -665,26 +665,54 @@ export class PurchaseIntakeService {
 
   /** 차량번호를 치는 동안 먼저 알려 준다 — 저장을 누르고 나서 막히면 적은 게 날아간다 */
   async checkDuplicate(vehicleNumber: string) {
-    const found = await this.findRecentSame(normalizePlate(vehicleNumber));
+    const plate = normalizePlate(vehicleNumber);
+    const found = await this.findRecentSame(plate);
     if (!found) return { duplicate: false };
+    // 안 판 차면 [다시 매입]도 막힌다 — 저장을 누르고 나서 알면 적은 게 날아간다
+    const car = await this.prisma.managedVehicle.findUnique({
+      where: { vehicleNumber: plate },
+      select: { soldDate: true },
+    });
     return {
       duplicate: true,
       date: formatDateOnly(found.date),
       vehicleName: found.vehicleName,
       who: found.employee?.name ?? '',
+      blocked: !car?.soldDate,
+      soldDate: formatDateOnlyOrNull(car?.soldDate ?? null),
     };
   }
 
   async create(user: AuthUser, dto: CreatePurchaseIntakeDto) {
     const vehicleNumber = normalizePlate(dto.vehicleNumber);
 
-    // 같은 차를 두 번 넣는 걸 막는다 — 되사온 차는 '다시 매입'으로 넘어간다
-    if (!dto.allowDuplicate) {
-      const same = await this.findRecentSame(vehicleNumber);
-      if (same) {
+    /*
+      같은 차를 두 번 넣는 걸 막는다.
+
+      [다시 매입]으로 넘어갈 수 있게 두었더니 그 길로 마흔세 대가 두 줄이 됐다. 8월 매입을
+      손으로 되채우면서 이미 들어와 있는 줄을 못 보고 다시 적은 것이다. 정산 줄까지 둘씩
+      생겨서 매입 대수도 정산 대수도 같이 틀어졌다.
+
+      그래서 '아직 안 판 차'는 아예 못 넘어가게 한다. 되사온 차는 반드시 먼저 나간 차다 —
+      매도일자가 적혀 있으면 그때는 [다시 매입]으로 넘어간다. 안 판 차를 또 사올 수는 없다.
+    */
+    const same = await this.findRecentSame(vehicleNumber);
+    if (same) {
+      const car = await this.prisma.managedVehicle.findUnique({
+        where: { vehicleNumber },
+        select: { soldDate: true },
+      });
+      const who = `${formatDateOnly(same.date)} ${same.employee?.name ?? ''} 등록 (${same.vehicleName})`;
+      if (!car?.soldDate) {
         throw new BadRequestException(
-          `이미 등록된 차입니다 — ${formatDateOnly(same.date)} ${same.employee?.name ?? ''} 등록 (${same.vehicleName}). ` +
-            '정말 다시 사온 차라면 [다시 매입]으로 등록해 주세요.',
+          `이미 등록된 차입니다 — ${who}. 아직 안 나간 차라 다시 등록할 수 없습니다. ` +
+            '고칠 것이 있으면 그 줄을 열어 고쳐 주세요. 정말 되사온 차라면 먼저 차량 관리에 매도일자를 적어 주세요.',
+        );
+      }
+      if (!dto.allowDuplicate) {
+        throw new BadRequestException(
+          `이미 등록된 차입니다 — ${who}. ` +
+            `${formatDateOnly(car.soldDate)} 에 나간 기록이 있으니, 되사온 차라면 [다시 매입]으로 등록해 주세요.`,
         );
       }
     }

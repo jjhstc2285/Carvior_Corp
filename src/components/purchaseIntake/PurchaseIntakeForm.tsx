@@ -58,7 +58,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
     하나씩 찾아야 한다. 번호를 치는 동안 먼저 알려 준다 — 저장을 누르고 나서 막히면
     적은 것이 날아간다.
   */
-  const [dup, setDup] = useState<{ date: string; vehicleName: string; who: string } | null>(null);
+  const [dup, setDup] = useState<{ date: string; vehicleName: string; who: string; blocked: boolean; soldDate: string | null } | null>(null);
   /** 되사온 차 — 알고도 그대로 넣는다 */
   const [againOk, setAgainOk] = useState(false);
   const [modelYear, setModelYear] = useState(editing?.modelYear ?? '');
@@ -183,10 +183,28 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
     }
     const timer = setTimeout(async () => {
       try {
-        const r = await api<{ duplicate: boolean; date?: string; vehicleName?: string; who?: string }>(
+        const r = await api<{
+          duplicate: boolean;
+          date?: string;
+          vehicleName?: string;
+          who?: string;
+          /** 아직 안 판 차 — [다시 매입]으로도 못 넘어간다 */
+          blocked?: boolean;
+          soldDate?: string | null;
+        }>(
           `/purchase-intake/duplicate?plate=${encodeURIComponent(plate)}`,
         );
-        setDup(r.duplicate ? { date: r.date ?? '', vehicleName: r.vehicleName ?? '', who: r.who ?? '' } : null);
+        setDup(
+          r.duplicate
+            ? {
+                date: r.date ?? '',
+                vehicleName: r.vehicleName ?? '',
+                who: r.who ?? '',
+                blocked: r.blocked !== false,
+                soldDate: r.soldDate ?? null,
+              }
+            : null,
+        );
       } catch {
         // 못 물어봐도 등록은 막지 않는다 — 서버가 저장할 때 한 번 더 본다
       }
@@ -357,10 +375,24 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
               <p className="mt-0.5 text-[11px] text-amber-800">
                 {dup.date} {dup.who && `${dup.who} 등록`} — {dup.vehicleName}
               </p>
-              <label className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-900">
-                <input type="checkbox" checked={againOk} onChange={e => setAgainOk(e.target.checked)} className="h-3.5 w-3.5" />
-                되사온 차입니다 — 그대로 등록하겠습니다
-              </label>
+              {/*
+                안 판 차는 넘어갈 길을 안 준다.
+
+                눌러서 넘어가게 두었더니 그 길로 마흔세 대가 두 줄이 됐다 — 8월 매입을
+                손으로 되채우면서 이미 들어와 있는 줄을 못 보고 다시 적었다. 되사온 차는
+                반드시 먼저 나간 차라, 매도일자가 있을 때만 넘어가게 한다.
+              */}
+              {dup.blocked ? (
+                <p className="mt-1.5 text-[11px] font-medium text-amber-900">
+                  아직 안 나간 차라 다시 등록할 수 없습니다. 고칠 것이 있으면 <b>그 줄을 열어 고쳐</b> 주세요 —
+                  정말 되사온 차라면 차량 관리에 <b>매도일자</b>부터 적어 주세요.
+                </p>
+              ) : (
+                <label className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-900">
+                  <input type="checkbox" checked={againOk} onChange={e => setAgainOk(e.target.checked)} className="h-3.5 w-3.5" />
+                  {dup.soldDate ? `${dup.soldDate} 에 나간 차입니다 — 되사온 것이 맞습니다` : '되사온 차입니다 — 그대로 등록하겠습니다'}
+                </label>
+              )}
             </div>
           )}
           {field('연식', text(modelYear, setModelYear, '2020'))}
