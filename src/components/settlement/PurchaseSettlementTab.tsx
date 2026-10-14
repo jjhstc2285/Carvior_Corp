@@ -489,6 +489,21 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
   const salaryTotal = !allMonths && salaryPerson ? CHIEF_SALARY.amount : 0;
 
 
+  /**
+   * 차량판매가를 표에서 바로 적는다.
+   *
+   * 알선·수출 정산이 있는 차는 그쪽을 저장할 때 따라오지만, 우리가 직접 판 차는 따라올
+   * 데가 없다. 적을 자리를 표에 두지 않으면 줄마다 수정 창을 열어야 한다.
+   */
+  const saveSalePrice = async (row: PurchaseSettlement, amount: number) => {
+    try {
+      await api(`/settlements/purchase/${row.id}`, { method: 'PATCH', body: { salePrice: amount } });
+      await refresh();
+    } catch (e) {
+      void alertError('차량판매가를 적지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
   const saveMeal = async (employeeId: string, amount: number) => {
     try {
       setMeals(await api<MealRow[]>('/settlements/purchase/meal', {
@@ -1208,7 +1223,25 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                       </span>
                     ),
                     totalWon: <span className="font-semibold text-sky-700">{NUM(totalWonOf(s))}</span>,
-                    salePrice: <span className="text-slate-600">{s.salePrice > 0 ? MAN(s.salePrice) : '—'}</span>,
+                    /*
+                      차량판매가는 표에서 바로 적는다.
+
+                      알선·수출 정산이 있는 차는 저장할 때 저절로 따라오지만, 우리가 직접
+                      판 차는 따라올 데가 없어 손으로 적어야 한다. 그걸 적자고 줄마다
+                      수정 창을 열고 닫게 두면, 스무 대를 적는 데 창을 마흔 번 여닫는다.
+
+                      승인이 찍힌 줄은 안 열어 준다 — 결재한 뒤에 금액이 바뀌면 무엇을
+                      보고 찍었는지가 안 남는다. 그 줄은 지금처럼 숫자만 보여 준다.
+                    */
+                    salePrice: lockedFor(s) ? (
+                      <span className="text-slate-600">{s.salePrice > 0 ? MAN(s.salePrice) : '—'}</span>
+                    ) : (
+                      <MoneyCell
+                        amount={s.salePrice}
+                        onSave={next => void saveSalePrice(s, next)}
+                        title="차량판매가 — 적으면 바로 저장됩니다"
+                      />
+                    ),
                     /*
                       매도정산 — 신차 30% / 개인 50%.
 
@@ -1428,6 +1461,53 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
  * 고치는 중에는 밖에서 온 값으로 덮지 않는다. 적는 사이에 목록이 다시 와서 글자가
  * 바뀌면 적던 숫자가 날아간다.
  */
+/**
+ * 표 안에서 금액을 적는 칸.
+ *
+ * 창을 열지 않고 그 자리에서 고친다. 적고 나서 칸을 벗어나면 저장한다 — 값이 안 바뀌면
+ * 아무 일도 안 한다(스무 줄을 훑어보기만 해도 스무 번 저장되면 안 된다).
+ */
+function MoneyCell({
+  amount,
+  onSave,
+  title,
+}: {
+  amount: number;
+  onSave: (next: number) => void;
+  title?: string;
+}) {
+  const [text, setText] = useState(() => (amount > 0 ? amount.toLocaleString() : ''));
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setText(amount > 0 ? amount.toLocaleString() : '');
+  }, [amount, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const next = moneyToNumber(text);
+    if (next !== amount) onSave(next);
+  };
+
+  return (
+    <input
+      value={text}
+      title={title}
+      onFocus={() => setEditing(true)}
+      onChange={e => setText(toMoneyValue(e.target.value))}
+      onBlur={commit}
+      onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+      placeholder="0"
+      inputMode="numeric"
+      className={`w-24 min-w-0 rounded border px-1.5 py-0.5 text-right text-xs outline-none ${
+        amount > 0
+          ? 'border-transparent bg-transparent text-slate-600 hover:border-slate-200'
+          : 'border-amber-200 bg-amber-50/60 text-slate-600 placeholder:text-amber-400'
+      } focus:border-emerald-400 focus:bg-white`}
+    />
+  );
+}
+
 function MealInput({
   name,
   amount,

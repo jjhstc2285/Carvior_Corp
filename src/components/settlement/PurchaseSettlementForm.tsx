@@ -291,10 +291,14 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         {/* 판 값. 산 값과 한 화면에 있어야 그 차에서 얼마가 남았는지가 보인다. */}
         <div className="mt-4 rounded-xl border border-slate-200 p-3">
           <p className="mb-2 text-xs font-semibold text-slate-600">판매 (판매완료된 뒤에 적습니다)</p>
+          {/*
+            "따라옵니다"만 적어 두었더니 못 적는 칸으로 읽혔다. 우리가 직접 판 차는 따라올
+            데가 없어 손으로 적어야 하는데, 그 말이 어디에도 없었다.
+          */}
           <p className="mb-2 text-[11px] text-slate-400">
-            차량판매가는 알선 정산에 <b>실차주입금</b>을 적으면 그때 따라옵니다(안 적혀 있으면
-            <b>총 진행 판매금액</b>을 씁니다) — 여기서 고쳐도
-            알선 정산을 다시 저장하면 그 값으로 돌아갑니다.
+            차량판매가는 <b>여기 적으면 그대로 저장됩니다.</b> 알선·수출 정산이 있는 차만, 그쪽을 다시 저장할 때
+            그 값(<b>실 차량판매가</b> → 없으면 <b>실차주입금 + 차대금업</b> → 없으면 <b>총 진행 판매금액</b>)으로
+            덮입니다. 매입 정산 표에서도 바로 적을 수 있습니다.
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MoneyField label="차량판매가" value={salePrice} onChange={setSalePrice} />
