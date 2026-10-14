@@ -128,6 +128,7 @@ export default function CondolenceModule() {
       대상: r.person,
       소속: r.relation,
       관계: r.subject,
+      연락처: r.phone,
       금액: r.amount,
       화환: r.wreath ? r.wreathPrice : 0,
       합계: r.amount + (r.wreath ? r.wreathPrice : 0),
@@ -140,6 +141,7 @@ export default function CondolenceModule() {
       대상: '',
       소속: '',
       관계: '',
+      연락처: '',
       금액: sum.amount,
       화환: sum.wreath,
       합계: sum.amount + sum.wreath,
@@ -147,7 +149,7 @@ export default function CondolenceModule() {
       메모: '',
     });
     const ws = XLSX.utils.json_to_sheet(data);
-    ws['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 30 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 8 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `${year}년 경조사비`);
     XLSX.writeFile(wb, `경조사비_${year}.xlsx`);
@@ -312,6 +314,15 @@ export default function CondolenceModule() {
                     {r.relation && <span className="ml-1 text-xs text-slate-400">{r.relation}</span>}
                   </td>
                   <td className="whitespace-nowrap px-5 py-2.5 text-xs text-slate-500">{r.subject || '—'}</td>
+                  {/*
+                    연락처 칸을 안 그려서 뒤가 통째로 한 칸씩 밀려 있었다 — 금액이 연락처
+                    자리에, 화환이 금액 자리에 앉아 장례 15만원이 전화번호로 보였다.
+                    머리글은 COLUMNS 가, 몸은 여기가 그린다. 둘이 따로라 칸을 더할 때
+                    한쪽만 고치면 이렇게 된다.
+                  */}
+                  <td className="whitespace-nowrap px-5 py-2.5 text-xs text-slate-500">
+                    {r.phone || <span className="text-slate-300">—</span>}
+                  </td>
                   <td className="whitespace-nowrap px-5 py-2.5 text-right font-semibold text-slate-800">
                     {r.amount > 0 ? withCommas(String(r.amount)) : <span className="text-slate-300">—</span>}
                   </td>
