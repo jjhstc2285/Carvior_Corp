@@ -510,9 +510,15 @@ export class PurchaseIntakeService {
    * 정산에 없는 값이라 비워 두고, 특이사항에 끌어왔다고 적어 둔다. 지어내는 것보다
    * 비워 두고 누가 채우게 하는 쪽이 낫다.
    *
-   * 매입일은 제시일자(조합 전산에 올린 날)로 잡는다. 검차한 날은 어디에도 안 남아 있고,
-   * 매입 관리가 달을 가르는 기준이 제시일자라 그 날짜라야 제 달에 앉는다. 제시일자가
-   * 없으면 정산일로 대신한다.
+   * 제시일자가 있는 차만 끌어온다.
+   *
+   * 한때 제시일자가 없으면 정산일로 대신했다. 그랬더니 9월 매입이 120대에서 130대가
+   * 됐다 — 제시일자가 없는 열 대가 정산일을 따라 9월에 앉았는데, 그 차들은 조합 전산에
+   * 안 올라가 상사 대장 120대에도 없는 차다. 겨우 맞춰 놓은 숫자가 하루아침에 틀어졌다.
+   *
+   * 매입 관리가 달을 가르는 기준이 제시일자다. 그 날짜가 없는 차는 아직 어느 달 것인지
+   * 정해지지 않은 차지, 정산일로 때려 맞출 차가 아니다. 날짜를 지어내면 그 차가 어느
+   * 달에 앉았는지 아무도 모르게 된다 — 제시일자를 적고 다시 누르면 그때 끌어온다.
    */
   private async pullable() {
     const [setts, intakes, vehicles] = await Promise.all([
@@ -531,6 +537,7 @@ export class PurchaseIntakeService {
       }),
       this.prisma.purchaseIntake.findMany({ select: { vehicleNumber: true } }),
       this.prisma.managedVehicle.findMany({
+        where: { offerDate: { not: null } },
         select: { vehicleNumber: true, offerDate: true, modelYear: true, mileage: true, fuel: true },
       }),
     ]);
@@ -543,7 +550,8 @@ export class PurchaseIntakeService {
     const picked = new Map<string, (typeof setts)[number]>();
     for (const s of setts) {
       const plate = normalizePlate(s.vehicleNumber);
-      if (!plate || have.has(plate)) continue;
+      // 제시일자가 없는 차는 건너뛴다 — 입고한 달을 지어낼 수 없다
+      if (!plate || have.has(plate) || !cars.has(plate)) continue;
       picked.set(plate, s);
     }
 
@@ -553,7 +561,6 @@ export class PurchaseIntakeService {
         plate,
         vehicleName: (s.vehicleName ?? '').trim(),
         date: car?.offerDate ?? s.date,
-        fromOffer: !!car?.offerDate,
         purchaseAmount: s.purchasePrice,
         brokerFee: s.brokerFee ?? 0,
         employeeId: s.employeeId,
@@ -565,20 +572,52 @@ export class PurchaseIntakeService {
     });
   }
 
-  /** 끌어올 수 있는 차 — 만들기 전에 무엇이 들어오는지 먼저 본다 */
+  /**
+   * 끌어올 수 있는 차 — 만들기 전에 무엇이 들어오는지 먼저 본다.
+   *
+   * 제시일자가 없어 못 끌어오는 차도 같이 센다. 그냥 빼 버리면 "정산에 있는데 왜 안
+   * 뜨지"가 되고, 제시일자를 적으면 된다는 걸 아무도 모른다.
+   */
   async findPullable() {
-    const rows = await this.pullable();
-    return rows
-      .map((r) => ({
-        vehicleNumber: r.plate,
-        vehicleName: r.vehicleName,
-        date: formatDateOnly(r.date),
-        fromOffer: r.fromOffer,
-        purchaseAmount: r.purchaseAmount,
-        brokerFee: r.brokerFee,
-        employeeName: r.employeeName,
-      }))
-      .sort((a, b) => b.date.localeCompare(a.date));
+    const [rows, blocked] = await Promise.all([this.pullable(), this.pullBlocked()]);
+    return {
+      rows: rows
+        .map((r) => ({
+          vehicleNumber: r.plate,
+          vehicleName: r.vehicleName,
+          date: formatDateOnly(r.date),
+          purchaseAmount: r.purchaseAmount,
+          brokerFee: r.brokerFee,
+          employeeName: r.employeeName,
+        }))
+        .sort((a, b) => b.date.localeCompare(a.date)),
+      blocked,
+    };
+  }
+
+  /** 정산에는 있는데 제시일자가 없어 못 끌어오는 차 */
+  private async pullBlocked() {
+    const [setts, intakes, cars] = await Promise.all([
+      this.prisma.purchaseSettlement.findMany({
+        where: { purchasePrice: { gt: 0 } },
+        select: { vehicleNumber: true, vehicleName: true },
+      }),
+      this.prisma.purchaseIntake.findMany({ select: { vehicleNumber: true } }),
+      this.prisma.managedVehicle.findMany({
+        where: { offerDate: { not: null } },
+        select: { vehicleNumber: true },
+      }),
+    ]);
+
+    const have = new Set(intakes.map((r) => normalizePlate(r.vehicleNumber)));
+    const dated = new Set(cars.map((v) => normalizePlate(v.vehicleNumber)));
+    const out = new Map<string, string>();
+    for (const s of setts) {
+      const plate = normalizePlate(s.vehicleNumber);
+      if (!plate || have.has(plate) || dated.has(plate)) continue;
+      out.set(plate, (s.vehicleName ?? '').trim());
+    }
+    return [...out.entries()].map(([vehicleNumber, vehicleName]) => ({ vehicleNumber, vehicleName }));
   }
 
   /**
