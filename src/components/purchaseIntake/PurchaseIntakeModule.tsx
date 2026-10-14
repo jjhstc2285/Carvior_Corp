@@ -55,14 +55,24 @@ export default function PurchaseIntakeModule() {
   };
 
   const isSold = (r: PurchaseIntake) => inMonth(r.soldOn);
-  const isStock = (r: PurchaseIntake) => !r.soldOn && inMonth(r.intakeOn ?? r.date);
+  /*
+    들어온 차는 팔렸든 안 팔렸든 다 센다.
+
+    처음에는 이미 나간 차를 뺐다 — '재고'라는 말을 지금 들고 있는 차로 읽은 탓이다.
+    그런데 9월 매입은 백스물네 대인데 여든여섯 대로 떴다. 그 달에 들어와 그새 팔린
+    서른여덟 대가 통째로 빠져서다. 9월에 몇 대를 사 왔냐는 물음에 아직 안 팔린 차만
+    세어 주면 매입 대수가 팔릴수록 줄어든다.
+
+    지금 들고 있는 차는 장기 재고 자리가 따로 센다.
+  */
+  const isIn = (r: PurchaseIntake) => inMonth(r.intakeOn ?? r.date);
 
   const soldAll = api.items.filter(isSold).length;
-  const stockAll = api.items.filter(isStock).length;
+  const inAll = api.items.filter(isIn).length;
 
   /** 아래 숫자와 목록은 모두 고른 쪽만 센다 — 카드와 목록이 다른 걸 세면 안 된다 */
   const items = useMemo(
-    () => api.items.filter(r => (stock === 'sold' ? isSold(r) : stock === 'stock' ? isStock(r) : true)),
+    () => api.items.filter(r => (stock === 'sold' ? isSold(r) : stock === 'stock' ? isIn(r) : true)),
     [api.items, stock, period, month, half],
   );
 
@@ -88,6 +98,8 @@ export default function PurchaseIntakeModule() {
   */
   const vat = vatBalance(purchaseTotal, saleTotal);
   const soldCount = items.filter(r => (r.salePrice ?? 0) > 0).length;
+  /** 들어온 차 중 그새 나간 차 — 매입 대수에서 재고를 가려 보는 숫자다 */
+  const goneCount = items.filter(r => !!r.soldOn).length;
 
   /*
     대산에 이번 달 몇 대를 맡겼는가.
@@ -218,6 +230,20 @@ export default function PurchaseIntakeModule() {
             {items.length}
             <span className="ml-1 text-sm font-medium text-slate-400">대</span>
           </p>
+          {/*
+            들어온 차 중 그새 나간 차를 같이 적는다. 매입 대수는 팔려도 줄지 않아야 하고,
+            지금 몇 대를 들고 있는지도 같은 자리에서 보여야 한다 — 두 숫자를 다른 자리에
+            두면 어느 쪽이 매입이고 어느 쪽이 재고인지 매번 헷갈린다.
+          */}
+          {stock === 'stock' && goneCount > 0 && (
+            <p className="text-[11px] text-slate-400">
+              그중 {goneCount}대 나감 · 들고 있는 차 {items.length - goneCount}대
+            </p>
+          )}
+          {/* 나간 차는 매입 등록이 있어야 이 목록에 뜬다 — 안 적어 두면 숫자가 모자란 이유를 모른다 */}
+          {stock === 'sold' && (
+            <p className="text-[11px] text-slate-400">매입 등록이 있는 차만 보입니다</p>
+          )}
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">총 매입금액 (실매입 + 구전)</p>
@@ -361,7 +387,7 @@ export default function PurchaseIntakeModule() {
         {/* 들고 있는 차가 먼저다 — 나간 차는 눌러서 본다 */}
         <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
           {([
-            ['stock', '들어옴(재고)', stockAll],
+            ['stock', '들어옴(매입)', inAll],
             ['sold', '나감(매도)', soldAll],
             ['all', '전체', api.items.length],
           ] as const).map(([key, label, count]) => (
