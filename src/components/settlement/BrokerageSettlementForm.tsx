@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useStore } from '../../store';
 import {
   brokerageProfit,
+  brokerageSalePrice,
   brokerageSettlementAmount,
   brokerageSettlementRate,
   CONSULTATION_KIND_LABEL,
@@ -82,6 +83,7 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
     etcCost: Number(etcCost) || 0,
   };
   const profit = brokerageProfit(nums);
+  const realSalePrice = brokerageSalePrice(nums);
   // 구간 비율로 낸 값. 사람이 손으로 적으면 그 값이 우선이다 — 예외가 있다.
   const suggested = brokerageSettlementAmount(profit);
   const rate = brokerageSettlementRate(profit);
@@ -167,6 +169,13 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
         </div>
 
         <div className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+          {/*
+            차가 실제로 얼마에 나갔는가.
+
+            차주가 손에 쥔 돈만으로는 안 보인다 — 차대금업으로 따로 받은 몫이 있으면
+            그만큼이 빠진 금액이라, 두 칸을 머릿속으로 더해 가며 봐야 했다.
+          */}
+          <CalcRow label="실 차량판매가" formula="실차주입금 + 차대금업" value={realSalePrice} />
           <CalcRow label="수익금" formula="현금 수수료 + 할부 피 + 보험 피 + 차대금업" value={profit} strong />
           <CalcRow
             label="정산 기준"

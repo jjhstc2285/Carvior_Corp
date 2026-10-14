@@ -455,6 +455,18 @@ export function brokerageProfit(r: Pick<BrokerageSettlement, 'cashCommission' | 
 }
 
 /**
+ * 실 차량판매가 = 실차주입금 + 차대금업.
+ *
+ * 차주가 손에 쥔 돈만으로는 차가 얼마에 나갔는지가 안 보인다. 차대금업으로 따로 받은
+ * 몫이 있으면 그만큼이 빠진 금액이라, 두 칸을 머릿속으로 더해 가며 봐야 했다.
+ *
+ * 차대금업이 없으면 실차주입금이 그대로 실 판매가다 — 더하기 0이라 저절로 그렇게 된다.
+ */
+export function brokerageSalePrice(r: Pick<BrokerageSettlement, 'ownerDeposit' | 'etcCost'>): number {
+  return r.ownerDeposit + r.etcCost;
+}
+
+/**
  * 정산받을금액 = 수익금 구간별.
  *
  *   100만원 미만  →  5만원 정액

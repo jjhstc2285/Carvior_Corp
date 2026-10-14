@@ -7,6 +7,7 @@ import { useDragScroll } from '../../lib/useDragScroll';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 import {
   brokerageProfit,
+  brokerageSalePrice,
   SETTLEMENT_STAGE_CLASS,
   SETTLEMENT_STAGE_LABEL,
   SETTLEMENT_STATUS_LABEL,
@@ -54,6 +55,12 @@ const COLUMNS: Column[] = [
   { key: 'purchaseTotal', label: '매입총액', align: 'text-right', title: '매입금액 + 구전 — 매입 관리에서 붙여 옵니다' },
   { key: 'totalSaleAmount', label: '총 진행 판매금액', align: 'text-right' },
   { key: 'ownerDeposit', label: '실차주입금', align: 'text-right' },
+  {
+    key: 'realSalePrice',
+    label: '실 차량판매가',
+    align: 'text-right',
+    title: '실차주입금 + 차대금업 — 차대금업이 없으면 실차주입금과 같습니다',
+  },
   { key: 'profit', label: '수익금', align: 'text-right' },
   { key: 'transferFee', label: '이전비', align: 'text-right' },
   { key: 'transferFeeBalance', label: '이전비 잔액', align: 'text-right' },
@@ -310,6 +317,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
       차량명: s.vehicleName,
       '총 진행 판매금액': s.totalSaleAmount,
       실차주입금: s.ownerDeposit,
+      '실 차량판매가': brokerageSalePrice(s),
       수익금: brokerageProfit(s),
       이전비: s.transferFee,
       '이전비 잔액': s.transferFeeBalance,
@@ -564,6 +572,9 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                       vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
                       totalSaleAmount: <span className="text-slate-600">{NUM(s.totalSaleAmount)}</span>,
                       ownerDeposit: <span className="text-slate-500">{NUM(s.ownerDeposit)}</span>,
+                      realSalePrice: (
+                        <span className="font-medium text-slate-700">{NUM(brokerageSalePrice(s))}</span>
+                      ),
                       profit: (
                         <span className={`font-medium ${profit >= 0 ? 'text-slate-700' : 'text-red-600'}`}>
                           {NUM(profit)}
