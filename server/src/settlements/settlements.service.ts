@@ -491,6 +491,7 @@ export class SettlementsService {
       installmentFee: number;
       insuranceFee: number;
       etcCost: number;
+      realSalePrice: number;
     },
   >(
     row: T,
@@ -583,6 +584,7 @@ export class SettlementsService {
       installmentFee: dto.installmentFee ?? 0,
       insuranceFee: dto.insuranceFee ?? 0,
       etcCost: dto.etcCost ?? 0,
+      realSalePrice: dto.realSalePrice ?? 0,
     };
     const row = await this.prisma.brokerageSettlement.create({
       data: {
@@ -646,18 +648,29 @@ export class SettlementsService {
   /**
    * 알선 정산에 적은 판매금액을 매입 정산의 차량판매가로 옮긴다.
    *
-   * 실차주입금이 먼저다 — 실제로 들어온 돈이 그쪽이다.
-   * 안 적혀 있으면 총 진행 판매금액을 쓴다. 출고는 했는데 입금 확인을 아직 못 적은
-   * 건이 많은데, 그때마다 차량판매가가 비어 매입 관리의 매도금액이 0으로 남았다.
-   * 나중에 실차주입금을 적으면 그 값으로 덮인다.
+   * 실 차량판매가가 먼저다 — 차가 실제로 얼마에 나갔는지 적어 둔 값이다.
+   *
+   * 안 적혀 있으면 실차주입금을 쓴다. 다만 그건 세금을 떼고 들어온 돈이라 판매가보다
+   * 적다 — 차대금업으로 따로 받은 몫이 있으면 같이 더한다.
+   *
+   * 그것도 없으면 총 진행 판매금액을 쓴다. 출고는 했는데 입금 확인을 아직 못 적은 건이
+   * 많은데, 그때마다 차량판매가가 비어 매입 관리의 매도금액이 0으로 남았다. 나중에
+   * 제대로 적으면 그 값으로 덮인다.
    */
   private async syncFromBrokerage(row: {
     vehicleNumber: string;
     ownerDeposit: number;
+    etcCost: number;
+    realSalePrice: number;
     totalSaleAmount: number;
     date: Date;
   }): Promise<'updated' | 'already' | 'noMatch'> {
-    const amount = row.ownerDeposit > 0 ? row.ownerDeposit : row.totalSaleAmount;
+    const amount =
+      row.realSalePrice > 0
+        ? row.realSalePrice
+        : row.ownerDeposit > 0
+          ? row.ownerDeposit + row.etcCost
+          : row.totalSaleAmount;
     if (amount <= 0) return 'already';
 
     try {
@@ -704,7 +717,14 @@ export class SettlementsService {
    */
   async syncAllFromBrokerage() {
     const rows = await this.prisma.brokerageSettlement.findMany({
-      select: { vehicleNumber: true, ownerDeposit: true, totalSaleAmount: true, date: true },
+      select: {
+        vehicleNumber: true,
+        ownerDeposit: true,
+        etcCost: true,
+        realSalePrice: true,
+        totalSaleAmount: true,
+        date: true,
+      },
       orderBy: { date: 'asc' },
     });
 

@@ -738,6 +738,9 @@ model BrokerageSettlement {
   installmentAmount  Int    @default(0) // 할부 실행액(원)
   insuranceFee     Int              @default(0) // 보험 피
   etcCost          Int              @default(0) // 기타비용
+  // 실 차량판매가 — 차가 실제로 얼마에 나갔나. 실차주입금은 세금을 떼고 들어온 돈이라
+  // 판매가가 아니다. 0은 '아직 안 적음'이고, 그때는 실차주입금 + 차대금업으로 대신 본다.
+  realSalePrice    Int              @default(0)
   settlementAmount Int              @default(0) // 정산받을금액
   employeeId       String
   status           SettlementStatus @default(IN_PROGRESS)

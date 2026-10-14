@@ -420,6 +420,7 @@ export interface BrokerageSettlement {
   installmentAmount: number; // 할부 실행액(원) — 손님이 깔아 준 원금
   insuranceFee: number; // 보험 피
   etcCost: number; // 차대금업 (DB 칸 이름은 그대로 둔다 — 지난 자료가 들어 있다)
+  realSalePrice: number; // 실 차량판매가 — 0이면 아직 안 적은 것이다
   settlementAmount: number; // 정산받을금액
   employeeId: string;
   status: SettlementStatus;
@@ -455,15 +456,18 @@ export function brokerageProfit(r: Pick<BrokerageSettlement, 'cashCommission' | 
 }
 
 /**
- * 실 차량판매가 = 실차주입금 + 차대금업.
+ * 실 차량판매가 — 차가 실제로 얼마에 나갔나.
  *
- * 차주가 손에 쥔 돈만으로는 차가 얼마에 나갔는지가 안 보인다. 차대금업으로 따로 받은
- * 몫이 있으면 그만큼이 빠진 금액이라, 두 칸을 머릿속으로 더해 가며 봐야 했다.
+ * 적어 둔 값이 먼저다. 실차주입금은 세금을 떼고 들어온 돈이라 판매가가 아니다 —
+ * 차대금업을 더해도 떼인 만큼이 모자라서, 더해서 낸 값으로는 실제 판매가를 알 수 없다.
  *
- * 차대금업이 없으면 실차주입금이 그대로 실 판매가다 — 더하기 0이라 저절로 그렇게 된다.
+ * 안 적었으면 실차주입금 + 차대금업으로 대신 보여 준다. 적기 전에도 대중은 보여야 하고,
+ * 지난 자료에는 이 칸이 아예 없다. 0은 '아직 안 적음'이다 — 공짜로 판 차는 없다.
  */
-export function brokerageSalePrice(r: Pick<BrokerageSettlement, 'ownerDeposit' | 'etcCost'>): number {
-  return r.ownerDeposit + r.etcCost;
+export function brokerageSalePrice(
+  r: Pick<BrokerageSettlement, 'ownerDeposit' | 'etcCost'> & { realSalePrice?: number },
+): number {
+  return r.realSalePrice && r.realSalePrice > 0 ? r.realSalePrice : r.ownerDeposit + r.etcCost;
 }
 
 /**

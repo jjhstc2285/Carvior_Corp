@@ -65,6 +65,8 @@ export class CreateBrokerageDto {
   @IsOptional() @Money() installmentAmount?: number;
   @IsOptional() @Money() insuranceFee?: number;
   @IsOptional() @Money() etcCost?: number;
+  /** 실 차량판매가 — 안 적으면 0, 그때는 실차주입금 + 차대금업으로 본다 */
+  @IsOptional() @Money() realSalePrice?: number;
   @IsOptional() @Money() settlementAmount?: number;
   @IsString() @IsNotEmpty() employeeId!: string;
   @IsOptional() @IsEnum(SettlementStatus) status?: SettlementStatus;
@@ -89,6 +91,8 @@ export class UpdateBrokerageDto {
   @IsOptional() @Money() installmentAmount?: number;
   @IsOptional() @Money() insuranceFee?: number;
   @IsOptional() @Money() etcCost?: number;
+  /** 실 차량판매가 — 안 적으면 0, 그때는 실차주입금 + 차대금업으로 본다 */
+  @IsOptional() @Money() realSalePrice?: number;
   @IsOptional() @Money() settlementAmount?: number;
   @IsOptional() @IsString() employeeId?: string;
   @IsOptional() @IsEnum(SettlementStatus) status?: SettlementStatus;
