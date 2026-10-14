@@ -34,6 +34,27 @@ export function visitDealers(employees: Employee[]): Employee[] {
   return employees.filter(e => e.active !== false && e.department === VISIT_TEAM);
 }
 
+/**
+ * 기타 — 알선팀 밖의 사람이 맞은 건.
+ *
+ * 목록에 없는 사람이 손님을 맞는 일이 있다. 그때 '미지정'으로 두면 아직 안 정한 건과
+ * 섞여서, 배정판의 '안 정한 건 N'이 실제보다 많아 보인다. 누가 맞았는지는 몰라도
+ * '정했다'는 것만은 남겨 둔다.
+ *
+ * 직원 번호가 아니라 정해 둔 글자다 — 그만두거나 팀이 바뀌어도 값이 안 흔들린다.
+ *
+ * 자동 배정에는 안 낀다. 나눌 사람은 알선팀에서만 고르고(서버가 그 팀만 읽는다),
+ * 기타로 적어 둔 건은 이미 정해진 건이라 다시 나누지도 않는다.
+ */
+export const ETC_DEALER = 'ETC';
+
+/** 담당 딜러 이름 — 기타는 직원이 아니라 따로 적는다 */
+export function dealerName(employees: Employee[], id: string | null | undefined): string {
+  if (!id) return '';
+  if (id === ETC_DEALER) return '기타';
+  return employees.find(e => e.id === id)?.name ?? '';
+}
+
 /** 담당 딜러 고르는 칸 — 표에서도 배정판에서도 같은 걸 쓴다 */
 export function VisitDealerSelect({
   value,
@@ -72,6 +93,8 @@ export function VisitDealerSelect({
           {d.name}
         </option>
       ))}
+      {/* 알선팀 밖의 사람이 맞은 건 — 미지정과 섞이면 '안 정한 건'이 부풀어 보인다 */}
+      <option value={ETC_DEALER}>기타</option>
     </select>
   );
 }

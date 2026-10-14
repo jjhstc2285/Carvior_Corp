@@ -2,6 +2,7 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { Paperclip, Pencil, X } from 'lucide-react';
 import { useStore } from '../../store';
+import { ETC_DEALER } from './VisitAssignPanel';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
 import {
@@ -137,7 +138,7 @@ export default function ConsultationDetailModal({
                 목록에 없으면 고르지도 않은 사람으로 값이 튄다.
               */}
               <option value="">미지정</option>
-              {dealer && !candidates.some(e => e.id === dealer.id) && (
+              {dealer && dealer.id !== ETC_DEALER && !candidates.some(e => e.id === dealer.id) && (
                 <option value={dealer.id}>
                   {dealer.name} {dealer.position}
                 </option>
@@ -147,6 +148,8 @@ export default function ConsultationDetailModal({
                   {e.name} {e.position}
                 </option>
               ))}
+              {/* 알선팀 밖의 사람이 맞은 건 — 미지정과 섞이면 '안 정한 건'이 부풀어 보인다 */}
+              <option value={ETC_DEALER}>기타</option>
             </select>
           </Row>
           <Row label="손님번호">{c.customerPhone || c.customerName || '—'}</Row>

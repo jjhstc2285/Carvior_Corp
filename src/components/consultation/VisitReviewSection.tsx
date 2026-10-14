@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { ChevronDown, ChevronRight, MessageSquarePlus, PhoneOutgoing, UserX } from 'lucide-react';
 import { useStore } from '../../store';
+import { dealerName } from './VisitAssignPanel';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
 import { conversionOf } from '../../lib/consultationStats';
@@ -131,7 +132,7 @@ export default function VisitReviewSection({
 
   /** 그 건을 맡은 사람 — 방문 담당을 정해 뒀으면 그 사람, 아니면 적은 사람 */
   const ownerOf = (c: ConsultationRecord) => c.visitDealerId ?? c.employeeId;
-  const nameOf = (id: string) => state.employees.find(e => e.id === id)?.name ?? '';
+  const nameOf = (id: string) => dealerName(state.employees, id);
 
   /** 방문했는데 계약이 안 된 건 — 방문일 기준으로 끊는다(온 날이 지난 것만) */
   const misses = useMemo(() => {
