@@ -141,9 +141,17 @@ function AuthedApp({ role }: { role: Role }) {
   const { user } = useAuth();
   const [asEmployee, setAsEmployee] = useState(false);
   const shownRole: Role = asEmployee ? 'EMPLOYEE' : role;
-  const seeLedger = canSeeLedger(user);
-  const isCeo = usePropertyAccess();
-  const canSeePayroll = usePayrollAccess();
+  /*
+    직원 눈으로 보는 동안에는 직원에게 안 보이는 화면을 다 감춘다.
+
+    띠만 두르고 메뉴를 그대로 두었더니 "똑같다"는 말이 돌아왔다. 직원이 뭘 보는지
+    확인하려고 켜는 자리인데, 부동산·인건비·경조사비가 그대로 떠 있으면 확인이 안 된다.
+
+    권한 자체는 그대로다 — 띠에 적힌 대로 보기만 바뀐다. 끄면 바로 돌아온다.
+  */
+  const seeLedger = canSeeLedger(user) && !asEmployee;
+  const isCeo = usePropertyAccess() && !asEmployee;
+  const canSeePayroll = usePayrollAccess() && !asEmployee;
   const [module, setModule] = useState<ModuleKey>('attendance');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
@@ -159,7 +167,7 @@ function AuthedApp({ role }: { role: Role }) {
   const myRecord = state.records.find(r => r.employeeId === state.currentEmployeeId && r.date === today);
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
   /** 관리 시트 — 대표(관리자)와 관리팀만. 메뉴에서부터 안 보인다 */
-  const canSeeSheet = canSeeAdminSheet({ role }, me?.department);
+  const canSeeSheet = canSeeAdminSheet({ role }, me?.department) && !asEmployee;
 
   useAutoAwayStatus({
     working: Boolean(myRecord?.clockIn) && !myRecord?.clockOut,
@@ -184,7 +192,7 @@ function AuthedApp({ role }: { role: Role }) {
     (module === 'payroll' && !canSeePayroll) ||
     (module === 'adminSheet' && !canSeeSheet) ||
     // 경조사비는 관리자만 — 메뉴만 감추면 주소로 들어온다
-    (module === 'condolence' && role !== 'ADMIN');
+    (module === 'condolence' && (role !== 'ADMIN' || asEmployee));
   const shownModule: ModuleKey = blocked ? 'attendance' : module;
 
   return (
@@ -211,7 +219,7 @@ function AuthedApp({ role }: { role: Role }) {
         isCeo={isCeo}
         canSeePayroll={canSeePayroll}
         canSeeSheet={canSeeSheet}
-        isAdmin={role === 'ADMIN'}
+        isAdmin={role === 'ADMIN' && !asEmployee}
       />
       <div className="min-w-0 flex-1">
         <TopBar
