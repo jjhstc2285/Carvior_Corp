@@ -37,11 +37,26 @@ export default function ContractPhotos({
   value,
   onChange,
   max = 1,
+  title = '계약서 사진',
+  hint,
+  endpoint = '/settlements/purchase/contract-photos',
+  watermark = true,
 }: {
   value: string;
   onChange: (next: string) => void;
   /** 받을 장수 — 매입은 한 장, 알선은 다섯 장 */
   max?: number;
+  /*
+    계약서 말고 다른 사진도 이 칸으로 받는다.
+
+    근태 신청의 증빙 사진이 그렇다 — 올려서 경로를 받고, 줄바꿈으로 이어 한 칸에 담고,
+    맨 앞 한 장만 표에 띄우는 일이 똑같다. 이름과 올릴 주소만 갈아끼운다.
+  */
+  title?: string;
+  hint?: string;
+  endpoint?: string;
+  /** 로고를 박을지 — 손님에게 보내는 사진만 박는다 */
+  watermark?: boolean;
 }) {
   const urls = splitPhotos(value).slice(0, max);
   const [busy, setBusy] = useState(false);
@@ -69,9 +84,9 @@ export default function ContractPhotos({
     try {
       const form = new FormData();
       // 계약서도 휴대폰으로 찍는다 — 올리기 전에 줄인다(차량 사진과 같은 식)
-      for (const file of taking) form.append('files', await shrinkForUpload(file));
+      for (const file of taking) form.append('files', await shrinkForUpload(file, { mark: watermark }));
 
-      const { urls: got } = await api<{ urls: string[] }>('/settlements/purchase/contract-photos', {
+      const { urls: got } = await api<{ urls: string[] }>(endpoint, {
         method: 'POST',
         formData: form,
       });
@@ -96,9 +111,9 @@ export default function ContractPhotos({
   return (
     <div className="rounded-xl border border-slate-200 p-3">
       <div className="flex items-center gap-2">
-        <p className="text-xs font-semibold text-slate-600">계약서 사진</p>
+        <p className="shrink-0 text-xs font-semibold text-slate-600">{title}</p>
         <span className="text-[11px] text-slate-400">
-          올려두면 결재하는 분이 화면으로 보고 찍습니다 — 종이를 들고 갈 필요가 없습니다
+          {hint ?? '올려두면 결재하는 분이 화면으로 보고 찍습니다 — 종이를 들고 갈 필요가 없습니다'}
           {max > 1 && ` · ${max}장까지, 맨 앞 사진이 표에 보입니다`}
         </span>
         <button
@@ -169,7 +184,16 @@ export default function ContractPhotos({
  * 여러 장이어도 맨 앞 한 장만 그린다. 나머지는 안 보이게 같은 묶음에 넣어 둔다 — 눌러
  * 열면 그대로 슬라이드로 넘어가고, 표에는 줄 높이가 그대로 남는다.
  */
-export function ContractPhotoThumb({ value, size = 36 }: { value?: string | null; size?: number }) {
+export function ContractPhotoThumb({
+  value,
+  size = 36,
+  alt = '계약서',
+}: {
+  value?: string | null;
+  size?: number;
+  /** 무슨 사진인지 — 근태 증빙처럼 계약서가 아닌 데서도 쓴다 */
+  alt?: string;
+}) {
   const urls = splitPhotos(value);
   if (urls.length === 0) return null;
 
@@ -178,7 +202,7 @@ export function ContractPhotoThumb({ value, size = 36 }: { value?: string | null
       <div className="relative inline-block leading-none">
         <Image
           src={urls[0]}
-          alt="계약서"
+          alt={alt}
           width={size}
           height={size}
           className="rounded border border-slate-200 object-cover"
@@ -192,7 +216,7 @@ export function ContractPhotoThumb({ value, size = 36 }: { value?: string | null
       {/* 넘겨 볼 나머지 — 자리를 차지하지 않게 숨겨만 둔다 */}
       <div className="hidden">
         {urls.slice(1).map(url => (
-          <Image key={url} src={url} alt="계약서" />
+          <Image key={url} src={url} alt={alt} />
         ))}
       </div>
     </Image.PreviewGroup>

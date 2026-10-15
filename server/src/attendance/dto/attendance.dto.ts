@@ -33,6 +33,16 @@ export class CreateAttendanceRequestDto {
   @IsNotEmpty({ message: '사유를 입력해 주세요.' })
   @MaxLength(500)
   reason!: string;
+
+  /**
+   * 증빙 사진 — 먼저 올려 경로를 받고, 그 경로를 줄바꿈으로 이어 함께 보낸다.
+   *
+   * 다섯 장까지 받으므로 경로가 길어도 500자를 넘지 않는다. 넉넉히 둔다.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  photos?: string;
 }
 
 export class ReviewDto {

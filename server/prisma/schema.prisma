@@ -186,6 +186,15 @@ model AttendanceRequest {
   date       DateTime              @db.Date
   kind       AttendanceRequestKind
   reason     String                @db.Text
+  /**
+   * 증빙 사진 — 반차·조퇴에 병원 영수증·진단서 같은 것을 붙인다.
+   *
+   * 글로만 적으면 승인하는 쪽에서 되물어야 하고, 그러느라 하루가 간다.
+   * 여러 장이면 줄바꿈으로 이어 담는다(정산 계약서 사진과 같은 꼴).
+   *
+   * 남이 볼 값이 아니다 — 신청 목록은 전 직원이 보지만 사진은 본인과 관리자에게만 내준다.
+   */
+  photos     String                @default("") @db.Text
   status     RequestStatus         @default(PENDING)
   reviewedAt DateTime?
   reviewNote String?               @db.Text

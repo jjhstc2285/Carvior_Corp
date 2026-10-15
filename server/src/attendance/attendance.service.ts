@@ -4,6 +4,7 @@ import { AttendanceRequestKind, NotificationType, RequestStatus, Role } from '@p
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, formatDateOnlyOrNull, monthRange, nowTimeKst, todayKst, toDateOnly } from '../common/date.util';
 import type { AddIpDto, CreateAttendanceRequestDto, CreateCorrectionDto } from './dto/attendance.dto';
+import type { AuthUser } from '../auth/current-user.decorator';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { PushService } from '../push/push.service';
 import { ipAllowed } from './ip-match';
@@ -451,6 +452,7 @@ export class AttendanceService {
         date,
         kind: dto.kind,
         reason: dto.reason,
+        photos: (dto.photos ?? '').trim(),
         ...(away ? { status: RequestStatus.APPROVED, reviewedAt: new Date() } : {}),
       },
       include: { employee: { select: { name: true } } },
@@ -468,13 +470,27 @@ export class AttendanceService {
     return { ...req, date: formatDateOnly(req.date) };
   }
 
-  async findAttendanceRequests(employeeId?: string, status?: RequestStatus) {
+  /**
+   * 근태 신청 목록.
+   *
+   * 목록 자체는 전 직원이 본다 — 누가 언제 쉬는지는 같이 알아야 일정을 짠다.
+   *
+   * 사진은 본인과 관리자에게만 내준다. 반차·조퇴 증빙으로 붙이는 게 병원 영수증·진단서다.
+   * 쉬는 날짜와는 다른 값이다 — 옆자리가 볼 까닭이 없다.
+   */
+  async findAttendanceRequests(employeeId?: string, status?: RequestStatus, viewer?: AuthUser) {
     const rows = await this.prisma.attendanceRequest.findMany({
       where: { ...(employeeId ? { employeeId } : {}), ...(status ? { status } : {}) },
       include: { employee: { select: { id: true, name: true, position: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((r) => ({ ...r, date: formatDateOnly(r.date) }));
+    const maySeePhotos = (ownerId: string) =>
+      !viewer || viewer.role === Role.ADMIN || viewer.id === ownerId;
+    return rows.map((r) => ({
+      ...r,
+      date: formatDateOnly(r.date),
+      photos: maySeePhotos(r.employeeId) ? r.photos : '',
+    }));
   }
 
   async reviewAttendanceRequest(id: string, approve: boolean, note?: string) {

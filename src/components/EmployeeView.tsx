@@ -20,6 +20,7 @@ import ClockCard from './ClockCard';
 import StatusBar from './StatusBar';
 import CalendarView from './CalendarView';
 import MonthlyDashboard from './MonthlyDashboard';
+import { ContractPhotoThumb } from './settlement/ContractPhotos';
 
 const REQUEST_STATUS_LABEL: Record<string, string> = {
   pending: '승인 대기',
@@ -247,6 +248,11 @@ export default function EmployeeView() {
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-slate-500">{r.reason}</p>
+                  {r.photos && (
+                    <div className="mt-1.5">
+                      <ContractPhotoThumb value={r.photos} size={44} alt="증빙" />
+                    </div>
+                  )}
                   {r.reviewNote && <p className="mt-1 text-xs text-slate-400">관리자 메모: {r.reviewNote}</p>}
                 </div>
                 <span className="shrink-0 text-xs text-slate-400">{dayjs(r.createdAt).format('M/D HH:mm')}</span>

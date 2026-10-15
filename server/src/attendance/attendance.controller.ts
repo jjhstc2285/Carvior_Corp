@@ -1,4 +1,24 @@
-import { Body, Controller, Delete, Get, Headers, HttpCode, Ip, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  Ip,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { existsSync, mkdirSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { RequestStatus, Role } from '@prisma/client';
 import { AttendanceService } from './attendance.service';
 import {
@@ -12,6 +32,22 @@ import {
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { todayKst } from '../common/date.util';
+
+/*
+  근태 신청 증빙 사진.
+
+  차량 사진과 같은 자리(uploads)에 두되 폴더만 따로 쓴다 — Apache 가 /uploads 를 그대로
+  내주므로 올린 경로가 곧 보이는 주소가 된다.
+
+  다섯 장까지 받는다. 병원 영수증 한 장으로 끝나는 일이 많지만, 진단서가 두 장이거나
+  약 봉투까지 찍어 오는 일이 있다.
+*/
+const REQUEST_PHOTO_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'attendance');
+const REQUEST_PHOTO_MAX = 5;
+const MAX_REQUEST_PHOTO_SIZE = 8 * 1024 * 1024;
+const ALLOWED_REQUEST_PHOTO = /^image\/(jpeg|png|webp|heic|heif)$/;
+
+if (!existsSync(REQUEST_PHOTO_DIR)) mkdirSync(REQUEST_PHOTO_DIR, { recursive: true });
 
 @Controller('attendance')
 export class AttendanceController {
@@ -117,16 +153,46 @@ export class AttendanceController {
     결석으로 잡힌다. 누가 언제 쉬는지는 어차피 같이 알아야 일정을 짠다.
   */
   requests(
-    @CurrentUser() _user: AuthUser,
+    @CurrentUser() user: AuthUser,
     @Query('status') status?: RequestStatus,
     @Query('employeeId') employeeId?: string,
   ) {
-    return this.attendance.findAttendanceRequests(employeeId, status);
+    // 보는 사람을 넘긴다 — 증빙 사진은 본인과 관리자에게만 내준다
+    return this.attendance.findAttendanceRequests(employeeId, status, user);
   }
 
   @Post('requests')
   createRequest(@CurrentUser() user: AuthUser, @Body() dto: CreateAttendanceRequestDto) {
     return this.attendance.createAttendanceRequest(user.id, dto);
+  }
+
+  /**
+   * 증빙 사진 올리기 — 신청을 보내기 전에 먼저 올리고 경로를 받아 함께 보낸다.
+   *
+   * 원본 파일명은 안 쓴다. 한글 이름이 깨지고 경로에 넣기 위험한 글자가 섞여 들어온다.
+   */
+  @Post('requests/photos')
+  @UseInterceptors(
+    FilesInterceptor('files', REQUEST_PHOTO_MAX, {
+      storage: diskStorage({
+        destination: REQUEST_PHOTO_DIR,
+        filename: (_req, file, cb) =>
+          cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
+      }),
+      limits: { fileSize: MAX_REQUEST_PHOTO_SIZE, files: REQUEST_PHOTO_MAX },
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_REQUEST_PHOTO.test(file.mimetype)) {
+          cb(new BadRequestException('이미지 파일만 올릴 수 있습니다.'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadRequestPhotos(@UploadedFiles() files: Express.Multer.File[]) {
+    if (!files?.length) throw new BadRequestException('올릴 사진이 없습니다.');
+    // Apache가 /uploads 를 그대로 내주므로 이 경로가 곧 보이는 주소가 된다
+    return { urls: files.map((f) => `/uploads/attendance/${f.filename}`) };
   }
 
   @Roles(Role.ADMIN)

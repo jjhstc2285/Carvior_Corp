@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { ApiError } from '../lib/api';
 import { alertError } from '../lib/alert';
 import { ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
+import { ContractPhotoThumb } from './settlement/ContractPhotos';
 
 /** 신청 종류별 뱃지 색. 키는 AttendanceRequestKind 그대로다. */
 const KIND_COLOR: Record<AttendanceRequestKind, string> = {
@@ -79,6 +80,12 @@ export default function AttendanceRequestInbox() {
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-slate-600">{r.reason}</p>
+                    {/* 눌러서 크게 본다 — 영수증은 작게 봐서는 못 읽는다 */}
+                    {r.photos && (
+                      <div className="mt-2">
+                        <ContractPhotoThumb value={r.photos} size={56} alt="증빙" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 gap-1.5">
                     <button

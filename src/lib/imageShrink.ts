@@ -114,7 +114,12 @@ function stamp(ctx: CanvasRenderingContext2D, mark: HTMLCanvasElement, width: nu
   ctx.restore();
 }
 
-export async function shrinkForUpload(file: File): Promise<File> {
+/**
+ * @param mark 로고를 박을지. 손님에게 보내고 매물 사이트에 올리는 사진은 박고,
+ *             우리끼리만 보는 증빙(병원 영수증 같은 것)은 안 박는다 — 남의 서류에
+ *             우리 로고를 얹을 까닭이 없다.
+ */
+export async function shrinkForUpload(file: File, { mark = true } = {}): Promise<File> {
   /*
     작은 사진도 다시 그린다.
 
@@ -144,8 +149,8 @@ export async function shrinkForUpload(file: File): Promise<File> {
     bitmap.close();
 
     // 로고를 못 불러와도 사진은 올라가야 한다
-    const mark = await loadMark();
-    if (mark) stamp(ctx, mark, canvas.width);
+    const logo = mark ? await loadMark() : null;
+    if (logo) stamp(ctx, logo, canvas.width);
 
     const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
     // 줄인 게 더 크면 원본이 낫다

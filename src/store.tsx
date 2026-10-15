@@ -59,7 +59,12 @@ interface Store {
   approveRequest: (requestId: string, note?: string) => Promise<void>;
   rejectRequest: (requestId: string, note: string) => Promise<void>;
 
-  submitAttendanceRequest: (input: { date: string; kind: AttendanceRequestKind; reason: string }) => Promise<void>;
+  submitAttendanceRequest: (input: {
+    date: string;
+    kind: AttendanceRequestKind;
+    reason: string;
+    photos?: string;
+  }) => Promise<void>;
   approveAttendanceRequest: (requestId: string, note?: string) => Promise<void>;
   rejectAttendanceRequest: (requestId: string, note: string) => Promise<void>;
 

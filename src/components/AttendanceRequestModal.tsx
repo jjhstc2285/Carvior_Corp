@@ -2,6 +2,7 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../store';
+import ContractPhotos from './settlement/ContractPhotos';
 import { ApiError } from '../lib/api';
 import { ATTENDANCE_REQUEST_KIND_HINT, ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
 
@@ -15,6 +16,16 @@ export default function AttendanceRequestModal({ onClose }: Props) {
   const [kind, setKind] = useState<AttendanceRequestKind>('ANNUAL_LEAVE');
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [reason, setReason] = useState('');
+  /*
+    증빙 사진.
+
+    반차·조퇴는 "왜 쉬느냐"를 글로만 적게 되어 있었다. 병원에 갔다는 말과 영수증은 다른
+    값인데 붙일 자리가 없어서, 승인하는 쪽이 되묻고 그러느라 하루가 갔다.
+
+    어느 종류에나 붙일 수 있게 둔다 — 연차에 청첩장을 붙이는 일도 있고, 못 붙이게
+    막아 두면 "왜 반차만 되냐"가 된다. 안 붙여도 신청은 간다.
+  */
+  const [photos, setPhotos] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +41,7 @@ export default function AttendanceRequestModal({ onClose }: Props) {
     setSaving(true);
     setError(null);
     try {
-      await submitAttendanceRequest({ date, kind, reason: reason.trim() });
+      await submitAttendanceRequest({ date, kind, reason: reason.trim(), photos });
       onClose();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '보내지 못했습니다. 잠시 후 다시 눌러 주세요.');
@@ -41,7 +52,7 @@ export default function AttendanceRequestModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">근태 신청</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -86,6 +97,20 @@ export default function AttendanceRequestModal({ onClose }: Props) {
             placeholder="사유를 입력해주세요 (3자 이상)"
             className="w-full resize-none rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-indigo-400"
           />
+        </div>
+
+        <div className="mt-3">
+          <ContractPhotos
+            value={photos}
+            onChange={setPhotos}
+            max={5}
+            title="증빙 사진"
+            hint="병원 영수증·진단서 같은 것을 붙이면 되묻지 않고 바로 승인됩니다 — 안 붙여도 신청은 갑니다"
+            endpoint="/attendance/requests/photos"
+            /* 남의 서류에 우리 로고를 얹을 까닭이 없다 */
+            watermark={false}
+          />
+          <p className="mt-1 text-[11px] text-slate-400">사진은 본인과 관리자만 봅니다.</p>
         </div>
 
         {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{error}</p>}

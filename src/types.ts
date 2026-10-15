@@ -104,6 +104,12 @@ export interface AttendanceRequest {
   date: string; // YYYY-MM-DD, 연차/외근 사용일
   kind: AttendanceRequestKind;
   reason: string;
+  /**
+   * 증빙 사진 — 반차·조퇴에 병원 영수증 같은 것을 붙인다. 여러 장이면 줄바꿈으로 이었다.
+   *
+   * 본인과 관리자에게만 내려온다 — 남의 신청은 날짜와 사유만 보이고 여기는 빈 칸이다.
+   */
+  photos?: string;
   status: RequestStatus;
   createdAt: string; // ISO
   reviewedAt: string | null;
