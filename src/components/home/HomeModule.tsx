@@ -155,6 +155,11 @@ export default function HomeModule() {
         </div>
       </div>
 
+      {/*
+        위 두 줄은 왼쪽이 넓고 오른쪽이 좁다 — 바로가기와 공지·출퇴근은 성격이 다르다.
+        아래 세 장은 같은 무게라 폭을 똑같이 나눈다. 둘씩 묶었더니 한 장이 아래로 삐져
+        나와서, 세 장을 한 줄에 둔다.
+      */}
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
           {/* 바로가기 — 매일 손이 가는 것만. 다 늘어놓으면 메뉴를 한 벌 더 만드는 셈이다 */}
@@ -182,118 +187,8 @@ export default function HomeModule() {
             })}
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Panel
-              title="오늘 내 손님"
-              icon={<Headset size={15} className="text-indigo-600" />}
-              onMore={() => goTo('consultation')}
-            >
-              {myVisits.length === 0 ? (
-                <Empty>오늘 잡힌 방문이 없습니다.</Empty>
-              ) : (
-                <ul className="divide-y divide-slate-50">
-                  {myVisits.map(c => (
-                    <li key={c.id} className="flex items-center gap-2 px-1 py-2 text-xs">
-                      <span className="w-12 shrink-0 font-bold text-indigo-600">{c.visitTime || '시간 미정'}</span>
-                      <span className="min-w-0 flex-1 truncate text-slate-700">
-                        {c.vehicleName || c.vehicleNumber || '차량 미정'}
-                      </span>
-                      <span className="shrink-0 text-slate-400">{c.customerPhone || c.customerName}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Panel>
-
-            <Panel
-              title="최근 등록 차량"
-              icon={<Car size={15} className="text-rose-500" />}
-              onMore={() => goTo('vehicle')}
-            >
-              {recentVehicles.length === 0 ? (
-                <Empty>아직 등록된 차가 없습니다.</Empty>
-              ) : (
-                <ul className="divide-y divide-slate-50">
-                  {recentVehicles.map(v => (
-                    <li key={v.id} className="flex items-center gap-2 px-1 py-2 text-xs">
-                      <span className="w-10 shrink-0 text-slate-400">
-                        {v.createdAt ? dayjs(v.createdAt).format('M/D') : ''}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-slate-700">{v.vehicleModel || '차명 없음'}</span>
-                      <span className="shrink-0 font-mono text-[11px] text-slate-500">{v.vehicleNumber}</span>
-                      {v.soldDate ? (
-                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
-                          매도
-                        </span>
-                      ) : v.advertised ? (
-                        <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
-                          광고중
-                        </span>
-                      ) : v.prepared ? (
-                        <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
-                          상품화
-                        </span>
-                      ) : (
-                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-400">
-                          대기
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Panel>
-          </div>
-
-          <Panel
-            title="최근 상담 내역"
-            icon={<Headset size={15} className="text-blue-600" />}
-            onMore={() => goTo('consultation')}
-          >
-            {recentConsults.length === 0 ? (
-              <Empty>아직 적힌 상담이 없습니다.</Empty>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-left text-[11px] text-slate-400">
-                      <th className="py-1.5 pr-2 font-medium">날짜</th>
-                      <th className="py-1.5 pr-2 font-medium">차량</th>
-                      <th className="py-1.5 pr-2 font-medium">손님</th>
-                      <th className="py-1.5 pr-2 font-medium">담당</th>
-                      <th className="py-1.5 font-medium">상태</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentConsults.map(c => (
-                      <tr key={c.id} className="border-b border-slate-50 last:border-0">
-                        <td className="whitespace-nowrap py-1.5 pr-2 text-slate-400">{dayjs(c.date).format('M/D')}</td>
-                        <td className="max-w-[9rem] truncate py-1.5 pr-2 text-slate-700">
-                          {c.vehicleName || c.vehicleNumber || '—'}
-                        </td>
-                        <td className="whitespace-nowrap py-1.5 pr-2 text-slate-500">
-                          {c.customerPhone || c.customerName || '—'}
-                        </td>
-                        <td className="whitespace-nowrap py-1.5 pr-2 text-slate-500">
-                          {nameOf(c.visitDealerId ?? c.employeeId)}
-                        </td>
-                        <td className="py-1.5">
-                          <span
-                            className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                              STATUS_TONE[c.status] ?? 'bg-slate-100 text-slate-500'
-                            }`}
-                          >
-                            {CONSULTATION_STATUS_LABEL[c.status] ?? c.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Panel>
         </div>
+
 
         <div className="space-y-4">
           <HomeClockCard />
@@ -327,6 +222,119 @@ export default function HomeModule() {
 
         </div>
       </div>
+
+      {/* 키를 맞춘다 — 내용이 적은 장이 짧아지면 줄이 들쭉날쭉해진다 */}
+      <div className="grid items-stretch gap-4 lg:grid-cols-3">
+          <Panel
+            title="오늘 내 손님"
+            icon={<Headset size={15} className="text-indigo-600" />}
+            onMore={() => goTo('consultation')}
+          >
+            {myVisits.length === 0 ? (
+              <Empty>오늘 잡힌 방문이 없습니다.</Empty>
+            ) : (
+              <ul className="divide-y divide-slate-50">
+                {myVisits.map(c => (
+                  <li key={c.id} className="flex items-center gap-2 px-1 py-2 text-xs">
+                    <span className="w-12 shrink-0 font-bold text-indigo-600">{c.visitTime || '시간 미정'}</span>
+                    <span className="min-w-0 flex-1 truncate text-slate-700">
+                      {c.vehicleName || c.vehicleNumber || '차량 미정'}
+                    </span>
+                    <span className="shrink-0 text-slate-400">{c.customerPhone || c.customerName}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+        <Panel
+          title="최근 상담 내역"
+          icon={<Headset size={15} className="text-blue-600" />}
+          onMore={() => goTo('consultation')}
+        >
+          {recentConsults.length === 0 ? (
+            <Empty>아직 적힌 상담이 없습니다.</Empty>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 text-left text-[11px] text-slate-400">
+                    <th className="py-1.5 pr-2 font-medium">날짜</th>
+                    <th className="py-1.5 pr-2 font-medium">차량</th>
+                    <th className="py-1.5 pr-2 font-medium">손님</th>
+                    <th className="py-1.5 pr-2 font-medium">담당</th>
+                    <th className="py-1.5 font-medium">상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentConsults.map(c => (
+                    <tr key={c.id} className="border-b border-slate-50 last:border-0">
+                      <td className="whitespace-nowrap py-1.5 pr-2 text-slate-400">{dayjs(c.date).format('M/D')}</td>
+                      <td className="max-w-[9rem] truncate py-1.5 pr-2 text-slate-700">
+                        {c.vehicleName || c.vehicleNumber || '—'}
+                      </td>
+                      <td className="whitespace-nowrap py-1.5 pr-2 text-slate-500">
+                        {c.customerPhone || c.customerName || '—'}
+                      </td>
+                      <td className="whitespace-nowrap py-1.5 pr-2 text-slate-500">
+                        {nameOf(c.visitDealerId ?? c.employeeId)}
+                      </td>
+                      <td className="py-1.5">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            STATUS_TONE[c.status] ?? 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {CONSULTATION_STATUS_LABEL[c.status] ?? c.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+
+          <Panel
+            title="최근 등록 차량"
+            icon={<Car size={15} className="text-rose-500" />}
+            onMore={() => goTo('vehicle')}
+          >
+            {recentVehicles.length === 0 ? (
+              <Empty>아직 등록된 차가 없습니다.</Empty>
+            ) : (
+              <ul className="divide-y divide-slate-50">
+                {recentVehicles.map(v => (
+                  <li key={v.id} className="flex items-center gap-2 px-1 py-2 text-xs">
+                    <span className="w-10 shrink-0 text-slate-400">
+                      {v.createdAt ? dayjs(v.createdAt).format('M/D') : ''}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-slate-700">{v.vehicleModel || '차명 없음'}</span>
+                    <span className="shrink-0 font-mono text-[11px] text-slate-500">{v.vehicleNumber}</span>
+                    {v.soldDate ? (
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
+                        매도
+                      </span>
+                    ) : v.advertised ? (
+                      <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                        광고중
+                      </span>
+                    ) : v.prepared ? (
+                      <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                        상품화
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-400">
+                        대기
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+      </div>
     </div>
   );
 }
@@ -343,7 +351,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
       <div className="mb-1.5 flex items-center gap-1.5">
         {icon}
         <p className="text-sm font-bold text-slate-800">{title}</p>
@@ -356,11 +364,11 @@ function Panel({
           </button>
         )}
       </div>
-      {children}
+      <div className="flex-1">{children}</div>
     </div>
   );
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-6 text-center text-xs text-slate-400">{children}</p>;
+  return <p className="flex h-full items-center justify-center py-8 text-center text-xs text-slate-400">{children}</p>;
 }
