@@ -163,7 +163,7 @@ export default function OrgChart() {
     const open = picked === m.id;
 
     return (
-      <span className="inline-block text-left">
+      <span className="relative inline-block text-left">
         <button
           onClick={() => setPicked(v => (v === m.id ? null : m.id))}
           className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border bg-white px-2.5 py-1.5 transition hover:border-indigo-300 hover:bg-indigo-50/40 ${
@@ -183,8 +183,14 @@ export default function OrgChart() {
           )}
         </button>
 
+        {/*
+          번호는 칸 오른쪽에 띄운다.
+
+          아래에 붙여 두었더니 펼 때마다 그 칸이 높아져서 조직도 전체가 한 번씩 출렁였다.
+          옆으로 띄우면 선과 자리가 그대로다.
+        */}
         {open && phone && (
-          <span className="mt-1 flex flex-wrap items-center justify-center gap-1">
+          <span className="absolute left-full top-0 z-20 ml-2 flex items-center gap-1 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-lg">
             {/* 폰에서는 눌러서 바로 건다 */}
             <a
               href={`tel:${phone.replace(/[^0-9+]/g, '')}`}
