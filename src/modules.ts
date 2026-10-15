@@ -1,4 +1,5 @@
 export type ModuleKey =
+  | 'home'
   | 'attendance'
   | 'workLog'
   | 'approval'

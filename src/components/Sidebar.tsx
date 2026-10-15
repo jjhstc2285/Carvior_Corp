@@ -6,6 +6,7 @@ import {
   Contact,
   HeartHandshake,
   Home,
+  House,
   Landmark,
   Megaphone,
   MessageSquare,
@@ -100,6 +101,7 @@ const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon:
   {
     title: '기타 · 지원',
     items: [
+      { key: 'home', label: '홈', icon: House },
       { key: 'dealerFee', label: '상조회비 관리', icon: Building2 },
       { key: 'chat', label: '메시지', icon: MessageSquare },
     ],
@@ -215,6 +217,25 @@ export default function Sidebar({
 
       {/* 메뉴가 길어 화면을 넘길 수 있다 — 넘치면 이 안에서만 구른다 */}
       <nav className="flex-1 overflow-y-auto px-3 pb-4">
+        {/*
+          홈은 갈래에 안 넣는다.
+
+          어디에 넣어도 그 갈래의 일처럼 보인다 — 홈은 일이 아니라 들어오는 문이다.
+          찾는 동안에는 안 그린다. 검색 결과에 늘 끼어 있으면 결과를 가린다.
+        */}
+        {!searching && (
+          <button
+            onClick={() => go('home')}
+            className={`mb-3 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
+              active === 'home'
+                ? 'bg-indigo-600 font-semibold text-white'
+                : 'font-medium text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <House size={16} className={active === 'home' ? 'text-white' : 'text-slate-400'} />
+            홈
+          </button>
+        )}
         {searching && groups.length === 0 && (
           <p className="px-3 py-6 text-center text-xs text-slate-400">찾는 메뉴가 없습니다.</p>
         )}

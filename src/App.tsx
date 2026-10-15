@@ -37,6 +37,7 @@ import { useAutoAwayStatus } from './hooks/useAutoAwayStatus';
 import { api } from './lib/api';
 import dayjs from 'dayjs';
 import type { ModuleKey } from './modules';
+import HomeModule from './components/home/HomeModule';
 import { GOTO_EVENT } from './lib/goto';
 import type { Role } from './types';
 import Sidebar from './components/Sidebar';
@@ -67,6 +68,7 @@ import PropertyModule from './components/property/PropertyModule';
 import PayrollModule from './components/payroll/PayrollModule';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
+  home: '홈',
   adminSheet: '플랫폼 매물 점검',
   attendance: '출퇴근 관리',
   workLog: '업무 일지',
@@ -88,6 +90,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
 };
 
 function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
+  if (module === 'home') return <HomeModule />;
   if (module === 'attendance') return role === 'EMPLOYEE' ? <EmployeeView /> : <AdminView />;
   if (module === 'workLog') return <WorkLogModule role={role} />;
   if (module === 'approval') return <ApprovalModule role={role} />;
@@ -153,7 +156,7 @@ function AuthedApp({ role }: { role: Role }) {
   const seeLedger = canSeeLedger(user) && !asEmployee;
   const isCeo = usePropertyAccess() && !asEmployee;
   const canSeePayroll = usePayrollAccess() && !asEmployee;
-  const [module, setModule] = useState<ModuleKey>('attendance');
+  const [module, setModule] = useState<ModuleKey>('home');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
   const { state, refresh } = useStore();
@@ -198,7 +201,7 @@ function AuthedApp({ role }: { role: Role }) {
     ),
   });
 
-  // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 출퇴근으로 돌려보낸다.
+  // 볼 수 없는 화면에 있다가 권한이 바뀌면 빈 화면에 갇힌다 — 홈으로 돌려보낸다.
   // 거래처·경조사비도 장부 쪽이다 — 단가와 나간 돈이 적혀 있다
   // 거래처도 장부 쪽이다 — 단가와 결제 조건이 적혀 있다
   const officeOnly: ModuleKey[] = ['dealerFee', 'vendor'];
@@ -210,7 +213,7 @@ function AuthedApp({ role }: { role: Role }) {
     (module === 'adminSheet' && !canSeeSheet) ||
     // 경조사비는 관리자만 — 메뉴만 감추면 주소로 들어온다
     (module === 'condolence' && (role !== 'ADMIN' || asEmployee));
-  const shownModule: ModuleKey = blocked ? 'attendance' : module;
+  const shownModule: ModuleKey = blocked ? 'home' : module;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
