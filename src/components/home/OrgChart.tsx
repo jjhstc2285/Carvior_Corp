@@ -59,6 +59,7 @@ export default function OrgChart() {
   const { state } = useStore();
   const [picked, setPicked] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [openAll, setOpenAll] = useState(false);
 
   const nodes: TreeNode[] = useMemo(() => {
     const live = state.employees.filter(e => e.active !== false);
@@ -81,8 +82,14 @@ export default function OrgChart() {
       teams.push({
         key: `team-${team}`,
         data: { team, count: members.length } as NodeData,
-        // 접고 펼 수 있게 둔다 — 사람이 스물이면 다 펴 둘 때 가로로 한참 넘친다
-        expanded: true,
+        /*
+          접은 채로 시작한다.
+
+          다 펴 두면 본부장 아래가 가로로 한참 넘치고, 그 바람에 옆에 선 사무장이 저
+          멀리 밀려 선이 안 보일 만큼 떨어진다. 팀 이름만 늘어놓으면 한 화면에 들어온다 —
+          볼 팀만 펴서 본다. 위의 [모두 펴기]로 한 번에 펼 수도 있다.
+        */
+        expanded: openAll,
         children: sort(members).map(person),
       });
     }
@@ -109,7 +116,7 @@ export default function OrgChart() {
     // 대표가 꼭대기다. 아직 안 적었으면 회사 이름을 꼭대기에 세운다
     if (ceo) return [{ key: ceo.id, data: { employee: ceo } as NodeData, expanded: true, children: under }];
     return [{ key: 'root', data: { team: '애니원모터스' } as NodeData, expanded: true, children: under }];
-  }, [state.employees]);
+  }, [state.employees, openAll]);
 
   const copy = async (phone: string) => {
     try {
@@ -203,7 +210,13 @@ export default function OrgChart() {
       <div className="mb-3 flex items-center gap-2">
         <Users size={18} className="text-indigo-600" />
         <p className="text-base font-bold text-slate-800">조직도</p>
-        <span className="ml-auto text-xs text-slate-400">이름을 누르면 번호가 나옵니다 · 팀 아래 화살표로 접습니다</span>
+        <span className="ml-auto hidden text-xs text-slate-400 sm:block">이름을 누르면 번호가 나옵니다</span>
+        <button
+          onClick={() => setOpenAll(v => !v)}
+          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
+        >
+          {openAll ? '팀 접기' : '모두 펴기'}
+        </button>
       </div>
 
       {/* 사람이 늘면 가로로 넘친다 — 페이지가 아니라 이 칸 안에서 구르게 하고, 좁으면 가운데로 모은다 */}

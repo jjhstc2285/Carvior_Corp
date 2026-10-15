@@ -169,8 +169,12 @@ body {
 }
 .org-chart .p-node-toggler .p-node-toggler-icon {
   top: 0;
-  width: 0.8rem;
-  height: 0.8rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  /* 그림이 선 색을 따라간다 — 안 정해 주면 투명하게 그려져 아무것도 안 보인다 */
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 0.5;
 }
 
 /*
