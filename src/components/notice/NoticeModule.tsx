@@ -75,7 +75,7 @@ export default function NoticeModule({ role }: { role: Role }) {
   };
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-4">
         <h2 className="text-lg font-bold text-slate-900">사내 게시판</h2>
         <p className="mt-1 text-sm text-slate-500">

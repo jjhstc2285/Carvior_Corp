@@ -102,7 +102,6 @@ const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon:
   {
     title: '기타 · 지원',
     items: [
-      { key: 'home', label: '홈', icon: House },
       // 전 직원이 본다 — 권한으로 가리지 않는다
       { key: 'notice', label: '사내 게시판', icon: Notice },
       { key: 'dealerFee', label: '상조회비 관리', icon: Building2 },
@@ -164,7 +163,12 @@ export default function Sidebar({
   */
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return NAV_GROUPS.map(g => ({
+    /*
+      홈은 갈래 위에 따로 있다. 갈래에도 넣어 두었더니 메뉴에 홈이 두 번 떴다.
+      찾을 때만 결과에 끼워 넣는다 — 이름으로 찾는 사람도 있다.
+    */
+    const home = q && '홈'.includes(q) ? [{ title: '', items: [{ key: 'home' as ModuleKey, label: '홈', icon: House }] }] : [];
+    return [...home, ...NAV_GROUPS].map(g => ({
       ...g,
       items: g.items.filter(i => canSee(i.key) && (!q || i.label.toLowerCase().includes(q))),
     })).filter(g => g.items.length > 0);
