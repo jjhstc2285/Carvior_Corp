@@ -119,30 +119,20 @@ export default function HomeModule() {
         {/*
           인사 — 누구로 들어와 있는지가 한눈에 보여야 한다. 남의 계정으로 적는 일이 생긴다.
 
-          하늘빛 바탕에 차를 한 대 세워 둔다. 사진을 받아 올 데가 없어 선으로 그린다 —
-          그림 파일을 두면 바꿀 때마다 받아서 넣어야 하고, 큰 사진은 열 때마다 내려받는다.
-
           글자는 짙은 남색이다. 바탕이 옅어서 흰 글씨로는 안 읽힌다.
+
+          배경은 사진 한 장이다. public/ 에 두고 경로로 부른다 — 번들에 안 섞여서
+          브라우저가 따로 캐시한다. 받은 원본은 2MB가 넘어 홈을 열 때마다 내려받았다.
+          가로 1600px · JPEG 로 줄여 88KB 로 둔다.
+
+          차는 오른쪽에 있고 왼쪽은 하늘이다. 그 위에 글을 얹되 흰 막을 왼쪽에서 오른쪽으로
+          옅게 깔아 둔다 — 구름이 밝은 날은 글씨가 하늘에 묻힌다.
         */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-100 via-sky-50 to-indigo-100 px-5 py-6 sm:px-7">
-          <svg
-            viewBox="0 0 230 96"
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-6 bottom-0 hidden h-[115%] w-auto text-slate-400/60 sm:block"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M10 68h14m178 0h18" />
-            <path d="M24 68c0-7 3-18 7-23l11-15c3-5 8-7 13-7h64c6 0 11 2 15 6l17 17c3 3 7 5 11 6l23 5c7 1 12 6 12 12v10c0 3-3 6-7 6h-15" />
-            <path d="M62 68h66" />
-            <path d="M55 24v23h112L150 29c-3-3-7-5-11-5H55z" />
-            <path d="M100 24v23" />
-            <circle cx="45" cy="69" r="13" />
-            <circle cx="150" cy="69" r="13" />
-          </svg>
+        <div
+          className="relative min-h-[150px] w-full overflow-hidden rounded-2xl bg-sky-100 bg-cover bg-right px-5 py-6 sm:px-7"
+          style={{ backgroundImage: 'url(/home-banner.jpg)' }}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/85 via-white/50 to-transparent" />
 
           <div className="relative">
             <p className="text-xl font-bold text-slate-800 sm:text-2xl">
