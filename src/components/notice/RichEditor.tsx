@@ -4,7 +4,10 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
+import Image from '@tiptap/extension-image';
 import DOMPurify from 'dompurify';
+import { api, ApiError } from '../../lib/api';
+import { alertError } from '../../lib/alert';
 import {
   AlignCenter,
   AlignLeft,
@@ -15,6 +18,7 @@ import {
   List,
   ListOrdered,
   Quote,
+  ImagePlus,
   Redo2,
   Strikethrough,
   Underline as UnderlineIcon,
@@ -34,6 +38,24 @@ import {
  */
 
 const BTN = 'rounded-md p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-30';
+
+/**
+ * 사진 한 장을 올리고 주소를 받는다.
+ *
+ * 글 안에 사진을 통째로 박지 않는다(data: 로 넣으면 2MB 사진이 글 2.7MB 가 된다).
+ * 서버에 올려 주소만 박는다 — 글은 가볍고, 같은 사진을 두 번 열어도 한 번만 내려받는다.
+ */
+async function uploadImage(file: File): Promise<string | null> {
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await api<{ url: string }>('/notices/images', { method: 'POST', formData: form });
+    return res.url;
+  } catch (e) {
+    void alertError('사진을 올리지 못했습니다', e instanceof ApiError ? e.message : '');
+    return null;
+  }
+}
 const ON = 'bg-indigo-50 text-indigo-600';
 
 /**
@@ -69,15 +91,45 @@ export default function RichEditor({
       // 링크는 눌러서 열리게 둔다. 새 창으로 띄운다 — 공지를 보다 딴 데로 가면 돌아오기 번거롭다
       Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { target: '_blank', rel: 'noreferrer' } }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      // 글 폭에 맞춰 줄인다 — 원본 그대로 두면 사진 한 장이 화면을 넘긴다
+      Image.configure({ HTMLAttributes: { class: 'notice-img' } }),
     ],
     content: value || '',
     editorProps: {
       attributes: {
         class: 'prose-notice min-h-[260px] w-full px-3 py-2.5 text-sm leading-relaxed outline-none',
       },
+      /*
+        붙여넣기와 끌어다 놓기로도 들어간다.
+
+        캡처를 떠서 Ctrl+V 로 붙이는 게 제일 흔한 길이다. 단추로만 넣게 두면 캡처를
+        파일로 저장했다가 다시 고르게 된다 — 두 번 일이다.
+      */
+      handlePaste: (_view, event) => {
+        const files = [...(event.clipboardData?.files ?? [])].filter(f => f.type.startsWith('image/'));
+        if (files.length === 0) return false;
+        event.preventDefault();
+        void insertFiles(files);
+        return true;
+      },
+      handleDrop: (_view, event) => {
+        const files = [...((event as DragEvent).dataTransfer?.files ?? [])].filter(f => f.type.startsWith('image/'));
+        if (files.length === 0) return false;
+        event.preventDefault();
+        void insertFiles(files);
+        return true;
+      },
     },
     onUpdate: ({ editor: e }) => onChange(e.getHTML()),
   });
+
+  /** 고른 사진을 차례로 올려 글에 박는다 */
+  const insertFiles = async (files: File[]) => {
+    for (const file of files) {
+      const url = await uploadImage(file);
+      if (url) editor?.chain().focus().setImage({ src: url }).run();
+    }
+  };
 
   // 고치기로 열 때 이미 적힌 글을 넣어준다 — 처음 만들 때 한 번만
   useEffect(() => {
@@ -89,7 +141,7 @@ export default function RichEditor({
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 focus-within:border-indigo-400">
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} onPickImages={insertFiles} />
       <EditorContent editor={editor} />
       {editor.isEmpty && placeholder && (
         <p className="pointer-events-none -mt-[244px] px-3 text-sm text-slate-300">{placeholder}</p>
@@ -98,7 +150,7 @@ export default function RichEditor({
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, onPickImages }: { editor: Editor; onPickImages: (files: File[]) => Promise<void> }) {
   const btn = (on: boolean) => `${BTN} ${on ? ON : ''}`;
 
   const setLink = () => {
@@ -161,6 +213,21 @@ function Toolbar({ editor }: { editor: Editor }) {
       <button type="button" title="링크" onClick={setLink} className={btn(editor.isActive('link'))}>
         <Link2 size={15} />
       </button>
+      <label title="사진 넣기 — 붙여넣기(Ctrl+V)와 끌어다 놓기도 됩니다" className={`${BTN} cursor-pointer`}>
+        <ImagePlus size={15} />
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={e => {
+            const files = [...(e.target.files ?? [])];
+            // 같은 사진을 다시 골라도 열리게 비워 둔다
+            e.target.value = '';
+            void onPickImages(files);
+          }}
+        />
+      </label>
 
       <span className="mx-1 h-4 w-px bg-slate-200" />
 

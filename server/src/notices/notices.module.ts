@@ -1,5 +1,24 @@
-import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, Patch, Post } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Injectable,
+  Module,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { existsSync, mkdirSync } from 'node:fs';
+import { join, extname } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Role } from '@prisma/client';
@@ -15,6 +34,29 @@ import { Role } from '@prisma/client';
  *
  * 금액은 여기에도 안 적는다. 전 직원이 보는 자리라는 점은 공지방과 같다.
  */
+
+/*
+  글에 넣는 사진.
+
+  차량 사진과 같은 자리(uploads)에 두되 폴더만 따로 쓴다 — Apache 가 /uploads 를 그대로
+  내주므로 올린 경로가 곧 보이는 주소가 된다.
+
+  원본 파일명은 안 쓴다. 한글 이름이 깨지고 경로에 넣기 위험한 글자가 섞여 들어온다.
+
+  차량 사진과 달리 지우지 않는다. 공지는 지난 것도 찾아보는 글이라, 한 달 뒤에 사진만
+  사라지면 무슨 말인지 모르는 글이 남는다.
+*/
+const NOTICE_IMG_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'notices');
+const MAX_IMG_SIZE = 12 * 1024 * 1024;
+const ALLOWED_IMG = /^image\/(jpeg|png|webp|gif|heic|heif)$/;
+const IMG_EXT = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
+
+if (!existsSync(NOTICE_IMG_DIR)) mkdirSync(NOTICE_IMG_DIR, { recursive: true });
+
+/** 아이폰에서 올리면 종류가 application/octet-stream 으로 오는 일이 있다 — 이름으로도 본다 */
+function looksLikeImage(file: { mimetype: string; originalname: string }): boolean {
+  return ALLOWED_IMG.test(file.mimetype) || IMG_EXT.test(file.originalname);
+}
 
 /** 갈래 — 화면과 같은 말을 쓰게 서버에서 내려준다 */
 export const NOTICE_CATEGORIES = ['공지', '업무', '일반'] as const;
@@ -107,6 +149,31 @@ export class NoticesController {
   @Get()
   list(@Body() _body: unknown) {
     return this.notices.list();
+  }
+
+  /** 글에 넣을 사진 한 장 — 먼저 올려 주소를 받고, 그 주소를 글에 박는다 */
+  @Post('images')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: NOTICE_IMG_DIR,
+        filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
+      }),
+      limits: { fileSize: MAX_IMG_SIZE, files: 1 },
+      fileFilter: (_req, file, cb) => {
+        if (!looksLikeImage(file)) {
+          cb(new BadRequestException('이미지 파일만 올릴 수 있습니다.'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  upload(@CurrentUser() user: AuthUser, @UploadedFile() file: Express.Multer.File) {
+    // 올리는 것도 쓰는 일이다 — 읽기만 되는 사람이 사진을 쌓아 두면 안 된다
+    if (user.role !== Role.ADMIN) throw new ForbiddenException('공지는 관리자만 올릴 수 있습니다.');
+    if (!file) throw new BadRequestException('올릴 사진이 없습니다.');
+    return { url: `/uploads/notices/${file.filename}` };
   }
 
   @Post()
