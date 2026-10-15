@@ -9,6 +9,7 @@ import {
   House,
   Landmark,
   Megaphone,
+  Megaphone as Notice,
   MessageSquare,
   MessageSquareText,
   NotebookPen,
@@ -102,6 +103,8 @@ const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon:
     title: '기타 · 지원',
     items: [
       { key: 'home', label: '홈', icon: House },
+      // 전 직원이 본다 — 권한으로 가리지 않는다
+      { key: 'notice', label: '사내 게시판', icon: Notice },
       { key: 'dealerFee', label: '상조회비 관리', icon: Building2 },
       { key: 'chat', label: '메시지', icon: MessageSquare },
     ],

@@ -5,6 +5,8 @@ import { useStore } from '../store';
 import { useCurrentIp } from '../lib/useCurrentIp';
 import { ApiError } from '../lib/api';
 import { alertError } from '../lib/alert';
+// 막히는 규칙은 홈의 출퇴근과 같이 쓴다 — 각자 들고 있으면 한쪽만 고치는 날이 온다
+import { punch } from '../lib/punch';
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 const FULL_WORK_MINUTES = 8 * 60;
@@ -28,30 +30,6 @@ function toMinutes(hhmm: string): number {
 export default function ClockCard() {
   const { state, clockIn, clockOut, setMeal } = useStore();
   const [mealBusy, setMealBusy] = useState(false);
-
-  /**
-   * 출퇴근 등록은 서버가 막는 경우가 있다(등록 안 된 PC, 사무실 밖 네트워크).
-   * 예전에는 그 오류를 아무도 안 받아서 버튼을 눌러도 화면에 변화가 없었다 —
-   * 왜 안 되는지, 무엇을 해야 하는지까지 띄운다.
-   */
-  const punch = async (action: () => Promise<void>) => {
-    try {
-      await action();
-    } catch (e) {
-      const code = e instanceof ApiError ? e.code : null;
-      const message = e instanceof ApiError ? e.message : '잠시 후 다시 시도해 주세요.';
-
-      if (code === 'DEVICE_REQUIRED') {
-        await alertError('출근 PC 등록이 필요합니다', message, '관리자에게 이 PC를 출근 단말로 등록해 달라고 요청하세요.');
-        return;
-      }
-      if (code === 'IP_NOT_ALLOWED') {
-        await alertError('사무실 네트워크가 아닙니다', message, '사무실 WiFi에 연결한 뒤 다시 눌러 주세요.');
-        return;
-      }
-      await alertError('등록하지 못했습니다', message);
-    }
-  };
 
   /*
     체크를 누르면 바로 서버에 적는다 — 따로 저장 버튼을 두지 않는다.

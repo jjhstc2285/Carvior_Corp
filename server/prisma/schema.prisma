@@ -99,6 +99,7 @@ model Employee {
   washVisits WashVisit[]
   photoSets VehiclePhotoSet[]
   condolences Condolence[]
+  notices     Notice[]
 }
 
 model EmployeePhone {
@@ -2108,4 +2109,30 @@ model DealerIncentive {
 
   @@unique([month, employeeId])
   @@index([month])
+}
+
+/**
+ * 사내 게시판 — 전 직원이 보는 공지.
+ *
+ * 지금은 텔레그램 공지방으로만 돌린다. 방에 들어온 뒤의 글만 보이고, 지난 공지를 찾으려면
+ * 올려 가며 뒤져야 한다. 들어오면 보이는 자리에 남겨 둔다.
+ *
+ * 금액은 여기에도 안 적는다 — 전 직원이 보는 자리라는 점은 공지방과 같다.
+ */
+model Notice {
+  id       String  @id @default(cuid())
+  category String  @default("일반") @db.VarChar(10) // 공지 · 업무 · 일반
+  title    String  @db.VarChar(120)
+  body     String  @db.Text
+  /// 위에 고정 — 늘 봐야 하는 글이 아래로 밀리면 아무도 안 본다
+  pinned   Boolean @default(false)
+
+  authorId String
+  author   Employee @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([authorId])
 }

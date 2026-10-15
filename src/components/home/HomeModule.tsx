@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import {
-  Bell,
   Car,
   ChevronRight,
   Headset,
   Megaphone,
   MessageSquare,
+  Pin,
   NotebookPen,
   ShoppingCart,
 } from 'lucide-react';
@@ -15,8 +15,9 @@ import { api } from '../../lib/api';
 import { goTo } from '../../lib/goto';
 import type { ManagedVehicle } from '../../types';
 import type { ModuleKey } from '../../modules';
-import ClockCard from '../ClockCard';
+import HomeClockCard from './HomeClockCard';
 import { CONSULTATION_STATUS_LABEL } from '../../types';
+import { NOTICE_TONE, type Notice } from '../notice/NoticeModule';
 
 /**
  * 홈 — 들어오면 처음 보는 자리.
@@ -63,26 +64,21 @@ const STATUS_TONE: Record<string, string> = {
 export default function HomeModule() {
   const { state } = useStore();
   const [vehicles, setVehicles] = useState<ManagedVehicle[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
 
   useEffect(() => {
     // 못 불러와도 나머지는 그대로 뜬다 — 덤으로 띄우는 자리다
     api<ManagedVehicle[]>('/vehicles')
       .then(setVehicles)
       .catch(() => setVehicles([]));
+    api<Notice[]>('/notices')
+      .then(rows => setNotices(rows.slice(0, 5)))
+      .catch(() => setNotices([]));
   }, []);
 
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
   const now = dayjs();
   const today = now.format('YYYY-MM-DD');
-
-  /** 아직 안 읽은 알림이 먼저다 — 읽은 것은 지난 일이다 */
-  const notices = useMemo(
-    () =>
-      [...state.notifications]
-        .sort((a, b) => Number(a.read) - Number(b.read) || b.createdAt.localeCompare(a.createdAt))
-        .slice(0, 5),
-    [state.notifications],
-  );
 
   /**
    * 오늘 내가 맞을 손님.
@@ -119,17 +115,44 @@ export default function HomeModule() {
   const nameOf = (id: string) => state.employees.find(e => e.id === id)?.name ?? '';
 
   return (
-    <div className="space-y-4">
-      {/* 인사 — 누구로 들어와 있는지가 한눈에 보여야 한다. 남의 계정으로 적는 일이 생긴다 */}
-      <div className="rounded-2xl bg-gradient-to-r from-indigo-500 to-sky-500 px-5 py-6 text-white sm:px-7">
-        <p className="text-xl font-bold sm:text-2xl">
-          안녕하세요, {me?.name ?? ''}
-          {me?.position ? ` ${me.position}` : ''}님!
-        </p>
-        <p className="mt-1 text-sm text-white/80">오늘도 좋은 하루 되세요.</p>
-        <p className="mt-3 inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-medium">
-          {now.format('YYYY년 M월 D일')} ({DAY_KO[now.day()]})
-        </p>
+    <div className="mx-auto max-w-[1400px] space-y-4">
+      {/*
+        인사 — 누구로 들어와 있는지가 한눈에 보여야 한다. 남의 계정으로 적는 일이 생긴다.
+
+        하늘빛 바탕에 차를 한 대 세워 둔다. 사진을 받아 올 데가 없어 선으로 그린다 —
+        그림 파일을 두면 바꿀 때마다 받아서 넣어야 하고, 큰 사진은 열 때마다 내려받는다.
+
+        글자는 짙은 남색이다. 바탕이 옅어서 흰 글씨로는 안 읽힌다.
+      */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-100 via-sky-50 to-indigo-100 px-5 py-6 sm:px-7">
+        <svg
+          viewBox="0 0 230 96"
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-6 bottom-0 hidden h-[115%] w-auto text-slate-400/60 sm:block"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M10 68h14m178 0h18" />
+          <path d="M24 68c0-7 3-18 7-23l11-15c3-5 8-7 13-7h64c6 0 11 2 15 6l17 17c3 3 7 5 11 6l23 5c7 1 12 6 12 12v10c0 3-3 6-7 6h-15" />
+          <path d="M62 68h66" />
+          <path d="M55 24v23h112L150 29c-3-3-7-5-11-5H55z" />
+          <path d="M100 24v23" />
+          <circle cx="45" cy="69" r="13" />
+          <circle cx="150" cy="69" r="13" />
+        </svg>
+
+        <div className="relative">
+          <p className="text-xl font-bold text-slate-800 sm:text-2xl">
+            안녕하세요, <span className="text-indigo-600">{me?.name ?? ''}{me?.position ? ` ${me.position}` : ''}</span>님!
+          </p>
+          <p className="mt-1 text-sm text-slate-500">오늘도 좋은 하루 되세요.</p>
+          <p className="mt-3 inline-flex rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-indigo-600">
+            {now.format('YYYY년 M월 D일')} ({DAY_KO[now.day()]})
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
@@ -142,17 +165,17 @@ export default function HomeModule() {
                 <button
                   key={s.key}
                   onClick={() => goTo(s.key)}
-                  className={`group flex items-start gap-3 rounded-2xl ${s.tone} px-4 py-3.5 text-left transition hover:brightness-95`}
+                  className={`group flex items-center gap-2.5 rounded-xl ${s.tone} px-3 py-2.5 text-left transition hover:brightness-95`}
                 >
-                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${s.iconTone}`}>
-                    <Icon size={18} />
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${s.iconTone}`}>
+                    <Icon size={15} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1 text-sm font-bold text-slate-800">
+                    <span className="flex items-center gap-0.5 text-xs font-bold text-slate-800">
                       {s.label}
-                      <ChevronRight size={14} className="text-slate-400 transition group-hover:translate-x-0.5" />
+                      <ChevronRight size={12} className="text-slate-400 transition group-hover:translate-x-0.5" />
                     </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-slate-500">{s.desc}</span>
+                    <span className="mt-0.5 block truncate text-[10px] text-slate-500">{s.desc}</span>
                   </span>
                 </button>
               );
@@ -273,38 +296,35 @@ export default function HomeModule() {
         </div>
 
         <div className="space-y-4">
-          {/*
-            출퇴근은 쓰던 카드를 그대로 가져온다.
+          <HomeClockCard />
 
-            여기에 단추를 새로 만들면 등록 안 된 PC·사무실 밖 네트워크를 가리는 규칙이
-            두 벌이 된다. 한쪽만 고치는 날이 반드시 온다.
-          */}
-          <ClockCard />
-
-          <Panel title="알림" icon={<Bell size={15} className="text-amber-500" />}>
+          <Panel title="공지사항" icon={<Megaphone size={15} className="text-rose-500" />} onMore={() => goTo('notice')}>
             {notices.length === 0 ? (
-              <Empty>새 알림이 없습니다.</Empty>
+              <Empty>아직 올라온 공지가 없습니다.</Empty>
             ) : (
               <ul className="divide-y divide-slate-50">
                 {notices.map(n => (
-                  <li key={n.id} className="flex items-start gap-2 px-1 py-2">
-                    {/* 안 읽은 것만 점을 찍는다 — 다 찍으면 아무 뜻이 없다 */}
-                    <span
-                      className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${n.read ? 'bg-slate-200' : 'bg-red-500'}`}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className={`block text-xs ${n.read ? 'text-slate-400' : 'text-slate-700'}`}>
-                        {n.message}
+                  <li key={n.id}>
+                    <button
+                      onClick={() => goTo('notice')}
+                      className="flex w-full items-center gap-1.5 px-1 py-2 text-left hover:bg-slate-50"
+                    >
+                      {/* 고정한 글은 왜 위에 있는지가 보여야 한다 */}
+                      {n.pinned && <Pin size={11} className="shrink-0 text-rose-500" />}
+                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${NOTICE_TONE[n.category] ?? ''}`}>
+                        {n.category}
                       </span>
-                      <span className="mt-0.5 block text-[10px] text-slate-400">
-                        {dayjs(n.createdAt).format('M/D HH:mm')}
+                      <span className="min-w-0 flex-1 truncate text-xs text-slate-700">{n.title}</span>
+                      <span className="shrink-0 text-[10px] text-slate-400">
+                        {dayjs(n.createdAt).format('M/D')}
                       </span>
-                    </span>
+                    </button>
                   </li>
                 ))}
               </ul>
             )}
           </Panel>
+
         </div>
       </div>
     </div>

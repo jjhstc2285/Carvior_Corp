@@ -38,6 +38,7 @@ import { api } from './lib/api';
 import dayjs from 'dayjs';
 import type { ModuleKey } from './modules';
 import HomeModule from './components/home/HomeModule';
+import NoticeModule from './components/notice/NoticeModule';
 import { GOTO_EVENT } from './lib/goto';
 import type { Role } from './types';
 import Sidebar from './components/Sidebar';
@@ -69,6 +70,7 @@ import PayrollModule from './components/payroll/PayrollModule';
 
 const MODULE_TITLE: Record<ModuleKey, string> = {
   home: '홈',
+  notice: '사내 게시판',
   adminSheet: '플랫폼 매물 점검',
   attendance: '출퇴근 관리',
   workLog: '업무 일지',
@@ -91,6 +93,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
 
 function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'home') return <HomeModule />;
+  if (module === 'notice') return <NoticeModule role={role} />;
   if (module === 'attendance') return role === 'EMPLOYEE' ? <EmployeeView /> : <AdminView />;
   if (module === 'workLog') return <WorkLogModule role={role} />;
   if (module === 'approval') return <ApprovalModule role={role} />;
