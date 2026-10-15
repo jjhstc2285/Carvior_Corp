@@ -157,7 +157,7 @@ export default function HomeModule() {
                   {notices.map(n => (
                     <li key={n.id}>
                       <button
-                        onClick={() => goTo('notice')}
+                        onClick={() => setOpenNotice(n)}
                         className="flex w-full items-center gap-2 rounded-lg px-1.5 py-3 text-left hover:bg-slate-50"
                       >
                         {/* 고정한 글은 왜 위에 있는지가 보여야 한다 */}

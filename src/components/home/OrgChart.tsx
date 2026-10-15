@@ -152,13 +152,13 @@ export default function OrgChart() {
       <span className="inline-block text-left">
         <button
           onClick={() => setPicked(v => (v === m.id ? null : m.id))}
-          className={`inline-flex items-center gap-2 whitespace-nowrap rounded-xl border bg-white px-3 py-2 transition hover:border-indigo-300 hover:bg-indigo-50/40 ${
+          className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border bg-white px-2.5 py-1.5 transition hover:border-indigo-300 hover:bg-indigo-50/40 ${
             open ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200'
           }`}
         >
-          <EmployeeAvatar name={m.name} size={26} />
+          <EmployeeAvatar name={m.name} size={24} />
           <span>
-            <span className="block text-sm font-bold text-slate-800">{m.name}</span>
+            <span className="block text-[13px] font-bold text-slate-800">{m.name}</span>
             <span className="block text-[11px] font-normal text-slate-400">{m.position || '직책 없음'}</span>
           </span>
           {/* 번호가 없으면 눌러도 나올 게 없다 — 미리 알려 준다 */}
@@ -206,8 +206,8 @@ export default function OrgChart() {
         <span className="ml-auto text-xs text-slate-400">이름을 누르면 번호가 나옵니다 · 팀 아래 화살표로 접습니다</span>
       </div>
 
-      {/* 사람이 늘면 가로로 넘친다 — 페이지가 아니라 이 칸 안에서 구르게 한다 */}
-      <div className="org-chart overflow-x-auto pb-2">
+      {/* 사람이 늘면 가로로 넘친다 — 페이지가 아니라 이 칸 안에서 구르게 하고, 좁으면 가운데로 모은다 */}
+      <div className="org-chart flex justify-center overflow-x-auto pb-4 pt-1">
         <OrganizationChart value={nodes} nodeTemplate={nodeTemplate} selectionMode="single" />
       </div>
     </div>

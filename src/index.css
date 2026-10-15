@@ -124,6 +124,8 @@ body {
 .org-chart .p-organizationchart-line-down {
   background: #cbd5e1;
   width: 1.5px;
+  /* 기본 20px — 층이 넷이면 그만큼 세로로 길어진다 */
+  height: 13px;
 }
 .org-chart .p-organizationchart-line-left {
   border-right: 1.5px solid #cbd5e1;
@@ -143,20 +145,43 @@ body {
   background: transparent;
   color: inherit;
 }
-/* 접는 단추 — 칸 아래에 작게 */
+/*
+  접는 화살표.
+
+  기본값은 회색 글자색만 입은 작은 그림이라 선 위에 묻혀서 안 보였다 — 접을 수 있다는
+  걸 모르면 안 접는다. 흰 동그라미에 남색 화살표로 또렷하게 둔다.
+*/
 .org-chart .p-node-toggler {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
   background: #fff;
-  border: 1px solid #e2e8f0;
+  border: 1.5px solid #c7d2fe;
   border-radius: 9999px;
-  color: #94a3b8;
+  color: #4f46e5;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
 }
 .org-chart .p-node-toggler:hover {
-  color: #4f46e5;
-  border-color: #c7d2fe;
+  background: #eef2ff;
+  border-color: #818cf8;
 }
 .org-chart .p-node-toggler .p-node-toggler-icon {
   top: 0;
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+/*
+  칸 사이를 좁힌다.
+
+  기본 여백으로는 사람이 열다섯이면 가로로 한참 넘쳐서, 끝까지 보려면 계속 굴려야 한다.
+*/
+.org-chart .p-organizationchart-table > tbody > tr > td {
+  padding: 0 0.25rem;
+}
+/* 칸 아래 화살표가 자리를 먹는다 — 다음 층과 붙지 않을 만큼만 남긴다 */
+.org-chart .p-organizationchart-node-content {
+  padding-bottom: 0.1rem;
 }
