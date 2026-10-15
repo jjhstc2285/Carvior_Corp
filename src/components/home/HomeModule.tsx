@@ -112,7 +112,8 @@ export default function HomeModule() {
         키는 줄끼리 맞춘다. 옆 칸이 짧아 덩그러니 떠 있으면 빈 자리가 먼저 보인다.
       */}
       <div className="grid items-stretch gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+        {/* 칸을 꽉 채운다 — 옆의 공지가 길어지면 배너 아래가 허옇게 비었다 */}
+        <div className="flex xl:col-span-2">
         {/*
           인사 — 누구로 들어와 있는지가 한눈에 보여야 한다. 남의 계정으로 적는 일이 생긴다.
 
@@ -126,7 +127,7 @@ export default function HomeModule() {
           옅게 깔아 둔다 — 구름이 밝은 날은 글씨가 하늘에 묻힌다.
         */}
         <div
-          className="relative flex min-h-[210px] w-full items-center overflow-hidden rounded-2xl bg-sky-100 bg-cover bg-right px-6 py-7 sm:px-8"
+          className="relative flex h-full min-h-[210px] w-full items-center overflow-hidden rounded-2xl bg-sky-100 bg-cover bg-right px-6 py-7 sm:px-8"
           style={{ backgroundImage: 'url(/home-banner.jpg)' }}
         >
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/85 via-white/50 to-transparent" />
