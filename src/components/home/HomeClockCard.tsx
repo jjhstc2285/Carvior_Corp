@@ -54,16 +54,16 @@ export default function HomeClockCard() {
       : { text: '미출근', tone: 'bg-rose-100 text-rose-600' };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-      <div className="mb-2.5 flex items-center gap-1.5">
-        <Clock size={15} className="text-indigo-600" />
-        <p className="text-sm font-bold text-slate-800">오늘 출퇴근</p>
-        <span className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold ${badge.tone}`}>{badge.text}</span>
+    <div className="flex h-full w-full flex-col rounded-2xl border border-slate-200 bg-white px-5 py-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Clock size={18} className="text-indigo-600" />
+        <p className="text-base font-bold text-slate-800">오늘 출퇴근</p>
+        <span className={`ml-auto rounded-full px-2.5 py-1 text-xs font-bold ${badge.tone}`}>{badge.text}</span>
       </div>
 
       {/* 찍은 시각은 작게 — 단추가 먼저 보여야 한다 */}
       {(clockedIn || clockedOut) && (
-        <p className="mb-2 text-[11px] text-slate-400">
+        <p className="mb-2.5 text-xs text-slate-400">
           출근 <b className="font-bold text-slate-600">{record?.clockIn ?? '—'}</b>
           {clockedOut && (
             <>
@@ -73,26 +73,26 @@ export default function HomeClockCard() {
         </p>
       )}
 
-      <div className="space-y-2">
+      <div className="flex flex-1 flex-col justify-center gap-2.5">
         <button
           onClick={() => void hit(clockIn)}
           disabled={!canIn || busy}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-base font-bold text-white transition hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
         >
-          <LogIn size={15} /> 출근하기
+          <LogIn size={17} /> 출근하기
         </button>
         <button
           onClick={() => void hit(clockOut)}
           disabled={!canOut || busy}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-100 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-200 disabled:bg-slate-50 disabled:text-slate-300"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-100 py-3.5 text-base font-bold text-slate-600 transition hover:bg-slate-200 disabled:bg-slate-50 disabled:text-slate-300"
         >
-          <LogOut size={15} /> 퇴근하기
+          <LogOut size={17} /> 퇴근하기
         </button>
       </div>
 
       {/* 왜 못 누르는지 — 안 적으면 "버튼이 안 눌린다"로 돌아온다 */}
       {!clockedIn && !canIn && !ipLoading && (
-        <p className="mt-2 text-[11px] text-amber-600">사무실 네트워크에서만 출근을 찍을 수 있습니다.</p>
+        <p className="mt-2.5 text-xs text-amber-600">사무실 네트워크에서만 출근을 찍을 수 있습니다.</p>
       )}
     </div>
   );

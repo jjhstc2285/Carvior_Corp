@@ -104,6 +104,15 @@ export default function HomeModule() {
 
   const nameOf = (id: string) => state.employees.find(e => e.id === id)?.name ?? '';
 
+  /*
+    누구 일지인가 — 관리자에게만 적힌다.
+
+    서버는 관리자에게 전원 일지를 내려주고(work-logs.service) 직원에게는 본인 것만
+    내려준다. 이름을 안 적으면 관리자 화면에서 서른 줄이 누구 할 일인지 모르는 목록이
+    된다. 본인 줄에는 안 적는다 — 줄마다 자기 이름이 붙으면 읽는 데 방해만 된다.
+  */
+  const logOwner = (id: string) => (id === state.currentEmployeeId ? '' : nameOf(id));
+
   return (
     <div className="mx-auto max-w-[1400px] space-y-4">
       {/*
@@ -129,22 +138,22 @@ export default function HomeModule() {
           옅게 깔아 둔다 — 구름이 밝은 날은 글씨가 하늘에 묻힌다.
         */}
         <div
-          className="relative min-h-[150px] w-full overflow-hidden rounded-2xl bg-sky-100 bg-cover bg-right px-5 py-6 sm:px-7"
+          className="relative flex min-h-[210px] w-full items-center overflow-hidden rounded-2xl bg-sky-100 bg-cover bg-right px-6 py-7 sm:px-8"
           style={{ backgroundImage: 'url(/home-banner.jpg)' }}
         >
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/85 via-white/50 to-transparent" />
 
           <div className="relative">
-            <p className="text-xl font-bold text-slate-800 sm:text-2xl">
+            <p className="text-2xl font-bold text-slate-800 sm:text-3xl">
               안녕하세요, <span className="text-indigo-600">{me?.name ?? ''}{me?.position ? ` ${me.position}` : ''}</span>님!
             </p>
-            <p className="mt-1 text-sm text-slate-500">오늘도 좋은 하루 되세요.</p>
+            <p className="mt-1.5 text-base font-medium text-slate-500 sm:text-lg">오늘도 좋은 하루 되세요.</p>
             {/* 날짜와 인사말은 한 줄로 — 좁은 화면에서는 아래로 접힌다 */}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="inline-flex rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-indigo-600">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-full bg-white/80 px-3.5 py-1.5 text-sm font-bold text-indigo-600">
                 {now.format('YYYY년 M월 D일')} ({DAY_KO[now.day()]})
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-slate-600">
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-3.5 py-1.5 text-sm font-medium text-slate-600">
                 ☀️ 좋은 하루입니다.
               </span>
             </div>
@@ -152,7 +161,7 @@ export default function HomeModule() {
         </div>
         </div>
 
-        <Panel title="공지사항" icon={<Megaphone size={15} className="text-rose-500" />} onMore={() => goTo('notice')}>
+        <Panel title="공지사항" icon={<Megaphone size={18} className="text-rose-500" />} onMore={() => goTo('notice')}>
               {notices.length === 0 ? (
                 <Empty>아직 올라온 공지가 없습니다.</Empty>
               ) : (
@@ -161,15 +170,15 @@ export default function HomeModule() {
                     <li key={n.id}>
                       <button
                         onClick={() => goTo('notice')}
-                        className="flex w-full items-center gap-1.5 px-1 py-2 text-left hover:bg-slate-50"
+                        className="flex w-full items-center gap-2 rounded-lg px-1.5 py-3 text-left hover:bg-slate-50"
                       >
                         {/* 고정한 글은 왜 위에 있는지가 보여야 한다 */}
-                        {n.pinned && <Pin size={11} className="shrink-0 text-rose-500" />}
-                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${NOTICE_TONE[n.category] ?? ''}`}>
+                        {n.pinned && <Pin size={13} className="shrink-0 text-rose-500" />}
+                        <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${NOTICE_TONE[n.category] ?? ''}`}>
                           {n.category}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-xs text-slate-700">{n.title}</span>
-                        <span className="shrink-0 text-[10px] text-slate-400">
+                        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{n.title}</span>
+                        <span className="shrink-0 text-xs text-slate-400">
                           {dayjs(n.createdAt).format('M/D')}
                         </span>
                       </button>
@@ -181,24 +190,24 @@ export default function HomeModule() {
 
         <div className="xl:col-span-2">
             {/* 바로가기 — 매일 손이 가는 것만. 다 늘어놓으면 메뉴를 한 벌 더 만드는 셈이다 */}
-            <div className="grid h-full grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid h-full grid-cols-2 gap-4 sm:grid-cols-3">
               {SHORTCUTS.map(s => {
                 const Icon = s.icon;
                 return (
                   <button
                     key={s.key}
                     onClick={() => goTo(s.key)}
-                    className={`group flex items-center gap-2.5 rounded-xl ${s.tone} px-3 py-2.5 text-left transition hover:brightness-95`}
+                    className={`group flex min-h-[112px] flex-col justify-center gap-3 rounded-2xl ${s.tone} px-5 py-4 text-left transition hover:brightness-95`}
                   >
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${s.iconTone}`}>
-                      <Icon size={15} />
+                    <span className={`flex h-12 w-12 items-center justify-center rounded-full ${s.iconTone}`}>
+                      <Icon size={22} />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-0.5 text-xs font-bold text-slate-800">
+                    <span>
+                      <span className="flex items-center gap-1 text-base font-bold text-slate-800">
                         {s.label}
-                        <ChevronRight size={12} className="text-slate-400 transition group-hover:translate-x-0.5" />
+                        <ChevronRight size={16} className="text-slate-400 transition group-hover:translate-x-0.5" />
                       </span>
-                      <span className="mt-0.5 block truncate text-[10px] text-slate-500">{s.desc}</span>
+                      <span className="mt-1 block truncate text-xs text-slate-500">{s.desc}</span>
                     </span>
                   </button>
                 );
@@ -214,7 +223,7 @@ export default function HomeModule() {
       <div className="grid items-stretch gap-4 lg:grid-cols-3">
         <Panel
           title="오늘 업무 일지"
-          icon={<NotebookPen size={15} className="text-emerald-600" />}
+          icon={<NotebookPen size={18} className="text-emerald-600" />}
           onMore={() => goTo('workLog')}
         >
           {/*
@@ -237,26 +246,30 @@ export default function HomeModule() {
             </Empty>
           ) : (
             <>
-              <ul className="max-h-64 divide-y divide-slate-50 overflow-y-auto">
+              <ul className="max-h-[340px] divide-y divide-slate-50 overflow-y-auto">
                 {logs.map(l => (
-                  <li key={l.id} className="flex items-start gap-2 px-1 py-2">
+                  <li key={l.id} className="flex items-start gap-2.5 px-1 py-3">
                     <input
                       type="checkbox"
                       checked={l.done}
                       onChange={() => void workLogs.toggle(l)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
+                      className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-indigo-600"
                     />
                     <span
                       title={l.content}
-                      className={`min-w-0 flex-1 text-xs ${l.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}
+                      className={`min-w-0 flex-1 text-sm ${l.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}
                       style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                     >
+                      {/* 관리자에게는 전원 일지가 섞여 온다 — 누구 것인지 적어야 읽힌다 */}
+                      {logOwner(l.employeeId) && (
+                        <b className="mr-1 font-bold text-slate-500">{logOwner(l.employeeId)}</b>
+                      )}
                       {l.content}
                     </span>
                   </li>
                 ))}
               </ul>
-              <p className="mt-1.5 border-t border-slate-100 pt-1.5 text-[11px] text-slate-400">
+              <p className="mt-2 border-t border-slate-100 pt-2.5 text-xs text-slate-400">
                 {logs.length}건 중 <b className="font-bold text-emerald-600">{doneCount}건</b> 끝냄
               </p>
             </>
@@ -265,39 +278,39 @@ export default function HomeModule() {
 
         <Panel
           title="최근 상담 내역"
-          icon={<Headset size={15} className="text-blue-600" />}
+          icon={<Headset size={18} className="text-blue-600" />}
           onMore={() => goTo('consultation')}
         >
           {recentConsults.length === 0 ? (
             <Empty>아직 적힌 상담이 없습니다.</Empty>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 text-left text-[11px] text-slate-400">
-                    <th className="py-1.5 pr-2 font-medium">날짜</th>
-                    <th className="py-1.5 pr-2 font-medium">차량</th>
-                    <th className="py-1.5 pr-2 font-medium">손님</th>
-                    <th className="py-1.5 pr-2 font-medium">담당</th>
-                    <th className="py-1.5 font-medium">상태</th>
+                  <tr className="border-b border-slate-100 bg-slate-50/70 text-left text-xs text-slate-400">
+                    <th className="py-3 pr-2 font-medium">날짜</th>
+                    <th className="py-3 pr-2 font-medium">차량</th>
+                    <th className="py-3 pr-2 font-medium">손님</th>
+                    <th className="py-3 pr-2 font-medium">담당</th>
+                    <th className="py-3 pr-2 font-medium">상태</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentConsults.map(c => (
                     <tr key={c.id} className="border-b border-slate-50 last:border-0">
-                      <td className="whitespace-nowrap py-1.5 pr-2 text-slate-400">{dayjs(c.date).format('M/D')}</td>
-                      <td className="max-w-[9rem] truncate py-1.5 pr-2 text-slate-700">
+                      <td className="whitespace-nowrap py-3 pr-2 text-slate-400">{dayjs(c.date).format('M/D')}</td>
+                      <td className="max-w-[9rem] truncate py-3 pr-2 text-slate-700">
                         {c.vehicleName || c.vehicleNumber || '—'}
                       </td>
-                      <td className="whitespace-nowrap py-1.5 pr-2 text-slate-500">
+                      <td className="whitespace-nowrap py-3 pr-2 text-slate-500">
                         {c.customerPhone || c.customerName || '—'}
                       </td>
-                      <td className="whitespace-nowrap py-1.5 pr-2 text-slate-500">
+                      <td className="whitespace-nowrap py-3 pr-2 text-slate-500">
                         {nameOf(c.visitDealerId ?? c.employeeId)}
                       </td>
-                      <td className="py-1.5">
+                      <td className="py-3">
                         <span
-                          className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${
                             STATUS_TONE[c.status] ?? 'bg-slate-100 text-slate-500'
                           }`}
                         >
@@ -314,7 +327,7 @@ export default function HomeModule() {
 
           <Panel
             title="최근 등록 차량"
-            icon={<Car size={15} className="text-rose-500" />}
+            icon={<Car size={18} className="text-rose-500" />}
             onMore={() => goTo('vehicle')}
           >
             {recentVehicles.length === 0 ? (
@@ -322,26 +335,26 @@ export default function HomeModule() {
             ) : (
               <ul className="divide-y divide-slate-50">
                 {recentVehicles.map(v => (
-                  <li key={v.id} className="flex items-center gap-2 px-1 py-2 text-xs">
-                    <span className="w-10 shrink-0 text-slate-400">
+                  <li key={v.id} className="flex items-center gap-2.5 px-1 py-3 text-sm">
+                    <span className="w-11 shrink-0 text-xs text-slate-400">
                       {v.createdAt ? dayjs(v.createdAt).format('M/D') : ''}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-slate-700">{v.vehicleModel || '차명 없음'}</span>
-                    <span className="shrink-0 font-mono text-[11px] text-slate-500">{v.vehicleNumber}</span>
+                    <span className="shrink-0 font-mono text-xs text-slate-500">{v.vehicleNumber}</span>
                     {v.soldDate ? (
-                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
+                      <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">
                         매도
                       </span>
                     ) : v.advertised ? (
-                      <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                      <span className="shrink-0 rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700">
                         광고중
                       </span>
                     ) : v.prepared ? (
-                      <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                      <span className="shrink-0 rounded-md bg-amber-100 px-2 py-1 text-xs font-bold text-amber-700">
                         상품화
                       </span>
                     ) : (
-                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-400">
+                      <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-400">
                         대기
                       </span>
                     )}
@@ -367,16 +380,16 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-      <div className="mb-1.5 flex items-center gap-1.5">
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white px-5 py-4">
+      <div className="mb-2.5 flex items-center gap-2">
         {icon}
-        <p className="text-sm font-bold text-slate-800">{title}</p>
+        <p className="text-base font-bold text-slate-800">{title}</p>
         {onMore && (
           <button
             onClick={onMore}
-            className="ml-auto flex items-center gap-0.5 text-[11px] font-medium text-slate-400 hover:text-slate-600"
+            className="ml-auto flex items-center gap-0.5 text-xs font-medium text-slate-400 hover:text-slate-600"
           >
-            더보기 <ChevronRight size={12} />
+            더보기 <ChevronRight size={14} />
           </button>
         )}
       </div>
@@ -386,5 +399,5 @@ function Panel({
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="flex h-full items-center justify-center py-8 text-center text-xs text-slate-400">{children}</p>;
+  return <p className="flex h-full items-center justify-center py-12 text-center text-sm text-slate-400">{children}</p>;
 }
