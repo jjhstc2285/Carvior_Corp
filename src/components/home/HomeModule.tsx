@@ -107,112 +107,113 @@ export default function HomeModule() {
   return (
     <div className="mx-auto max-w-[1400px] space-y-4">
       {/*
-        인사 — 누구로 들어와 있는지가 한눈에 보여야 한다. 남의 계정으로 적는 일이 생긴다.
+        윗줄은 두 칸 · 한 칸으로 나눈다.
 
-        하늘빛 바탕에 차를 한 대 세워 둔다. 사진을 받아 올 데가 없어 선으로 그린다 —
-        그림 파일을 두면 바꿀 때마다 받아서 넣어야 하고, 큰 사진은 열 때마다 내려받는다.
+        공지가 출퇴근 아래 있었더니 한참 내려야 보였다 — 들어와서 제일 먼저 봐야 하는 건
+        오늘 무슨 공지가 올라왔는가다. 배너 옆, 제일 위로 올린다.
 
-        글자는 짙은 남색이다. 바탕이 옅어서 흰 글씨로는 안 읽힌다.
+        키는 줄끼리 맞춘다. 옆 칸이 짧아 덩그러니 떠 있으면 빈 자리가 먼저 보인다.
       */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-100 via-sky-50 to-indigo-100 px-5 py-6 sm:px-7">
-        <svg
-          viewBox="0 0 230 96"
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-6 bottom-0 hidden h-[115%] w-auto text-slate-400/60 sm:block"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M10 68h14m178 0h18" />
-          <path d="M24 68c0-7 3-18 7-23l11-15c3-5 8-7 13-7h64c6 0 11 2 15 6l17 17c3 3 7 5 11 6l23 5c7 1 12 6 12 12v10c0 3-3 6-7 6h-15" />
-          <path d="M62 68h66" />
-          <path d="M55 24v23h112L150 29c-3-3-7-5-11-5H55z" />
-          <path d="M100 24v23" />
-          <circle cx="45" cy="69" r="13" />
-          <circle cx="150" cy="69" r="13" />
-        </svg>
+      <div className="grid items-stretch gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+        {/*
+          인사 — 누구로 들어와 있는지가 한눈에 보여야 한다. 남의 계정으로 적는 일이 생긴다.
 
-        <div className="relative">
-          <p className="text-xl font-bold text-slate-800 sm:text-2xl">
-            안녕하세요, <span className="text-indigo-600">{me?.name ?? ''}{me?.position ? ` ${me.position}` : ''}</span>님!
-          </p>
-          <p className="mt-1 text-sm text-slate-500">오늘도 좋은 하루 되세요.</p>
-          <p className="mt-3 inline-flex rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-indigo-600">
-            {now.format('YYYY년 M월 D일')} ({DAY_KO[now.day()]})
-          </p>
-        </div>
-      </div>
+          하늘빛 바탕에 차를 한 대 세워 둔다. 사진을 받아 올 데가 없어 선으로 그린다 —
+          그림 파일을 두면 바꿀 때마다 받아서 넣어야 하고, 큰 사진은 열 때마다 내려받는다.
 
-      {/*
-        위 두 줄은 왼쪽이 넓고 오른쪽이 좁다 — 바로가기와 공지·출퇴근은 성격이 다르다.
-        아래 세 장은 같은 무게라 폭을 똑같이 나눈다. 둘씩 묶었더니 한 장이 아래로 삐져
-        나와서, 세 장을 한 줄에 둔다.
-      */}
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
-          {/* 바로가기 — 매일 손이 가는 것만. 다 늘어놓으면 메뉴를 한 벌 더 만드는 셈이다 */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {SHORTCUTS.map(s => {
-              const Icon = s.icon;
-              return (
-                <button
-                  key={s.key}
-                  onClick={() => goTo(s.key)}
-                  className={`group flex items-center gap-2.5 rounded-xl ${s.tone} px-3 py-2.5 text-left transition hover:brightness-95`}
-                >
-                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${s.iconTone}`}>
-                    <Icon size={15} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-0.5 text-xs font-bold text-slate-800">
-                      {s.label}
-                      <ChevronRight size={12} className="text-slate-400 transition group-hover:translate-x-0.5" />
-                    </span>
-                    <span className="mt-0.5 block truncate text-[10px] text-slate-500">{s.desc}</span>
-                  </span>
-                </button>
-              );
-            })}
+          글자는 짙은 남색이다. 바탕이 옅어서 흰 글씨로는 안 읽힌다.
+        */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-100 via-sky-50 to-indigo-100 px-5 py-6 sm:px-7">
+          <svg
+            viewBox="0 0 230 96"
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-6 bottom-0 hidden h-[115%] w-auto text-slate-400/60 sm:block"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M10 68h14m178 0h18" />
+            <path d="M24 68c0-7 3-18 7-23l11-15c3-5 8-7 13-7h64c6 0 11 2 15 6l17 17c3 3 7 5 11 6l23 5c7 1 12 6 12 12v10c0 3-3 6-7 6h-15" />
+            <path d="M62 68h66" />
+            <path d="M55 24v23h112L150 29c-3-3-7-5-11-5H55z" />
+            <path d="M100 24v23" />
+            <circle cx="45" cy="69" r="13" />
+            <circle cx="150" cy="69" r="13" />
+          </svg>
+
+          <div className="relative">
+            <p className="text-xl font-bold text-slate-800 sm:text-2xl">
+              안녕하세요, <span className="text-indigo-600">{me?.name ?? ''}{me?.position ? ` ${me.position}` : ''}</span>님!
+            </p>
+            <p className="mt-1 text-sm text-slate-500">☀️오늘도 좋은 하루 되세요.</p>
+            <p className="mt-3 inline-flex rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-indigo-600">
+              {now.format('YYYY년 M월 D일')} ({DAY_KO[now.day()]})
+            </p>
           </div>
-
+        </div>
         </div>
 
-
-        <div className="space-y-4">
-          <HomeClockCard />
-
-          <Panel title="공지사항" icon={<Megaphone size={15} className="text-rose-500" />} onMore={() => goTo('notice')}>
-            {notices.length === 0 ? (
-              <Empty>아직 올라온 공지가 없습니다.</Empty>
-            ) : (
-              <ul className="divide-y divide-slate-50">
-                {notices.map(n => (
-                  <li key={n.id}>
-                    <button
-                      onClick={() => goTo('notice')}
-                      className="flex w-full items-center gap-1.5 px-1 py-2 text-left hover:bg-slate-50"
-                    >
-                      {/* 고정한 글은 왜 위에 있는지가 보여야 한다 */}
-                      {n.pinned && <Pin size={11} className="shrink-0 text-rose-500" />}
-                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${NOTICE_TONE[n.category] ?? ''}`}>
-                        {n.category}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-slate-700">{n.title}</span>
-                      <span className="shrink-0 text-[10px] text-slate-400">
-                        {dayjs(n.createdAt).format('M/D')}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+        <Panel title="공지사항" icon={<Megaphone size={15} className="text-rose-500" />} onMore={() => goTo('notice')}>
+              {notices.length === 0 ? (
+                <Empty>아직 올라온 공지가 없습니다.</Empty>
+              ) : (
+                <ul className="divide-y divide-slate-50">
+                  {notices.map(n => (
+                    <li key={n.id}>
+                      <button
+                        onClick={() => goTo('notice')}
+                        className="flex w-full items-center gap-1.5 px-1 py-2 text-left hover:bg-slate-50"
+                      >
+                        {/* 고정한 글은 왜 위에 있는지가 보여야 한다 */}
+                        {n.pinned && <Pin size={11} className="shrink-0 text-rose-500" />}
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${NOTICE_TONE[n.category] ?? ''}`}>
+                          {n.category}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs text-slate-700">{n.title}</span>
+                        <span className="shrink-0 text-[10px] text-slate-400">
+                          {dayjs(n.createdAt).format('M/D')}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
           </Panel>
 
+        <div className="xl:col-span-2">
+            {/* 바로가기 — 매일 손이 가는 것만. 다 늘어놓으면 메뉴를 한 벌 더 만드는 셈이다 */}
+            <div className="grid h-full grid-cols-2 gap-3 sm:grid-cols-3">
+              {SHORTCUTS.map(s => {
+                const Icon = s.icon;
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => goTo(s.key)}
+                    className={`group flex items-center gap-2.5 rounded-xl ${s.tone} px-3 py-2.5 text-left transition hover:brightness-95`}
+                  >
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${s.iconTone}`}>
+                      <Icon size={15} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-0.5 text-xs font-bold text-slate-800">
+                        {s.label}
+                        <ChevronRight size={12} className="text-slate-400 transition group-hover:translate-x-0.5" />
+                      </span>
+                      <span className="mt-0.5 block truncate text-[10px] text-slate-500">{s.desc}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+        </div>
+
+        <div className="flex">
+          <HomeClockCard />
         </div>
       </div>
-
       {/* 키를 맞춘다 — 내용이 적은 장이 짧아지면 줄이 들쭉날쭉해진다 */}
       <div className="grid items-stretch gap-4 lg:grid-cols-3">
         <Panel
@@ -240,7 +241,7 @@ export default function HomeModule() {
             </Empty>
           ) : (
             <>
-              <ul className="divide-y divide-slate-50">
+              <ul className="max-h-64 divide-y divide-slate-50 overflow-y-auto">
                 {logs.map(l => (
                   <li key={l.id} className="flex items-start gap-2 px-1 py-2">
                     <input
@@ -249,7 +250,11 @@ export default function HomeModule() {
                       onChange={() => void workLogs.toggle(l)}
                       className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600"
                     />
-                    <span className={`min-w-0 flex-1 text-xs ${l.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                    <span
+                      title={l.content}
+                      className={`min-w-0 flex-1 text-xs ${l.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}
+                      style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                    >
                       {l.content}
                     </span>
                   </li>
