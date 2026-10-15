@@ -148,10 +148,16 @@ export default function HomeModule() {
             <p className="text-xl font-bold text-slate-800 sm:text-2xl">
               안녕하세요, <span className="text-indigo-600">{me?.name ?? ''}{me?.position ? ` ${me.position}` : ''}</span>님!
             </p>
-            <p className="mt-1 text-sm text-slate-500">☀️오늘도 좋은 하루 되세요.</p>
-            <p className="mt-3 inline-flex rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-indigo-600">
-              {now.format('YYYY년 M월 D일')} ({DAY_KO[now.day()]})
-            </p>
+            <p className="mt-1 text-sm text-slate-500">오늘도 좋은 하루 되세요.</p>
+            {/* 날짜와 인사말은 한 줄로 — 좁은 화면에서는 아래로 접힌다 */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-indigo-600">
+                {now.format('YYYY년 M월 D일')} ({DAY_KO[now.day()]})
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-slate-600">
+                ☀️ 좋은 하루입니다.
+              </span>
+            </div>
           </div>
         </div>
         </div>
