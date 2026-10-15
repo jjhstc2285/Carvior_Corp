@@ -104,28 +104,59 @@ body {
 .prose-notice img.ProseMirror-selectednode { outline: 2px solid #6366f1; }
 
 /*
-  조직도 — 뼈대만 빌려 쓰고 생김새는 우리가 정한다.
+  조직도 선.
 
-  PrimeReact 테마 css 를 통째로 넣으면 글꼴과 색이 앱 전체로 번진다. 선을 긋는 표 뼈대만
-  primereact.min.css 로 가져오고, 칸은 nodeTemplate 으로 직접 그린다.
+  PrimeReact 10 은 칸을 놓는 뼈대만 스스로 넣고, 선 색과 굵기는 테마 css 가 들고 있다.
+  테마를 통째로 넣으면 글꼴과 색이 앱 전체로 번지므로 선만 여기서 긋는다.
 
-  기본 칸에는 테두리와 바탕이 붙어 있다 — 우리가 그린 칸과 겹쳐 두 겹으로 보이니 지운다.
+  선은 표의 칸 테두리로 그린다. 한쪽 면만 그어야 한다 — 네 면을 다 주면 칸마다 네모가
+  생겨서, 조직도가 아니라 표처럼 보인다(그렇게 떴었다).
+
+    line-left  → 오른쪽 면 하나     ┐ 가지가 갈라지는 자리
+    line-top   → 윗면 하나          ┴ 가로로 잇는 자리
+    line-down  → 세로 선 한 줄      │ 아래로 내려가는 자리
 */
+.org-chart .p-organizationchart-table,
+.org-chart .p-organizationchart-table td {
+  border: 0;
+  background: transparent;
+}
+.org-chart .p-organizationchart-line-down {
+  background: #cbd5e1;
+  width: 1.5px;
+}
+.org-chart .p-organizationchart-line-left {
+  border-right: 1.5px solid #cbd5e1;
+}
+.org-chart .p-organizationchart-line-top {
+  border-top: 1.5px solid #cbd5e1;
+}
+
+/* 기본 칸에는 테두리와 바탕이 붙어 있다 — 우리가 그린 칸과 겹쳐 두 겹으로 보이니 지운다 */
 .org-chart .p-organizationchart-node-content {
   border: 0;
   background: transparent;
   padding: 0;
 }
-.org-chart .p-organizationchart-line-down { background: #cbd5e1; width: 1.5px; }
-.org-chart .p-organizationchart-line-left,
-.org-chart .p-organizationchart-line-top { border-color: #cbd5e1; border-width: 1.5px; }
+/* 고른 칸에 파란 바탕이 깔린다 — 우리 칸이 이미 표시를 하므로 끈다 */
+.org-chart .p-organizationchart-node-content.p-highlight {
+  background: transparent;
+  color: inherit;
+}
 /* 접는 단추 — 칸 아래에 작게 */
 .org-chart .p-node-toggler {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 9999px;
   color: #94a3b8;
 }
-.org-chart .p-node-toggler:hover { color: #4f46e5; border-color: #c7d2fe; }
-/* 고른 칸에 파란 바탕이 깔린다 — 우리 칸이 이미 표시를 하므로 끈다 */
-.org-chart .p-organizationchart-node-content.p-highlight { background: transparent; color: inherit; }
+.org-chart .p-node-toggler:hover {
+  color: #4f46e5;
+  border-color: #c7d2fe;
+}
+.org-chart .p-node-toggler .p-node-toggler-icon {
+  top: 0;
+}
