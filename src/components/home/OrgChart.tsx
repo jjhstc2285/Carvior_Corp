@@ -54,7 +54,14 @@ export default function OrgChart() {
   const { state } = useStore();
   const [picked, setPicked] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [openAll, setOpenAll] = useState(false);
+  /*
+    펴 둔 채로 시작한다.
+
+    가로로 넘치는 게 싫어 접어 두었더니 직원이 한 명도 안 보였다 — 조직도를 여는 까닭이
+    누가 어느 팀인지 보는 것인데, 팀 이름만 늘어서 있으면 볼 것이 없다.
+    좁게 보고 싶으면 [팀 접기]로 접는다.
+  */
+  const [openAll, setOpenAll] = useState(true);
 
   const nodes: TreeNode[] = useMemo(() => {
     /*
@@ -88,13 +95,7 @@ export default function OrgChart() {
       teams.push({
         key: `team-${team}`,
         data: { team, count: members.length } as NodeData,
-        /*
-          접은 채로 시작한다.
-
-          다 펴 두면 본부장 아래가 가로로 한참 넘치고, 그 바람에 옆에 선 사무장이 저
-          멀리 밀려 선이 안 보일 만큼 떨어진다. 팀 이름만 늘어놓으면 한 화면에 들어온다 —
-          볼 팀만 펴서 본다. 위의 [모두 펴기]로 한 번에 펼 수도 있다.
-        */
+        // 펴 둔 채로 시작하고, 좁게 보고 싶으면 머리의 [팀 접기]로 접는다
         expanded: openAll,
         children: sort(members).map(person),
       });
