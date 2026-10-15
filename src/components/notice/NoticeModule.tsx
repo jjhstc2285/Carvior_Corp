@@ -4,6 +4,7 @@ import { Megaphone, Pencil, Pin, Plus, Trash2, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import type { Role } from '../../types';
+import RichEditor, { cleanHtml } from './RichEditor';
 
 /**
  * 사내 게시판 — 전 직원이 보는 공지.
@@ -198,8 +199,21 @@ function NoticeView({
           {notice.author?.name}
           {notice.author?.position ? ` ${notice.author.position}` : ''} · {dayjs(notice.createdAt).format('YYYY.MM.DD HH:mm')}
         </p>
-        {/* 줄바꿈을 그대로 살린다 — 공지는 줄을 나눠 적는 글이다 */}
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{notice.body || '내용이 없습니다.'}</p>
+        {/*
+          적은 꾸밈 그대로 그린다. 한 번 걸러서 그린다 — 관리자만 적지만 어디선가 복사해
+          붙인 글에 스크립트가 섞여 들어올 수 있다.
+
+          예전 글은 꾸밈 없는 맨 글자다(태그가 없다). 그때 적은 줄바꿈이 사라지지 않게
+          whitespace-pre-wrap 을 같이 건다 — 새 글은 문단 태그가 있어 영향이 없다.
+        */}
+        {notice.body ? (
+          <div
+            className="prose-notice whitespace-pre-wrap text-sm leading-relaxed text-slate-700"
+            dangerouslySetInnerHTML={{ __html: cleanHtml(notice.body) }}
+          />
+        ) : (
+          <p className="text-sm text-slate-400">내용이 없습니다.</p>
+        )}
 
         {canWrite && (
           <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
@@ -296,12 +310,10 @@ function NoticeForm({
             maxLength={120}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
           />
-          <textarea
+          <RichEditor
             value={body}
-            onChange={e => setBody(e.target.value)}
-            rows={10}
+            onChange={setBody}
             placeholder="내용을 적어 주세요. 전 직원이 봅니다 — 금액은 적지 마세요."
-            className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
           />
         </div>
 

@@ -77,3 +77,24 @@ body {
 .ant-image-preview-switch-right-disabled:hover {
   background: rgba(0, 0, 0, 0.25);
 }
+
+/*
+  공지 본문 — 적는 칸과 보는 칸이 같은 꼴로 보여야 한다.
+
+  Tailwind 가 기본 서식을 다 지워 둬서, 목록도 제목도 그냥 글로 보인다. 공지에 쓰는
+  것만 되살린다 — 다 되살리면 화면 다른 곳까지 끌려간다.
+*/
+.prose-notice h2 { font-size: 1.125rem; font-weight: 700; margin: 0.75rem 0 0.35rem; color: #1e293b; }
+.prose-notice h3 { font-size: 1rem; font-weight: 700; margin: 0.6rem 0 0.3rem; color: #334155; }
+.prose-notice p { margin: 0.35rem 0; }
+.prose-notice ul { list-style: disc; padding-left: 1.25rem; margin: 0.35rem 0; }
+.prose-notice ol { list-style: decimal; padding-left: 1.4rem; margin: 0.35rem 0; }
+.prose-notice li { margin: 0.15rem 0; }
+.prose-notice blockquote { border-left: 3px solid #e2e8f0; padding-left: 0.75rem; color: #64748b; margin: 0.5rem 0; }
+.prose-notice a { color: #4f46e5; text-decoration: underline; text-underline-offset: 2px; }
+.prose-notice strong { font-weight: 700; color: #0f172a; }
+.prose-notice u { text-decoration: underline; }
+.prose-notice s { text-decoration: line-through; color: #94a3b8; }
+.prose-notice hr { border-color: #e2e8f0; margin: 0.75rem 0; }
+/* 적는 동안에도 같은 꼴로 — 적을 때와 올린 뒤가 다르면 올리고 나서 또 고친다 */
+.prose-notice:focus { outline: none; }
