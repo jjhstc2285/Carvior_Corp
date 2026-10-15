@@ -16,8 +16,9 @@ import EmployeeAvatar from '../EmployeeAvatar';
  * 11 부터는 상용 허가가 붙고 직원 열 명이 넘으면 공짜 조건에서 벗어나므로 10 에 묶어 둔다.
  * 칸 안은 nodeTemplate 으로 직접 그려서 이 앱 생김새를 따른다.
  *
- * 매달리는 자리는 아는 만큼만 그린다. 대표 아래에 임원과 팀을 나란히 둔다 — 어느 팀이
- * 누구 밑인지는 적어 둔 데가 없다. 모르는 줄을 그어 두면 그게 맞는 줄 알고 쓴다.
+ * 자리는 대표 — 본부장 — 각 팀으로 매단다. 사무장은 본부장 옆이다 — 팀을 맡는 자리가
+ * 아니다. 본부장이 비면 팀을 대표 밑으로 올린다. 맡는 사람이 없다고 팀이 조직도에서
+ * 사라지면 안 된다.
  */
 
 /** 윗자리부터. 목록에 없는 직책은 뒤로 보낸다 */
@@ -86,9 +87,24 @@ export default function OrgChart() {
       });
     }
 
+    /*
+      대표 — 본부장 — 각 팀.
+
+      한때 임원과 팀을 대표 밑에 나란히 뒀다. 어느 팀이 누구 밑인지 적어 둔 데가 없어서
+      모르는 줄을 안 그은 것인데, 팀은 본부장이 맡는 게 맞다고 정해졌다.
+
+      사무장은 본부장 옆에 둔다 — 팀을 맡는 자리가 아니다.
+
+      본부장이 없으면(아직 안 적었거나 자리가 비면) 팀을 대표 밑으로 올린다. 맡는 사람이
+      없다고 팀이 조직도에서 사라지면 안 된다.
+    */
     const ceo = top.find(e => e.position.includes('대표'));
-    const execs = top.filter(e => !e.position.includes('대표'));
-    const under = [...execs.map(person), ...teams];
+    const head = top.find(e => e.position.includes('본부장'));
+    const others = top.filter(e => e !== ceo && e !== head);
+
+    const under: TreeNode[] = head
+      ? [{ key: head.id, data: { employee: head } as NodeData, expanded: true, children: teams }, ...others.map(person)]
+      : [...others.map(person), ...teams];
 
     // 대표가 꼭대기다. 아직 안 적었으면 회사 이름을 꼭대기에 세운다
     if (ceo) return [{ key: ceo.id, data: { employee: ceo } as NodeData, expanded: true, children: under }];
