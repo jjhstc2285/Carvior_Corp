@@ -36,16 +36,11 @@ const TEAM_TONE: Record<string, string> = {
   매입팀: 'border-amber-200 bg-amber-50 text-amber-700',
   차량관리팀: 'border-sky-200 bg-sky-50 text-sky-700',
   알선팀: 'border-rose-200 bg-rose-50 text-rose-700',
-  기타: 'border-slate-200 bg-slate-100 text-slate-600',
 };
 
-/*
-  팀이 안 적힌 사람.
+const TEAM_FALLBACK = 'border-slate-200 bg-slate-100 text-slate-600';
 
-  대표·본부장·사무장은 팀에 속하지 않는다 — 팀을 비워 두는 게 맞다. 그래도 조직도에서
-  빠지면 안 되니 위에 따로 세운다. 그 밖에 팀이 비어 있는 사람은 '기타'로 모은다 —
-  안 보이게 두면 누가 빠졌는지 아무도 모른다.
-*/
+/* 팀에 속하지 않는 자리 — 팀을 비워 두는 게 맞고, 위에 따로 세운다 */
 const TOP_POSITIONS = ['대표', '본부장', '사무장'];
 
 /** 칸 하나가 들고 있는 값 — 사람 칸이면 employee, 팀 칸이면 team */
@@ -62,7 +57,14 @@ export default function OrgChart() {
   const [openAll, setOpenAll] = useState(false);
 
   const nodes: TreeNode[] = useMemo(() => {
-    const live = state.employees.filter(e => e.active !== false);
+    /*
+      테스트 계정은 뺀다. 사람이 아니라 확인하려고 만든 자리인데, 직책이 '대표'로 적혀
+      있어 조직도 꼭대기에 둘이 서 있었다.
+
+      이름으로 가린다 — 계정에 '테스트다'라고 적어 두는 칸이 따로 없다. 칸이 생기면
+      그때 그 값으로 바꾼다.
+    */
+    const live = state.employees.filter(e => e.active !== false && !e.name.includes('테스트'));
     const sort = (list: Employee[]) =>
       [...list].sort((a, b) => rankOf(a.position) - rankOf(b.position) || a.name.localeCompare(b.name));
 
@@ -72,12 +74,16 @@ export default function OrgChart() {
 
     const person = (e: Employee): TreeNode => ({ key: e.id, data: { employee: e } as NodeData, children: [] });
 
+    /*
+      팀이 안 적힌 사람은 안 그린다.
+
+      한때 '기타'로 모아 두었다 — 안 보이게 두면 누가 빠졌는지 모르니까. 그런데 조직도는
+      누가 어느 팀인지 보는 그림이고, 팀이 없는 사람을 세워 두면 팀이 하나 더 있는 것처럼
+      읽힌다. 빠진 사람은 직원 관리에서 팀을 적어 주면 제자리에 선다.
+    */
     const teams: TreeNode[] = [];
-    for (const team of [...DEPARTMENTS, '기타']) {
-      const members =
-        team === '기타'
-          ? rest.filter(e => !e.department || !DEPARTMENTS.includes(e.department as (typeof DEPARTMENTS)[number]))
-          : rest.filter(e => e.department === team);
+    for (const team of DEPARTMENTS) {
+      const members = rest.filter(e => e.department === team);
       if (members.length === 0) continue;
       teams.push({
         key: `team-${team}`,
@@ -141,7 +147,7 @@ export default function OrgChart() {
       return (
         <span
           className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 py-1.5 text-sm font-bold ${
-            TEAM_TONE[data.team] ?? TEAM_TONE.기타
+            TEAM_TONE[data.team] ?? TEAM_FALLBACK
           }`}
         >
           {data.team}
