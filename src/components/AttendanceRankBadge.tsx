@@ -21,7 +21,7 @@ export default function AttendanceRankBadge({
   const mark = RANK_MARK[row.rank];
   const pad = size === 'sm' ? 'px-1 py-px text-[10px]' : 'px-1.5 py-0.5 text-[11px]';
   const detail =
-    `기준(9:30~18:30)보다 20일 기준 ${hoursLabel(row.minutes)} · 센 날 ${row.days}일` +
+    `20일 기준 ${hoursLabel(row.minutes)} · 센 날 ${row.days}일` +
     ` (정상 ${row.normal} · 지각 ${row.late} · 조퇴 ${row.earlyLeave} · 누락 ${row.missing})`;
 
   if (mark) {

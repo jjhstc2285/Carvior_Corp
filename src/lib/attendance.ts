@@ -10,15 +10,17 @@ import type { AttendanceRecord, AttendanceRequest, AttendanceRequestKind, Attend
  */
 export const WORK_START = '09:30';
 /*
-  퇴근 기준은 18:30 이다.
+  퇴근 기준은 18:00 이다.
 
-  여기는 18:00, 순위 쪽은 18:30 으로 갈려 있었다 — 같은 화면에서 '정상'이라고 한 날이
-  순위에서는 서른 분 모자란 날로 세어졌다. 정상 근무는 9:30~18:30 이므로 그 값으로 맞춘다.
+  적어 둔 정상 근무는 9:30~18:30 인데, 퇴근은 러프하게 본다 — 18시를 넘겨 찍었으면
+  정상이다. 손님을 보내고 찍거나 정리하다 늦게 찍는 날이 흔해서 퇴근 시각은 사람마다
+  들쭉날쭉하고, 거기서 삼십 분을 다투게 하면 찍는 시각만 눈치 보게 된다.
 
-  식대 판정(payroll 의 MEAL_OUT_FROM)은 18:00 그대로다 — 저녁을 먹고 가는 시각이라
-  근무 기준과는 다른 값이다.
+  18:30 으로 올려 봤다가 되돌렸다. 그러면 18:10 에 간 날이 모두 조퇴로 잡힌다.
+
+  일찍 오는 쪽은 그대로 센다(순위에서 쌓이는 자리는 출근이다).
 */
-export const WORK_END = '18:30';
+export const WORK_END = '18:00';
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);

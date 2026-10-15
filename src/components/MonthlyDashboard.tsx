@@ -169,8 +169,8 @@ export default function MonthlyDashboard() {
           <div className="flex items-baseline justify-between border-b border-amber-200/70 px-3 py-1.5">
             <span className="text-xs font-bold text-amber-800">{dayjs(month).format('M월')} 출퇴근</span>
             <span className="text-[11px] text-amber-700/80">
-              기준(9:30~18:30)보다 더 일한 시간을 20일로 환산해 매깁니다 · 지각·조퇴·누락은
-              깎이고, 연차·반차·외근은 세지 않습니다
+              9:30 보다 일찍 온 만큼 쌓고 18시 전에 간 만큼 깎아 20일로 환산합니다 ·
+              18시 넘겨 퇴근하면 0점 · 누락은 하루치가 깎입니다 · 연차·반차·외근은 세지 않습니다
             </span>
           </div>
           <ul className="flex flex-wrap gap-1.5 p-2.5">

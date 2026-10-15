@@ -11,9 +11,13 @@ import { approvedRequestKind, computeStatus, isWorkday, WORK_END, WORK_START } f
  *
  * 그래서 두 가지를 바꿨다.
  *
- * ① 기준(9:30~18:30)보다 이르게 온 만큼, 늦게까지 있은 만큼만 센다.
- *    일찍 오면 쌓이고 늦게 오면 깎인다. 늦게까지 있으면 쌓이고 일찍 가면 깎인다.
- *    하루를 꽉 채워 기준대로 일한 날은 0이다 — 그게 '정상'이라는 뜻이다.
+ * ① 기준보다 이르게 온 만큼 쌓고, 일찍 간 만큼 깎는다.
+ *    쌓이는 자리는 출근이다 — 9:30 보다 일찍 오면 그만큼 쌓이고 늦으면 깎인다.
+ *    퇴근은 러프하게 본다. 18시를 넘겨 찍었으면 정상이라 0점이고, 그보다 일찍 가면
+ *    그만큼 깎는다. 늦게까지 있은 몫은 안 쌓는다 — 손님을 보내고 찍거나 정리하다 늦게
+ *    찍는 날이 흔해서 퇴근 시각은 사람마다 들쭉날쭉하고, 거기서 다투게 하면 일한 시간이
+ *    아니라 찍는 시각을 겨루게 된다.
+ *    9:30 에 와서 18시를 넘겨 간 날은 0이다 — 그게 '정상'이라는 뜻이다.
  *
  * ② 스무 날 기준으로 맞춘다. 사람마다 나온 날이 달라서 합계로는 견줄 수 없다.
  *    하루 평균을 내고 스무 날로 환산한다 — 며칠 나왔든 같은 자에 선다.
@@ -27,10 +31,10 @@ import { approvedRequestKind, computeStatus, isWorkday, WORK_END, WORK_START } f
  * 안 들어간다. 쉬기로 하고 쉰 날을 손해로 만들면 연차를 안 쓰게 된다.
  */
 
-/** 기본 근무 — 판정과 같은 값을 쓴다(두 곳에 적어 두었더니 18:00 과 18:30 으로 갈렸다) */
+/** 기본 근무 — 판정과 같은 값을 쓴다. 두 곳에 적어 두었더니 서로 다른 값으로 갈렸다 */
 export { WORK_END, WORK_START };
 
-/** 하루 기준 근무(분) — 9:30~18:30 */
+/** 하루 기준 근무(분) — 적어 둔 정상 근무 9:30~18:30 */
 const FULL_DAY = 9 * 60;
 
 /** 몇 날을 기준으로 견주는가 — 나온 날이 달라도 같은 자에 세운다 */
@@ -44,12 +48,13 @@ function minutesOf(time: string | null | undefined): number | null {
 }
 
 const START_AT = minutesOf(WORK_START) ?? 9 * 60 + 30;
-const END_AT = minutesOf(WORK_END) ?? 18 * 60 + 30;
+/** 이 시각을 넘겨 찍었으면 정상 — 넘긴 몫은 안 쌓는다 */
+const END_AT = minutesOf(WORK_END) ?? 18 * 60;
 
 export interface AttendanceRankRow {
   employeeId: string;
   name: string;
-  /** 스무 날로 환산한 점수(분) — 기준보다 더 일한 시간이다. 모자라면 음수다 */
+  /** 스무 날로 환산한 점수(분) — 일찍 온 만큼 쌓고 일찍 간 만큼 깎은 값이다 */
   minutes: number;
   /** 점수를 센 근무일 수 — 이 날수로 평균을 내 스무 날로 환산했다 */
   days: number;
@@ -164,8 +169,13 @@ export function attendanceRanking(
         */
         if (status === 'normal' && approved === 'LATE_EXCUSE') continue;
 
-        // 기준보다 이르게 온 만큼 + 늦게까지 있은 만큼. 늦게 오거나 일찍 가면 그대로 음수다
-        score += START_AT - inAt + (outAt - END_AT);
+        /*
+          일찍 온 만큼 쌓고, 일찍 간 만큼 깎는다.
+
+          퇴근은 18시를 넘겼으면 0이다 — 넘긴 몫을 쌓아 주면 늦게까지 앉아 있는 게
+          순위가 되고, 그건 일을 더 한 것과 다르다.
+        */
+        score += START_AT - inAt + Math.min(0, outAt - END_AT);
       }
 
       /*
