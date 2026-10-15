@@ -71,6 +71,8 @@ export interface AttendanceRankRow {
   minutes: number;
   /** 점수를 센 근무일 수 — 이 날수로 평균을 내 스무 날로 환산했다 */
   days: number;
+  /** 한 번이라도 찍은 날 수 — 0 이면 등수를 안 매긴다 */
+  punched: number;
   /** 휴일에 나와 일한 시간(분) — 점수에는 안 넣고 세어 두기만 한다 */
   holidayMinutes: number;
   /** 정정으로 시각을 채운 날 수 — 그 날마다 삼십 분이 깎인다 */
@@ -115,11 +117,17 @@ export function attendanceRanking(
   }
 
   const rows = employees
-    .filter(e => e.active)
+    /*
+      테스트 계정은 뺀다 — 사람이 아니라 확인하려고 만든 자리인데, 출퇴근을 안 찍으니
+      날마다 하루치가 깎여서 꼴찌 자리에 둘이 서 있었다(조직도에서도 같은 까닭으로 뺀다).
+    */
+    .filter(e => e.active && !e.name.includes('테스트'))
     .map(e => {
       /** 근무일에서 쌓인 점수와, 그 점수를 센 날 수 */
       let score = 0;
       let counted = 0;
+      /** 한 번이라도 찍은 날이 있는가 — 아예 안 쓰는 사람은 등수를 안 매긴다 */
+      let punched = 0;
       let holidayMinutes = 0;
       let fixed = 0;
       let normal = 0;
@@ -175,13 +183,30 @@ export function attendanceRanking(
         counted += 1;
 
         /*
-          근무일인데 아무것도(또는 한쪽만) 안 찍힌 날 — 그날은 일하지 않은 것으로 본다.
+          아무것도 안 찍힌 날 — 그날은 일하지 않은 것으로 봐서 하루치를 뺀다.
 
           0으로 두면 안 찍는 쪽이 늦게 온 쪽보다 이로워져서 찍지 않는 게 요령이 된다.
-          깜빡 안 찍었으면 정정 요청으로 시각을 채우면 그대로 되살아난다.
+          정정 요청으로 시각을 채우면 그 시각으로 다시 매긴다.
+        */
+        if (inAt === null && outAt === null) {
+          score -= FULL_DAY;
+          continue;
+        }
+        punched += 1;
+
+        /*
+          한쪽만 찍힌 날 — 나오기는 나온 날이다. 하루치를 빼면 안 된다.
+
+          한때 이것도 하루치로 뺐다. 그랬더니 퇴근을 안 찍는 사람이 열이틀 내리 아홉
+          시간씩 깎여서, 순위가 '일을 얼마나 했나'가 아니라 '퇴근 단추를 눌렀나'가 됐다.
+
+          찍힌 쪽은 그대로 세고, 안 찍힌 쪽은 모르는 값이라 0으로 둔 뒤 안 찍은 벌로
+          삼십 분만 깎는다 — 고쳐 적은 날과 같은 몫이다.
         */
         if (inAt === null || outAt === null || outAt <= inAt) {
-          score -= FULL_DAY;
+          if (inAt !== null) score += START_AT - inAt;
+          if (outAt !== null) score += Math.min(0, outAt - END_AT);
+          score -= FIXED_PENALTY;
           continue;
         }
 
@@ -224,6 +249,7 @@ export function attendanceRanking(
         name: e.name,
         minutes: Math.round(minutes),
         days: counted,
+        punched,
         holidayMinutes,
         fixed,
         normal,
@@ -243,8 +269,14 @@ export function attendanceRanking(
     한 날도 센 게 없는 사람은 등수를 안 매긴다 — 0점끼리 공동 1위가 되면 표가 뜻을 잃는다.
     점수가 음수인 사람은 등수에 넣는다. 기준에 모자란 것도 견줄 값이고, 빼면 꼴찌가 사라진다.
   */
-  // 평일에 센 날이 없으면 등수를 안 매긴다 — 휴일 근무는 점수가 아니라서 자를 못 세운다
-  const ranked = rows.filter(r => r.days > 0);
+  /*
+    한 번도 안 찍은 사람은 등수를 안 매긴다.
+
+    출퇴근을 아예 안 쓰는 사람이 있다. 그 사람은 날마다 하루치가 깎여서 늘 꼴찌에
+    붙박이로 선다 — 견줄 값이 없는데 자리만 차지한다. 예전에 0분인 사람을 뺐던 것과
+    같은 뜻이다.
+  */
+  const ranked = rows.filter(r => r.days > 0 && r.punched > 0);
   let rank = 0;
   let prev: number | null = null;
   // 등수를 안 매기는 사람은 세는 자리에서도 빼야 한다 — 끼워 두면 그 아래가 한 자씩 밀린다

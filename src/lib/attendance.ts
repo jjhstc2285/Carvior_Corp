@@ -148,7 +148,32 @@ export function approvedRequestKind(requests: AttendanceRequest[], employeeId: s
 }
 
 // 평일만 근무일로 취급(주말은 대시보드/통계에서 제외)
+/**
+ * 쉬는 날 — 주말 말고 달력에 빨간 날.
+ *
+ * 주말만 빼고 있었다. 그랬더니 한글날에 아무도 안 찍은 게 전원 '누락'으로 잡혀서,
+ * 출퇴근 순위가 그날 하루로 다같이 아홉 시간씩 깎였다.
+ *
+ * 날짜가 고정인 날만 적어 둔다. 설날·추석·부처님오신날은 음력이라 해마다 다르고,
+ * 대체공휴일도 그때 정해진다 — 지어 넣으면 멀쩡히 나온 날이 휴일이 되거나 그 반대가
+ * 된다. 회사 휴무일 표를 받아 여기에 적어 넣는다.
+ */
+const HOLIDAYS = new Set([
+  '2026-01-01', // 신정
+  '2026-03-01', // 삼일절
+  '2026-05-05', // 어린이날
+  '2026-06-06', // 현충일
+  '2026-08-15', // 광복절
+  '2026-10-03', // 개천절
+  '2026-10-09', // 한글날
+  '2026-12-25', // 성탄절
+]);
+
+export function isHoliday(date: string): boolean {
+  return HOLIDAYS.has(date);
+}
+
 export function isWorkday(date: string): boolean {
   const day = dayjs(date).day();
-  return day !== 0 && day !== 6;
+  return day !== 0 && day !== 6 && !HOLIDAYS.has(date);
 }

@@ -68,7 +68,8 @@ export default function MonthlyDashboard() {
     표를 받은 셋만 띄우면 나머지는 자기가 몇 시간 일했는지 볼 데가 없다 — 순위를 붙인
     까닭이 서로 보이게 하려는 것인데 셋만 보이면 그게 안 된다.
   */
-  const honored = ranking;
+  // 한 번도 안 찍은 사람은 뺀다 — 날마다 하루치가 깎여 꼴찌에 붙박이로 서는데 견줄 값이 없다
+  const honored = ranking.filter(r => r.punched > 0);
 
   const scopedEmployees = state.employees.filter(e =>
     (department === 'all' || e.department === department) &&
@@ -170,8 +171,8 @@ export default function MonthlyDashboard() {
             <span className="text-xs font-bold text-amber-800">{dayjs(month).format('M월')} 출퇴근</span>
             <span className="text-[11px] text-amber-700/80">
               평일만 보고 20일로 환산합니다 · 9:30 보다 일찍 온 만큼 쌓고 18시 전에 간 만큼
-              깎습니다(18시 넘겨 퇴근하면 0점) · 누락은 하루치, 정정하면 30분 ·
-              연차·반차·외근과 휴일 근무는 세지 않습니다
+              깎습니다(18시 넘겨 퇴근하면 0점) · 안 찍은 날은 하루치, 한쪽만 찍었거나
+              정정한 날은 30분 · 연차·반차·외근과 휴일·주말은 세지 않습니다
             </span>
           </div>
           <ul className="flex flex-wrap gap-1.5 p-2.5">
@@ -179,7 +180,7 @@ export default function MonthlyDashboard() {
               <li key={r.employeeId}>
                 <button
                   onClick={() => setEmployeeId(r.employeeId)}
-                  title={`20일 기준 ${hoursLabel(r.minutes)} · 센 날 ${r.days}일 · 정상 ${r.normal} · 지각 ${r.late} · 조퇴 ${r.earlyLeave} · 누락 ${r.missing} · 정정 ${r.fixed}${r.holidayMinutes > 0 ? ` · 휴일 ${hoursLabel(r.holidayMinutes)}(점수 밖)` : ''} — 눌러서 이 사람만 봅니다`}
+                  title={`20일 기준 ${hoursLabel(r.minutes)} · 센 날 ${r.days}일 · 정상 ${r.normal} · 지각 ${r.late} · 조퇴 ${r.earlyLeave} · 누락 ${r.missing} · 정정 ${r.fixed} · 찍은 날 ${r.punched}${r.holidayMinutes > 0 ? ` · 휴일 ${hoursLabel(r.holidayMinutes)}(점수 밖)` : ''} — 눌러서 이 사람만 봅니다`}
                   className={`flex items-center gap-1.5 rounded-full border bg-white py-1 pl-1 pr-2.5 text-xs hover:bg-amber-50 ${
                     employeeId === r.employeeId ? 'border-amber-400 ring-2 ring-amber-200' : 'border-amber-200'
                   }`}
