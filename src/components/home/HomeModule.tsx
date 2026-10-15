@@ -13,10 +13,10 @@ import {
 import { useStore } from '../../store';
 import { api } from '../../lib/api';
 import { goTo } from '../../lib/goto';
-import { useWorkLogs } from '../workLog/useWorkLogs';
 import type { ManagedVehicle } from '../../types';
 import type { ModuleKey } from '../../modules';
 import HomeClockCard from './HomeClockCard';
+import OrgChart from './OrgChart';
 import { CONSULTATION_STATUS_LABEL } from '../../types';
 import { NOTICE_TONE, type Notice } from '../notice/NoticeModule';
 
@@ -79,12 +79,6 @@ export default function HomeModule() {
 
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
   const now = dayjs();
-  const today = now.format('YYYY-MM-DD');
-
-  // 오늘 내 일지 — 적는 곳과 같은 길을 쓴다(체크를 되돌리는 규칙까지 그대로 따라온다)
-  const workLogs = useWorkLogs(today, today, '');
-  const logs = workLogs.logs;
-  const doneCount = logs.filter(l => l.done).length;
 
   const recentConsults = useMemo(
     () =>
@@ -104,14 +98,6 @@ export default function HomeModule() {
 
   const nameOf = (id: string) => state.employees.find(e => e.id === id)?.name ?? '';
 
-  /*
-    누구 일지인가 — 관리자에게만 적힌다.
-
-    서버는 관리자에게 전원 일지를 내려주고(work-logs.service) 직원에게는 본인 것만
-    내려준다. 이름을 안 적으면 관리자 화면에서 서른 줄이 누구 할 일인지 모르는 목록이
-    된다. 본인 줄에는 안 적는다 — 줄마다 자기 이름이 붙으면 읽는 데 방해만 된다.
-  */
-  const logOwner = (id: string) => (id === state.currentEmployeeId ? '' : nameOf(id));
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-4 px-4 py-6 sm:px-6 sm:py-8">
@@ -221,60 +207,7 @@ export default function HomeModule() {
       </div>
       {/* 키를 맞춘다 — 내용이 적은 장이 짧아지면 줄이 들쭉날쭉해진다 */}
       <div className="grid items-stretch gap-4 lg:grid-cols-3">
-        <Panel
-          title="오늘 업무 일지"
-          icon={<NotebookPen size={18} className="text-emerald-600" />}
-          onMore={() => goTo('workLog')}
-        >
-          {/*
-            오늘 적어 둔 할 일을 그대로 띄운다.
-
-            '상담 3건 등록' 같은 목록을 지어낼 뻔했다. 누가 정하는 숫자가 아니라 그냥
-            적어 둔 말이 되고, 아무도 안 지우고 아무도 안 본다. 업무 일지가 이미 그
-            자리다 — 본인이 적고 본인이 지운다.
-
-            여기서 바로 체크한다. 홈에서 보고 업무 일지로 건너가 또 눌러야 하면 손이 두
-            번 간다. 서버가 거부하면 체크를 되돌리는 것까지 useWorkLogs 가 들고 있다.
-          */}
-          {logs.length === 0 ? (
-            <Empty>
-              오늘 적은 일지가 없습니다.
-              <br />
-              <button onClick={() => goTo('workLog')} className="mt-1 font-bold text-emerald-600 hover:underline">
-                업무 일지에서 적기 →
-              </button>
-            </Empty>
-          ) : (
-            <>
-              <ul className="max-h-[340px] divide-y divide-slate-50 overflow-y-auto">
-                {logs.map(l => (
-                  <li key={l.id} className="flex items-start gap-2.5 px-1 py-3">
-                    <input
-                      type="checkbox"
-                      checked={l.done}
-                      onChange={() => void workLogs.toggle(l)}
-                      className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-indigo-600"
-                    />
-                    <span
-                      title={l.content}
-                      className={`min-w-0 flex-1 text-sm ${l.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}
-                      style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-                    >
-                      {/* 관리자에게는 전원 일지가 섞여 온다 — 누구 것인지 적어야 읽힌다 */}
-                      {logOwner(l.employeeId) && (
-                        <b className="mr-1 font-bold text-slate-500">{logOwner(l.employeeId)}</b>
-                      )}
-                      {l.content}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 border-t border-slate-100 pt-2.5 text-xs text-slate-400">
-                {logs.length}건 중 <b className="font-bold text-emerald-600">{doneCount}건</b> 끝냄
-              </p>
-            </>
-          )}
-        </Panel>
+        <OrgChart />
 
         <Panel
           title="최근 상담 내역"
