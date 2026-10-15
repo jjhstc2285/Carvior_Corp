@@ -22,7 +22,7 @@ export default function AttendanceRankBadge({
   const pad = size === 'sm' ? 'px-1 py-px text-[10px]' : 'px-1.5 py-0.5 text-[11px]';
   const detail =
     `20일 기준 ${hoursLabel(row.minutes)} · 센 날 ${row.days}일` +
-    ` (정상 ${row.normal} · 지각 ${row.late} · 조퇴 ${row.earlyLeave} · 누락 ${row.missing})`;
+    ` (정상 ${row.normal} · 지각 ${row.late} · 조퇴 ${row.earlyLeave} · 누락 ${row.missing} · 정정 ${row.fixed})`;
 
   if (mark) {
     return (

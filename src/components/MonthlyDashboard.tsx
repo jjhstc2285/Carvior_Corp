@@ -58,8 +58,8 @@ export default function MonthlyDashboard() {
     1등한 것이 같은 왕관이면 표가 뜻을 잃는다.
   */
   const ranking = useMemo(
-    () => attendanceRanking(state.employees, state.records, state.attendanceRequests, month),
-    [state.employees, state.records, state.attendanceRequests, month],
+    () => attendanceRanking(state.employees, state.records, state.attendanceRequests, month, state.requests),
+    [state.employees, state.records, state.attendanceRequests, month, state.requests],
   );
   const rankOf = (id: string) => ranking.find(r => r.employeeId === id) ?? null;
   /*
@@ -169,8 +169,9 @@ export default function MonthlyDashboard() {
           <div className="flex items-baseline justify-between border-b border-amber-200/70 px-3 py-1.5">
             <span className="text-xs font-bold text-amber-800">{dayjs(month).format('M월')} 출퇴근</span>
             <span className="text-[11px] text-amber-700/80">
-              9:30 보다 일찍 온 만큼 쌓고 18시 전에 간 만큼 깎아 20일로 환산합니다 ·
-              18시 넘겨 퇴근하면 0점 · 누락은 하루치가 깎입니다 · 연차·반차·외근은 세지 않습니다
+              평일만 보고 20일로 환산합니다 · 9:30 보다 일찍 온 만큼 쌓고 18시 전에 간 만큼
+              깎습니다(18시 넘겨 퇴근하면 0점) · 누락은 하루치, 정정하면 30분 ·
+              연차·반차·외근과 휴일 근무는 세지 않습니다
             </span>
           </div>
           <ul className="flex flex-wrap gap-1.5 p-2.5">
@@ -178,7 +179,7 @@ export default function MonthlyDashboard() {
               <li key={r.employeeId}>
                 <button
                   onClick={() => setEmployeeId(r.employeeId)}
-                  title={`20일 기준 ${hoursLabel(r.minutes)} · 센 날 ${r.days}일 · 정상 ${r.normal} · 지각 ${r.late} · 조퇴 ${r.earlyLeave} · 누락 ${r.missing}${r.holidayMinutes > 0 ? ` · 휴일 ${hoursLabel(r.holidayMinutes)}` : ''} — 눌러서 이 사람만 봅니다`}
+                  title={`20일 기준 ${hoursLabel(r.minutes)} · 센 날 ${r.days}일 · 정상 ${r.normal} · 지각 ${r.late} · 조퇴 ${r.earlyLeave} · 누락 ${r.missing} · 정정 ${r.fixed}${r.holidayMinutes > 0 ? ` · 휴일 ${hoursLabel(r.holidayMinutes)}(점수 밖)` : ''} — 눌러서 이 사람만 봅니다`}
                   className={`flex items-center gap-1.5 rounded-full border bg-white py-1 pl-1 pr-2.5 text-xs hover:bg-amber-50 ${
                     employeeId === r.employeeId ? 'border-amber-400 ring-2 ring-amber-200' : 'border-amber-200'
                   }`}

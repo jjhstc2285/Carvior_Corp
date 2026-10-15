@@ -136,8 +136,15 @@ export default function StatusBar() {
     사람을 나무라는 것보다 낫다. 기록은 이미 받아둔 이번 달 것을 그대로 쓴다.
   */
   const ranking = useMemo(
-    () => attendanceRanking(state.employees, state.records, state.attendanceRequests, dayjs().format('YYYY-MM')),
-    [state.employees, state.records, state.attendanceRequests],
+    () =>
+      attendanceRanking(
+        state.employees,
+        state.records,
+        state.attendanceRequests,
+        dayjs().format('YYYY-MM'),
+        state.requests,
+      ),
+    [state.employees, state.records, state.attendanceRequests, state.requests],
   );
   const rankOf = useCallback((id: string) => ranking.find(r => r.employeeId === id) ?? null, [ranking]);
 
