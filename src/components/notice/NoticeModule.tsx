@@ -167,7 +167,16 @@ export default function NoticeModule({ role }: { role: Role }) {
   );
 }
 
-function NoticeView({
+/**
+ * 공지 한 장을 펴서 본다.
+ *
+ * 게시판에서도 홈에서도 같은 창을 쓴다 — 홈에서 제목을 누르면 게시판으로 건너가 다시
+ * 눌러야 했다. 읽기만 하면 되는 일에 화면을 두 번 넘기게 두지 않는다.
+ *
+ * 고치기·지우기는 쓸 수 있는 사람에게만 뜬다(canWrite). 홈에서는 안 넘긴다 —
+ * 고칠 일이면 게시판에서 한다.
+ */
+export function NoticeView({
   notice,
   canWrite,
   onClose,

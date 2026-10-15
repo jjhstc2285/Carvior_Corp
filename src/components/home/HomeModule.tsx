@@ -18,7 +18,7 @@ import type { ModuleKey } from '../../modules';
 import HomeClockCard from './HomeClockCard';
 import OrgChart from './OrgChart';
 import { CONSULTATION_STATUS_LABEL } from '../../types';
-import { NOTICE_TONE, type Notice } from '../notice/NoticeModule';
+import { NOTICE_TONE, NoticeView, type Notice } from '../notice/NoticeModule';
 
 /**
  * 홈 — 들어오면 처음 보는 자리.
@@ -66,6 +66,8 @@ export default function HomeModule() {
   const { state } = useStore();
   const [vehicles, setVehicles] = useState<ManagedVehicle[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
+  // 홈에서 바로 펴 본다 — 읽기만 하는 일에 화면을 두 번 넘기게 두지 않는다
+  const [openNotice, setOpenNotice] = useState<Notice | null>(null);
 
   useEffect(() => {
     // 못 불러와도 나머지는 그대로 뜬다 — 덤으로 띄우는 자리다
@@ -297,6 +299,16 @@ export default function HomeModule() {
       </div>
 
       <OrgChart />
+
+      {openNotice && (
+        <NoticeView
+          notice={openNotice}
+          canWrite={false}
+          onClose={() => setOpenNotice(null)}
+          onEdit={() => {}}
+          onRemove={() => {}}
+        />
+      )}
     </div>
   );
 }
