@@ -16,7 +16,6 @@ import { goTo } from '../../lib/goto';
 import type { ManagedVehicle } from '../../types';
 import type { ModuleKey } from '../../modules';
 import HomeClockCard from './HomeClockCard';
-import OrgChart from './OrgChart';
 import { CONSULTATION_STATUS_LABEL } from '../../types';
 import { NOTICE_TONE, NoticeView, type Notice } from '../notice/NoticeModule';
 
@@ -298,8 +297,6 @@ export default function HomeModule() {
             )}
           </Panel>
       </div>
-
-      <OrgChart />
 
       {openNotice && (
         <NoticeView
