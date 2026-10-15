@@ -169,7 +169,8 @@ export default function MonthlyDashboard() {
           <div className="flex items-baseline justify-between border-b border-amber-200/70 px-3 py-1.5">
             <span className="text-xs font-bold text-amber-800">{dayjs(month).format('M월')} 출퇴근</span>
             <span className="text-[11px] text-amber-700/80">
-              찍힌 출퇴근 시각을 그대로 더해 매깁니다 (기본 9:30~18:30) · 연차·외근은 깎지 않습니다
+              기준(9:30~18:30)보다 더 일한 시간을 20일로 환산해 매깁니다 · 지각·조퇴·누락은
+              깎이고, 연차·반차·외근은 세지 않습니다
             </span>
           </div>
           <ul className="flex flex-wrap gap-1.5 p-2.5">
@@ -177,7 +178,7 @@ export default function MonthlyDashboard() {
               <li key={r.employeeId}>
                 <button
                   onClick={() => setEmployeeId(r.employeeId)}
-                  title={`${hoursLabel(r.minutes)} · ${r.days}일 · 정상 ${r.normal} · 지각 ${r.late} · 조퇴 ${r.earlyLeave} · 누락 ${r.missing} — 눌러서 이 사람만 봅니다`}
+                  title={`20일 기준 ${hoursLabel(r.minutes)} · 센 날 ${r.days}일 · 정상 ${r.normal} · 지각 ${r.late} · 조퇴 ${r.earlyLeave} · 누락 ${r.missing}${r.holidayMinutes > 0 ? ` · 휴일 ${hoursLabel(r.holidayMinutes)}` : ''} — 눌러서 이 사람만 봅니다`}
                   className={`flex items-center gap-1.5 rounded-full border bg-white py-1 pl-1 pr-2.5 text-xs hover:bg-amber-50 ${
                     employeeId === r.employeeId ? 'border-amber-400 ring-2 ring-amber-200' : 'border-amber-200'
                   }`}

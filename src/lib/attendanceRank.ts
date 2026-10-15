@@ -1,24 +1,40 @@
 import dayjs from 'dayjs';
 import type { AttendanceRecord, AttendanceRequest, Employee } from '../types';
-import { approvedRequestKind, computeStatus, isWorkday } from './attendance';
+import { approvedRequestKind, computeStatus, isWorkday, WORK_END, WORK_START } from './attendance';
 
 /**
- * 그 달 출퇴근 순위 — 일한 시간을 더해서 매긴다.
+ * 그 달 출퇴근 순위 — 기준보다 얼마나 더 일했는가로 매긴다.
  *
  * 처음에는 '정상 출근한 날 수'로 셌는데, 달이 막 시작된 날에는 모두가 하루씩이라 전원이
- * 1위가 됐다. 날 수로는 여덟 시에 나와 여섯 시 반까지 있은 사람과 아홉 시 반에 나와
- * 똑같이 퇴근한 사람이 갈리지 않는다.
+ * 1위가 됐다. 그다음에는 찍힌 시각을 그대로 다 더했는데, 그러면 많이 나온 사람이 거의
+ * 무조건 이긴다 — 그 달에 스무 날 나온 사람과 스무이틀 나온 사람이 같은 자에 선다.
  *
- * 찍힌 시각 그대로 더한다. 기본 근무는 9:30~18:30 이고, 일찍 나오거나 늦게까지 있은
- * 만큼이 그대로 쌓인다.
+ * 그래서 두 가지를 바꿨다.
  *
- * 승인받은 연차·반차·외근은 시간이 안 쌓이지만 깎지도 않는다 — 쉬기로 하고 쉰 날을
- * 손해로 만들면 연차를 안 쓰게 된다.
+ * ① 기준(9:30~18:30)보다 이르게 온 만큼, 늦게까지 있은 만큼만 센다.
+ *    일찍 오면 쌓이고 늦게 오면 깎인다. 늦게까지 있으면 쌓이고 일찍 가면 깎인다.
+ *    하루를 꽉 채워 기준대로 일한 날은 0이다 — 그게 '정상'이라는 뜻이다.
+ *
+ * ② 스무 날 기준으로 맞춘다. 사람마다 나온 날이 달라서 합계로는 견줄 수 없다.
+ *    하루 평균을 내고 스무 날로 환산한다 — 며칠 나왔든 같은 자에 선다.
+ *
+ * 깎이는 자리는 셋이다. 늦게 온 날, 일찍 간 날, 그리고 근무일인데 아무것도 안 찍힌 날이다.
+ * 안 찍힌 날은 그날을 일하지 않은 것으로 봐서 하루치(9시간)를 뺀다 — 0으로 두면 안 찍는
+ * 쪽이 늦게 온 쪽보다 이로워져서, 찍지 않는 게 요령이 된다. 깜빡 안 찍은 날은 정정 요청으로
+ * 시각을 채우면 그대로 되살아난다.
+ *
+ * 승인받은 연차·반차·외근은 아예 안 센다 — 쌓이지도 깎이지도 않고, 평균을 내는 날 수에도
+ * 안 들어간다. 쉬기로 하고 쉰 날을 손해로 만들면 연차를 안 쓰게 된다.
  */
 
-/** 기본 근무 — 화면에 기준을 적을 때 쓴다 */
-export const WORK_START = '09:30';
-export const WORK_END = '18:30';
+/** 기본 근무 — 판정과 같은 값을 쓴다(두 곳에 적어 두었더니 18:00 과 18:30 으로 갈렸다) */
+export { WORK_END, WORK_START };
+
+/** 하루 기준 근무(분) — 9:30~18:30 */
+const FULL_DAY = 9 * 60;
+
+/** 몇 날을 기준으로 견주는가 — 나온 날이 달라도 같은 자에 세운다 */
+export const BASIS_DAYS = 20;
 
 /** "HH:mm" → 자정부터 몇 분. 꼴이 아니면 null */
 function minutesOf(time: string | null | undefined): number | null {
@@ -27,30 +43,37 @@ function minutesOf(time: string | null | undefined): number | null {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
+const START_AT = minutesOf(WORK_START) ?? 9 * 60 + 30;
+const END_AT = minutesOf(WORK_END) ?? 18 * 60 + 30;
+
 export interface AttendanceRankRow {
   employeeId: string;
   name: string;
-  /** 그 달 일한 시간(분) — 출근·퇴근이 둘 다 찍힌 날만 쌓인다 */
+  /** 스무 날로 환산한 점수(분) — 기준보다 더 일한 시간이다. 모자라면 음수다 */
   minutes: number;
-  /** 시간이 쌓인 날 수 */
+  /** 점수를 센 근무일 수 — 이 날수로 평균을 내 스무 날로 환산했다 */
   days: number;
+  /** 휴일에 나와 일한 시간(분) — 기준이 없는 날이라 일한 만큼 그대로 더한다 */
+  holidayMinutes: number;
   normal: number;
   late: number;
   earlyLeave: number;
   /** 근무일인데 찍힌 게 없는 날 */
   missing: number;
-  /** 1부터. 일한 시간이 같으면 같은 등수다 */
+  /** 1부터. 점수가 같으면 같은 등수다 */
   rank: number;
   /** 한 번도 안 늦고 안 빠졌는가 — 순위와는 따로 본다 */
   perfect: boolean;
 }
 
-/** 분 → "32시간 10분" */
+/** 분 → "32시간 10분". 모자란 쪽은 앞에 빼기를 붙인다 */
 export function hoursLabel(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}분`;
-  return m === 0 ? `${h}시간` : `${h}시간 ${m}분`;
+  const sign = minutes < 0 ? '-' : '';
+  const abs = Math.abs(Math.round(minutes));
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  if (h === 0) return `${sign}${m}분`;
+  return m === 0 ? `${sign}${h}시간` : `${sign}${h}시간 ${m}분`;
 }
 
 export function attendanceRanking(
@@ -72,8 +95,10 @@ export function attendanceRanking(
   const rows = employees
     .filter(e => e.active)
     .map(e => {
-      let minutes = 0;
-      let worked = 0;
+      /** 근무일에서 쌓인 점수와, 그 점수를 센 날 수 */
+      let score = 0;
+      let counted = 0;
+      let holidayMinutes = 0;
       let normal = 0;
       let late = 0;
       let earlyLeave = 0;
@@ -81,22 +106,26 @@ export function attendanceRanking(
 
       for (const date of days) {
         const record = records.find(r => r.employeeId === e.id && r.date === date);
-
-        /*
-          시간은 휴일에 나온 날도 센다.
-
-          주말에 나와 일한 것도 일한 시간이다. 지각·조퇴 같은 '상태'만 근무일 기준으로
-          센다 — 토요일에 늦게 나왔다고 지각이라 할 수는 없다.
-        */
         const inAt = minutesOf(record?.clockIn);
         const outAt = minutesOf(record?.clockOut);
-        if (inAt !== null && outAt !== null && outAt > inAt) {
-          minutes += outAt - inAt;
-          worked += 1;
+        const approved = approvedRequestKind(requests, e.id, date);
+
+        /*
+          휴일에 나온 날은 일한 만큼 전부 더한다.
+
+          기준 시각이 없는 날이다. 토요일에 열 시에 나와 다섯 시에 갔다고 깎을 수는 없다 —
+          쉬는 날에 나온 것 자체가 더 일한 것이다.
+
+          평균을 내는 날 수에는 안 넣는다. 넣으면 휴일에 세 시간만 나온 사람의 평균이
+          내려가서, 쉬는 날에 나온 게 손해가 된다.
+        */
+        if (!isWorkday(date)) {
+          if (inAt !== null && outAt !== null && outAt > inAt) holidayMinutes += outAt - inAt;
+          continue;
         }
 
-        if (!isWorkday(date)) continue;
-        const status = computeStatus(record, date, approvedRequestKind(requests, e.id, date));
+        const status = computeStatus(record, date, approved);
+
         if (status === 'normal') normal += 1;
         else if (status === 'late') late += 1;
         else if (status === 'earlyLeave') earlyLeave += 1;
@@ -104,13 +133,56 @@ export function attendanceRanking(
           late += 1;
           earlyLeave += 1;
         } else if (status === 'missing') missing += 1;
+
+        /*
+          쉬기로 한 날과 아직 안 끝난 날은 센 날에서 뺀다.
+
+          연차·반차·외근은 쌓지도 깎지도 않는다. 특히 반차는 늦게 오거나 일찍 가는 게
+          정상인 날이라, 기준에 맞춰 깎으면 반차를 쓴 사람만 손해를 본다.
+
+          오늘은 아직 퇴근을 안 찍었을 수 있다 — 끝나지도 않은 날을 조퇴로 세면 안 된다.
+        */
+        if (status === 'annualLeave' || status === 'halfDay' || status === 'fieldWork') continue;
+        if (status === 'pending') continue;
+
+        counted += 1;
+
+        /*
+          근무일인데 아무것도(또는 한쪽만) 안 찍힌 날 — 그날은 일하지 않은 것으로 본다.
+
+          0으로 두면 안 찍는 쪽이 늦게 온 쪽보다 이로워져서 찍지 않는 게 요령이 된다.
+          깜빡 안 찍었으면 정정 요청으로 시각을 채우면 그대로 되살아난다.
+        */
+        if (inAt === null || outAt === null || outAt <= inAt) {
+          score -= FULL_DAY;
+          continue;
+        }
+
+        /*
+          지각·조퇴 소명이 승인된 날은 정상으로 본다 — 깎지 않는다.
+          다만 일찍 나온 몫도 안 쌓는다. 소명은 '없던 일로 한다'는 뜻이지 상이 아니다.
+        */
+        if (status === 'normal' && approved === 'LATE_EXCUSE') continue;
+
+        // 기준보다 이르게 온 만큼 + 늦게까지 있은 만큼. 늦게 오거나 일찍 가면 그대로 음수다
+        score += START_AT - inAt + (outAt - END_AT);
       }
+
+      /*
+        스무 날로 환산한다.
+
+        하루 평균을 내고 스무 날을 곱한다 — 열 날 나온 사람과 스무이틀 나온 사람이 같은
+        자에 선다. 휴일 근무는 환산 밖에서 그대로 더한다(기준이 없는 날이라 평균에 섞으면
+        뜻이 흐려진다).
+      */
+      const minutes = (counted > 0 ? (score / counted) * BASIS_DAYS : 0) + holidayMinutes;
 
       return {
         employeeId: e.id,
         name: e.name,
-        minutes,
-        days: worked,
+        minutes: Math.round(minutes),
+        days: counted,
+        holidayMinutes,
         normal,
         late,
         earlyLeave,
@@ -123,17 +195,16 @@ export function attendanceRanking(
   rows.sort((a, b) => b.minutes - a.minutes || b.days - a.days || a.name.localeCompare(b.name));
 
   /*
-    일한 시간이 같으면 같은 등수다.
+    점수가 같으면 같은 등수다.
 
-    한 번도 안 찍은 사람(0분)은 등수를 안 매긴다 — 0분끼리 공동 1위가 되면 표가 뜻을 잃는다.
+    한 날도 센 게 없는 사람은 등수를 안 매긴다 — 0점끼리 공동 1위가 되면 표가 뜻을 잃는다.
+    점수가 음수인 사람은 등수에 넣는다. 기준에 모자란 것도 견줄 값이고, 빼면 꼴찌가 사라진다.
   */
+  const ranked = rows.filter(r => r.days > 0 || r.holidayMinutes > 0);
   let rank = 0;
   let prev: number | null = null;
-  rows.forEach((r, i) => {
-    if (r.minutes <= 0) {
-      r.rank = 0;
-      return;
-    }
+  // 등수를 안 매기는 사람은 세는 자리에서도 빼야 한다 — 끼워 두면 그 아래가 한 자씩 밀린다
+  ranked.forEach((r, i) => {
     if (prev === null || r.minutes !== prev) {
       rank = i + 1;
       prev = r.minutes;

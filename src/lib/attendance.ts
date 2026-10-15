@@ -9,7 +9,16 @@ import type { AttendanceRecord, AttendanceRequest, AttendanceRequestKind, Attend
  * 09:31부터 지각이 된다. 초까지 저장하도록 바꾸면 이 규칙도 같이 봐야 한다.
  */
 export const WORK_START = '09:30';
-export const WORK_END = '18:00';
+/*
+  퇴근 기준은 18:30 이다.
+
+  여기는 18:00, 순위 쪽은 18:30 으로 갈려 있었다 — 같은 화면에서 '정상'이라고 한 날이
+  순위에서는 서른 분 모자란 날로 세어졌다. 정상 근무는 9:30~18:30 이므로 그 값으로 맞춘다.
+
+  식대 판정(payroll 의 MEAL_OUT_FROM)은 18:00 그대로다 — 저녁을 먹고 가는 시각이라
+  근무 기준과는 다른 값이다.
+*/
+export const WORK_END = '18:30';
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
