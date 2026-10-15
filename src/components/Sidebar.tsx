@@ -1,15 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Building2,
   CalendarClock,
   Car,
+  ChevronDown,
   Contact,
   HeartHandshake,
   Home,
   House,
   Landmark,
+  Handshake,
+  LayoutGrid,
   Megaphone,
   Megaphone as Notice,
+  Users,
   MessageSquare,
   MessageSquareText,
   NotebookPen,
@@ -59,9 +63,14 @@ interface Props {
  *
  * 갈래 이름은 짧게 둔다. 이름이 길면 그걸 읽느라 정작 메뉴를 못 본다.
  */
-const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon: typeof CalendarClock }[] }[] = [
+const NAV_GROUPS: {
+  title: string;
+  icon: typeof CalendarClock;
+  items: { key: ModuleKey; label: string; icon: typeof CalendarClock }[];
+}[] = [
   {
     title: '인사 · 급여',
+    icon: Users,
     items: [
       { key: 'attendance', label: '출퇴근 관리', icon: CalendarClock },
       { key: 'workLog', label: '업무 일지', icon: NotebookPen },
@@ -72,6 +81,7 @@ const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon:
   },
   {
     title: '영업 · 고객',
+    icon: Handshake,
     items: [
       { key: 'consultation', label: '상담 관리', icon: MessageSquareText },
       { key: 'vendor', label: '거래처 관리', icon: Contact },
@@ -80,6 +90,7 @@ const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon:
   },
   {
     title: '차량 · 시설',
+    icon: Car,
     items: [
       { key: 'vehicle', label: '차량 관리', icon: Car },
       { key: 'parking', label: '주차장 관리', icon: ParkingSquare },
@@ -89,6 +100,7 @@ const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon:
   },
   {
     title: '구매 · 재무',
+    icon: Wallet,
     items: [
       // 차를 사는 일이다 — 돈이 나가는 쪽에 둔다
       { key: 'purchaseIntake', label: '매입 관리', icon: ShoppingCart },
@@ -101,6 +113,7 @@ const NAV_GROUPS: { title: string; items: { key: ModuleKey; label: string; icon:
   },
   {
     title: '기타 · 지원',
+    icon: LayoutGrid,
     items: [
       // 전 직원이 본다 — 권한으로 가리지 않는다
       { key: 'notice', label: '사내 게시판', icon: Notice },
@@ -167,7 +180,10 @@ export default function Sidebar({
       홈은 갈래 위에 따로 있다. 갈래에도 넣어 두었더니 메뉴에 홈이 두 번 떴다.
       찾을 때만 결과에 끼워 넣는다 — 이름으로 찾는 사람도 있다.
     */
-    const home = q && '홈'.includes(q) ? [{ title: '', items: [{ key: 'home' as ModuleKey, label: '홈', icon: House }] }] : [];
+    const home =
+      q && '홈'.includes(q)
+        ? [{ title: '', icon: House, items: [{ key: 'home' as ModuleKey, label: '홈', icon: House }] }]
+        : [];
     return [...home, ...NAV_GROUPS].map(g => ({
       ...g,
       items: g.items.filter(i => canSee(i.key) && (!q || i.label.toLowerCase().includes(q))),
@@ -175,6 +191,26 @@ export default function Sidebar({
   }, [query, canSeeLedger, isCeo, canSeePayroll, canSeeSheet, isAdmin]);
 
   const searching = query.trim().length > 0;
+
+  /*
+    대분류만 띄우고, 누른 갈래만 편다.
+
+    열일곱 개가 한 번에 늘어서 있으면 화면을 다 먹고, 아래쪽 메뉴는 굴려야 보인다.
+    갈래 다섯만 두면 한눈에 들어오고, 볼 곳만 펴서 본다.
+
+    한 번에 하나만 편다. 둘 셋 열어 두면 결국 다 펴 둔 것과 같아진다.
+
+    지금 보고 있는 화면이 든 갈래는 저절로 펴 둔다 — 들어와서 "내가 어디에 있지"부터
+    찾게 하면 안 된다.
+  */
+  const groupOf = (key: ModuleKey) => NAV_GROUPS.find(g => g.items.some(i => i.key === key))?.title ?? null;
+  const [open, setOpen] = useState<string | null>(() => groupOf(active));
+
+  // 다른 화면으로 건너가면(홈의 바로가기 같은 길) 그 갈래를 펴 준다
+  useEffect(() => {
+    const next = groupOf(active);
+    if (next) setOpen(next);
+  }, [active]);
 
   const go = (key: ModuleKey) => {
     onChange(key);
@@ -246,13 +282,32 @@ export default function Sidebar({
         {searching && groups.length === 0 && (
           <p className="px-3 py-6 text-center text-xs text-slate-400">찾는 메뉴가 없습니다.</p>
         )}
-        {groups.map(group => (
-          <div key={group.title} className="mb-3 last:mb-0">
+        {groups.map(group => {
+          const GroupIcon = group.icon;
+          // 찾는 동안에는 다 편다. 결과를 접어 두면 찾은 보람이 없다
+          const shown = searching || open === group.title;
+          const hasActive = group.items.some(i => i.key === active);
+          return (
+          <div key={group.title} className="mb-1.5 last:mb-0">
             {/* 찾는 동안에는 갈래 제목을 안 그린다 — 한 줄씩 남으면 제목이 결과보다 많아진다 */}
             {!searching && (
-              <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">{group.title}</p>
+              <button
+                onClick={() => setOpen(v => (v === group.title ? null : group.title))}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
+                  hasActive ? 'font-bold text-indigo-700' : 'font-semibold text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <GroupIcon size={16} className={hasActive ? 'text-indigo-600' : 'text-slate-400'} />
+                {group.title}
+                {/* 접힌 갈래 안에 지금 보는 화면이 있으면 점을 찍는다 — 어디 있는지 알 수 있다 */}
+                {!shown && hasActive && <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />}
+                <ChevronDown
+                  size={14}
+                  className={`ml-auto text-slate-300 transition-transform ${shown ? 'rotate-180' : ''}`}
+                />
+              </button>
             )}
-            <div className="space-y-0.5">
+            <div className={`space-y-0.5 ${searching ? '' : 'pl-3'} ${shown ? 'mt-0.5 mb-2' : 'hidden'}`}>
               {group.items.map(item => {
                 const Icon = item.icon;
                 const isActive = active === item.key;
@@ -278,7 +333,8 @@ export default function Sidebar({
               })}
             </div>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* 계정 정보/로그아웃은 상단 네비게이션 바(UserMenu)로 옮김 */}
