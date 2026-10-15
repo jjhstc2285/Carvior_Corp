@@ -77,13 +77,13 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   vehicle: '차량 관리',
   ad: '광고 관리',
   purchaseIntake: '매입 관리',
-  stockFinance: '재고금융 (제시)',
-  vendor: '거래처 대장',
+  stockFinance: '재고금융',
+  vendor: '거래처 관리',
   property: '부동산 정보',
   payroll: '인건비',
-  dealerFee: '신차영업소 상조회비',
-  cleaning: '청소 관리 대장',
-  condolence: '경조사비 대장',
+  dealerFee: '상조회비 관리',
+  cleaning: '청소 관리',
+  condolence: '경조사비 관리',
   chat: '메시지',
 };
 
