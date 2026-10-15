@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "primereact/resources/primereact.min.css";
 
 :root {
   color-scheme: light;
@@ -101,3 +102,30 @@ body {
 /* 올린 사진 — 원본 그대로 두면 한 장이 화면을 넘긴다 */
 .prose-notice img { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 0.5rem 0; }
 .prose-notice img.ProseMirror-selectednode { outline: 2px solid #6366f1; }
+
+/*
+  조직도 — 뼈대만 빌려 쓰고 생김새는 우리가 정한다.
+
+  PrimeReact 테마 css 를 통째로 넣으면 글꼴과 색이 앱 전체로 번진다. 선을 긋는 표 뼈대만
+  primereact.min.css 로 가져오고, 칸은 nodeTemplate 으로 직접 그린다.
+
+  기본 칸에는 테두리와 바탕이 붙어 있다 — 우리가 그린 칸과 겹쳐 두 겹으로 보이니 지운다.
+*/
+.org-chart .p-organizationchart-node-content {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.org-chart .p-organizationchart-line-down { background: #cbd5e1; width: 1.5px; }
+.org-chart .p-organizationchart-line-left,
+.org-chart .p-organizationchart-line-top { border-color: #cbd5e1; border-width: 1.5px; }
+/* 접는 단추 — 칸 아래에 작게 */
+.org-chart .p-node-toggler {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  color: #94a3b8;
+}
+.org-chart .p-node-toggler:hover { color: #4f46e5; border-color: #c7d2fe; }
+/* 고른 칸에 파란 바탕이 깔린다 — 우리 칸이 이미 표시를 하므로 끈다 */
+.org-chart .p-organizationchart-node-content.p-highlight { background: transparent; color: inherit; }

@@ -206,9 +206,7 @@ export default function HomeModule() {
         </div>
       </div>
       {/* 키를 맞춘다 — 내용이 적은 장이 짧아지면 줄이 들쭉날쭉해진다 */}
-      <div className="grid items-stretch gap-4 lg:grid-cols-3">
-        <OrgChart />
-
+      <div className="grid items-stretch gap-4 lg:grid-cols-2">
         <Panel
           title="최근 상담 내역"
           icon={<Headset size={18} className="text-blue-600" />}
@@ -297,6 +295,8 @@ export default function HomeModule() {
             )}
           </Panel>
       </div>
+
+      <OrgChart />
     </div>
   );
 }
