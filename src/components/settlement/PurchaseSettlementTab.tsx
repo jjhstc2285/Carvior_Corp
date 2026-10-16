@@ -36,6 +36,7 @@ import { ContractPhotoThumb } from './ContractPhotos';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
 import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
+import { SOLD_CHANNEL_HINT, SOLD_CHANNEL_LABEL, SOLD_CHANNEL_TONE, soldChannelLookup } from '../../lib/soldChannel';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
 
 interface Props {
@@ -91,6 +92,15 @@ const COLUMNS: Column[] = [
   { key: 'vehicleCost', label: '차량비용(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'totalWon', label: '총합계(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'salePrice', label: '차량판매가', align: 'text-right', headClass: 'text-emerald-600' },
+  /*
+    어떻게 팔렸나 — 수출·알선·타 딜러·우리 딜러.
+
+    얼마에 샀고 얼마에 팔았는지만 있고 어느 길로 나갔는지는 없었다. 그런데 그게 돈이
+    어디로 갔는지를 가른다 — 남의 딜러가 팔아 준 차는 우리 딜러가 정산을 안 받는다.
+
+    따로 적는 칸은 안 만든다. 정산 종류와 상담 종류로 이미 알 수 있다.
+  */
+  { key: 'soldChannel', label: '판매 경로', align: 'text-center', title: '정산·상담에 적힌 것으로 가려냅니다 — 따로 적지 않습니다' },
   // 상사 정산서 맨 아래 숫자 — 적힌 건은 판매수익을 이걸로 낸다
   {
     key: 'payoutAmount',
@@ -156,6 +166,11 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
   /** 표를 잡고 끌어서 옆으로 넘긴다 — 칸이 스무 개가 넘어 화면 밖으로 나간다 */
   const dragRef = useDragScroll<HTMLDivElement>();
+  /* 차량번호 → 어떻게 팔렸나. 줄마다 뒤지면 백 줄 × 수천 건이라 한 번 묶어 둔다 */
+  const soldChannelOf = useMemo(
+    () => soldChannelLookup(state.brokerageSettlements, state.consultations),
+    [state.brokerageSettlements, state.consultations],
+  );
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
   /** 이번 달부터 본다. 지난 달 것까지 한 화면에 쌓이면 지금 처리할 게 안 보인다. */
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
@@ -684,6 +699,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
       일자: s.date,
       차량명: s.vehicleName,
       차량번호: s.vehicleNumber,
+      '판매 경로': SOLD_CHANNEL_LABEL[soldChannelOf(s.vehicleNumber)],
       '이전비+추가이전비(원)': s.transferFee,
       '매입가(원)': s.purchasePrice,
       // 항목별 합계 6칸 — 업체별 세부는 '상품화 명세' 열에 풀어 쓴다.
@@ -1310,6 +1326,17 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                         {MAN(profitOf(s))}
                       </span>
                     ),
+                    soldChannel: (() => {
+                      const how = soldChannelOf(s.vehicleNumber);
+                      return (
+                        <span
+                          className={`inline-block whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold ${SOLD_CHANNEL_TONE[how]}`}
+                          title={SOLD_CHANNEL_HINT[how]}
+                        >
+                          {SOLD_CHANNEL_LABEL[how]}
+                        </span>
+                      );
+                    })(),
                     owner: <span className="text-slate-500">{employeeOf(s.employeeId)?.name}</span>,
                     // 눌러서 크게 본다 — 결재하는 쪽이 표에서 바로 확인한다
                     contract: s.contractPhotos ? (
