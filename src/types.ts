@@ -1196,6 +1196,13 @@ export interface ConsultationRecord {
   recallAt?: string | null;
   /** 출고 시 입금액(만원) — 카톡방에 올리는 "입금1000만원"이 이 값이다 */
   depositAmount: number;
+  /**
+   * 차가 얼마에 팔렸나(원).
+   *
+   * 남의 딜러가 우리 상사 차를 팔아 주면 우리 딜러가 정산을 안 받는다 — 전화를 받은
+   * TM 말고는 얼마에 팔렸는지 아무도 모른다. 입금액과는 다른 값이다(그건 만원 단위).
+   */
+  salePrice?: number;
   nextContactDate: string | null; // 다음 연락 예정일
 
   /**

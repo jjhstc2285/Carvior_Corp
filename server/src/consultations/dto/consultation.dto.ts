@@ -76,6 +76,9 @@ export class CreateConsultationDto extends PayFields {
   /** 출고 입금액(만원) */
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) depositAmount?: number;
 
+  /** 차가 얼마에 팔렸나(원) — 남의 딜러가 판 건은 TM 만 아는 값이다 */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) salePrice?: number;
+
   @IsOptional()
   @Matches(DATE_PATTERN, { message: 'nextContactDate는 YYYY-MM-DD 형식이어야 합니다.' })
   nextContactDate?: string | null;
@@ -91,6 +94,7 @@ export class UpdateConsultationDto extends PayFields {
   @IsOptional() @IsString() @MaxLength(30) visitTime?: string;
   @IsOptional() @IsString() @MaxLength(40) visitDealerId?: string | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) depositAmount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) salePrice?: number;
   @IsOptional() @IsString() @MaxLength(50) customerName?: string;
   @IsOptional() @IsString() @MaxLength(60) outsideDealer?: string;
   @IsOptional() @IsString() employeeId?: string;

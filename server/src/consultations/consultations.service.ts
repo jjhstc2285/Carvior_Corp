@@ -11,6 +11,7 @@ import { assignVisits } from './visit-slot';
 import { formatDateOnly, formatDateOnlyOrNull, toDateOnly, toDateOnlyOrNull } from '../common/date.util';
 import type { CreateConsultationDto, UpdateConsultationDto } from './dto/consultation.dto';
 import { TelegramService } from '../telegram/telegram.module';
+import { SettlementsService } from '../settlements/settlements.service';
 
 /**
  * 출고 준비를 해야 하는 팀.
@@ -57,7 +58,24 @@ export class ConsultationsService {
     private readonly realtime: RealtimeGateway,
     private readonly push: PushService,
     private readonly telegram: TelegramService,
+    private readonly settlements: SettlementsService,
   ) {}
+
+  /**
+   * 상담에 적은 차량판매가를 매입 정산의 차량판매가로 옮긴다.
+   *
+   * 남의 딜러가 우리 상사 차를 팔아 주면 우리 딜러가 정산을 안 받는다 — 전화를 받은
+   * TM 말고는 얼마에 팔렸는지 아무도 모른다. 그 사람이 여기 적으면 매입 정산이 채워진다.
+   *
+   * 못 옮겨도 상담은 그대로 저장된다 — 옮기다 막혀서 적은 게 날아가면 안 된다.
+   */
+  private async pushSalePrice(row: { vehicleNumber: string; salePrice: number }): Promise<void> {
+    try {
+      await this.settlements.syncSalePriceFromConsultation(row);
+    } catch {
+      // 옮기지 못해도 상담은 저장된 뒤다 — 매입 정산에서 손으로 적으면 된다
+    }
+  }
 
   /**
    * 방문 약속이 잡혔다고 알린다.
@@ -287,6 +305,7 @@ export class ConsultationsService {
         visitDealerId: dto.visitDealerId?.trim() || null,
         visitTime: dto.visitTime?.trim() ?? '',
         depositAmount: dto.depositAmount ?? 0,
+        salePrice: dto.salePrice ?? 0,
         nextContactDate: toDateOnlyOrNull(dto.nextContactDate),
         ...payFieldsOf(dto),
       },
@@ -297,6 +316,7 @@ export class ConsultationsService {
       await this.clearParkingSpot(row.vehicleNumber);
       await this.notifyRelease(row);
     }
+    await this.pushSalePrice(row);
     this.announceVisit(null, row);
     return this.toView(row);
   }
@@ -324,6 +344,7 @@ export class ConsultationsService {
         // 빈 글자로 오면 '아직 안 정함'으로 되돌린다
         ...(dto.visitDealerId !== undefined ? { visitDealerId: dto.visitDealerId?.trim() || null } : {}),
         ...(dto.depositAmount !== undefined ? { depositAmount: dto.depositAmount } : {}),
+        ...(dto.salePrice !== undefined ? { salePrice: dto.salePrice } : {}),
         ...(dto.nextContactDate !== undefined
           ? { nextContactDate: toDateOnlyOrNull(dto.nextContactDate) }
           : {}),
@@ -331,6 +352,8 @@ export class ConsultationsService {
       },
       include: this.include,
     });
+
+    await this.pushSalePrice(row);
 
     // 이미 판매완료였다가 다른 칸만 고친 경우에도 한 번 더 비운다 — 자리를 다시 적었을 수 있다.
     if (row.status === ConsultationStatus.SOLD) {

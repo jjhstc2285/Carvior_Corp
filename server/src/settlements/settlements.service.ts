@@ -672,9 +672,58 @@ export class SettlementsService {
           ? row.ownerDeposit + row.etcCost
           : row.totalSaleAmount;
     if (amount <= 0) return 'already';
+    return this.applySalePrice(row.vehicleNumber, amount, row.date, '알선');
+  }
 
+  /**
+   * 상담에 적은 차량판매가를 매입 정산으로 옮긴다.
+   *
+   * 남의 딜러가 우리 상사 차를 팔아 주면 우리 딜러가 정산을 안 받는다 — 전화를 받은
+   * TM 말고는 얼마에 팔렸는지 아무도 모른다. 그 사람이 상담에 적으면 매입 정산의
+   * 차량판매가가 저절로 채워진다.
+   *
+   * 알선·수출 정산이 있는 차는 건드리지 않는다. 돈이 오간 자리에 적힌 값이 더 정확하고,
+   * 둘 다 덮으려 들면 저장할 때마다 값이 서로 밀어내며 왔다 갔다 한다.
+   *
+   * 정산 날짜는 안 옮긴다. 상담일은 전화를 받은 날이라 판 날이 아니다 — 알선 정산과
+   * 달리 날짜를 믿을 수 없다.
+   */
+  async syncSalePriceFromConsultation(row: {
+    vehicleNumber: string;
+    salePrice: number;
+  }): Promise<'updated' | 'already' | 'noMatch'> {
+    if (!row.vehicleNumber || row.salePrice <= 0) return 'already';
+
+    const plates = [...new Set([row.vehicleNumber, normalizePlate(row.vehicleNumber)])].filter(Boolean);
+    const brokerage = await this.prisma.brokerageSettlement.findFirst({
+      where: {
+        vehicleNumber: { in: plates },
+        OR: [{ realSalePrice: { gt: 0 } }, { ownerDeposit: { gt: 0 } }, { totalSaleAmount: { gt: 0 } }],
+      },
+      select: { id: true },
+    });
+    if (brokerage) return 'already';
+
+    return this.applySalePrice(row.vehicleNumber, row.salePrice, null, '상담');
+  }
+
+  /**
+   * 그 차의 매입 정산에 차량판매가를 적는다.
+   *
+   * 승인이 찍힌 정산은 건드리지 않는다 — 결재한 뒤에 금액이 저절로 바뀌면 무엇을 보고
+   * 찍었는지가 남지 않는다.
+   *
+   * 차량번호는 손으로 적는 값이라 띄어쓰기가 섞여 들어온다 — 정리한 꼴로도 찾는다.
+   * 같은 차를 두 번 사고팔았으면 최근 매입 건에 넣는다.
+   */
+  private async applySalePrice(
+    vehicleNumber: string,
+    amount: number,
+    soldOn: Date | null,
+    from: string,
+  ): Promise<'updated' | 'already' | 'noMatch'> {
     try {
-      const plates = [...new Set([row.vehicleNumber, normalizePlate(row.vehicleNumber)])].filter(Boolean);
+      const plates = [...new Set([vehicleNumber, normalizePlate(vehicleNumber)])].filter(Boolean);
       const target = await this.prisma.purchaseSettlement.findFirst({
         where: { vehicleNumber: { in: plates }, chiefApprovedAt: null },
         orderBy: { date: 'desc' },
@@ -692,16 +741,16 @@ export class SettlementsService {
       // 0으로 덮어써서 이미 적어둔 값을 지우지 않는다 — 안 적은 칸은 그대로 둔다.
       const data = {
         ...(target.salePrice !== amount ? { salePrice: amount } : {}),
-        ...(formatDateOnly(target.date) !== formatDateOnly(row.date) ? { date: row.date } : {}),
+        ...(soldOn && formatDateOnly(target.date) !== formatDateOnly(soldOn) ? { date: soldOn } : {}),
       };
       if (Object.keys(data).length === 0) return 'already';
 
       await this.prisma.purchaseSettlement.update({ where: { id: target.id }, data });
-      this.logger.log(`${row.vehicleNumber} 매입 정산에 알선 값을 옮겼습니다: ${JSON.stringify(data)}`);
+      this.logger.log(`${vehicleNumber} 매입 정산에 ${from} 값을 옮겼습니다: ${JSON.stringify(data)}`);
       return 'updated';
     } catch (e) {
-      // 옮기지 못해도 알선 정산은 그대로 저장된다 — 손으로 적으면 된다.
-      this.logger.warn(`알선 값을 옮기지 못했습니다(${row.vehicleNumber}): ${(e as Error).message}`);
+      // 옮기지 못해도 적은 쪽은 그대로 저장된다 — 손으로 적으면 된다.
+      this.logger.warn(`${from} 값을 옮기지 못했습니다(${vehicleNumber}): ${(e as Error).message}`);
       return 'noMatch';
     }
   }

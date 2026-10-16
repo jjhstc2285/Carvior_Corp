@@ -55,6 +55,14 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const [time, setTime] = useState(editing?.time ?? dayjs().format('HH:mm'));
   const [content, setContent] = useState(editing?.content ?? preset?.content ?? '');
   const [depositAmount, setDepositAmount] = useState(editing ? String(editing.depositAmount || '') : '');
+  /*
+    차가 얼마에 팔렸나.
+
+    남의 딜러가 우리 상사 차를 팔아 주면 우리 딜러가 정산을 안 받는다 — 전화를 받은
+    TM 말고는 얼마에 팔렸는지 아무도 모른다. 여기 적으면 매입 정산의 차량판매가로
+    저절로 넘어간다.
+  */
+  const [salePrice, setSalePrice] = useState(editing ? String(editing.salePrice || '') : '');
   /* 재고금융을 쓴 캐피탈에 할부를 얼마나 깔았는지 — 약정을 채웠는지 세는 값이다 */
   const [payMethod, setPayMethod] = useState<PayMethod>(editing?.payMethod ?? 'UNKNOWN');
   const [installmentCapital, setInstallmentCapital] = useState(editing?.installmentCapital ?? '');
@@ -88,6 +96,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
       time,
       content: content.trim(),
       depositAmount: Number(depositAmount.replace(/[^\d]/g, '')) || 0,
+      salePrice: Number(salePrice.replace(/[^\d]/g, '')) || 0,
       visitDate: visitDate || null,
       visitTime: visitTime.trim(),
       // 담당 딜러는 이 창에서 안 고친다 — 방문 배정판과 표에서 고르는 값이라 그대로 들고 간다
@@ -215,6 +224,30 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
               />
             </div>
           )}
+
+          {/*
+            차량판매가 — 원 단위다.
+
+            남의 딜러가 우리 상사 차를 팔아 주면 우리 딜러가 정산을 안 받아서, 얼마에
+            팔렸는지를 전화를 받은 TM 말고는 아무도 모른다. 여기 적으면 매입 정산의
+            차량판매가로 저절로 넘어간다.
+
+            입금액 칸과 달리 상태를 안 가린다 — 계약만 하고 출고 전인 건에도 값이
+            정해져 있고, 그걸 그때 적어 둬야 나중에 안 묻는다.
+          */}
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-semibold text-slate-500">차량판매가 (원)</label>
+            <input
+              value={salePrice ? Number(salePrice).toLocaleString() : ''}
+              onChange={e => setSalePrice(e.target.value.replace(/[^\d]/g, ''))}
+              inputMode="numeric"
+              placeholder="15,900,000"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm outline-none focus:border-indigo-400"
+            />
+            <p className="mt-1 text-[11px] text-slate-400">
+              적어 두면 매입 정산의 차량판매가가 저절로 채워집니다 — 알선·수출 정산이 있는 차는 그쪽 값이 먼저입니다.
+            </p>
+          </div>
 
           {/*
             현금인지 할부인지.
