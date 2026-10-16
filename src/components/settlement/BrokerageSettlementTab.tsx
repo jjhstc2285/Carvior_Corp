@@ -46,6 +46,14 @@ const COLUMNS: Column[] = [
   { key: 'vehicleNumber', label: '차량번호' },
   { key: 'vehicleName', label: '차량명' },
   /*
+    어디서 온 손님인가 — 엔카·보배·전화·소개….
+
+    정산에는 안 적는 값이다. 상담에 적혀 있어서 차량번호로 맞춰 붙여 온다. 팔린 차가
+    어느 플랫폼에서 왔는지를 정산 줄에서 바로 보려고 두는 칸이라, 고치는 자리는
+    상담 그대로다.
+  */
+  { key: 'platform', label: '플랫폼', title: '상담에 적힌 유입 경로 — 차량번호로 맞춰 옵니다' },
+  /*
     사 온 데 든 돈 — 수출에서만 띄운다.
 
     매입금액과 구전을 한 칸으로 합친다. 둘을 갈라 놓으면 눈으로 더해 가며 봐야 하는데,
@@ -308,6 +316,23 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
       .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
   }, [filtered, state.consultations]);
 
+  /*
+    차량번호로 유입 경로를 찾아 둔다.
+
+    줄마다 상담을 뒤지면 정산 백 줄 × 상담 수천 건이 된다 — 한 번 만들어 놓고 집어 쓴다.
+    같은 차에 상담이 여럿이면 최근 것이 맞다(처음 문의한 데가 아니라 판 건이 중요하다).
+  */
+  const platformOf = useMemo(() => {
+    const plate = (v?: string | null) => (v ?? '').replace(/\s+/g, '').trim();
+    const found = new Map<string, string>();
+    for (const c of [...state.consultations].sort((a, b) => a.date.localeCompare(b.date))) {
+      const key = plate(c.vehicleNumber);
+      const got = (c.platform ?? '').trim();
+      if (key && got) found.set(key, got);
+    }
+    return (vehicleNumber: string) => found.get(plate(vehicleNumber)) ?? '';
+  }, [state.consultations]);
+
   const capitalTotal = byCapital.reduce((sum, c) => sum + c.amount, 0);
   const capitalCount = byCapital.reduce((sum, c) => sum + c.count, 0);
 
@@ -316,6 +341,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
       일자: s.date,
       차량번호: s.vehicleNumber,
       차량명: s.vehicleName,
+      플랫폼: platformOf(s.vehicleNumber),
       '총 진행 판매금액': s.totalSaleAmount,
       실차주입금: s.ownerDeposit,
       '실 차량판매가': brokerageSalePrice(s),
@@ -571,6 +597,19 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                       );
                     })(),
                       vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
+                      platform: (() => {
+                        const from = platformOf(s.vehicleNumber);
+                        // 안 적힌 건은 흐리게 — 빈칸으로 두면 칸이 비뚤어 보인다
+                        return from ? (
+                          <span className="inline-block whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
+                            {from}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300" title="이 차량번호로 적힌 상담이 없습니다">
+                            —
+                          </span>
+                        );
+                      })(),
                       totalSaleAmount: <span className="text-slate-600">{NUM(s.totalSaleAmount)}</span>,
                       ownerDeposit: <span className="text-slate-500">{NUM(s.ownerDeposit)}</span>,
                       realSalePrice: (

@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
+import { ChevronDown, FileText, Phone } from 'lucide-react';
 import { useStore } from '../../store';
 import { conversionOf, isContracted } from '../../lib/consultationStats';
 import { REASONS } from '../consultation/VisitReviewSection';
+import { CONSULTATION_STATUS_LABEL, type ConsultationRecord } from '../../types';
+import { ContractPhotoThumb, splitPhotos } from './ContractPhotos';
 
 /**
  * 그 달 계약이 어디까지 왔나.
@@ -19,6 +22,51 @@ import { REASONS } from '../consultation/VisitReviewSection';
 
 const LS_GOAL = 'contractGoalByMonth';
 
+/**
+ * 숫자를 누르면 펼쳐지는 목록.
+ *
+ * 길어질 수 있어 칸 안에서 구르게 한다 — 페이지가 통째로 길어지면 아래 사유 분포가
+ * 화면 밖으로 밀린다.
+ *
+ * 비어 있는 것(계약서 없음·번호 없음)을 머리에 세어 둔다. 그게 이 목록을 여는 까닭이다.
+ */
+function DrillDown({
+  title,
+  hint,
+  empty,
+  count,
+  missing,
+  missingLabel,
+  children,
+}: {
+  title: string;
+  hint: string;
+  empty: string;
+  count: number;
+  missing: number;
+  missingLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+      <div className="flex flex-wrap items-baseline gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
+        <p className="text-xs font-bold text-slate-700">{title}</p>
+        <p className="text-[11px] text-slate-400">{hint}</p>
+        {missing > 0 && (
+          <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+            {missingLabel} {missing}건
+          </span>
+        )}
+      </div>
+      {count === 0 ? (
+        <p className="px-3 py-6 text-center text-xs text-slate-400">{empty}</p>
+      ) : (
+        <ul className="max-h-80 divide-y divide-slate-50 overflow-y-auto">{children}</ul>
+      )}
+    </div>
+  );
+}
+
 function goalsOf(): Record<string, number> {
   try {
     return JSON.parse(localStorage.getItem(LS_GOAL) ?? '{}') as Record<string, number>;
@@ -30,6 +78,14 @@ function goalsOf(): Record<string, number> {
 export default function ContractGoalPanel({ month, allMonths }: { month: string; allMonths: boolean }) {
   const { state } = useStore();
   const [goals, setGoals] = useState<Record<string, number>>(goalsOf);
+  /*
+    숫자를 누르면 그 건들이 펼쳐진다.
+
+    "미체결 68건"까지만 보고는 할 일이 안 나온다 — 누구에게 전화를 걸어야 하는지,
+    어느 계약서가 안 올라왔는지가 그 숫자 안에 있다. 세어만 두고 못 꺼내 보면
+    숫자를 본 사람이 다시 목록을 뒤져야 한다.
+  */
+  const [open, setOpen] = useState<'done' | 'open' | null>(null);
 
   const goal = goals[month] ?? 20;
 
@@ -86,6 +142,36 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
     }
     return { rows, blank, total: open.length };
   }, [state.consultations, month, allMonths]);
+
+  /*
+    펼쳤을 때 보여줄 건들.
+
+    체결은 계약서를 띄운다 — 계약서는 정산에 붙어 있어서 차량번호로 맞춰 온다.
+    미체결은 손님번호를 띄운다 — 눌러서 바로 걸 수 있게.
+  */
+  const lists = useMemo(() => {
+    const rows = state.consultations
+      .filter(c => allMonths || c.date.startsWith(month))
+      // 종결·방문취소는 모수에서 뺀 건이다 — 여기서도 안 띄운다
+      .filter(c => c.status !== 'CLOSED' && c.status !== 'VISIT_CANCELED');
+
+    /** 차량번호로 계약서 사진을 찾는다. 번호에 공백이 섞여 있어 걷어내고 맞춘다 */
+    const plate = (v?: string | null) => (v ?? '').replace(/\s+/g, '').trim();
+    const photos = new Map<string, string>();
+    for (const s of [...state.purchaseSettlements, ...state.brokerageSettlements]) {
+      const key = plate(s.vehicleNumber);
+      const got = (s.contractPhotos ?? '').trim();
+      if (key && got && !photos.get(key)) photos.set(key, got);
+    }
+
+    const by = (a: ConsultationRecord, b: ConsultationRecord) => b.date.localeCompare(a.date);
+    return {
+      done: rows.filter(c => isContracted(c.status)).sort(by).map(c => ({ c, photos: photos.get(plate(c.vehicleNumber)) ?? '' })),
+      open: rows.filter(c => !isContracted(c.status)).sort(by),
+    };
+  }, [state.consultations, state.purchaseSettlements, state.brokerageSettlements, month, allMonths]);
+
+  const nameOf = (id: string) => state.employees.find(e => e.id === id)?.name ?? '';
 
   /** 목표 대비 — 목표가 0이면 비율을 낼 수 없다 */
   const percent = goal > 0 ? Math.round((stat.contracted / goal) * 100) : 0;
@@ -154,24 +240,36 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
             </p>
           </div>
 
-          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">
+          <button
+            onClick={() => setOpen(v => (v === 'done' ? null : 'done'))}
+            className={`rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-100 ${
+              open === 'done' ? 'bg-blue-50 ring-2 ring-blue-200' : 'bg-slate-50'
+            }`}
+          >
+            <p className="flex items-center text-[11px] font-medium text-slate-500">
               <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-600 align-middle" />
               체결 완료
+              <ChevronDown size={13} className={`ml-auto transition-transform ${open === 'done' ? 'rotate-180' : ''}`} />
             </p>
             <p className="mt-0.5 text-xl font-bold text-slate-900">
               {stat.contracted}
               <span className="ml-1 text-sm font-medium text-slate-400">건</span>
             </p>
             <p className="text-[11px] italic text-emerald-600">
-              비율 {stat.total > 0 ? Math.round((stat.contracted / stat.total) * 100) : 0}%
+              비율 {stat.total > 0 ? Math.round((stat.contracted / stat.total) * 100) : 0}% · 눌러서 계약서 보기
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">
+          <button
+            onClick={() => setOpen(v => (v === 'open' ? null : 'open'))}
+            className={`rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-100 ${
+              open === 'open' ? 'bg-amber-50 ring-2 ring-amber-200' : 'bg-slate-50'
+            }`}
+          >
+            <p className="flex items-center text-[11px] font-medium text-slate-500">
               <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-slate-400 align-middle" />
               진행/미체결
+              <ChevronDown size={13} className={`ml-auto transition-transform ${open === 'open' ? 'rotate-180' : ''}`} />
             </p>
             <p className="mt-0.5 text-xl font-bold text-slate-900">
               {stat.total - stat.contracted}
@@ -179,9 +277,9 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
             </p>
             <p className="text-[11px] text-slate-400">
               비율 {stat.total > 0 ? Math.round(((stat.total - stat.contracted) / stat.total) * 100) : 0}%
-              {stat.closed > 0 && ` · 종결 ${stat.closed}건 제외`}
+              {stat.closed > 0 && ` · 종결 ${stat.closed}건 제외`} · 눌러서 번호 보기
             </p>
-          </div>
+          </button>
 
           <div className="rounded-xl bg-slate-50 px-3 py-2.5">
             <p className="text-[11px] font-medium text-slate-500">잔여 목표</p>
@@ -195,6 +293,86 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
           </div>
         </div>
       </div>
+
+      {/*
+        누른 칸을 펼친다.
+
+        체결은 계약서, 미체결은 손님번호다 — 숫자를 본 사람이 바로 다음 일을 할 수 있게
+        그 자리에서 꺼내 준다. 번호는 눌러서 걸고, 계약서는 눌러서 크게 본다.
+      */}
+      {open === 'done' && (
+        <DrillDown
+          title="체결 완료 — 계약서"
+          hint={`${lists.done.length}건 · 계약서는 정산에 붙은 사진입니다 · 눌러서 크게 봅니다`}
+          empty="체결된 건이 없습니다."
+          count={lists.done.length}
+          missing={lists.done.filter(r => !splitPhotos(r.photos).length).length}
+          missingLabel="계약서 안 올라온 건"
+        >
+          {lists.done.map(({ c, photos }) => (
+            <li key={c.id} className="flex items-center gap-2 px-3 py-2">
+              <span className="w-16 shrink-0 text-[11px] text-slate-400">{dayjs(c.date).format('M/D')}</span>
+              <span className="w-24 shrink-0 text-xs font-bold text-slate-800">{c.vehicleNumber || '번호 없음'}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-slate-600">{c.vehicleName}</span>
+              <span className="w-16 shrink-0 text-[11px] text-slate-400">{nameOf(c.employeeId)}</span>
+              {splitPhotos(photos).length > 0 ? (
+                <ContractPhotoThumb value={photos} size={36} alt="계약서" />
+              ) : (
+                /*
+                  계약서가 없는 건이 제일 봐야 할 건이다 — 빈칸으로 두면 안 보인다.
+
+                  누르면 그 차로 보내 주고 싶지만, 여기가 이미 정산 화면 안이라 걸림쇠를
+                  집어가는 자리(열릴 때 한 번)가 다시 안 열린다. 번호를 띄워 두면 위
+                  빨간 칸에 치면 된다.
+                */
+                <span className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-amber-50 px-2 text-[11px] font-bold text-amber-700">
+                  <FileText size={12} /> 계약서 없음
+                </span>
+              )}
+            </li>
+          ))}
+        </DrillDown>
+      )}
+
+      {open === 'open' && (
+        <DrillDown
+          title="진행/미체결 — 손님번호"
+          hint={`${lists.open.length}건 · 번호를 누르면 바로 걸립니다`}
+          empty="진행 중인 건이 없습니다."
+          count={lists.open.length}
+          missing={lists.open.filter(c => !(c.customerPhone ?? '').trim()).length}
+          missingLabel="번호 안 적힌 건"
+        >
+          {lists.open.map(c => {
+            const phone = (c.customerPhone ?? '').trim();
+            return (
+              <li key={c.id} className="flex items-center gap-2 px-3 py-2">
+                <span className="w-16 shrink-0 text-[11px] text-slate-400">{dayjs(c.date).format('M/D')}</span>
+                {phone ? (
+                  <a
+                    href={`tel:${phone.replace(/[^0-9+]/g, '')}`}
+                    className="flex w-32 shrink-0 items-center gap-1 rounded-lg bg-indigo-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-indigo-700"
+                  >
+                    <Phone size={11} /> {phone}
+                  </a>
+                ) : (
+                  <span className="w-32 shrink-0 rounded-lg bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-700">
+                    번호 없음
+                  </span>
+                )}
+                <span className="min-w-0 flex-1 truncate text-xs text-slate-600">
+                  {c.vehicleNumber && <b className="font-bold text-slate-800">{c.vehicleNumber}</b>} {c.vehicleName}
+                  {c.missReason && <span className="ml-1 text-slate-400">· {c.missReason}</span>}
+                </span>
+                <span className="w-14 shrink-0 text-[11px] text-slate-400">{nameOf(c.employeeId)}</span>
+                <span className="w-14 shrink-0 text-right text-[11px] font-medium text-slate-500">
+                  {CONSULTATION_STATUS_LABEL[c.status]}
+                </span>
+              </li>
+            );
+          })}
+        </DrillDown>
+      )}
 
       {/*
         왜 못 갔나.
