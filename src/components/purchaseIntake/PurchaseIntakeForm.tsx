@@ -64,7 +64,13 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   const [modelYear, setModelYear] = useState(editing?.modelYear ?? '');
   const [firstRegisteredOn, setFirstRegisteredOn] = useState(editing?.firstRegisteredOn ?? '');
   const [fuel, setFuel] = useState(editing?.fuel ?? '');
-  const [keyCount, setKeyCount] = useState(editing ? String(editing.keyCount) : '');
+  /*
+    값이 없으면 빈칸이다.
+
+    String(undefined) 가 'undefined' 라는 글자가 되어, 고치기로 열면 차키갯수 칸에
+    그 일곱 글자가 적혀 있었다. 숫자만 받는 칸이라 지우기 전에는 저장도 안 된다.
+  */
+  const [keyCount, setKeyCount] = useState(editing?.keyCount ? String(editing.keyCount) : '');
   const [mileage, setMileage] = useState(withCommas(editing?.mileage ?? 0));
   const [note, setNote] = useState(editing?.note ?? '');
   const [purchaseAmount, setPurchaseAmount] = useState(withCommas(editing?.purchaseAmount ?? 0));
@@ -307,8 +313,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   );
 
   return (
-    <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-8">
-      <div className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-xl">
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4 py-6">
+      <div className="flex max-h-[92vh] w-full max-w-6xl flex-col rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">{editing ? '매입 내역 수정' : '매입 등록'}</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -316,6 +322,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           </button>
         </div>
 
+        {/* 머리와 저장 단추는 붙박이다 — 가운데만 구른다 */}
+        <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
         {/* 카톡으로 받은 양식을 그대로 붙여넣으면 아래 칸이 채워진다 */}
         <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
           <button
@@ -346,6 +354,15 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           {pasteResult && <p className="mt-2 text-[11px] text-indigo-600">{pasteResult}</p>}
         </div>
 
+        {/*
+          칸이 많아 세로로 길다 — 넓은 화면에서는 두 줄로 세운다.
+
+          적는 차례는 왼쪽을 다 채우고 오른쪽으로 간다(고객·차량 → 검차·금액).
+          창을 넓히고 높이는 화면에 맞춰 잘라, 창 안에서만 구르게 한다. 페이지째
+          길어지면 저장 단추가 화면 밖으로 밀려서 다 적고도 못 누른다.
+        */}
+        <div className="grid items-start gap-x-6 xl:grid-cols-2">
+          <div>
         <p className="mt-5 mb-2 text-xs font-bold text-slate-600">고객 · 매입처</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {field('날짜', <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />)}
@@ -480,6 +497,9 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           {field('특이사항', text(note, setNote, '금일 전액 이체 및 차량인도'), 'col-span-2 sm:col-span-3')}
         </div>
 
+          </div>
+
+          <div>
         {/* ── 실차 검차 ── */}
         <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
           <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -599,12 +619,6 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
           )}
         </div>
 
-        <datalist id="purchase-intake-fuels">
-          {FUEL_OPTIONS.map(f => (
-            <option key={f} value={f} />
-          ))}
-        </datalist>
-
         <div className="mt-5 mb-2 flex items-center justify-between">
           <p className="text-xs font-bold text-slate-600">매입금액</p>
           {/* 매입가를 정할 때 다른 창을 열어 찾아보던 걸 여기서 끝낸다 */}
@@ -653,6 +667,14 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
         <p className="mt-3 text-[11px] text-slate-400">
           등록하면 이 차량번호가 <b>차량 관리</b> 탭에 자동으로 올라갑니다. 이미 있는 번호면 차량명만 맞춥니다.
         </p>
+          </div>
+        </div>
+        <datalist id="purchase-intake-fuels">
+          {FUEL_OPTIONS.map(f => (
+            <option key={f} value={f} />
+          ))}
+        </datalist>
+
 
         {priceOpen && (
           <PriceCheckModal
@@ -673,6 +695,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
             onClose={() => setPriceOpen(false)}
           />
         )}
+
+        </div>
 
         {error && <p className="mt-3 text-xs font-medium text-red-500">{error}</p>}
 
