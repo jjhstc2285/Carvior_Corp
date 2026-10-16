@@ -219,12 +219,19 @@ export class AttendanceService {
 
   // ── 출근 단말 ──────────────────────────────
 
-  /** 관리자 화면용 목록 — 키 해시는 내려주지 않는다. */
-  listDevices() {
-    return this.prisma.attendanceDevice.findMany({
-      select: { id: true, label: true, active: true, lastUsedAt: true, createdAt: true },
+  /**
+   * 관리자 화면용 목록 — 키 해시는 내려주지 않는다.
+   *
+   * 지문이 있는지는 같이 내려준다(값이 아니라 있고 없고만). 지문이 없는 단말은 키가
+   * 날아가면 되찾을 수 없어서 그 자리에 가서 다시 등록해야 한다 — 그걸 미리 알아야
+   * 출근 못 찍는 아침에 허둥대지 않는다.
+   */
+  async listDevices() {
+    const rows = await this.prisma.attendanceDevice.findMany({
+      select: { id: true, label: true, active: true, lastUsedAt: true, createdAt: true, fingerprint: true },
       orderBy: { createdAt: 'asc' },
     });
+    return rows.map(({ fingerprint, ...rest }) => ({ ...rest, recoverable: !!fingerprint }));
   }
 
   /**

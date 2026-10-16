@@ -8,6 +8,8 @@ import { confirmDanger } from '../lib/alert';
 interface AttendanceDevice {
   id: string;
   label: string;
+  /** 키가 날아가도 되찾을 수 있는가 — 지문이 저장돼 있으면 사무실 안에서 저절로 돌아온다 */
+  recoverable?: boolean;
   active: boolean;
   lastUsedAt: string | null;
   createdAt: string;
@@ -126,6 +128,16 @@ export default function AttendanceDeviceSettings() {
           <br />
           등록은 <strong className="font-semibold text-slate-500">반드시 그 PC에서</strong> 눌러야 합니다(키가 누른 브라우저에 저장됨).
           브라우저 데이터를 지우거나 시크릿 모드로 열면 다시 등록해야 해요.
+          <br />
+          {/*
+            브라우저마다 따로라는 걸 적어 둔다.
+
+            키는 그 브라우저 저장소에 있고 PC를 알아보는 지문에도 브라우저가 섞여
+            있다 — 크롬과 엣지는 같은 PC라도 서로 다른 단말이다. 그걸 모르면
+            "크롬으로 찍던 사람이 갑자기 엣지로만 된다"가 고장으로 보인다.
+          */}
+          <strong className="font-semibold text-slate-500">크롬·엣지는 같은 PC라도 따로 등록</strong>해야 합니다 —
+          쓰던 브라우저를 바꿨다면 그 브라우저에서 한 번 더 등록하세요.
         </p>
 
         {myDeviceId && !reRegister ? (
@@ -171,6 +183,18 @@ export default function AttendanceDeviceSettings() {
                     {d.label}
                     {d.id === myDeviceId && (
                       <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">이 PC</span>
+                    )}
+                    {/*
+                      지문이 없는 단말은 키가 날아가면 못 되찾는다 — 그 자리에 가서
+                      다시 등록해야 한다. 아침에 출근이 안 될 때 알면 늦다.
+                    */}
+                    {d.recoverable === false && (
+                      <span
+                        className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                        title="이 단말은 지문이 없어서, 브라우저 기록을 지우면 키를 되찾지 못합니다 — 그 PC에서 다시 등록해야 합니다"
+                      >
+                        복구 불가
+                      </span>
                     )}
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-400">

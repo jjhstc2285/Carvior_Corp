@@ -18,7 +18,19 @@ export async function punch(action: () => Promise<void>): Promise<void> {
     const message = e instanceof ApiError ? e.message : '잠시 후 다시 시도해 주세요.';
 
     if (code === 'DEVICE_REQUIRED') {
-      await alertError('출근 PC 등록이 필요합니다', message, '관리자에게 이 PC를 출근 단말로 등록해 달라고 요청하세요.');
+      /*
+        브라우저마다 따로라는 걸 적어 준다.
+
+        단말 키는 그 브라우저 저장소에 들어 있고 PC를 알아보는 지문에도 브라우저가
+        섞여 있다 — 크롬과 엣지는 같은 PC라도 서로 다른 단말이다. 그걸 모르면
+        "어제까지 크롬으로 찍었는데 오늘 엣지로만 된다"가 고장으로 보인다.
+      */
+      await alertError(
+        '이 브라우저는 출근 단말로 등록돼 있지 않습니다',
+        message,
+        '크롬·엣지는 같은 PC라도 따로 등록해야 합니다. 늘 쓰던 브라우저로 열어 보시고, ' +
+          '그래도 안 되면 관리자에게 이 브라우저로 단말 등록을 요청하세요.',
+      );
       return;
     }
     if (code === 'IP_NOT_ALLOWED') {
