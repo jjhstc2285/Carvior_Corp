@@ -45,7 +45,12 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
   },
   { key: 'stocked', label: '재고차량', desc: '할부사 · 재고금액 · 상환일자를 다 적은 차입니다.', officeOnly: true },
   { key: 'cash', label: '현금차량', desc: '재고금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: false },
-  { key: 'repay', label: '상환 예정', desc: '상환일자를 월별로 모아 봅니다. 그 달에 갚아야 하는 차량입니다.', officeOnly: false },
+  {
+    key: 'repay',
+    label: '상환 예정',
+    desc: '상환일자를 월별로 모아 봅니다. 그 달에 갚아야 하는 차량입니다 — 판 차는 대금으로 갚으므로 빠집니다.',
+    officeOnly: false,
+  },
   {
     key: 'release',
     label: '출고 예정',
@@ -66,12 +71,17 @@ function inView(view: View, v: ManagedVehicle, opts: { month: string }): boolean
   // 매도·출고 예정은 재고금융과 상관없이 가른다 — 현금차량도 팔린다.
   if (view === 'sold') return Boolean(v.soldDate);
 
-  // 넘긴 차는 매도 차량에만 남는다. 제시 대상·제시함·재고차량·현금차량은
-  // 앞으로 할 일을 모아 놓은 곳이라 이미 끝난 차가 섞이면 안 된다.
-  //
-  // 상환 예정만 예외다 — 팔았다고 재고금융이 저절로 갚아지는 게 아니라
-  // 갚는 날까지 챙겨야 한다.
-  if (v.soldDate && view !== 'repay') return false;
+  /*
+    넘긴 차는 매도 차량에만 남는다.
+
+    나머지는 앞으로 할 일을 모아 놓은 곳이라 이미 끝난 차가 섞이면 안 된다.
+
+    상환 예정도 그렇다. 한때 여기만 예외로 뒀었는데 — 팔았다고 재고금융이 저절로
+    갚아지는 게 아니라고 본 것이다 — 실제로는 차 대금으로 그 자리에서 갚는다.
+    남겨 두니 10월 상환 예정 열일곱 대 중 여덟 대가 이미 판 차였고, 갚을 돈 합계도
+    그만큼 부풀어 있었다. 매도일자가 들어가면 갚은 것으로 본다.
+  */
+  if (v.soldDate) return false;
 
   if (view === 'release') return saleStage(v) === 'RELEASE_PENDING';
   if (view === 'cash') return v.cashVehicle;
@@ -301,9 +311,14 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
     return { count: stocked.length, total: stocked.reduce((sum, v) => sum + v.stockAmount, 0) };
   }, [vehicles]);
 
-  /** 이번 달에 갚아야 하는 금액 — 상환일자가 그 달에 걸린 차들 */
+  /**
+   * 이번 달에 갚아야 하는 금액 — 상환일자가 그 달에 걸린 차들.
+   *
+   * 판 차는 뺀다. 차 대금으로 그 자리에서 갚으므로 더 낼 돈이 아니다 — 넣어 두면
+   * 이미 갚은 몫까지 더해져서 "이 달에 얼마 나가나"가 부풀어 보인다.
+   */
   const dueThisMonth = useMemo(() => {
-    const due = vehicles.filter(v => v.repayDate?.startsWith(month) && v.stockAmount > 0);
+    const due = vehicles.filter(v => !v.soldDate && v.repayDate?.startsWith(month) && v.stockAmount > 0);
     return { count: due.length, total: due.reduce((sum, v) => sum + v.stockAmount, 0) };
   }, [vehicles, month]);
 
