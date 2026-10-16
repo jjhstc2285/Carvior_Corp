@@ -325,12 +325,25 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
   const platformOf = useMemo(() => {
     const plate = (v?: string | null) => (v ?? '').replace(/\s+/g, '').trim();
     const found = new Map<string, string>();
+    /*
+      상담이 있기는 한가를 따로 들고 있는다.
+
+      빈칸이 두 가지 뜻이다 — 상담이 아예 없는 것과, 상담은 있는데 경로만 안 적은 것.
+      둘은 할 일이 다르다. 앞엣것은 상담을 안 적고 정산만 올린 것이고(지금 백네 줄 중
+      스물아홉 줄이 그렇다), 뒤엣것은 그 상담에 가서 경로 한 칸만 채우면 된다.
+    */
+    const seen = new Set<string>();
     for (const c of [...state.consultations].sort((a, b) => a.date.localeCompare(b.date))) {
       const key = plate(c.vehicleNumber);
+      if (!key) continue;
+      seen.add(key);
       const got = (c.platform ?? '').trim();
-      if (key && got) found.set(key, got);
+      if (got) found.set(key, got);
     }
-    return (vehicleNumber: string) => found.get(plate(vehicleNumber)) ?? '';
+    return (vehicleNumber: string) => {
+      const key = plate(vehicleNumber);
+      return { from: found.get(key) ?? '', hasConsultation: seen.has(key) };
+    };
   }, [state.consultations]);
 
   const capitalTotal = byCapital.reduce((sum, c) => sum + c.amount, 0);
@@ -341,7 +354,10 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
       일자: s.date,
       차량번호: s.vehicleNumber,
       차량명: s.vehicleName,
-      플랫폼: platformOf(s.vehicleNumber),
+      플랫폼: (() => {
+        const { from, hasConsultation } = platformOf(s.vehicleNumber);
+        return from || (hasConsultation ? '경로 안 적음' : '상담 없음');
+      })(),
       '총 진행 판매금액': s.totalSaleAmount,
       실차주입금: s.ownerDeposit,
       '실 차량판매가': brokerageSalePrice(s),
@@ -598,14 +614,29 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                     })(),
                       vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
                       platform: (() => {
-                        const from = platformOf(s.vehicleNumber);
-                        // 안 적힌 건은 흐리게 — 빈칸으로 두면 칸이 비뚤어 보인다
-                        return from ? (
-                          <span className="inline-block whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
-                            {from}
+                        const { from, hasConsultation } = platformOf(s.vehicleNumber);
+                        if (from) {
+                          return (
+                            <span className="inline-block whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
+                              {from}
+                            </span>
+                          );
+                        }
+                        /*
+                          빈칸이 두 가지 뜻이라 갈라 적는다.
+
+                          상담이 있는데 경로만 비었으면 그 상담에 가서 한 칸만 채우면
+                          된다 — 그걸 줄표로 뭉뚱그리면 고칠 수 있는 건을 못 찾는다.
+                        */
+                        return hasConsultation ? (
+                          <span
+                            className="inline-block whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700"
+                            title="상담은 있는데 유입 경로를 안 적었습니다 — 상담 관리에서 채워 주세요"
+                          >
+                            경로 안 적음
                           </span>
                         ) : (
-                          <span className="text-slate-300" title="이 차량번호로 적힌 상담이 없습니다">
+                          <span className="text-slate-300" title="이 차량번호로 적힌 상담이 아예 없습니다 — 상담을 안 적고 정산만 올린 건입니다">
                             —
                           </span>
                         );
