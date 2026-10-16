@@ -65,7 +65,7 @@ export default function SoldMixChart() {
   const top = [...rows].sort((a, b) => b.count - a.count)[0];
 
   return (
-    <section className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+    <section className="flex min-w-0 flex-1 flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
       <div className="mb-1 flex flex-wrap items-baseline gap-2">
         <h2 className="text-sm font-bold text-slate-800">판매완료 — 어디서 팔렸나</h2>
         <span className="text-xs text-slate-400">
@@ -122,7 +122,7 @@ export default function SoldMixChart() {
       </div>
 
       {top && top.count > 0 && (
-        <p className="mt-2 border-t border-slate-100 pt-2 text-[11px] text-slate-400">
+        <p className="mt-auto border-t border-slate-100 pt-2 text-[11px] text-slate-400">
           {CONSULTATION_KIND_LABEL[top.kind]}가 {Math.round((top.count / total) * 100)}%로 가장 많습니다.
         </p>
       )}

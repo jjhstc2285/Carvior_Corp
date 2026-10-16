@@ -4,6 +4,7 @@ import ConsultationModule from './ConsultationModule';
 import type { ConsultationKind } from '../../types';
 import ConsultationSheetImportModal from './SheetImportModal';
 import SoldMixChart from './SoldMixChart';
+import PlatformMixChart from './PlatformMixChart';
 import { useStore } from '../../store';
 
 interface Props {
@@ -58,9 +59,19 @@ export default function ConsultationHub({ role }: Props) {
         ))}
       </div>
 
-      {/* 넷 중 어디서 팔리고 있는지 — 탭과 상관없이 늘 같은 자리에 둔다 */}
-      {/* 재고금융 할부 의무는 알선 정산으로 옮겼다 — 정산에서 보기로 했다 */}
-      <SoldMixChart />
+      {/*
+        나간 쪽과 들어온 쪽을 나란히 둔다 — 탭과 상관없이 늘 같은 자리다.
+
+        왼쪽은 어디로 팔렸나(판매·알선·수출·기타), 오른쪽은 어디서 전화가 왔나
+        (엔카·114·소개…). 둘을 같이 봐야 "엔카에서 많이 들어오는데 정작 수출로
+        나간다" 같은 게 보인다. 좁은 화면에서는 위아래로 선다.
+
+        재고금융 할부 의무는 알선 정산으로 옮겼다 — 정산에서 보기로 했다.
+      */}
+      <div className="mb-4 flex flex-col items-stretch gap-4 xl:flex-row">
+        <SoldMixChart />
+        <PlatformMixChart />
+      </div>
 
       {/* key 를 줘서 탭을 옮기면 검색·필터가 초기화된다 — 알선에서 걸어둔 조건이 수출에 남으면 헷갈린다 */}
       <ConsultationModule key={tab} role={role} kind={tab} />
