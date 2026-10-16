@@ -13,6 +13,7 @@ import {
 } from '../../types';
 import { CalcRow, DateField, EmployeeField, MoneyField, StatusField, TextField } from './fields';
 import ContractPhotos from './ContractPhotos';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface Props {
   /** 어느 표에서 열었는가 — 새로 적는 건 이 종류로 들어간다 */
@@ -25,6 +26,8 @@ interface Props {
 }
 
 export default function BrokerageSettlementForm({ kind, editing, defaultEmployeeId, preset, onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const kindLabel = CONSULTATION_KIND_LABEL[editing?.kind ?? kind];
   const { state, upsertBrokerageSettlement } = useStore();
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));

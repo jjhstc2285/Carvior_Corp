@@ -28,6 +28,7 @@ import {
 } from '../../lib/inspectionCheck';
 import PriceCheckModal from '../price/PriceCheckModal';
 import type { PurchaseIntakeInput } from './usePurchaseIntake';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface Props {
   editing: PurchaseIntake | null;
@@ -38,6 +39,8 @@ interface Props {
 const FUEL_OPTIONS = ['가솔린', '디젤', 'LPG', '하이브리드', '전기', '가솔린+LPG'];
 
 export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [paste, setPaste] = useState('');
   const [pasteOpen, setPasteOpen] = useState(!editing);
   const [pasteResult, setPasteResult] = useState<string | null>(null);

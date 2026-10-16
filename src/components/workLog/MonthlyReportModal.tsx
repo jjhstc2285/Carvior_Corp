@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useStore } from '../../store';
 import type { WorkLog } from '../../types';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 업무일지 월말 보고.
@@ -45,6 +46,8 @@ function weekOf(date: string): number {
 }
 
 export default function MonthlyReportModal({ onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { state } = useStore();
   const [month, setMonth] = useState(() => dayjs().subtract(1, 'month').startOf('month'));
   const [logs, setLogs] = useState<WorkLog[]>([]);

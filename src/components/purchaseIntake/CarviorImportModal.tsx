@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Download, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface PreviewItem {
   vehicleNumber: string;
@@ -39,6 +40,8 @@ interface Props {
  * 이미 매입 관리에 있는 차량번호는 건너뛴다 — 두 번 눌러도 중복이 생기지 않는다.
  */
 export default function CarviorImportModal({ onClose, onImported }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);

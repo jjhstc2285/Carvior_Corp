@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { useStore } from '../../store';
 import { dedupe, downloadVCard, isPhone, type Contact } from '../../lib/vcard';
 import type { Vendor } from '../../types';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 연락처를 휴대폰에 넣을 파일로 내려받는다.
@@ -46,6 +47,8 @@ interface DealerFee {
 }
 
 export default function ContactExportModal({ onClose }: { onClose: () => void }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { state } = useStore();
   const [picked, setPicked] = useState<Set<GroupKey>>(new Set(['vendor']));
   const [vendors, setVendors] = useState<Vendor[]>([]);

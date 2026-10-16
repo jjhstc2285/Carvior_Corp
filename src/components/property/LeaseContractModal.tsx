@@ -7,6 +7,7 @@ import { digitsOnly, withCommas } from '../../lib/money';
 import { LEASE_KINDS, LEASE_RENT_TYPES, type LeaseContract, type Property } from '../../types';
 import { leaseContractHtml } from './leaseContractPrint';
 import { downloadPdf, fillLeaseContractPdf, openPdf } from './leaseContractPdf';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 부동산 임대차·전대차 계약서.
@@ -51,6 +52,8 @@ export default function LeaseContractModal({
   /** 연장하면 부동산 쪽 기간도 바뀐다 — 뒤에 있는 표를 다시 받아야 한다 */
   onRenewed?: () => void;
 }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [rows, setRows] = useState<LeaseContract[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

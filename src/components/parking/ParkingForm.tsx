@@ -7,6 +7,7 @@ import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '.
 import { PARKING_LOTS, PARKING_SLOTS, lotLabel } from '../../lib/parkingLayout';
 import { confirmDanger } from '../../lib/alert';
 import { REINSPECT_MONTHS, reinspectLabel } from '../../lib/reinspection';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface Props {
   editing: ParkingVehicle | null;
@@ -17,6 +18,8 @@ interface Props {
 }
 
 export default function ParkingForm({ editing, defaultEmployeeId, presetPosition, onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { state, upsertParkingVehicle, deleteParkingVehicle } = useStore();
   const positionLocked = !!presetPosition;
   const [lot, setLot] = useState(editing?.lot ?? presetPosition?.lot ?? PARKING_LOTS[0].lot);

@@ -3,6 +3,7 @@ import { ChevronLeft, Search, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { fitPrice, niceScale, type Listing } from '../../lib/carPrice';
 import { withCommas } from '../../lib/money';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface CarSpec {
   manufacturer: string;
@@ -94,6 +95,8 @@ export default function PriceCheckModal({
   onPickSpec,
   onClose,
 }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const targetYear = useMemo(() => toYear(modelYear), [modelYear]);
   const targetFuel = fuel.trim();
 

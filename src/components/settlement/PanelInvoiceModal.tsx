@@ -6,6 +6,7 @@ import { api } from '../../lib/api';
 import { withCommas } from '../../lib/money';
 import { readPanelInvoice, type PanelInvoiceRead } from '../../lib/panelInvoice';
 import { PREP_COST_KINDS, PREP_COST_LABEL, type PrepCostKind } from '../../types';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 판금집 청구서 넣기.
@@ -82,6 +83,8 @@ export default function PanelInvoiceModal({
   onClose: () => void;
   onApplied: () => void;
 }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [vendor, setVendor] = useState('대산');
   /*
     어느 항목의 청구서인가.

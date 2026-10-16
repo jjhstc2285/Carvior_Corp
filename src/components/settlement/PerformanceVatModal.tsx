@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { Loader2, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { withCommas } from '../../lib/money';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 이미 적어둔 성능비에 부가세를 올린다.
@@ -29,6 +30,8 @@ interface Cost {
 }
 
 export default function PerformanceVatModal({ onClose, onApplied }: { onClose: () => void; onApplied: () => Promise<void> }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [costs, setCosts] = useState<Cost[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);

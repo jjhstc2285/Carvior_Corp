@@ -13,6 +13,7 @@ import {
   type Condolence,
   type CondolenceKind,
 } from './condolence';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 경조사 한 건 적기.
@@ -33,6 +34,8 @@ interface Props {
 }
 
 export default function CondolenceForm({ editing, onClose, onSaved }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [kind, setKind] = useState<CondolenceKind>(editing?.kind ?? 'WEDDING');
   const [person, setPerson] = useState(editing?.person ?? '');
   const [relation, setRelation] = useState(editing?.relation ?? '');

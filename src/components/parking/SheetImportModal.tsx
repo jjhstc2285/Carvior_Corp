@@ -3,6 +3,7 @@ import { AlertTriangle, Download, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { lotLabel } from '../../lib/parkingLayout';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface Spot {
   lot: string;
@@ -45,6 +46,8 @@ interface Props {
  * 무엇이 들어오고 무엇이 빠지는지 먼저 보여준 다음 실행한다.
  */
 export default function SheetImportModal({ onClose, onImported }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);

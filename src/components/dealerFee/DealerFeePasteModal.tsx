@@ -3,6 +3,7 @@ import { ClipboardPaste, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess } from '../../lib/alert';
 import { DEALER_FEE_METHOD_LABEL, type DealerFeeMethod } from '../../types';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface ParsedRow {
   dealerName: string;
@@ -108,6 +109,8 @@ function parse(text: string): ParsedRow[] {
  * 그대로 들어간다. 이미 있는 업체명은 서버가 건너뛰므로 두 번 붙여넣어도 겹치지 않는다.
  */
 export default function DealerFeePasteModal({ onClose, onImported }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
 

@@ -14,6 +14,7 @@ import {
   type PayMethod,
 } from '../../types';
 import { CAPITAL_COMPANIES } from '../../lib/stockFinance';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface Props {
   /** 알선인지 수출인지 — 열린 탭이 정한다 */
@@ -39,6 +40,8 @@ interface Props {
 }
 
 export default function ConsultationForm({ kind, editing, defaultEmployeeId, preset, onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { state, upsertConsultation } = useStore();
   const [platform, setPlatform] = useState(editing?.platform ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? preset?.vehicleNumber ?? '');

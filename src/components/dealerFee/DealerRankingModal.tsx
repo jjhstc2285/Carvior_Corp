@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { Download, Phone, Trophy, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 판매를 많이 해 준 딜러 순위.
@@ -35,6 +36,8 @@ interface Ranking {
 }
 
 export default function DealerRankingModal({ onClose }: { onClose: () => void }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [data, setData] = useState<Ranking | null>(null);
   const [onlyPhone, setOnlyPhone] = useState(false);
 

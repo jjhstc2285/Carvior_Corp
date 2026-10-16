@@ -3,6 +3,7 @@ import { Loader2, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, alertSuccess } from '../../lib/alert';
 import { isImportable, parseStockSheet, toCsvUrl, type StockSheetParse } from '../../lib/stockSheet';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 재고차량 장부(구글 시트) 가져오기.
@@ -27,6 +28,8 @@ export default function StockSheetImportModal({
   onClose: () => void;
   onImported: () => void;
 }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [url, setUrl] = useState(() => {
     try {
       return localStorage.getItem(URL_KEY) ?? '';

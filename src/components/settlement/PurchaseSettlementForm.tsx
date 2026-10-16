@@ -25,6 +25,7 @@ import { moneyToNumber, percentLabel, withCommas } from '../../lib/money';
 import PrepCostEditor, { type PrepCostRow } from './PrepCostEditor';
 import ContractPhotos from './ContractPhotos';
 import { CalcRow, DateField, EmployeeField, MoneyField, StatusField, TextField } from './fields';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface Props {
   editing: PurchaseSettlement | null;
@@ -33,6 +34,8 @@ interface Props {
 }
 
 export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { state, upsertPurchaseSettlement } = useStore();
   const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
   const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? '');

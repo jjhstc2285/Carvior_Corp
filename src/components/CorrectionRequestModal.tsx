@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../lib/api';
 import { WORK_START, WORK_END } from '../lib/attendance';
+import { useEscClose } from '../lib/useEscClose';
 
 interface Props {
 
@@ -12,6 +13,8 @@ interface Props {
 }
 
 export default function CorrectionRequestModal({ date, onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { submitCorrectionRequest } = useStore();
   const [reason, setReason] = useState('');
   const [clockIn, setClockIn] = useState(WORK_START);

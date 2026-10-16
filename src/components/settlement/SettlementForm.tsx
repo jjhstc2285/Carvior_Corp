@@ -4,6 +4,7 @@ import { useStore } from '../../store';
 import { netProfit, type SettlementRecord, type SettlementStatus } from '../../types';
 import dayjs from 'dayjs';
 import { toMoneyValue, withCommas } from '../../lib/money';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface Props {
   editing: SettlementRecord | null;
@@ -12,6 +13,8 @@ interface Props {
 }
 
 export default function SettlementForm({ editing, defaultEmployeeId, onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { state, upsertSettlement } = useStore();
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
   const [vehicleInfo, setVehicleInfo] = useState(editing?.vehicleInfo ?? '');

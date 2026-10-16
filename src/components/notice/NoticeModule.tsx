@@ -5,6 +5,7 @@ import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import type { Role } from '../../types';
 import RichEditor, { cleanHtml } from './RichEditor';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 사내 게시판 — 전 직원이 보는 공지.
@@ -189,6 +190,8 @@ export function NoticeView({
   onEdit: () => void;
   onRemove: () => void;
 }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
       <div
@@ -254,6 +257,8 @@ function NoticeForm({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [category, setCategory] = useState(editing?.category ?? '일반');
   const [title, setTitle] = useState(editing?.title ?? '');
   const [body, setBody] = useState(editing?.body ?? '');

@@ -4,6 +4,7 @@ import { NotebookPen, Plus, Trash2, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { AD_SPEND_CHANNELS, type AdReport } from '../../types';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 광고 운영 현황 메모.
@@ -36,6 +37,8 @@ export default function AdReportModal({
   onClose: () => void;
   onChanged?: () => void;
 }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [rows, setRows] = useState<AdReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [writing, setWriting] = useState(false);

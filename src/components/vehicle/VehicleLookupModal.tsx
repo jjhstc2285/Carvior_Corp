@@ -13,6 +13,7 @@ import {
   stockDeadline,
 } from '../../lib/stockFinance';
 import { CONSULTATION_STATUS_LABEL, PARKING_STATUS_LABEL, type ManagedVehicle } from '../../types';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 차량번호 하나로 그 차가 어디 있는지 찾는다.
@@ -27,6 +28,8 @@ import { CONSULTATION_STATUS_LABEL, PARKING_STATUS_LABEL, type ManagedVehicle } 
 const clean = (s: string) => s.replace(/\s+/g, '');
 
 export default function VehicleLookupModal({ onClose }: { onClose: () => void }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { state } = useStore();
   const [query, setQuery] = useState('');
   const [vehicles, setVehicles] = useState<ManagedVehicle[]>([]);

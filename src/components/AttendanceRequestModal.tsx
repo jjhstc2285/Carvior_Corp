@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import ContractPhotos from './settlement/ContractPhotos';
 import { ApiError } from '../lib/api';
 import { ATTENDANCE_REQUEST_KIND_HINT, ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
+import { useEscClose } from '../lib/useEscClose';
 
 interface Props {
 
@@ -12,6 +13,8 @@ interface Props {
 }
 
 export default function AttendanceRequestModal({ onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { submitAttendanceRequest } = useStore();
   const [kind, setKind] = useState<AttendanceRequestKind>('ANNUAL_LEAVE');
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));

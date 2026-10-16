@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { INCIDENT_REPORT_PLEDGE, type ApprovalDocument } from '../../types';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface Props {
   /** 고칠 문서. 없으면 새로 쓴다 */
@@ -23,6 +24,8 @@ interface Props {
  * 그대로 저장되므로, 나중에 부서가 바뀌어도 옛 문서는 그때 소속으로 남는다.
  */
 export default function IncidentReportForm({ editing, me, onSaved, onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [department, setDepartment] = useState(editing?.department ?? me.department ?? '');
   const [position, setPosition] = useState(editing?.position ?? me.position);
   const [name, setName] = useState(editing?.name ?? me.name);

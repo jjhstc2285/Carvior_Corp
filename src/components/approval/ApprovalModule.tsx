@@ -14,6 +14,7 @@ import {
 } from '../../types';
 
 import ApprovalForm from './ApprovalForm';
+import { useEscClose } from '../../lib/useEscClose';
 
 /** 목록 한 줄에 붙는 요약 — 열어보지 않고도 무슨 건인지 알게 한다 */
 function summary(d: ApprovalDocument): string {
@@ -50,6 +51,8 @@ export default function ApprovalModule({ role }: { role: Role }) {
   const [editing, setEditing] = useState<ApprovalDocument | null>(null);
   const [formKind, setFormKind] = useState<ApprovalKind>('INCIDENT_REPORT');
   const [opened, setOpened] = useState<ApprovalDocument | null>(null);
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(() => setOpened(null), opened !== null);
   const [rejectNote, setRejectNote] = useState('');
 
   const isAdmin = role === 'ADMIN';

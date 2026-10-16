@@ -28,6 +28,7 @@ import {
   X,
 } from 'lucide-react';
 import type { ModuleKey } from '../modules';
+import { useEscClose } from '../lib/useEscClose';
 
 interface Props {
   active: ModuleKey;
@@ -189,6 +190,9 @@ export default function Sidebar({
       items: g.items.filter(i => canSee(i.key) && (!q || i.label.toLowerCase().includes(q))),
     })).filter(g => g.items.length > 0);
   }, [query, canSeeLedger, isCeo, canSeePayroll, canSeeSheet, isAdmin]);
+
+  /* 휴대폰에서 펼친 메뉴도 ESC 로 닫는다 — 열려 있을 때만 듣는다 */
+  useEscClose(onMobileClose, mobileOpen);
 
   const searching = query.trim().length > 0;
 

@@ -7,6 +7,7 @@ import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { VEHICLE_POST_SITES, type AdContract, type Role } from '../../types';
 import AdSpendPanel from './AdSpendPanel';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 광고 관리.
@@ -26,6 +27,8 @@ export default function AdModule({ role }: { role: Role }) {
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [addingTo, setAddingTo] = useState<AdContract | null>(null);
+  /* ESC 로 닫는다 — 열려 있을 때만 듣는다(안 그러면 뒤에 아무것도 없는데 자리를 차지한다) */
+  useEscClose(() => setAddingTo(null), addingTo !== null);
   const [plates, setPlates] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -601,6 +604,8 @@ export default function AdModule({ role }: { role: Role }) {
  * '없음'을 둔다. 마감일은 시작일과 개월 수로 서버가 낸다.
  */
 function AdContractForm({ onSaved, onClose }: { onSaved: () => void; onClose: () => void }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const [platform, setPlatform] = useState<string>(VEHICLE_POST_SITES[0]);
   const [productName, setProductName] = useState('');
   const [unitFee, setUnitFee] = useState('');

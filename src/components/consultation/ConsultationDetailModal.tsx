@@ -14,6 +14,7 @@ import {
   type ConsultationStatus,
 } from '../../types';
 import { effectiveKind } from '../../lib/consultationStats';
+import { useEscClose } from '../../lib/useEscClose';
 
 /** 상담을 맡는 팀 — 전환율도 이 팀만 센다(VisitReviewSection 과 같은 기준) */
 const CONSULTATION_TEAM = '알선팀';
@@ -47,6 +48,8 @@ export default function ConsultationDetailModal({
   onEdit?: () => void;
   onClose: () => void;
 }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { state, refresh } = useStore();
   const owner = state.employees.find(e => e.id === c.employeeId);
   const [busy, setBusy] = useState(false);

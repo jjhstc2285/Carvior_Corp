@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import { Paperclip, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { CONSULTATION_STATUS_LABEL } from '../../types';
+import { useEscClose } from '../../lib/useEscClose';
 
 interface Props {
   customerName: string;
@@ -16,6 +17,8 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function CustomerHistoryModal({ customerName, onClose }: Props) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const { state } = useStore();
   const history = state.consultations
     .filter(c => (c.customerPhone || c.customerName) === customerName)

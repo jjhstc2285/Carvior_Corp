@@ -9,6 +9,7 @@ import {
   type Property,
   type PropertyCost,
 } from '../../types';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 자리마다 달마다 나가는 돈.
@@ -50,6 +51,8 @@ export default function PropertyCostModal({
    */
   inline?: boolean;
 }) {
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(onClose);
   const office = !property;
   const base = property ? `/properties/${property.id}/costs` : '/properties/office-costs';
   const kinds = office ? OFFICE_KINDS : PROPERTY_COST_KINDS;

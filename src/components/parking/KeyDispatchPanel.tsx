@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { ChevronDown, ChevronRight, ExternalLink, KeyRound, MapPinned, Phone, RefreshCw, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import { useEscClose } from '../../lib/useEscClose';
 
 /**
  * 키 불출 이력.
@@ -68,6 +69,8 @@ export default function KeyDispatchPanel() {
   const [outOnly, setOutOnly] = useState(false);
   /** 메모를 펼쳐 볼 건 — 표에서는 잘려서 무슨 말인지 알 수 없다 */
   const [memoOf, setMemoOf] = useState<KeyRow | null>(null);
+  /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
+  useEscClose(() => setMemoOf(null), memoOf !== null);
 
   const load = useCallback(async () => {
     setLoading(true);
