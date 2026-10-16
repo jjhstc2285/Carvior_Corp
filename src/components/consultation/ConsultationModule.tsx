@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { CalendarDays, Copy, LineChart, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import {
+  CONSULTATION_KIND_COLOR,
   CONSULTATION_KIND_LABEL,
   CONSULTATION_STATUS_LABEL,
   type ConsultationKind,
@@ -21,7 +22,7 @@ import VisitReviewSection from './VisitReviewSection';
 import EventCalendar, { type CalEvent } from '../calendar/EventCalendar';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
-import { isOfKind } from '../../lib/consultationStats';
+import { effectiveKind, isOfKind } from '../../lib/consultationStats';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 
 /** 표의 칸들 — 제목과 그리는 방법을 한 벌로 묶어야 차례를 바꿔도 값이 안 엉킨다 */
@@ -187,6 +188,25 @@ export default function ConsultationModule({ role, kind }: Props) {
     }
   };
 
+  /*
+    달력에 올릴 줄 — 종류를 안 가린다.
+
+    담당자·상태·검색은 위 목록과 같은 거르개를 그대로 쓴다. 달력만 따로 놀면
+    "담당자를 골라 뒀는데 달력에는 남의 손님이 뜬다"가 된다.
+  */
+  const visitRows = useMemo(() => {
+    const q = query.trim();
+    return state.consultations
+      .filter(c => c.visitDate)
+      .filter(c => ownerFilter === 'all' || c.employeeId === ownerFilter || c.visitDealerId === ownerFilter)
+      .filter(c =>
+        statusFilter === 'all' ? true : statusFilter === 'open' ? c.status !== 'CLOSED' : c.status === statusFilter,
+      )
+      .filter(c =>
+        !q || [c.vehicleNumber, c.vehicleName, c.customerPhone, c.customerName, c.platform].some(v => v?.includes(q)),
+      );
+  }, [state.consultations, ownerFilter, statusFilter, query]);
+
   /**
    * 날짜별로 미리 묶어둔다.
    *
@@ -210,23 +230,31 @@ export default function ConsultationModule({ role, kind }: Props) {
       보는 것이라 방문만 남긴다 — 나머지는 목록에서 본다.
 
       끝난 상담을 뺄지는 위 목록 필터를 따라간다(기본이 '종결 제외'다).
+
+      종류는 안 가린다.
+
+      탭을 따라가게 해 뒀더니 판매 탭에서는 알선·수출 방문이 안 보였다. 그런데 그날
+      손님을 맞는 건 한 사람이고 자리도 하나다 — 판매 손님 셋에 알선 손님 하나가
+      같은 시각에 오는지를 알아야 하는데, 탭마다 갈라 두면 세 탭을 번갈아 봐야 한다.
+      대신 종류를 빛깔로 갈라 적는다.
     */
-    filtered.forEach(c => {
+    visitRows.forEach(c => {
       if (!c.visitDate) return;
       // 달력 칸은 좁아서 한 줄만 보인다 — 차명이 있으면 그게 제일 알아보기 쉽고,
       // 없으면 차량번호, 그것도 비면 손님번호로 내려간다.
       const label = c.vehicleName || c.vehicleNumber || c.customerPhone || c.customerName;
+      const which = effectiveKind(c);
       push(c.visitDate, {
         id: `visit-${c.id}`,
         label: `${label}${c.visitTime ? ` ${c.visitTime}` : ''}`,
-        sublabel: `방문 · ${CONSULTATION_STATUS_LABEL[c.status]}`,
-        colorClass: 'bg-indigo-50 text-indigo-700',
-        dotClass: 'bg-indigo-400',
+        sublabel: `${CONSULTATION_KIND_LABEL[which]} 방문 · ${CONSULTATION_STATUS_LABEL[c.status]}`,
+        colorClass: CONSULTATION_KIND_COLOR[which].chip,
+        dotClass: CONSULTATION_KIND_COLOR[which].bar,
         onSelect: () => setDetail(c),
       });
     });
     return index;
-  }, [filtered]);
+  }, [visitRows]);
 
   const eventsForDate = (dateStr: string): CalEvent[] => eventIndex.get(dateStr) ?? [];
 
@@ -384,6 +412,22 @@ export default function ConsultationModule({ role, kind }: Props) {
 
       {view === 'calendar' ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          {/*
+            무슨 색이 무엇인지 적어 둔다.
+
+            탭과 상관없이 네 종류를 다 올리므로, 수출 탭에서 판매 손님이 뜨는 게 맞다 —
+            그 까닭을 적어 두지 않으면 고장으로 읽힌다.
+          */}
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+            <span>방문 예약만 올립니다 — 탭과 상관없이 네 종류를 다 띄웁니다</span>
+            {(Object.keys(CONSULTATION_KIND_LABEL) as ConsultationKind[]).map(k => (
+              <span key={k} className="flex items-center gap-1">
+                <i className={`size-2 rounded-sm ${CONSULTATION_KIND_COLOR[k].bar}`} />
+                {CONSULTATION_KIND_LABEL[k]}
+              </span>
+            ))}
+            <span className="ml-auto">이 달 {visitRows.filter(c => (c.visitDate ?? '').startsWith(calMonth.format('YYYY-MM'))).length}건</span>
+          </div>
           <EventCalendar month={calMonth} onMonthChange={setCalMonth} eventsForDate={eventsForDate} />
         </div>
       ) : (
