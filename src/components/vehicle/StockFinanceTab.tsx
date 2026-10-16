@@ -21,6 +21,7 @@ import PurchaseIntakeForm from '../purchaseIntake/PurchaseIntakeForm';
 import type { VehiclesApi } from './useVehicles';
 import UnregisteredSoldPanel from './UnregisteredSoldPanel';
 import UnregisteredIntakePanel from './UnregisteredIntakePanel';
+import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import StockSheetImportModal from './StockSheetImportModal';
 
 type View = 'candidate' | 'offered' | 'stocked' | 'repay' | 'cash' | 'release' | 'sold';
@@ -421,7 +422,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="차량번호·차량명 검색"
-          className="w-56 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+          className={`w-56 ${PLATE_SEARCH_CLASS}`}
         />
 
         {view === 'repay' && (

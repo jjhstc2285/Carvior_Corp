@@ -14,6 +14,7 @@ import { goTo } from '../../lib/goto';
 import { usePurchaseIntake } from './usePurchaseIntake';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api as callApi, ApiError } from '../../lib/api';
+import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import { halfYearRange, vatBalance, VAT_PERIOD_MONTHS } from '../../lib/vat';
 
 const NUM = (n: number) => (n ? n.toLocaleString() : '');
@@ -434,7 +435,7 @@ export default function PurchaseIntakeModule() {
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="고객이름·차량번호·차명·세부모델·매입처 검색"
-          className="w-64 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+          className={`w-64 ${PLATE_SEARCH_CLASS}`}
         />
         <span className="ml-auto text-xs text-slate-400">{api.loading ? '불러오는 중…' : `총 ${items.length}건`}</span>
       </div>

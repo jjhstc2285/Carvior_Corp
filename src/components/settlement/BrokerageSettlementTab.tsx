@@ -25,6 +25,7 @@ import CapitalQuotaPanel from '../consultation/CapitalQuotaPanel';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
+import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import EmployeeAvatar from '../EmployeeAvatar';
 
 interface Props {
@@ -489,7 +490,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           전체 기간
         </label>
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="차량번호·차량명 검색"
-          className="w-52 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+          className={`w-52 ${PLATE_SEARCH_CLASS}`} />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as SettlementStatus | 'all')}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
           <option value="all">전체 상태</option>

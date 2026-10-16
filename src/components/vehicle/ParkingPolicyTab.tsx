@@ -8,6 +8,7 @@ import {
 } from '../../types';
 import { suggestLot } from '../../lib/parkingPolicy';
 import { digitsOnly, withCommas } from '../../lib/money';
+import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import type { VehiclesApi } from './useVehicles';
 
 const FUELS = ['가솔린', '디젤', 'LPG', '하이브리드', '전기', '가솔린+LPG'];
@@ -42,7 +43,7 @@ export default function ParkingPolicyTab({ api }: { api: VehiclesApi }) {
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="차량번호·차량명 검색"
-          className="w-56 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+          className={`w-56 ${PLATE_SEARCH_CLASS}`}
         />
         <button
           onClick={() => setUnsetOnly(v => !v)}

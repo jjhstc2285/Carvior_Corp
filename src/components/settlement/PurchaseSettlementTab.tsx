@@ -35,6 +35,7 @@ import MissingInputPanel from './MissingInputPanel';
 import { ContractPhotoThumb } from './ContractPhotos';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
+import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
 
 interface Props {
@@ -1022,7 +1023,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
           </button>
         )}
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="차량번호·차량명 검색"
-          className="w-52 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+          className={`w-52 ${PLATE_SEARCH_CLASS}`} />
         <input
           type="month"
           value={month}
