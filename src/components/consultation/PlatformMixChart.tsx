@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import dayjs from 'dayjs';
 import { useStore } from '../../store';
 import { isContracted } from '../../lib/consultationStats';
+import { BLANK_TONE, platformTone } from '../../lib/platformTone';
 
 /**
  * 어디서 전화가 들어오나 — 유입 경로 비율.
@@ -24,32 +25,11 @@ const START_MONTH = '2026-09';
 const R = 52;
 const C = 2 * Math.PI * R;
 
-/**
- * 경로마다 다른 빛깔.
- *
- * 적는 칸이 자유 입력이라 목록에 없는 데도 들어온다 — 이름의 글자를 더해 빛깔을 고른다.
- * 같은 이름은 늘 같은 빛깔이 나오므로 달이 바뀌어도 눈이 안 헷갈린다.
- */
-const TONES = [
-  { bar: 'bg-indigo-500', hex: '#6366f1' },
-  { bar: 'bg-sky-500', hex: '#0ea5e9' },
-  { bar: 'bg-emerald-500', hex: '#10b981' },
-  { bar: 'bg-amber-500', hex: '#f59e0b' },
-  { bar: 'bg-rose-500', hex: '#f43f5e' },
-  { bar: 'bg-violet-500', hex: '#8b5cf6' },
-  { bar: 'bg-teal-500', hex: '#14b8a6' },
-  { bar: 'bg-orange-500', hex: '#f97316' },
-];
-
-function toneOf(name: string) {
-  let sum = 0;
-  for (const ch of name) sum += ch.charCodeAt(0);
-  return TONES[sum % TONES.length];
-}
-
 /** 안 적은 건 — 한 덩어리로 모아 맨 뒤에 둔다 */
 const BLANK = '안 적음';
-const BLANK_TONE = { bar: 'bg-slate-300', hex: '#cbd5e1' };
+
+/** 빛깔은 lib/platformTone 한 곳에서 온다 — 정산 표와 같은 색을 써야 뜻이 산다 */
+const toneOf = (name: string) => (name === BLANK ? BLANK_TONE : platformTone(name));
 
 export default function PlatformMixChart() {
   const { state } = useStore();
@@ -125,7 +105,7 @@ export default function PlatformMixChart() {
                 cy="66"
                 r={R}
                 fill="none"
-                stroke={(a.name === BLANK ? BLANK_TONE : toneOf(a.name)).hex}
+                stroke={toneOf(a.name).hex}
                 strokeWidth="18"
                 strokeDasharray={`${a.len} ${C - a.len}`}
                 strokeDashoffset={a.offset}
@@ -144,7 +124,7 @@ export default function PlatformMixChart() {
         <div className="min-w-0 flex-1 space-y-1.5">
           {rows.map(r => {
             const pct = Math.round((r.count / total) * 100);
-            const tone = r.name === BLANK ? BLANK_TONE : toneOf(r.name);
+            const tone = toneOf(r.name);
             return (
               <div key={r.name} className="flex items-center gap-2">
                 <i className={`size-2.5 shrink-0 rounded-sm ${tone.bar}`} />

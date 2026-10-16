@@ -26,6 +26,7 @@ import { alertError, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
 import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
+import { platformTone } from '../../lib/platformTone';
 import EmployeeAvatar from '../EmployeeAvatar';
 
 interface Props {
@@ -616,8 +617,11 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                       platform: (() => {
                         const { from, hasConsultation } = platformOf(s.vehicleNumber);
                         if (from) {
+                          // 빛깔은 유입 경로 그래프와 같은 데서 온다 — 다르면 색이 뜻을 잃는다
                           return (
-                            <span className="inline-block whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
+                            <span
+                              className={`inline-block whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold ${platformTone(from).chip}`}
+                            >
                               {from}
                             </span>
                           );
