@@ -65,6 +65,23 @@ export default function LedgerLock({ title, children }: { title: string; childre
           onKeyDown={e => e.key === 'Enter' && void unlock()}
           placeholder="비밀번호"
           autoFocus
+          /*
+            브라우저가 저장해 둔 아이디를 들이민다.
+
+            칸이 type="password" 하나뿐이라 크롬이 이걸 로그인 창으로 읽고, 저장된
+            계정(아이디)을 목록으로 띄웠다 — 부동산을 누르면 남의 로그인 아이디가
+            화면에 뜨는 꼴이었다.
+
+            one-time-code 로 적어 두면 '한 번 쓰는 번호'로 읽어서 저장도 채움도 안 한다.
+            autoComplete="off" 는 비밀번호 칸에서 크롬이 그냥 무시한다. 아래 data-* 는
+            1Password·LastPass·Bitwarden 에게 건드리지 말라고 적어 두는 표다.
+          */
+          name="lock-code"
+          autoComplete="one-time-code"
+          data-1p-ignore
+          data-lpignore="true"
+          data-bwignore
+          data-form-type="other"
           className="mt-4 w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-lg tracking-widest outline-none focus:border-indigo-400"
         />
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
