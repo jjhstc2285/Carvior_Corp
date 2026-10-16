@@ -211,7 +211,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
   const [vatOpen, setVatOpen] = useState(false);
   const approverRole: 'CHIEF' | 'CEO' | null =
     me?.name === '안원용' ? 'CHIEF' : me?.name === '유진욱' ? 'CEO' : null;
-  const seesAll = canSeeAllSettlements({ role }, myDepartment, me?.name);
+  const seesAll = canSeeAllSettlements({ role }, myDepartment, me?.name, me?.position);
   const scoped = seesAll
     ? state.purchaseSettlements
     : state.purchaseSettlements.filter(s => s.employeeId === state.currentEmployeeId);

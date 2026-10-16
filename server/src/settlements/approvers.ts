@@ -103,11 +103,18 @@ export function canEditPanelInvoice(name: string | null | undefined): boolean {
  * 매입가와 상품화 비용을 들여다봐야 하는 자리인데 계약팀이 아니다. 직급으로 열면 같은
  * 직급이 하나 더 생겼을 때 같이 열린다 — 승인자를 이름으로 못 박는 것과 같은 이유다.
  *
+ * 이태희 팀장은 계약팀 일을 보는데 직원 관리에는 아직 광고팀으로 적혀 있다. 부서로
+ * 열면 광고팀이 통째로 열리므로 이름으로 둔다.
+ *
+ * 사무장은 이름이 아니라 직급으로 연다 — 자리가 바뀌어도 사무장이면 봐야 하는 값이고,
+ * 사무장이 둘인데 한 사람만 열어 둘 까닭이 없다.
+ *
  * 화면에도 같은 이름이 있다(src/lib/permissions.ts) — 고칠 땐 양쪽을 같이 본다.
  */
-export const SETTLEMENT_VIEWERS = ['이우주', '안원용'];
+export const SETTLEMENT_VIEWERS = ['이우주', '안원용', '이태희'];
 
-export function canSeePurchaseSettlements(user: { name: string }): boolean {
+export function canSeePurchaseSettlements(user: { name: string; position?: string }): boolean {
+  if ((user.position ?? '').includes('사무장')) return true;
   return SETTLEMENT_VIEWERS.includes(user.name.trim());
 }
 
