@@ -231,13 +231,19 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       `${v.vehicleNumber} 를 차량 관리에서 지울까요?`,
       blank
         ? '빈 줄입니다. 되돌릴 수 없습니다.'
-        : `적힌 것이 같이 사라집니다 — ${kept.join(' · ')}. 되돌릴 수 없습니다.
+        : `적힌 것이 같이 사라집니다 — ${kept.join(' · ')}. 주유·배터리 이력도 같이 지워집니다. 되돌릴 수 없습니다.
 ` +
             '매입 등록과 정산은 안 지워집니다. 그쪽도 지우려면 매입 관리·정산에서 따로 지우세요.',
     );
     if (!ok) return;
     try {
-      await callApi(`/vehicles/${v.id}`, { method: 'DELETE' });
+      /*
+        적힌 게 있는 줄은 force 를 들고 가야 서버가 지운다.
+
+        무엇이 사라지는지 바로 위에서 보여 주고 받은 대답이 이 값이다 — 서버는 그걸
+        모르니 한 번 더 막아 두고, 사무장·관리자일 때만 넘어가게 해 두었다.
+      */
+      await callApi(`/vehicles/${v.id}${blank ? '' : '?force=1'}`, { method: 'DELETE' });
       await reload();
     } catch (e) {
       void alertError('지우지 못했습니다', e instanceof ApiError ? e.message : '');

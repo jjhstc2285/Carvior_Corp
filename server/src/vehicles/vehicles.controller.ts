@@ -156,9 +156,15 @@ export class VehiclesController {
     return this.vehicles.update(id, dto);
   }
 
+  /**
+   * 차량관리에서 한 줄을 지운다.
+   *
+   * 적힌 게 있는 줄은 사무장·관리자만, 그것도 force 를 들고 와야 지운다 — 무엇이
+   * 사라지는지 화면에서 먼저 보여 주고 받은 대답이 이 값이다.
+   */
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id') id: string) {
-    await this.vehicles.remove(id);
+  async remove(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('force') force?: string) {
+    await this.vehicles.remove(id, user, force === '1');
   }
 }

@@ -2,8 +2,11 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { canSeeLedger } from "../auth/office-manager";
+import type { AuthUser } from "../auth/current-user.decorator";
 import { ConsultationStatus, Prisma, VehicleExpenseKind } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { TelegramService } from "../telegram/telegram.module";
@@ -34,6 +37,8 @@ import type {
 
 @Injectable()
 export class VehiclesService {
+  private readonly logger = new Logger(VehiclesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly telegram: TelegramService,
@@ -533,16 +538,20 @@ export class VehiclesService {
 
   /** 차량을 지우면 그 차의 주유·배터리 이력도 함께 사라진다(FK Cascade). */
   /**
-   * 차를 지운다 — 아무것도 안 붙은 빈 줄만.
+   * 차를 지운다.
    *
    * 번호를 잘못 적어 생긴 유령 차가 목록에 남는다(69로6983 을 69오6983 으로 적는 식).
    * 차명도 매입가도 없이 떠 있어 제시 대상 수만 부풀린다.
    *
-   * 다만 지우면 주유·배터리 이력이 같이 날아간다. 그래서 무엇 하나라도 적힌 차는 막는다 —
-   * 지우는 건 되돌릴 수 없고, 되돌릴 수 없는 일은 좁게 열어 두는 편이 낫다.
-   * 진짜로 지워야 하는 차라면 적힌 것을 먼저 지우게 된다. 그 과정에서 한 번 더 생각한다.
+   * 아무것도 안 적힌 줄은 누구나 지운다. 하나라도 적힌 줄은 막는다 — 지우는 건 되돌릴
+   * 수 없고, 주유·배터리 이력까지 같이 날아간다.
+   *
+   * 다만 아주 막아 두면 정작 지워야 할 줄을 못 지운다. 번호를 잘못 적은 줄에 차명과
+   * 매입가까지 적혀 있는 일이 있는데(377모4380 이 그랬다), 그건 같은 차가 두 번 들어간
+   * 것이라 한쪽은 반드시 지워야 한다. 그래서 사무장·관리자는 force 로 넘어갈 수 있게
+   * 둔다 — 무엇이 사라지는지는 화면에서 먼저 보여 준다.
    */
-  async remove(id: string) {
+  async remove(id: string, user?: AuthUser, force = false) {
     const row = await this.findOne(id);
 
     const marks = [
@@ -556,15 +565,25 @@ export class VehiclesService {
       row.vehicleModel.trim() && '차명',
     ].filter(Boolean) as string[];
 
-    if (marks.length > 0) {
+    const mayForce = force && canSeeLedger(user?.position);
+
+    if (marks.length > 0 && !mayForce) {
       throw new BadRequestException(
-        `${marks.join(' · ')}가 적혀 있어 지울 수 없습니다. 비어 있는 줄만 지웁니다.`,
+        `${marks.join(' · ')}가 적혀 있어 지울 수 없습니다. 사무장·관리자만 지울 수 있습니다.`,
       );
     }
 
     const expenses = await this.prisma.vehicleExpenseLog.count({ where: { vehicleId: id } });
-    if (expenses > 0) {
+    if (expenses > 0 && !mayForce) {
       throw new BadRequestException(`주유·배터리 이력이 ${expenses}건 있어 지울 수 없습니다.`);
+    }
+
+    // 되돌릴 수 없는 일이라 무엇을 지웠는지는 남긴다
+    if (marks.length > 0 || expenses > 0) {
+      this.logger.warn(
+        `${row.vehicleNumber} 차량관리 줄을 지웠습니다(${user?.name ?? '?'}) — ` +
+          `${marks.join(' · ') || '적힌 값 없음'}${expenses > 0 ? ` · 주유·배터리 이력 ${expenses}건` : ''}`,
+      );
     }
 
     await this.prisma.managedVehicle.delete({ where: { id } });
