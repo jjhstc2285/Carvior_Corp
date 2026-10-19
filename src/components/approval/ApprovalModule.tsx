@@ -6,7 +6,6 @@ import { alertError, confirmDanger } from '../../lib/alert';
 import { useStore } from '../../store';
 import {
   APPROVAL_KIND_LABEL,
-  INCIDENT_REPORT_PLEDGE,
   REQUEST_STATUS_LABEL,
   type ApprovalDocument,
   type ApprovalKind,
@@ -15,6 +14,7 @@ import {
 
 import ApprovalForm from './ApprovalForm';
 import { useEscClose } from '../../lib/useEscClose';
+import IncidentReportPaper from './IncidentReportPaper';
 
 /** 목록 한 줄에 붙는 요약 — 열어보지 않고도 무슨 건인지 알게 한다 */
 function summary(d: ApprovalDocument): string {
@@ -191,82 +191,91 @@ export default function ApprovalModule({ role }: { role: Role }) {
       {opened && (
         <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-6 sm:p-10 print:static print:bg-white print:p-0">
           <div className="w-full max-w-2xl rounded-2xl bg-white p-8 shadow-xl print:max-w-none print:shadow-none">
-            <h2 className="text-center text-2xl font-bold tracking-[0.3em] text-slate-900">
-              {APPROVAL_KIND_LABEL[opened.kind]}
-            </h2>
+            {/*
+              시말서는 회사 종이 양식 그대로 그린다.
 
-            <table className="mt-6 w-full border-collapse text-sm">
-              <tbody>
-                {[
-                  ['부서', opened.department || '-'],
-                  ['직위', opened.position || '-'],
-                  ['성명', opened.name],
-                ].map(([label, value]) => (
-                  <tr key={label}>
-                    <th className="w-24 border border-slate-300 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
-                      {label}
-                    </th>
-                    <td className="border border-slate-300 px-3 py-2 text-slate-800">{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              뽑아서 결재를 받는 종이라 화면과 종이가 달라서는 안 된다 — 받는 쪽이
+              매번 "우리 양식이 아닌데"가 된다. 도장은 안 찍는다(결재란은 비워서 뽑고
+              손으로 찍는다).
+            */}
+            {opened.kind === 'INCIDENT_REPORT' ? (
+              <IncidentReportPaper doc={opened} />
+            ) : (
+              <>
+                <h2 className="text-center text-2xl font-bold tracking-[0.3em] text-slate-900">
+                  {APPROVAL_KIND_LABEL[opened.kind]}
+                </h2>
 
-            {opened.kind === 'INCIDENT_REPORT' && (
-              <p className="mt-6 text-[13px] leading-relaxed text-slate-700">{INCIDENT_REPORT_PLEDGE}</p>
+                <table className="mt-6 w-full border-collapse text-sm">
+                  <tbody>
+                    {[
+                      ['부서', opened.department || '-'],
+                      ['직위', opened.position || '-'],
+                      ['성명', opened.name],
+                    ].map(([label, value]) => (
+                      <tr key={label}>
+                        <th className="w-24 border border-slate-300 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
+                          {label}
+                        </th>
+                        <td className="border border-slate-300 px-3 py-2 text-slate-800">{value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {opened.kind === 'LEAVE' && (
+                  <table className="mt-4 w-full border-collapse text-sm">
+                    <tbody>
+                      {[
+                        ['휴가 종류', opened.leaveKind || '-'],
+                        ['기간', [opened.startOn, opened.endOn].filter(Boolean).join(' ~ ') || '-'],
+                        ['일수', opened.days != null ? `${opened.days}일` : '-'],
+                      ].map(([label, value]) => (
+                        <tr key={label}>
+                          <th className="w-24 border border-slate-300 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
+                            {label}
+                          </th>
+                          <td className="border border-slate-300 px-3 py-2 text-slate-800">{value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {opened.kind === 'EXPENSE' && (
+                  <table className="mt-4 w-full border-collapse text-sm">
+                    <tbody>
+                      {[
+                        ['지출일', opened.spentOn ?? '-'],
+                        ['지출처', opened.payee || '-'],
+                        ['금액', `${opened.amount.toLocaleString()}원`],
+                      ].map(([label, value]) => (
+                        <tr key={label}>
+                          <th className="w-24 border border-slate-300 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
+                            {label}
+                          </th>
+                          <td className="border border-slate-300 px-3 py-2 text-slate-800">{value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <div className="mt-5">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">
+                    {opened.kind === 'LEAVE' ? '사유' : '적요'}
+                  </p>
+                  <p className="min-h-20 whitespace-pre-wrap rounded-lg border border-slate-300 px-4 py-3 text-sm leading-relaxed text-slate-800">
+                    {opened.content}
+                  </p>
+                </div>
+
+                <div className="mt-6 text-right text-sm text-slate-700">
+                  <p>작성일자 : {opened.writtenOn}</p>
+                  <p className="mt-1">작성자 : {opened.name} (인)</p>
+                </div>
+              </>
             )}
-
-            {opened.kind === 'LEAVE' && (
-              <table className="mt-4 w-full border-collapse text-sm">
-                <tbody>
-                  {[
-                    ['휴가 종류', opened.leaveKind || '-'],
-                    ['기간', [opened.startOn, opened.endOn].filter(Boolean).join(' ~ ') || '-'],
-                    ['일수', opened.days != null ? `${opened.days}일` : '-'],
-                  ].map(([label, value]) => (
-                    <tr key={label}>
-                      <th className="w-24 border border-slate-300 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
-                        {label}
-                      </th>
-                      <td className="border border-slate-300 px-3 py-2 text-slate-800">{value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {opened.kind === 'EXPENSE' && (
-              <table className="mt-4 w-full border-collapse text-sm">
-                <tbody>
-                  {[
-                    ['지출일', opened.spentOn ?? '-'],
-                    ['지출처', opened.payee || '-'],
-                    ['금액', `${opened.amount.toLocaleString()}원`],
-                  ].map(([label, value]) => (
-                    <tr key={label}>
-                      <th className="w-24 border border-slate-300 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
-                        {label}
-                      </th>
-                      <td className="border border-slate-300 px-3 py-2 text-slate-800">{value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            <div className="mt-5">
-              <p className="mb-1 text-xs font-semibold text-slate-500">
-                {opened.kind === 'INCIDENT_REPORT' ? '내용' : opened.kind === 'LEAVE' ? '사유' : '적요'}
-              </p>
-              <p className={`rounded-lg border border-slate-300 px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-slate-800 ${opened.kind === 'INCIDENT_REPORT' ? 'min-h-40' : 'min-h-20'}`}>
-                {opened.content}
-              </p>
-            </div>
-
-            <div className="mt-6 text-right text-sm text-slate-700">
-              <p>작성일자 : {opened.writtenOn}</p>
-              <p className="mt-1">작성자 : {opened.name} (인)</p>
-            </div>
 
             {opened.status !== 'PENDING' && (
               <p className="mt-4 text-right text-xs text-slate-400">

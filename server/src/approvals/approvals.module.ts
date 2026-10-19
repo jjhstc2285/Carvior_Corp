@@ -50,6 +50,15 @@ export class CreateApprovalDto {
 
   @IsOptional() @Matches(DATE_PATTERN, { message: '작성일자는 YYYY-MM-DD 형식이어야 합니다.' }) writtenOn?: string;
 
+
+  // ── 시말서 ──
+  @IsOptional() @Matches(OPTIONAL_DATE) occurredOn?: string | null;
+  @IsOptional() @IsString() @MaxLength(30) occurredTime?: string;
+  @IsOptional() @IsString() @MaxLength(60) occurredPlace?: string;
+  @IsOptional() @IsString() cause?: string;
+  @IsOptional() @IsString() action?: string;
+  @IsOptional() @IsString() prevention?: string;
+
   // ── 휴가원 ──
   @IsOptional() @IsString() @MaxLength(20) leaveKind?: string;
   @IsOptional() @Matches(OPTIONAL_DATE) startOn?: string | null;
@@ -69,6 +78,15 @@ export class UpdateApprovalDto {
   @IsOptional() @IsString() @MaxLength(30) name?: string;
   @IsOptional() @IsString() content?: string;
   @IsOptional() @Matches(DATE_PATTERN) writtenOn?: string;
+
+
+  // ── 시말서 ──
+  @IsOptional() @Matches(OPTIONAL_DATE) occurredOn?: string | null;
+  @IsOptional() @IsString() @MaxLength(30) occurredTime?: string;
+  @IsOptional() @IsString() @MaxLength(60) occurredPlace?: string;
+  @IsOptional() @IsString() cause?: string;
+  @IsOptional() @IsString() action?: string;
+  @IsOptional() @IsString() prevention?: string;
 
   @IsOptional() @IsString() @MaxLength(20) leaveKind?: string;
   @IsOptional() @Matches(OPTIONAL_DATE) startOn?: string | null;
@@ -131,6 +149,12 @@ export class ApprovalsService {
         name: dto.name.trim(),
         content: dto.content.trim(),
         writtenOn: toDateOnly(dto.writtenOn || todayKst()),
+        occurredOn: toDateOnlyOrNull(dto.occurredOn),
+        occurredTime: dto.occurredTime?.trim() ?? '',
+        occurredPlace: dto.occurredPlace?.trim() ?? '',
+        cause: dto.cause?.trim() ?? '',
+        action: dto.action?.trim() ?? '',
+        prevention: dto.prevention?.trim() ?? '',
         leaveKind: dto.leaveKind?.trim() ?? '',
         startOn: toDateOnlyOrNull(dto.startOn),
         endOn: toDateOnlyOrNull(dto.endOn),
@@ -166,6 +190,12 @@ export class ApprovalsService {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.content !== undefined ? { content: dto.content.trim() } : {}),
         ...(dto.writtenOn !== undefined ? { writtenOn: toDateOnly(dto.writtenOn) } : {}),
+        ...(dto.occurredOn !== undefined ? { occurredOn: toDateOnlyOrNull(dto.occurredOn) } : {}),
+        ...(dto.occurredTime !== undefined ? { occurredTime: dto.occurredTime.trim() } : {}),
+        ...(dto.occurredPlace !== undefined ? { occurredPlace: dto.occurredPlace.trim() } : {}),
+        ...(dto.cause !== undefined ? { cause: dto.cause.trim() } : {}),
+        ...(dto.action !== undefined ? { action: dto.action.trim() } : {}),
+        ...(dto.prevention !== undefined ? { prevention: dto.prevention.trim() } : {}),
         ...(dto.leaveKind !== undefined ? { leaveKind: dto.leaveKind.trim() } : {}),
         ...(dto.startOn !== undefined ? { startOn: toDateOnlyOrNull(dto.startOn) } : {}),
         ...(dto.endOn !== undefined ? { endOn: toDateOnlyOrNull(dto.endOn) } : {}),
@@ -270,11 +300,18 @@ export class ApprovalsService {
   }
 
   private toView<
-    T extends { writtenOn: Date; startOn: Date | null; endOn: Date | null; spentOn: Date | null },
+    T extends {
+      writtenOn: Date;
+      startOn: Date | null;
+      endOn: Date | null;
+      spentOn: Date | null;
+      occurredOn: Date | null;
+    },
   >(row: T) {
     return {
       ...row,
       writtenOn: formatDateOnly(row.writtenOn),
+      occurredOn: formatDateOnlyOrNull(row.occurredOn),
       startOn: formatDateOnlyOrNull(row.startOn),
       endOn: formatDateOnlyOrNull(row.endOn),
       spentOn: formatDateOnlyOrNull(row.spentOn),

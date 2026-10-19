@@ -274,8 +274,25 @@ export interface ApprovalDocument {
   department: string;
   position: string;
   name: string;
-  content: string; // 시말서는 경위, 휴가원은 사유, 지출결의서는 적요
+  content: string; // 시말서는 '1. 사건 및 경위', 휴가원은 사유, 지출결의서는 적요
   writtenOn: string; // YYYY-MM-DD
+
+  /*
+    시말서 — 회사 종이 양식을 그대로 옮긴 칸들.
+
+    네 꼭지(사건 및 경위 / 발생 원인 및 사유 / 조치 사항 / 재발 방지 대책)와 발생
+    일시·장소가 양식에 있다. 한 칸에 몰아 적게 두면 적는 사람마다 꼭지를 빼먹거나
+    순서가 달라져서, 뽑아 놓으면 종이 양식과 다른 문서가 된다.
+
+    '사건 및 경위'는 content 를 그대로 쓴다 — 이미 적힌 시말서를 옮겨 적게 하지 않는다.
+    발생 시각은 글자다("오후 3시쯤"처럼 적어 온다).
+  */
+  occurredOn?: string | null;
+  occurredTime?: string;
+  occurredPlace?: string;
+  cause?: string;
+  action?: string;
+  prevention?: string;
 
   // 양식마다 칸이 달라 비어 있을 수 있다
   leaveKind: string;

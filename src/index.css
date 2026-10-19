@@ -101,3 +101,28 @@ body {
 /* 올린 사진 — 원본 그대로 두면 한 장이 화면을 넘긴다 */
 .prose-notice img { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 0.5rem 0; }
 .prose-notice img.ProseMirror-selectednode { outline: 2px solid #6366f1; }
+
+/*
+  인쇄.
+
+  결재 문서는 뽑아서 결재를 받는 종이다. 화면 그대로 뽑으면 왼쪽 메뉴와 윗 띠까지
+  같이 나와서 쓸 수 없는 종이가 된다 — 띄운 문서만 남긴다.
+
+  칸 테두리는 바탕색을 빼고 인쇄하는 설정에서도 보여야 하므로, 색이 아니라 선으로
+  그린다(exact 로 바탕까지 뽑으라고 일러둔다).
+*/
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* 문서 한 꼭지가 두 장에 걸쳐 잘리지 않게 */
+  section {
+    break-inside: avoid;
+  }
+}

@@ -286,6 +286,26 @@ model ApprovalDocument {
   content    String   @db.Text // 내용 — 시말서는 경위, 휴가원은 사유, 지출결의서는 적요
   writtenOn  DateTime @db.Date // 작성일자
 
+  /*
+    ── 시말서 ──
+
+    회사 종이 양식을 그대로 옮긴 칸들이다. 양식에는 네 꼭지(사건 및 경위 / 발생 원인 및
+    사유 / 조치 사항 / 재발 방지 대책)와 발생 일시·장소가 있는데, 한 칸(content)에
+    몰아 적게 해 두었더니 적는 사람마다 꼭지를 빼먹거나 순서가 달라져서, 뽑아 놓으면
+    종이 양식과 다른 문서가 됐다.
+
+    사건 및 경위는 content 를 그대로 쓴다 — 이미 적힌 시말서를 옮겨 적게 하지 않는다.
+
+    발생 시각은 글자로 둔다. "오후 3시쯤"처럼 적어 오는 일이 많아서 시:분으로 받으면
+    없는 정확함을 만들게 된다.
+  */
+  occurredOn    DateTime? @db.Date
+  occurredTime  String    @default("") @db.VarChar(30)
+  occurredPlace String    @default("") @db.VarChar(60)
+  cause         String    @default("") @db.Text
+  action        String    @default("") @db.Text
+  prevention    String    @default("") @db.Text
+
   // ── 휴가원 ──
   // 양식마다 칸이 달라 비어 있을 수 있다. JSON 한 칸에 몰아넣지 않는 이유는
   // 나중에 "이번 달 휴가 며칠", "이번 달 지출 얼마"를 물어보려면 칸이어야 해서다.

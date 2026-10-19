@@ -30,6 +30,13 @@ export default function IncidentReportForm({ editing, me, onSaved, onClose }: Pr
   const [position, setPosition] = useState(editing?.position ?? me.position);
   const [name, setName] = useState(editing?.name ?? me.name);
   const [content, setContent] = useState(editing?.content ?? '');
+  /* 종이 양식의 네 꼭지와 발생 일시·장소 — 적은 그대로 뽑혀 나간다 */
+  const [occurredOn, setOccurredOn] = useState(editing?.occurredOn ?? '');
+  const [occurredTime, setOccurredTime] = useState(editing?.occurredTime ?? '');
+  const [occurredPlace, setOccurredPlace] = useState(editing?.occurredPlace ?? '');
+  const [cause, setCause] = useState(editing?.cause ?? '');
+  const [action, setAction] = useState(editing?.action ?? '');
+  const [prevention, setPrevention] = useState(editing?.prevention ?? '');
   const [writtenOn, setWrittenOn] = useState(editing?.writtenOn ?? dayjs().format('YYYY-MM-DD'));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -49,6 +56,12 @@ export default function IncidentReportForm({ editing, me, onSaved, onClose }: Pr
         name: name.trim(),
         content: content.trim(),
         writtenOn,
+        occurredOn: occurredOn || null,
+        occurredTime: occurredTime.trim(),
+        occurredPlace: occurredPlace.trim(),
+        cause: cause.trim(),
+        action: action.trim(),
+        prevention: prevention.trim(),
       };
       if (editing) await api(`/approvals/${editing.id}`, { method: 'PATCH', body });
       else await api('/approvals', { method: 'POST', body });
@@ -61,10 +74,30 @@ export default function IncidentReportForm({ editing, me, onSaved, onClose }: Pr
     }
   };
 
-  const field = (label: string, node: React.ReactNode) => (
-    <div>
+  const field = (label: string, node: React.ReactNode, extra = '') => (
+    <div className={extra}>
       <label className="mb-1 block text-xs font-semibold text-slate-500">{label}</label>
       {node}
+    </div>
+  );
+
+  /** 네 꼭지 — 양식에 적힌 안내문을 그대로 placeholder 로 둔다 */
+  const section = (
+    label: string,
+    hint: string,
+    value: string,
+    set: (v: string) => void,
+    rows: number,
+  ) => (
+    <div>
+      <label className="mb-1 block text-xs font-bold text-slate-600">{label}</label>
+      <textarea
+        value={value}
+        onChange={e => set(e.target.value)}
+        rows={rows}
+        placeholder={hint}
+        className="w-full resize-y rounded-lg border border-slate-200 px-2.5 py-2 text-sm leading-relaxed outline-none focus:border-indigo-400"
+      />
     </div>
   );
 
@@ -91,15 +124,20 @@ export default function IncidentReportForm({ editing, me, onSaved, onClose }: Pr
           {INCIDENT_REPORT_PLEDGE}
         </p>
 
-        <div className="mt-4">
-          <label className="mb-1 block text-xs font-semibold text-slate-500">내용 *</label>
-          <textarea
-            value={content}
-            onChange={e => setContent(e.target.value)}
-            rows={8}
-            placeholder="언제, 무슨 일이 있었고, 앞으로 어떻게 하겠다는지 적어 주세요."
-            className="w-full resize-none rounded-lg border border-slate-200 px-2.5 py-2 text-sm leading-relaxed outline-none focus:border-indigo-400"
-          />
+        {/* 발생 일시·장소 — 양식 윗표에 들어가는 값이다 */}
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {field('발생 일자', <input type="date" value={occurredOn ?? ''} onChange={e => setOccurredOn(e.target.value)} className={INPUT} />)}
+          {/* 시각은 글자로 받는다 — "오후 3시쯤"처럼 적어 오는 일이 많다 */}
+          {field('발생 시각', <input value={occurredTime} onChange={e => setOccurredTime(e.target.value)} placeholder="오후 3시쯤" className={INPUT} />)}
+          {field('발생 장소', <input value={occurredPlace} onChange={e => setOccurredPlace(e.target.value)} placeholder="1층 사무실" className={`${INPUT} sm:col-span-2`} />, 'col-span-2')}
+        </div>
+
+        {/* 종이 양식의 네 꼭지 — 적는 차례와 묻는 말을 그대로 옮겼다 */}
+        <div className="mt-4 space-y-3">
+          {section('1. 사건 및 경위 *', '발생한 상황과 사실관계를 구체적으로 작성해 주십시오.', content, setContent, 6)}
+          {section('2. 발생 원인 및 사유', '원인 및 관련 사유를 작성해 주십시오.', cause, setCause, 4)}
+          {section('3. 조치 사항', '발생 이후 취한 조치와 처리 결과를 작성해 주십시오.', action, setAction, 4)}
+          {section('4. 재발 방지 대책', '향후 개선 및 예방 계획을 작성해 주십시오.', prevention, setPrevention, 4)}
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3">
