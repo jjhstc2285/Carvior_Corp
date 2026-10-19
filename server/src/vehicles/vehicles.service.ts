@@ -305,10 +305,10 @@ export class VehiclesService {
     const [consultations, vehicles] = await Promise.all([
       this.prisma.consultation.findMany({
         where: { status: ConsultationStatus.SOLD },
-        select: { vehicleNumber: true, vehicleName: true, date: true, kind: true, content: true },
+        select: { id: true, vehicleNumber: true, vehicleName: true, date: true, kind: true, content: true },
         orderBy: { date: 'desc' },
       }),
-      this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true } }),
+      this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true, plateTail: true, soldDate: true } }),
     ]);
 
     const known = new Set(vehicles.map((v) => normalizePlate(v.vehicleNumber)));
@@ -322,21 +322,45 @@ export class VehiclesService {
         seen.add(plate);
         return true;
       })
-      .map((c) => ({
-        vehicleNumber: c.vehicleNumber,
-        vehicleModel: c.vehicleName,
-        soldOn: formatDateOnly(c.date),
+      .map((c) => {
+        const plate = normalizePlate(c.vehicleNumber);
         /*
-          알선·수출은 우리가 사온 차가 아니다 — 차량 관리에 없는 게 당연하다.
+          뒤 네 자리가 같은 차를 찾아 둔다.
 
-          고른 종류보다 적힌 내용이 사실에 가깝다. 알선으로 골라 놓고 내용에 '수출'이라
-          적는 일이 많아서, 상담 화면이 쓰는 규칙(effectiveKind)과 같게 본다.
+          전화를 받으면서 뒤 네 자리만 친 상담이 많다 — 7618 로 적힌 알티마가 실은
+          26무7618 이다. 그 차가 차량 관리에 멀쩡히 있는데 번호가 짧아서 못 맞춘
+          것뿐이라, 후보를 같이 내려주면 화면에서 눌러 고칠 수 있다.
+
+          두 대가 걸리는 일이 있다(3739 가 05고3739 와 19가3739 둘이다). 그건 사람이
+          골라야 하므로 다 내려준다.
         */
-        brokered:
-          c.kind === ConsultationKind.BROKERAGE ||
-          c.kind === ConsultationKind.EXPORT ||
-          (c.content ?? '').includes('수출'),
-      }));
+        const tail = plate.length >= 4 ? plate.slice(-4) : plate;
+        const matches = plate.length < 7
+          ? vehicles
+              .filter((v) => v.plateTail === tail)
+              .map((v) => ({ vehicleNumber: v.vehicleNumber, soldOn: formatDateOnlyOrNull(v.soldDate) }))
+          : [];
+
+        return {
+          consultationId: c.id,
+          vehicleNumber: c.vehicleNumber,
+          vehicleModel: c.vehicleName,
+          soldOn: formatDateOnly(c.date),
+          kind: c.kind,
+          matches,
+          /*
+            우리가 사온 차가 아닌 종류 — 차량 관리에 없는 게 당연하다.
+
+            알선·수출만 보다가 '기타'를 빠뜨렸다. 기타는 파는 사람이 우리 직원이 아니라
+            남의 딜러·상사가 파는 건이라(담당자 자리에 그 이름이 들어간다) 그것도 우리
+            차가 아니다 — 열세 줄 중 열 줄이 기타인데 표가 하나만 붙어 있었다.
+
+            고른 종류보다 적힌 내용이 사실에 가깝다. 알선으로 골라 놓고 내용에 '수출'이라
+            적는 일이 많아서, 상담 화면이 쓰는 규칙과 같게 본다.
+          */
+          brokered: c.kind !== ConsultationKind.SALE || (c.content ?? '').includes('수출'),
+        };
+      });
   }
 
   /**

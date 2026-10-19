@@ -19,8 +19,12 @@ interface Row {
   vehicleModel: string;
   /** 판매완료로 찍힌 상담 날짜 */
   soldOn: string;
-  /** 알선·수출 상담인가 — 우리가 사온 차가 아니라 차량 관리에 없는 게 당연하다 */
+  /** 우리가 사온 차가 아닌 종류(알선·수출·기타)인가 — 차량 관리에 없는 게 당연하다 */
   brokered?: boolean;
+  /** 고칠 상담 */
+  consultationId: string;
+  /** 뒤 네 자리가 같은 차 — 번호를 짧게 적은 상담을 여기로 맞춘다 */
+  matches?: { vehicleNumber: string; soldOn: string | null }[];
 }
 
 export default function UnregisteredSoldPanel({ onRegistered }: { onRegistered: () => void }) {
@@ -38,6 +42,27 @@ export default function UnregisteredSoldPanel({ onRegistered }: { onRegistered: 
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * 짧게 적은 번호를 진짜 번호로 고친다.
+   *
+   * 7618 로 적힌 알티마가 실은 26무7618 이다. 그 차는 차량 관리에 멀쩡히 있는데 번호가
+   * 짧아서 못 맞춘 것뿐이라, 상담의 번호만 고치면 이 줄은 저절로 사라진다 —
+   * 차를 새로 만들면 같은 차가 두 줄이 된다.
+   */
+  const matchTo = async (row: Row, vehicleNumber: string) => {
+    if (!vehicleNumber) return;
+    setSaving(row.vehicleNumber);
+    try {
+      await api(`/consultations/${row.consultationId}`, { method: 'PATCH', body: { vehicleNumber } });
+      setRows(list => list.filter(r => r.vehicleNumber !== row.vehicleNumber));
+      onRegistered();
+    } catch (e) {
+      void alertError('번호를 고치지 못했습니다', e instanceof ApiError ? e.message : '');
+    } finally {
+      setSaving(null);
+    }
+  };
 
   const register = async (row: Row, soldDate: string) => {
     if (!soldDate) return;
@@ -82,6 +107,7 @@ export default function UnregisteredSoldPanel({ onRegistered }: { onRegistered: 
               <th className="px-2 py-1 font-medium">차량번호</th>
               <th className="px-2 py-1 font-medium">차명</th>
               <th className="px-2 py-1 font-medium">판매완료</th>
+              <th className="px-2 py-1 font-medium">같은 차 아닌가요</th>
               <th className="px-2 py-1 font-medium">매도일자</th>
             </tr>
           </thead>
@@ -105,6 +131,36 @@ export default function UnregisteredSoldPanel({ onRegistered }: { onRegistered: 
                 </td>
                 <td className="whitespace-nowrap px-2 py-1.5 text-slate-500">
                   {dayjs(row.soldOn).format('M월 D일')}
+                </td>
+
+                {/*
+                  뒤 네 자리가 같은 차 — 눌러서 상담 번호를 고친다.
+
+                  차를 새로 만들지 않는다. 번호만 고치면 그 차와 이어지고 이 줄은 저절로
+                  사라진다 — 새로 만들면 같은 차가 두 줄이 된다.
+
+                  두 대가 걸리면 사람이 골라야 한다. 매도일자가 적힌 쪽이 대개 그 차지만
+                  확실하지 않아서 둘 다 띄운다.
+                */}
+                <td className="px-2 py-1.5">
+                  {row.matches && row.matches.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {row.matches.map(m => (
+                        <button
+                          key={m.vehicleNumber}
+                          disabled={saving === row.vehicleNumber}
+                          onClick={() => void matchTo(row, m.vehicleNumber)}
+                          title={`상담 차량번호를 ${m.vehicleNumber} 로 고칩니다`}
+                          className="rounded-lg border border-indigo-300 bg-white px-2 py-1 font-mono text-[12px] font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                        >
+                          {m.vehicleNumber}
+                          {m.soldOn && <span className="ml-1 font-sans text-[10px] text-slate-400">매도 {dayjs(m.soldOn).format('M/D')}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">짝 없음</span>
+                  )}
                 </td>
                 <td className="px-2 py-1.5">
                   <div className="flex items-center gap-1.5">
