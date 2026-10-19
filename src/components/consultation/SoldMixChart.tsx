@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { CONSULTATION_KIND_COLOR, CONSULTATION_KIND_LABEL, type ConsultationKind } from '../../types';
 import { useStore } from '../../store';
 import { effectiveKind } from '../../lib/consultationStats';
+import type { Range } from './ChartRange';
 
 /**
  * 판매완료 — 어디서 팔렸나.
@@ -13,24 +14,19 @@ import { effectiveKind } from '../../lib/consultationStats';
 
 const ORDER: ConsultationKind[] = ['SALE', 'BROKERAGE', 'EXPORT', 'OTHER'];
 
-/**
- * 어느 달부터 세는가.
- *
- * 분류를 넷으로 나눈 게 2026년 9월이다. 그 전 상담은 전부 알선 하나로 쌓여 있어서
- * 같이 그리면 '알선만 있던 회사'처럼 보인다 — 나눠 적기 시작한 달부터 센다.
- */
-const START_MONTH = '2026-09';
+/* 보는 기간은 바깥에서 내려준다 — 옆 그래프와 같은 자를 써야 견줄 수 있다 */
 
 /* 도넛 — 반지름과 둘레. 둘레를 알아야 몫만큼 선을 끊어 그릴 수 있다 */
 const R = 52;
 const C = 2 * Math.PI * R;
 
-export default function SoldMixChart() {
+export default function SoldMixChart({ range }: { range: Range }) {
   const { state } = useStore();
 
   const { rows, total } = useMemo(() => {
-    // 나눠 적기 전 것은 세지 않는다 — 전부 알선으로 쌓여 있어 뜻이 없다
-    const sold = state.consultations.filter(c => c.status === 'SOLD' && (c.date ?? '') >= `${START_MONTH}-01`);
+    const sold = state.consultations.filter(
+      c => c.status === 'SOLD' && (c.date ?? '') >= range.from && (c.date ?? '') <= range.to,
+    );
     /*
       탭과 같은 규칙으로 센다.
 
@@ -42,7 +38,7 @@ export default function SoldMixChart() {
       rows: ORDER.map(kind => ({ kind, count: sold.filter(c => effectiveKind(c) === kind).length })),
       total: sold.length,
     };
-  }, [state.consultations]);
+  }, [state.consultations, range.from, range.to]);
 
   if (total === 0) return null;
 
@@ -69,7 +65,7 @@ export default function SoldMixChart() {
       <div className="mb-1 flex flex-wrap items-baseline gap-2">
         <h2 className="text-sm font-bold text-slate-800">판매완료 — 어디서 팔렸나</h2>
         <span className="text-xs text-slate-400">
-          {dayjs(`${START_MONTH}-01`).format('YYYY년 M월')}부터 · 상담일 기준
+          {dayjs(range.from).format('YY.MM.DD')} ~ {dayjs(range.to).format('YY.MM.DD')} · 상담일 기준
         </span>
       </div>
 

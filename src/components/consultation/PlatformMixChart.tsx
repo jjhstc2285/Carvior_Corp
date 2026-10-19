@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { useStore } from '../../store';
 import { isContracted } from '../../lib/consultationStats';
 import { BLANK_TONE, platformTone } from '../../lib/platformTone';
+import type { Range } from './ChartRange';
 
 /**
  * 어디서 전화가 들어오나 — 유입 경로 비율.
@@ -14,12 +15,7 @@ import { BLANK_TONE, platformTone } from '../../lib/platformTone';
  * 팔리는 곳이 다를 수 있다 — 들어온 수만 보면 전화만 많고 안 팔리는 데에 계속 돈을 쓴다.
  */
 
-/**
- * 어느 달부터 세는가 — 옆 그래프와 같은 달이다.
- *
- * 둘이 다른 기간을 세면 "판매완료 61건인데 유입은 왜 300건이야"가 된다.
- */
-const START_MONTH = '2026-09';
+/* 보는 기간은 바깥에서 내려준다 — 둘이 다른 기간을 세면 서로 못 견준다 */
 
 /* 도넛 — 옆 그래프와 같은 크기로 맞춘다 */
 const R = 52;
@@ -31,7 +27,7 @@ const BLANK = '안 적음';
 /** 빛깔은 lib/platformTone 한 곳에서 온다 — 정산 표와 같은 색을 써야 뜻이 산다 */
 const toneOf = (name: string) => (name === BLANK ? BLANK_TONE : platformTone(name));
 
-export default function PlatformMixChart() {
+export default function PlatformMixChart({ range }: { range: Range }) {
   const { state } = useStore();
 
   const { rows, total, blank } = useMemo(() => {
@@ -41,7 +37,7 @@ export default function PlatformMixChart() {
       판매완료만 세면 '팔린 차가 어디서 왔나'가 되는데, 그건 옆 그래프가 이미 한다.
       여기서 보고 싶은 건 전화가 어디서 오느냐라서 상태를 안 가린다.
     */
-    const rows = state.consultations.filter(c => (c.date ?? '') >= `${START_MONTH}-01`);
+    const rows = state.consultations.filter(c => (c.date ?? '') >= range.from && (c.date ?? '') <= range.to);
 
     const counted = new Map<string, { count: number; sold: number }>();
     for (const c of rows) {
@@ -64,7 +60,7 @@ export default function PlatformMixChart() {
       total: rows.length,
       blank: counted.get(BLANK)?.count ?? 0,
     };
-  }, [state.consultations]);
+  }, [state.consultations, range.from, range.to]);
 
   if (total === 0) return null;
 
@@ -90,7 +86,7 @@ export default function PlatformMixChart() {
       <div className="mb-1 flex flex-wrap items-baseline gap-2">
         <h2 className="text-sm font-bold text-slate-800">유입 경로 — 어디서 전화가 오나</h2>
         <span className="text-xs text-slate-400">
-          {dayjs(`${START_MONTH}-01`).format('YYYY년 M월')}부터 · 상담일 기준
+          {dayjs(range.from).format('YY.MM.DD')} ~ {dayjs(range.to).format('YY.MM.DD')} · 상담일 기준
         </span>
       </div>
 

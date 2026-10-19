@@ -5,6 +5,7 @@ import type { ConsultationKind } from '../../types';
 import ConsultationSheetImportModal from './SheetImportModal';
 import SoldMixChart from './SoldMixChart';
 import PlatformMixChart from './PlatformMixChart';
+import ChartRange, { defaultRange, type Range } from './ChartRange';
 import { useStore } from '../../store';
 
 interface Props {
@@ -27,6 +28,8 @@ const TABS: { key: ConsultationKind; label: string }[] = [
 
 export default function ConsultationHub({ role }: Props) {
   const [tab, setTab] = useState<ConsultationKind>('SALE');
+  /* 두 그래프가 같이 쓰는 기간 — 처음엔 종류를 나눠 적기 시작한 달부터 오늘까지 */
+  const [range, setRange] = useState<Range>(defaultRange);
   const [importOpen, setImportOpen] = useState(false);
   const { refresh } = useStore();
 
@@ -68,9 +71,12 @@ export default function ConsultationHub({ role }: Props) {
 
         재고금융 할부 의무는 알선 정산으로 옮겼다 — 정산에서 보기로 했다.
       */}
+      {/* 기간은 하나로 들고 둘에 같이 내려준다 — 자가 다르면 나란히 둔 뜻이 없다 */}
+      <ChartRange value={range} onChange={setRange} />
+
       <div className="mb-4 flex flex-col items-stretch gap-4 xl:flex-row">
-        <SoldMixChart />
-        <PlatformMixChart />
+        <SoldMixChart range={range} />
+        <PlatformMixChart range={range} />
       </div>
 
       {/* key 를 줘서 탭을 옮기면 검색·필터가 초기화된다 — 알선에서 걸어둔 조건이 수출에 남으면 헷갈린다 */}
