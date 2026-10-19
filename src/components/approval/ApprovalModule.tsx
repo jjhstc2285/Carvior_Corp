@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { FileText, Plus, Printer, Trash2 } from 'lucide-react';
+import { Eye, FileDown, FileText, Loader2, Plus, Printer, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { useStore } from '../../store';
@@ -15,6 +15,8 @@ import {
 import ApprovalForm from './ApprovalForm';
 import { useEscClose } from '../../lib/useEscClose';
 import IncidentReportPaper from './IncidentReportPaper';
+import { makeIncidentReportPdf } from './incidentReportPdf';
+import { downloadPdf, openPdf } from '../property/leaseContractPdf';
 
 /** 목록 한 줄에 붙는 요약 — 열어보지 않고도 무슨 건인지 알게 한다 */
 function summary(d: ApprovalDocument): string {
@@ -51,6 +53,28 @@ export default function ApprovalModule({ role }: { role: Role }) {
   const [editing, setEditing] = useState<ApprovalDocument | null>(null);
   const [formKind, setFormKind] = useState<ApprovalKind>('INCIDENT_REPORT');
   const [opened, setOpened] = useState<ApprovalDocument | null>(null);
+  /* PDF 를 만드는 동안 단추를 막는다 — 글꼴이 2MB 라 처음 한 번은 몇 초 걸린다 */
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  /**
+   * 시말서 PDF.
+   *
+   * 인쇄는 그 자리에 프린터가 있어야 하고 브라우저마다 여백이 달라진다. PDF 는 어디서
+   * 열어도 같은 종이라, 카톡으로 보내거나 나중에 뽑을 수 있다.
+   */
+  const makePdf = async (mode: 'open' | 'download') => {
+    if (!opened) return;
+    setPdfBusy(true);
+    try {
+      const bytes = await makeIncidentReportPdf(opened);
+      if (mode === 'open') openPdf(bytes);
+      else downloadPdf(bytes, `시말서_${opened.name}_${opened.writtenOn}.pdf`);
+    } catch (e) {
+      void alertError('PDF를 만들지 못했습니다', e instanceof Error ? e.message : '');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
   /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
   useEscClose(() => setOpened(null), opened !== null);
   const [rejectNote, setRejectNote] = useState('');
@@ -303,6 +327,31 @@ export default function ApprovalModule({ role }: { role: Role }) {
               >
                 <Printer size={15} /> 인쇄
               </button>
+
+              {/*
+                PDF — 뽑아서 결재를 받는 종이라 파일로도 쥐여 준다.
+
+                인쇄는 그 자리에 프린터가 있어야 하고 브라우저마다 여백이 달라진다.
+                PDF 는 어디서 열어도 같은 종이라, 카톡으로 보내거나 나중에 뽑을 수 있다.
+              */}
+              {opened.kind === 'INCIDENT_REPORT' && (
+                <>
+                  <button
+                    onClick={() => void makePdf('open')}
+                    disabled={pdfBusy}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Eye size={15} />} PDF 보기
+                  </button>
+                  <button
+                    onClick={() => void makePdf('download')}
+                    disabled={pdfBusy}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />} PDF 받기
+                  </button>
+                </>
+              )}
 
               {opened.status === 'PENDING' && opened.employeeId === state.currentEmployeeId && (
                 <>
