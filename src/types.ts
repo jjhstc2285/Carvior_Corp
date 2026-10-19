@@ -1316,6 +1316,13 @@ export const VEHICLE_SALE_TYPE_LABEL: Record<VehicleSaleType, string> = {
 };
 
 export interface ManagedVehicle {
+  /**
+   * 알선차 — 우리가 사온 차가 아니다.
+   *
+   * 남의 상사 차를 알선으로 팔면 매도는 매도인데 우리가 판 대수에 섞이면 안 된다.
+   * 언제 무엇을 넘겼는지는 남아야 해서 줄은 두되, 이 표를 달고 집계에서 뺀다.
+   */
+  brokered?: boolean;
   id: string;
   vehicleNumber: string; // "12가3456" / "123가4567"
   plateTail: string; // 뒤 4자리

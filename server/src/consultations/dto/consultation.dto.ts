@@ -2,6 +2,10 @@ import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Mi
 import { Type } from 'class-transformer';
 import { ConsultationKind, ConsultationStatus, PayMethod } from '@prisma/client';
 import { DATE_PATTERN, TIME_PATTERN } from '../../common/dto';
+import { PLATE_PATTERN } from '../../vehicles/vehicle.rules';
+
+/** 뒤 네 자리만 친 건지 바로 알아보게 적어 준다 */
+const PLATE_MESSAGE = '차량번호를 온전히 적어 주세요 — 예: 26무7618 (뒤 네 자리만 적으면 차량 관리와 못 맞춥니다).';
 
 /**
  * 결제 구분 — 할부면 어느 캐피탈로 얼마를 깔았는지 같이 적는다.
@@ -22,9 +26,20 @@ export class CreateConsultationDto extends PayFields {
   /** 유입 경로 — 엔카·KB차차차 등. 목록에 없는 곳도 있어서 자유 입력으로 둔다. */
   @IsOptional() @IsString() @MaxLength(30) platform?: string;
 
+  /*
+    차량번호는 온전한 꼴로 받는다.
+
+    전화를 받으면서 뒤 네 자리만 치는 일이 많았다(상담 천구백 건 중 쉰한 건). 그러면
+    차량 관리의 번호와 못 맞춰서, 멀쩡히 있는 차가 '차량 관리에 없는 차'로 올라온다 —
+    7618 로 적힌 알티마가 실은 26무7618 이다.
+
+    적는 자리에서 막는다. 나중에 맞추려 들면 뒤 네 자리가 같은 차가 둘일 때 누구도
+    가릴 수 없다.
+  */
   @IsString()
   @IsNotEmpty({ message: '차량번호를 입력해 주세요.' })
   @MaxLength(30)
+  @Matches(PLATE_PATTERN, { message: PLATE_MESSAGE })
   vehicleNumber!: string;
 
   @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
@@ -87,7 +102,8 @@ export class CreateConsultationDto extends PayFields {
 export class UpdateConsultationDto extends PayFields {
   @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
   @IsOptional() @IsString() @MaxLength(30) platform?: string;
-  @IsOptional() @IsString() @MaxLength(30) vehicleNumber?: string;
+  @IsOptional() @IsString() @MaxLength(30) @Matches(PLATE_PATTERN, { message: PLATE_MESSAGE })
+  vehicleNumber?: string;
   @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
   @IsOptional() @IsString() @MaxLength(20) customerPhone?: string;
   @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})?$/) visitDate?: string | null;

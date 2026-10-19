@@ -57,7 +57,12 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
     desc: '상담에서 판매완료로 찍힌 차입니다. 넘기고 나서 매도일자를 적으면 매도 차량으로 넘어갑니다.',
     officeOnly: false,
   },
-  { key: 'sold', label: '매도 차량', desc: '매도일자를 적은 차입니다. 끝난 차입니다.', officeOnly: false },
+  {
+    key: 'sold',
+    label: '매도 차량',
+    desc: '매도일자를 적은 차입니다. 끝난 차입니다 — 알선차는 표를 달고 우리 매도 대수에서 뺍니다.',
+    officeOnly: false,
+  },
 ];
 
 /**
@@ -354,6 +359,9 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
     return { count: due.length, total: due.reduce((sum, v) => sum + v.stockAmount, 0) };
   }, [vehicles, month]);
 
+  /** 이 보기에 뜬 줄 중 알선차 — 우리가 판 대수에서 뺀다 */
+  const brokeredCount = useMemo(() => rows.filter(r => r.vehicle.brokered).length, [rows]);
+
   const patch = (v: ManagedVehicle, body: Partial<ManagedVehicle>) => void toggleFlag(v, body);
 
   /**
@@ -380,6 +388,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const handleExport = () => {
     const data = rows.map(({ vehicle: v, eligibility }) => ({
       차량번호: v.vehicleNumber,
+      구분: v.brokered ? '알선' : '',
       차량명: v.vehicleModel,
       '매입가(만원)': purchasePriceOf(v) ?? '',
       '제시 가능':
@@ -439,10 +448,20 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
           <p className="text-xs font-medium text-slate-400">{current.label}</p>
+          {/*
+            알선차는 빼고 센다.
+
+            남의 상사 차를 알선으로 판 것도 매도는 매도인데, 우리가 판 대수에 섞이면
+            나중에 맞춰볼 수가 없다 — 사무장이 보는 숫자가 그 숫자다. 줄은 그대로 두고
+            숫자에서만 뺀 뒤, 몇 대가 빠졌는지 아래에 적는다.
+          */}
           <p className="mt-1 text-2xl font-bold text-slate-800">
-            {rows.length}
+            {rows.length - brokeredCount}
             <span className="ml-1 text-sm font-medium text-slate-400">대</span>
           </p>
+          {brokeredCount > 0 && (
+            <p className="text-[11px] font-medium text-emerald-700">알선 {brokeredCount}대는 뺐습니다</p>
+          )}
           {stockTotal > 0 && (
             <p className="text-[11px] text-slate-400">재고금액 {stockTotal.toLocaleString()}원</p>
           )}
@@ -613,6 +632,15 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                     >
                       {v.vehicleNumber}
                     </button>
+                    {/* 알선차 — 우리가 사온 차가 아니다. 매도 대수에서 뺀 줄이라고 적어 둔다 */}
+                    {v.brokered && (
+                      <span
+                        className="ml-1.5 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700"
+                        title="알선차입니다 — 우리가 사온 차가 아니라 우리 매도 대수에 안 들어갑니다"
+                      >
+                        알선
+                      </span>
+                    )}
                   </td>
                   {/* 차명은 길어도 한 줄만 쓴다 — 넘치면 잘라내고 손대면 전체가 뜬다 */}
                   <td className="max-w-40 truncate px-3 py-2.5 text-slate-600" title={v.vehicleModel}>

@@ -15,6 +15,7 @@ import {
 } from '../../types';
 import { CAPITAL_COMPANIES } from '../../lib/stockFinance';
 import { useEscClose } from '../../lib/useEscClose';
+import { normalizePlate, PLATE_PATTERN } from '../../lib/vehicle';
 
 interface Props {
   /** 알선인지 수출인지 — 열린 탭이 정한다 */
@@ -79,6 +80,19 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const [priceOpen, setPriceOpen] = useState(false);
 
   const handleSubmit = () => {
+    /*
+      차량번호를 온전히 받는다.
+
+      전화를 받으면서 뒤 네 자리만 치는 일이 많았다(상담 천구백 건 중 쉰한 건). 그러면
+      차량 관리의 번호와 못 맞춰서, 멀쩡히 있는 차가 '차량 관리에 없는 차'로 올라온다 —
+      7618 로 적힌 알티마가 실은 26무7618 이다.
+
+      나중에 맞추려 들면 뒤 네 자리가 같은 차가 둘일 때 누구도 못 가린다. 적는 자리에서 막는다.
+    */
+    if (vehicleNumber.trim() && !PLATE_PATTERN.test(normalizePlate(vehicleNumber))) {
+      setError('차량번호를 온전히 적어 주세요 — 예: 26무7618 (뒤 네 자리만 적으면 차량 관리와 못 맞춥니다).');
+      return;
+    }
     if (!vehicleNumber.trim() || !customerPhone.trim() || !content.trim()) {
       setError('차량번호, 손님번호, 내용은 필수 입력입니다.');
       return;
@@ -149,7 +163,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">차량번호 *</label>
-            <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="42더8955"
+            <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="42더8955 (뒤 네 자리만 적으면 안 됩니다)"
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
           <div>

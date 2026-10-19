@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 import { canSeeLedger } from "../auth/office-manager";
 import type { AuthUser } from "../auth/current-user.decorator";
-import { ConsultationStatus, Prisma, VehicleExpenseKind } from "@prisma/client";
+import { ConsultationKind, ConsultationStatus, Prisma, VehicleExpenseKind } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { TelegramService } from "../telegram/telegram.module";
 import {
@@ -305,7 +305,7 @@ export class VehiclesService {
     const [consultations, vehicles] = await Promise.all([
       this.prisma.consultation.findMany({
         where: { status: ConsultationStatus.SOLD },
-        select: { vehicleNumber: true, vehicleName: true, date: true },
+        select: { vehicleNumber: true, vehicleName: true, date: true, kind: true, content: true },
         orderBy: { date: 'desc' },
       }),
       this.prisma.managedVehicle.findMany({ select: { vehicleNumber: true } }),
@@ -326,6 +326,16 @@ export class VehiclesService {
         vehicleNumber: c.vehicleNumber,
         vehicleModel: c.vehicleName,
         soldOn: formatDateOnly(c.date),
+        /*
+          알선·수출은 우리가 사온 차가 아니다 — 차량 관리에 없는 게 당연하다.
+
+          고른 종류보다 적힌 내용이 사실에 가깝다. 알선으로 골라 놓고 내용에 '수출'이라
+          적는 일이 많아서, 상담 화면이 쓰는 규칙(effectiveKind)과 같게 본다.
+        */
+        brokered:
+          c.kind === ConsultationKind.BROKERAGE ||
+          c.kind === ConsultationKind.EXPORT ||
+          (c.content ?? '').includes('수출'),
       }));
   }
 
@@ -343,14 +353,28 @@ export class VehiclesService {
     });
 
     const soldDate = toDateOnlyOrNull(dto.soldDate);
+    /*
+      알선차라는 표를 같이 단다.
+
+      남의 상사 차를 알선으로 팔면 매도는 매도인데 우리가 판 대수에 섞이면 안 된다 —
+      사무장이 오늘 매도 대수를 보는데 알선 건이 끼어 있으면 나중에 맞춰볼 수가 없다.
+
+      이미 있는 차에는 표를 끄지 않는다. 우리가 사온 차로 들어와 있던 것을 알선으로
+      바꿔 버리면 매입이 통째로 어긋난다 — 켜는 쪽으로만 간다.
+    */
+    const brokered = dto.brokered === true;
     const row = found
-      ? await this.prisma.managedVehicle.update({ where: { id: found.id }, data: { soldDate } })
+      ? await this.prisma.managedVehicle.update({
+          where: { id: found.id },
+          data: { soldDate, ...(brokered ? { brokered: true } : {}) },
+        })
       : await this.prisma.managedVehicle.create({
           data: {
             vehicleNumber,
             plateTail: plateTailOf(vehicleNumber),
             vehicleModel: dto.vehicleModel?.trim() || '',
             soldDate,
+            brokered,
           },
         });
     return this.toView(row);

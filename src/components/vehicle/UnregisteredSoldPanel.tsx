@@ -19,6 +19,8 @@ interface Row {
   vehicleModel: string;
   /** 판매완료로 찍힌 상담 날짜 */
   soldOn: string;
+  /** 알선·수출 상담인가 — 우리가 사온 차가 아니라 차량 관리에 없는 게 당연하다 */
+  brokered?: boolean;
 }
 
 export default function UnregisteredSoldPanel({ onRegistered }: { onRegistered: () => void }) {
@@ -43,7 +45,13 @@ export default function UnregisteredSoldPanel({ onRegistered }: { onRegistered: 
     try {
       await api('/vehicles/register-sold', {
         method: 'POST',
-        body: { vehicleNumber: row.vehicleNumber, vehicleModel: row.vehicleModel, soldDate },
+        /*
+          알선차라는 표를 같이 보낸다.
+
+          매도는 매도인데 우리가 판 대수에 섞이면 안 된다 — 오늘 매도 대수를 보는데
+          알선 건이 끼어 있으면 나중에 맞춰볼 수가 없다. 표가 붙은 차는 집계에서 뺀다.
+        */
+        body: { vehicleNumber: row.vehicleNumber, vehicleModel: row.vehicleModel, soldDate, brokered: row.brokered === true },
       });
       setRows(list => list.filter(r => r.vehicleNumber !== row.vehicleNumber));
       onRegistered();
@@ -62,7 +70,8 @@ export default function UnregisteredSoldPanel({ onRegistered }: { onRegistered: 
         <PackageCheck size={14} className="text-violet-700" />
         <p className="text-xs font-bold text-violet-900">차량 관리에 없는 판매완료 차 {rows.length}대</p>
         <span className="text-[11px] text-violet-800/70">
-          알선처럼 우리가 안 사온 차입니다. 매도일자를 적으면 매도 차량으로 넘어갑니다
+          알선처럼 우리가 안 사온 차입니다. 매도일자를 적으면 매도 차량으로 넘어갑니다 —
+          알선 표가 붙은 차는 우리 매도 대수에 안 들어갑니다
         </span>
       </div>
 
@@ -81,6 +90,15 @@ export default function UnregisteredSoldPanel({ onRegistered }: { onRegistered: 
               <tr key={row.vehicleNumber} className="border-t border-violet-200/50">
                 <td className="whitespace-nowrap px-2 py-1.5 font-mono font-semibold text-slate-800">
                   {row.vehicleNumber}
+                  {/* 알선·수출은 차량 관리에 없는 게 당연하다 — 빠진 게 아니라고 적어 둔다 */}
+                  {row.brokered && (
+                    <span
+                      className="ml-1.5 rounded-md bg-emerald-100 px-1.5 py-0.5 font-sans text-[10px] font-bold text-emerald-700"
+                      title="알선·수출 상담입니다. 우리가 사온 차가 아니라 차량 관리에 없는 게 당연하고, 매도해도 우리 매도 대수에 안 들어갑니다"
+                    >
+                      알선
+                    </span>
+                  )}
                 </td>
                 <td className="max-w-56 truncate px-2 py-1.5 text-slate-600" title={row.vehicleModel}>
                   {row.vehicleModel || <span className="text-slate-300">—</span>}

@@ -83,6 +83,9 @@ export class RegisterSoldVehicleDto {
   @IsString() @Matches(PLATE_PATTERN, { message: PLATE_FORMAT_MESSAGE }) vehicleNumber!: string;
   @IsOptional() @IsString() @MaxLength(60) vehicleModel?: string;
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: '날짜는 YYYY-MM-DD 형식이어야 합니다.' }) soldDate!: string;
+
+  /** 알선차인가 — 우리가 사온 차가 아니라 매도 대수에서 빼야 한다 */
+  @IsOptional() @IsBoolean() brokered?: boolean;
 }
 
 export class VehicleListQueryDto {
