@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { LineChart, X } from 'lucide-react';
 import { useStore } from '../../store';
+import { api } from '../../lib/api';
 import PriceCheckModal from '../price/PriceCheckModal';
 import {
   CONSULTATION_KIND_LABEL,
@@ -11,6 +12,7 @@ import {
   type ConsultationKind,
   type ConsultationRecord,
   type ConsultationStatus,
+  type ManagedVehicle,
   type PayMethod,
 } from '../../types';
 import { CAPITAL_COMPANIES } from '../../lib/stockFinance';
@@ -46,6 +48,16 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const { state, upsertConsultation } = useStore();
   const [platform, setPlatform] = useState(editing?.platform ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? preset?.vehicleNumber ?? '');
+  /*
+    뒤 네 자리로 우리 차를 찾아 띄운다.
+
+    번호를 온전히 적게 막아 놨는데, 손님이 전화로 부르는 번호는 뒤 네 자리뿐인 일이
+    많다 — 앞자리를 되물으면 통화가 길어지고, 받아 적다 틀리기도 한다.
+
+    네 자리를 치면 차량 관리에서 찾아 띄운다. 우리 차면 눌러서 넣으면 되고, 그러면
+    차명까지 같이 채워진다. 우리 차가 아니면 안 나오니 그때만 전체를 묻는다.
+  */
+  const [mates, setMates] = useState<ManagedVehicle[]>([]);
   const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? preset?.vehicleName ?? '');
   const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? preset?.customerPhone ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
@@ -78,6 +90,31 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   const [nextContactDate, setNextContactDate] = useState(editing?.nextContactDate ?? '');
   const [error, setError] = useState<string | null>(null);
   const [priceOpen, setPriceOpen] = useState(false);
+
+  /*
+    네 자리를 다 치면 찾는다.
+
+    한 글자마다 부르지 않는다 — 네 자리가 다 찍혀야 찾을 게 정해진다. 이미 온전한
+    번호를 적었으면 찾을 일이 없다(그 번호 그대로가 답이다).
+  */
+  useEffect(() => {
+    const typed = normalizePlate(vehicleNumber);
+    if (!/^\d{4}$/.test(typed)) {
+      setMates([]);
+      return;
+    }
+    let alive = true;
+    void api<ManagedVehicle[]>(`/vehicles/search?tail=${typed}`)
+      .then(rows => {
+        if (alive) setMates(rows);
+      })
+      .catch(() => {
+        // 못 찾아도 적는 건 그대로 된다 — 전체를 치면 된다
+      });
+    return () => {
+      alive = false;
+    };
+  }, [vehicleNumber]);
 
   const handleSubmit = () => {
     /*
@@ -129,7 +166,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">
             {CONSULTATION_KIND_LABEL[editing?.kind ?? kind]} 상담 {editing ? '수정' : '등록'}
@@ -139,6 +176,18 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
           </button>
         </div>
 
+        {/*
+          넓은 화면에서는 두 줄로 세운다.
+
+          칸이 열다섯이라 한 줄로 세우면 창이 화면을 넘긴다 — 전화를 받으면서 적는
+          자리인데 굴려 가며 적어야 했다. 머리와 저장 단추는 붙박이로 두고 가운데만
+          구른다(다 적고도 저장 단추가 화면 밖에 있으면 안 된다).
+
+          적는 차례는 왼쪽을 다 채우고 오른쪽으로 간다. 좁은 화면에서는 전처럼 한 줄이다.
+        */}
+        <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
+        <div className="grid items-start gap-x-6 xl:grid-cols-2">
+        <div>
         {/* 카톡으로 주고받던 양식 순서 그대로 — 플랫폼 / 차량번호 / 차명 / 손님번호 / 내용 */}
         <div className="mt-4">
           <label className="mb-1 block text-xs font-semibold text-slate-500">플랫폼</label>
@@ -163,8 +212,40 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">차량번호 *</label>
-            <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="42더8955 (뒤 네 자리만 적으면 안 됩니다)"
+            <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="42더8955 · 뒤 네 자리만 쳐도 찾습니다"
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
+            {/*
+              뒤 네 자리로 찾은 우리 차 — 눌러서 넣는다.
+
+              손님이 부르는 건 뒤 네 자리뿐인 일이 많다. 앞자리를 되물으면 통화가
+              길어지고 받아 적다 틀리기도 한다 — 눌러 넣으면 차명까지 같이 채워진다.
+            */}
+            {mates.length > 0 && (
+              <div className="mt-1.5 rounded-lg border border-indigo-200 bg-indigo-50/50 p-1.5">
+                <p className="mb-1 px-0.5 text-[11px] font-semibold text-indigo-700">
+                  뒤 네 자리가 같은 우리 차 {mates.length}대 — 눌러서 넣으세요
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {mates.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setVehicleNumber(m.vehicleNumber);
+                        // 차명은 비어 있을 때만 채운다 — 적어 둔 걸 덮으면 안 된다
+                        if (!vehicleName.trim() && m.vehicleModel) setVehicleName(m.vehicleModel);
+                      }}
+                      className="rounded-md border border-indigo-200 bg-white px-2 py-1 text-left text-xs hover:bg-indigo-100"
+                    >
+                      <b className="font-mono font-semibold text-slate-800">{m.vehicleNumber}</b>
+                      {m.vehicleModel && <span className="ml-1 text-slate-500">{m.vehicleModel}</span>}
+                      {/* 이미 판 차면 알려 준다 — 같은 번호가 둘일 때 고르는 실마리가 된다 */}
+                      {m.soldDate && <span className="ml-1 text-[10px] text-slate-400">매도 {m.soldDate}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <div className="mb-1 flex items-center justify-between">
@@ -337,12 +418,19 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
             <input type="date" value={nextContactDate ?? ''} onChange={e => setNextContactDate(e.target.value)}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
-          <div className="col-span-2">
+        </div>
+        </div>
+
+        <div>
+          <div className="mt-4">
             <label className="mb-1 block text-xs font-semibold text-slate-500">내용 *</label>
-            <textarea value={content} onChange={e => setContent(e.target.value)} rows={4}
+            {/* 오른쪽 줄 전체를 쓴다 — 상담 내용이 제일 길고 제일 자주 고쳐 적는 칸이다 */}
+            <textarea value={content} onChange={e => setContent(e.target.value)} rows={16}
               placeholder="예) 다른 차량도 있으면 보고 싶음 / 예산 300-400 / 오후 3시~4시 방문"
-              className="w-full resize-none rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-indigo-400" />
+              className="w-full resize-y rounded-lg border border-slate-200 px-2.5 py-2 text-sm leading-relaxed outline-none focus:border-indigo-400" />
           </div>
+        </div>
+        </div>
         </div>
 
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
