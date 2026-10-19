@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import dayjs, { type Dayjs } from 'dayjs';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -18,11 +18,18 @@ interface Props {
   eventsForDate: (dateStr: string) => CalEvent[];
   /** 날짜를 눌렀을 때 바깥에서도 반응이 필요하면 넘긴다(작업일지: 그 주로 이동). */
   onSelectDate?: (dateStr: string) => void;
+  /**
+   * 날짜 옆에 붙일 한 줄 — 그날의 합계 같은 것.
+   *
+   * 칩은 한 건씩이라 "그날 통틀어 얼마"를 볼 수가 없다. 칸마다 세어 가며 더하게
+   * 두지 않는다 — 날짜 옆에 바로 적는다. 안 넘기면 아무것도 안 그린다.
+   */
+  summaryForDate?: (dateStr: string) => ReactNode;
 }
 
 // 근태/상담 등 여러 모듈에서 재사용하는 월별 이벤트 캘린더 — 셀에 이벤트 칩(최대 3개+더보기)을
 // 보여주고, 날짜를 클릭하면 아래에 그날 전체 목록을 펼쳐 보여준다.
-export default function EventCalendar({ month, onMonthChange, eventsForDate, onSelectDate }: Props) {
+export default function EventCalendar({ month, onMonthChange, eventsForDate, onSelectDate, summaryForDate }: Props) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const gridStart = month.startOf('week');
@@ -79,7 +86,11 @@ export default function EventCalendar({ month, onMonthChange, eventsForDate, onS
                 inMonth ? 'border-slate-100 bg-white hover:bg-slate-50' : 'border-transparent bg-transparent text-slate-300'
               } ${d.isSame(today, 'day') ? 'ring-2 ring-indigo-400' : ''} ${selectedDate === dateStr ? 'border-indigo-300 bg-indigo-50/40' : ''}`}
             >
-              <span className={inMonth ? 'text-slate-600' : 'text-slate-300'}>{d.date()}</span>
+              <div className="flex items-baseline gap-1">
+                <span className={inMonth ? 'text-slate-600' : 'text-slate-300'}>{d.date()}</span>
+                {/* 그날 합계 — 넘겨준 달에만 그린다 */}
+                {inMonth && <span className="ml-auto min-w-0 truncate">{summaryForDate?.(dateStr)}</span>}
+              </div>
               <div className="mt-1 space-y-0.5">
                 {shown.map(e => (
                   <button

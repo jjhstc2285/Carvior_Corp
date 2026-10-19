@@ -10,6 +10,7 @@ import CarviorImportModal from './CarviorImportModal';
 import StockAgePanel from './StockAgePanel';
 import PrepSchedulePanel from './PrepSchedulePanel';
 import PullFromSettlementPanel from './PullFromSettlementPanel';
+import PurchaseCalendarPanel from './PurchaseCalendarPanel';
 import { goTo } from '../../lib/goto';
 import { usePurchaseIntake } from './usePurchaseIntake';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
@@ -458,6 +459,9 @@ export default function PurchaseIntakeModule() {
         상품화 진행 — 들어온 차를 나흘 안에 광고까지 올린다.
         장기 재고보다 먼저 둔다. 오래 묵은 차를 줄이는 길이 결국 빨리 올리는 것이다.
       */}
+      {/* 어느 날 돈이 얼마나 나가나 — 접어 두고, 펼칠 때 받아온다 */}
+      <PurchaseCalendarPanel />
+
       <PrepSchedulePanel />
 
       <StockAgePanel />
