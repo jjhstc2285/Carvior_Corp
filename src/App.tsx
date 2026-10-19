@@ -81,7 +81,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   vehicle: '차량 관리',
   ad: '광고 관리',
   purchaseIntake: '매입 관리',
-  stockFinance: '재고금융',
+  stockFinance: '재고 금융',
   vendor: '거래처 관리',
   property: '부동산 정보',
   payroll: '인건비',
