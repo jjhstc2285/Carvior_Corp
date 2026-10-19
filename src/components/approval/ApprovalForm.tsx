@@ -46,6 +46,18 @@ export default function ApprovalForm({ kind, editing, me, onSaved, onClose }: Pr
   const [position, setPosition] = useState(editing?.position ?? me.position);
   const [name, setName] = useState(editing?.name ?? me.name);
   const [content, setContent] = useState(editing?.content ?? '');
+  /*
+    시말서 — 회사 종이 양식의 네 꼭지와 발생 일시·장소.
+
+    한 칸에 몰아 적게 두었더니 사람마다 꼭지를 빼먹거나 순서가 달라져서, 뽑아 놓으면
+    종이 양식과 다른 문서가 됐다. '사건 및 경위'는 위의 content 를 그대로 쓴다.
+  */
+  const [occurredOn, setOccurredOn] = useState(editing?.occurredOn ?? '');
+  const [occurredTime, setOccurredTime] = useState(editing?.occurredTime ?? '');
+  const [occurredPlace, setOccurredPlace] = useState(editing?.occurredPlace ?? '');
+  const [cause, setCause] = useState(editing?.cause ?? '');
+  const [action, setAction] = useState(editing?.action ?? '');
+  const [prevention, setPrevention] = useState(editing?.prevention ?? '');
   const [writtenOn, setWrittenOn] = useState(editing?.writtenOn ?? dayjs().format('YYYY-MM-DD'));
 
   // 휴가원
@@ -96,6 +108,16 @@ export default function ApprovalForm({ kind, editing, me, onSaved, onClose }: Pr
         ...(kind === 'EXPENSE'
           ? { spentOn, amount: Number(digitsOnly(amount)) || 0, payee: payee.trim() }
           : { spentOn: null, amount: 0, payee: '' }),
+        ...(kind === 'INCIDENT_REPORT'
+          ? {
+              occurredOn: occurredOn || null,
+              occurredTime: occurredTime.trim(),
+              occurredPlace: occurredPlace.trim(),
+              cause: cause.trim(),
+              action: action.trim(),
+              prevention: prevention.trim(),
+            }
+          : { occurredOn: null, occurredTime: '', occurredPlace: '', cause: '', action: '', prevention: '' }),
       };
       if (editing) await api(`/approvals/${editing.id}`, { method: 'PATCH', body });
       else await api('/approvals', { method: 'POST', body });
@@ -107,6 +129,20 @@ export default function ApprovalForm({ kind, editing, me, onSaved, onClose }: Pr
       setSaving(false);
     }
   };
+
+  /** 시말서 꼭지 — 양식에 적힌 안내문을 그대로 placeholder 로 둔다 */
+  const section = (label: string, hint: string, value: string, set: (v: string) => void) => (
+    <div>
+      <label className="mb-1 block text-xs font-bold text-slate-600">{label}</label>
+      <textarea
+        value={value}
+        onChange={e => set(e.target.value)}
+        rows={4}
+        placeholder={hint}
+        className="w-full resize-y rounded-lg border border-slate-200 px-2.5 py-2 text-sm leading-relaxed outline-none focus:border-indigo-400"
+      />
+    </div>
+  );
 
   const field = (label: string, node: React.ReactNode, span = '') => (
     <div className={span}>
@@ -138,6 +174,16 @@ export default function ApprovalForm({ kind, editing, me, onSaved, onClose }: Pr
           <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-[13px] leading-relaxed text-slate-600">
             {INCIDENT_REPORT_PLEDGE}
           </p>
+        )}
+
+        {/* 시말서 — 발생 일시·장소. 양식 윗표에 들어가는 값이다 */}
+        {kind === 'INCIDENT_REPORT' && (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {field('발생 일자', <input type="date" value={occurredOn ?? ''} onChange={e => setOccurredOn(e.target.value)} className={INPUT} />)}
+            {/* 시각은 글자로 받는다 — "오후 3시쯤"처럼 적어 오는 일이 많다 */}
+            {field('발생 시각', <input value={occurredTime} onChange={e => setOccurredTime(e.target.value)} placeholder="오후 3시쯤" className={INPUT} />)}
+            {field('발생 장소', <input value={occurredPlace} onChange={e => setOccurredPlace(e.target.value)} placeholder="1층 사무실" className={INPUT} />, 'col-span-2')}
+          </div>
         )}
 
         {kind === 'LEAVE' && (
@@ -184,17 +230,28 @@ export default function ApprovalForm({ kind, editing, me, onSaved, onClose }: Pr
         )}
 
         <div className="mt-4">
-          <label className="mb-1 block text-xs font-semibold text-slate-500">
-            {kind === 'INCIDENT_REPORT' ? '내용 *' : kind === 'LEAVE' ? '사유 *' : '적요 *'}
+          <label className="mb-1 block text-xs font-bold text-slate-600">
+            {kind === 'INCIDENT_REPORT' ? '1. 사건 및 경위 *' : kind === 'LEAVE' ? '사유 *' : '적요 *'}
           </label>
           <textarea
             value={content}
             onChange={e => setContent(e.target.value)}
-            rows={kind === 'INCIDENT_REPORT' ? 8 : 4}
-            placeholder={CONTENT_HINT[kind]}
-            className="w-full resize-none rounded-lg border border-slate-200 px-2.5 py-2 text-sm leading-relaxed outline-none focus:border-indigo-400"
+            rows={kind === 'INCIDENT_REPORT' ? 6 : 4}
+            placeholder={
+              kind === 'INCIDENT_REPORT' ? '발생한 상황과 사실관계를 구체적으로 작성해 주십시오.' : CONTENT_HINT[kind]
+            }
+            className="w-full resize-y rounded-lg border border-slate-200 px-2.5 py-2 text-sm leading-relaxed outline-none focus:border-indigo-400"
           />
         </div>
+
+        {/* 나머지 세 꼭지 — 양식에 적힌 차례와 안내문 그대로다 */}
+        {kind === 'INCIDENT_REPORT' && (
+          <div className="mt-3 space-y-3">
+            {section('2. 발생 원인 및 사유', '원인 및 관련 사유를 작성해 주십시오.', cause, setCause)}
+            {section('3. 조치 사항', '발생 이후 취한 조치와 처리 결과를 작성해 주십시오.', action, setAction)}
+            {section('4. 재발 방지 대책', '향후 개선 및 예방 계획을 작성해 주십시오.', prevention, setPrevention)}
+          </div>
+        )}
 
         <div className="mt-3 grid grid-cols-2 gap-3">
           {field('작성일자', <input type="date" value={writtenOn} onChange={e => setWrittenOn(e.target.value)} className={INPUT} />)}
