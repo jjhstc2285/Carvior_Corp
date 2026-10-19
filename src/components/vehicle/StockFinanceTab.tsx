@@ -44,7 +44,7 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
     officeOnly: true,
   },
   { key: 'stocked', label: '재고차량', desc: '할부사 · 재고금액 · 상환일자를 다 적은 차입니다.', officeOnly: true },
-  { key: 'cash', label: '현금차량', desc: '재고금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: false },
+  { key: 'cash', label: '현금차량', desc: '재고 금융을 안 쓰는 차입니다. 제시 대상에서 빠집니다.', officeOnly: false },
   {
     key: 'repay',
     label: '상환 예정',
@@ -73,7 +73,7 @@ const VIEWS: { key: View; label: string; desc: string; officeOnly: boolean }[] =
  * 두 벌로 두면 반드시 어긋난다.
  */
 function inView(view: View, v: ManagedVehicle, opts: { month: string }): boolean {
-  // 매도·출고 예정은 재고금융과 상관없이 가른다 — 현금차량도 팔린다.
+  // 매도·출고 예정은 재고 금융과 상관없이 가른다 — 현금차량도 팔린다.
   if (view === 'sold') return Boolean(v.soldDate);
 
   /*
@@ -81,7 +81,7 @@ function inView(view: View, v: ManagedVehicle, opts: { month: string }): boolean
 
     나머지는 앞으로 할 일을 모아 놓은 곳이라 이미 끝난 차가 섞이면 안 된다.
 
-    상환 예정도 그렇다. 한때 여기만 예외로 뒀었는데 — 팔았다고 재고금융이 저절로
+    상환 예정도 그렇다. 한때 여기만 예외로 뒀었는데 — 팔았다고 재고 금융이 저절로
     갚아지는 게 아니라고 본 것이다 — 실제로는 차 대금으로 그 자리에서 갚는다.
     남겨 두니 10월 상환 예정 열일곱 대 중 여덟 대가 이미 판 차였고, 갚을 돈 합계도
     그만큼 부풀어 있었다. 매도일자가 들어가면 갚은 것으로 본다.
@@ -136,7 +136,7 @@ const DATE_FIELD: Partial<Record<View, { field: DateField; label: string }>> = {
 };
 
 /**
- * 재고금융(제시) 관리.
+ * 재고 금융(제시) 관리.
  *
  * 흐름이 이렇다 — 차가 들어오면 제시할 수 있는 차인지 보고(10년 이내·20만km 미만),
  * 제시했으면 제시일자·이전일자를 적고, 재고가 잡히면 할부사·재고금액·상환일자를 적는다.
@@ -339,7 +339,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const current = views.find(v => v.key === view) ?? views[0];
 
   /*
-   * 지금 쓰고 있는 재고금융 총액 — 보고 있는 목록이 아니라 재고가 잡힌 차 전부를 센다.
+   * 지금 쓰고 있는 재고 금융 총액 — 보고 있는 목록이 아니라 재고가 잡힌 차 전부를 센다.
    * 목록을 걸러 보는 중에도 총액은 그대로여야 한다. 얼마나 당겨 썼는지가 알고 싶은 거지
    * 지금 화면에 몇 대가 보이는지가 아니다.
    */
@@ -410,8 +410,8 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '재고금융');
-    XLSX.writeFile(wb, `재고금융_${view === 'repay' ? month : dayjs().format('YYYYMMDD')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, '재고 금융');
+    XLSX.writeFile(wb, `재고 금융_${view === 'repay' ? month : dayjs().format('YYYYMMDD')}.xlsx`);
   };
 
   const dateInput = (value: string | null, onSave: (next: string | null) => void, highlight = false) => (
@@ -431,7 +431,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
     <>
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-4 py-3.5">
-          <p className="text-xs font-medium text-indigo-700/80">재고금융 사용 총액</p>
+          <p className="text-xs font-medium text-indigo-700/80">재고 금융 사용 총액</p>
           <p className="mt-1 text-2xl font-bold text-indigo-700">
             {inUse.total.toLocaleString()}
             <span className="ml-1 text-sm font-medium text-slate-400">원</span>

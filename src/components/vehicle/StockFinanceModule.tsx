@@ -4,7 +4,7 @@ import { useVehicles } from './useVehicles';
 import StockFinanceTab from './StockFinanceTab';
 
 /**
- * 재고금융(제시) — 사이드바 한 칸을 차지하는 화면.
+ * 재고 금융(제시) — 사이드바 한 칸을 차지하는 화면.
  *
  * 차량 관리 안의 탭이었는데, 사무장이 매일 들여다보는 화면이라 들어갈 때마다
  * 차량 관리를 거치는 게 번거로웠다.
@@ -21,7 +21,7 @@ export default function StockFinanceModule() {
   return (
     <div className="mx-auto max-w-[1700px] px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-5">
-        <h1 className="text-xl font-bold text-slate-900">재고금융 (제시)</h1>
+        <h1 className="text-xl font-bold text-slate-900">재고 금융 (제시)</h1>
         <p className="mt-1 text-sm text-slate-500">
           {officeManager
             ? '제시 가능한 차인지 먼저 가리고(10년 이내 · 20만km 미만), 제시일자와 이전일자를 적습니다. 재고가 잡히면 할부사 · 재고금액 · 상환일자를 넣습니다.'

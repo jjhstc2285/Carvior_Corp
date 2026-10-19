@@ -271,7 +271,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
   /*
     캐피탈별로 얼마를 깔았는가.
 
-    재고금융을 쓴 캐피탈에는 그 회사 할부를 얼마 이상 깔아 줘야 하는 약정이 있다. 어느
+    재고 금융을 쓴 캐피탈에는 그 회사 할부를 얼마 이상 깔아 줘야 하는 약정이 있다. 어느
     캐피탈로 얼마를 실행했는지는 상담에 이미 적는다 — 그걸 모아 보여줄 데가 없었을 뿐이다.
 
     정산이 아니라 상담에서 센다. 할부를 깐 건 차를 판 자리이고, 정산에 올라오기 전에도
@@ -413,7 +413,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
       {kind === 'BROKERAGE' && <VisitReviewSection role={role} month={month} allMonths={allMonths} />}
 
       {/*
-        재고금융 할부 의무 — 어느 캐피탈에 얼마를 더 깔아야 하는가.
+        재고 금융 할부 의무 — 어느 캐피탈에 얼마를 더 깔아야 하는가.
         정산에서 보고 싶다고 해서 상담 화면에서 이리로 옮겼다.
       */}
       {kind === 'BROKERAGE' && <CapitalQuotaPanel />}
@@ -433,7 +433,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           <p className="text-xs font-medium text-slate-400">정산받을금액 합계</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">{NUM(totals.settlement)}<span className="ml-1 text-sm font-medium text-slate-400">원</span></p>
         </div>
-        {/* 재고금융 약정을 채웠는지 세는 값 — 속은 아래 '캐피탈별 할부'에서 본다 */}
+        {/* 재고 금융 약정을 채웠는지 세는 값 — 속은 아래 '캐피탈별 할부'에서 본다 */}
         <div className="rounded-2xl border border-teal-200 bg-teal-50/40 px-4 py-3.5">
           <p className="text-xs font-medium text-teal-700/80">할부 실행액</p>
           <p className="mt-1 text-2xl font-bold text-teal-800">

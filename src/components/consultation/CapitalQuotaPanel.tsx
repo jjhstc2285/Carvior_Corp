@@ -4,11 +4,11 @@ import { api } from '../../lib/api';
 import { capitalQuotas, QUOTA_MONTHS, QUOTA_RATE, type CapitalQuota } from '../../lib/capitalQuota';
 
 /**
- * 재고금융 할부 의무.
+ * 재고 금융 할부 의무.
  *
- * 캐피탈사가 재고금융을 내주는 대신 그 회사 할부를 얼마 이상 깔아 달라고 한다.
+ * 캐피탈사가 재고 금융을 내주는 대신 그 회사 할부를 얼마 이상 깔아 달라고 한다.
  * 파는 사람이 손님 앞에서 어느 할부를 밀지 정해야 하므로 상담 화면 맨 위에 둔다 —
- * 재고금융 화면까지 들어가서 확인할 겨를이 없다.
+ * 재고 금융 화면까지 들어가서 확인할 겨를이 없다.
  *
  * 실적은 상담에 적은 [결제 구분]에서 온다. 할부로 적고 캐피탈과 금액을 넣으면
  * 여기 채워진다 — 목표와 실적을 다른 곳에서 보면 남은 금액을 사람이 매번 빼야 한다.
@@ -60,7 +60,7 @@ export default function CapitalQuotaPanel() {
     <section className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
       <div className="flex flex-wrap items-baseline gap-2">
         <Landmark size={15} className="self-center text-slate-500" />
-        <h2 className="text-sm font-bold text-slate-800">재고금융 할부 의무</h2>
+        <h2 className="text-sm font-bold text-slate-800">재고 금융 할부 의무</h2>
         <span className="text-[11px] text-slate-400">
           {data.from.slice(0, 7).replace('-', '.')} 기준 · BMW·우리캐피탈은 고정, 나머지는 그 달 재고 총액의{' '}
           {Math.round(QUOTA_RATE * 100)}% · 실적은 상담의 [결제 구분]을 할부로 적으면 잡힙니다
@@ -95,7 +95,7 @@ export default function CapitalQuotaPanel() {
               {moneyLabel(r.done)} / {moneyLabel(r.quota)}원 깔았습니다
             </p>
             <p className="text-[11px] text-slate-400">
-              {r.used > 0 ? `재고금융 ${r.count}대 · ${moneyLabel(r.used)}원` : '이번 달 재고금융 안 씀'}
+              {r.used > 0 ? `재고 금융 ${r.count}대 · ${moneyLabel(r.used)}원` : '이번 달 재고 금융 안 씀'}
             </p>
           </div>
         ))}

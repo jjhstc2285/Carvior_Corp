@@ -52,7 +52,7 @@ export default function MissingInputPanel({
       {
         key: 'intakeDate',
         label: '입고일자 없음',
-        who: '매입 관리에 매입 기록이 없습니다 — 매입 등록을 하거나, 재고금융에서 사무장이 제시일자를 적으면 채워집니다',
+        who: '매입 관리에 매입 기록이 없습니다 — 매입 등록을 하거나, 재고 금융에서 사무장이 제시일자를 적으면 채워집니다',
         rows: rows.filter(s => !s.intakeDate),
         tone: 'bg-amber-100 text-amber-800',
       },

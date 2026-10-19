@@ -438,7 +438,7 @@ export interface BrokerageSettlement {
   /** 대표가 현금 수수료를 받았다고 찍은 때. 안 찍었으면 null */
   cashConfirmedAt?: string | null;
   installmentFee: number; // 할부 피 — 우리가 받은 수수료
-  /** 어느 캐피탈로 얼마를 깔았는가 — 재고금융 약정을 세는 값 */
+  /** 어느 캐피탈로 얼마를 깔았는가 — 재고 금융 약정을 세는 값 */
   installmentCapital: string;
   installmentAmount: number; // 할부 실행액(원) — 손님이 깔아 준 원금
   insuranceFee: number; // 보험 피
@@ -621,7 +621,7 @@ export interface PurchaseSettlement {
 
   /**
    * 상사 정산서 맨 아래 '실제지급액' — 통장에 실제로 들어온 돈.
-   * 적혀 있으면 판매수익을 이 금액으로 낸다(매입가·재고금융·세금은 이미 빠져 있다).
+   * 적혀 있으면 판매수익을 이 금액으로 낸다(매입가·재고 금융·세금은 이미 빠져 있다).
    */
   payoutAmount?: number;
   /** 매도정산 배분 — NEW(신차 30%) / PERSON(개인 50%). 빈 글자면 아직 안 정한 것 */
@@ -632,7 +632,7 @@ export interface PurchaseSettlement {
   shareAmount?: number;
   /**
    * 차가 들어온 날(입고일) — 매입 관리의 매입일을 서버가 차량번호로 붙여 준다.
-   * 매입 기록이 없으면 재고금융의 제시일자로 대신한다. 재고를 언제부터 들고 있었나.
+   * 매입 기록이 없으면 재고 금융의 제시일자로 대신한다. 재고를 언제부터 들고 있었나.
    */
   intakeDate?: string | null;
   /** 계약서 사진 경로 — 줄바꿈으로 이어 담는다. 결재하는 쪽에서 화면으로 본다 */
@@ -849,7 +849,7 @@ export const PROFIT_SHARES = [
  * 세금은 안 뗀다.
  *
  * 예전에는 여기서 13.3%를 뺐다. 그런데 세금은 상사(삼장)가 정산해 줄 때 이미 떼고
- * 넣어 준다 — 판매가에서 매입가와 재고금융을 뺀 금액에 부가세와 원천세를 매긴다.
+ * 넣어 준다 — 판매가에서 매입가와 재고 금융을 뺀 금액에 부가세와 원천세를 매긴다.
  * 우리가 여기서 또 떼면 두 번 뗀 숫자가 되고, 매는 밑금액도 저쪽과 다르다.
  * 상사 정산서와 견줄 수 있게 뺀 돈 그대로 둔다.
  *
@@ -866,14 +866,14 @@ export function saleProfit(
   /*
     실제지급액을 적었으면 그 숫자에서 낸다.
 
-    상사는 판매가에서 매입가와 재고금융을 빼고, 부가세와 원천세까지 뗀 뒤에 통장으로
+    상사는 판매가에서 매입가와 재고 금융을 빼고, 부가세와 원천세까지 뗀 뒤에 통장으로
     넣어 준다. 그 숫자가 실제지급액이다. 그러니 거기서 더 뺄 것은 우리가 따로 쓴 돈뿐이다
     — 이전비·구전·플랫폼 수수료·상품화·차량비용.
 
     매입가는 이미 저쪽 계산에서 빠졌으므로 다시 빼지 않는다. 총합계에서 매입가만 덜어
     내고 뺀다 — 두 번 빼면 매입가만큼 손해로 보인다.
 
-    이렇게 하면 재고금융 이자도 세금도 우리가 따로 적을 필요가 없다. 이미 빠진 금액이다.
+    이렇게 하면 재고 금융 이자도 세금도 우리가 따로 적을 필요가 없다. 이미 빠진 금액이다.
   */
   if (payoutAmount > 0) return payoutAmount - (grandTotalWon - purchasePrice);
   return salePrice - grandTotalWon;
@@ -1225,7 +1225,7 @@ export interface ConsultationRecord {
   /**
    * 현금인가 할부인가.
    *
-   * 할부면 어느 캐피탈로 얼마를 깔았는지 같이 적는다 — 재고금융을 쓴 캐피탈에
+   * 할부면 어느 캐피탈로 얼마를 깔았는지 같이 적는다 — 재고 금융을 쓴 캐피탈에
    * 약정만큼 채웠는지 세는 값이다. 지난 상담은 안 적혀 있어 '미정'이다.
    */
   payMethod?: PayMethod;
@@ -1342,10 +1342,10 @@ export interface ManagedVehicle {
   modelYear: string; // 연식 — "2016"
   mileage: number; // 주행거리(km)
 
-  // ── 재고금융(제시) ──
+  // ── 재고 금융(제시) ──
   /** 등록증상 최초등록일 — 10년차 경계를 월까지 봐야 갈릴 때만 채운다 */
   firstRegisteredOn: string | null;
-  /** 재고금융이 안 되는 차. 현금으로 산다 */
+  /** 재고 금융이 안 되는 차. 현금으로 산다 */
   cashVehicle: boolean;
   offerDate: string | null; // 제시일자 — 캐피탈에 제시한 날
   transferDate: string | null; // 이전일자 — 명의 이전한 날
@@ -1506,7 +1506,7 @@ export interface PurchaseIntake {
   detailModel: string;
   vehicleNumber: string;
   modelYear: string; // 연식
-  /** 등록증상 최초등록일 — 재고금융 10년차 경계를 월까지 가릴 때 쓴다 */
+  /** 등록증상 최초등록일 — 재고 금융 10년차 경계를 월까지 가릴 때 쓴다 */
   firstRegisteredOn: string | null;
   fuel: string; // 연료
   keyCount: number; // 차키갯수
@@ -1531,7 +1531,7 @@ export interface PurchaseIntake {
   purchaseAmount: number; // 실매입금액(원)
   brokerFee: number; // 구전(원)
   brokerFeeType: BrokerFeeType; // 구전 지급 방식
-  /** 차량 관리에 올라가 있는가 — 안 올라가 있으면 재고금융 제시 대상에 안 뜬다 */
+  /** 차량 관리에 올라가 있는가 — 안 올라가 있으면 재고 금융 제시 대상에 안 뜬다 */
   registered?: boolean;
   /**
    * 상품화 — 실차를 보고 상품으로 낼 수 있게 손본 차.

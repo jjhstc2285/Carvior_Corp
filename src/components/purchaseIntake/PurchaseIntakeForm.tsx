@@ -481,7 +481,7 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
                 />
                 {!firstRegisteredOn && (
                   <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
-                    <AlertTriangle size={11} /> {modelYear}년식 — 재고금융 10년차입니다. 등록증을 보고 넣어 주세요
+                    <AlertTriangle size={11} /> {modelYear}년식 — 재고 금융 10년차입니다. 등록증을 보고 넣어 주세요
                   </p>
                 )}
                 {deadline &&

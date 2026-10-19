@@ -145,7 +145,7 @@ export default function PullFromSettlementPanel({ onDone }: { onDone: () => void
           {blocked.length > 0 && (
             <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-2">
               <p className="mb-1 text-[11px] text-amber-800">
-                <b>제시일자가 없어 못 끌어오는 차 {blocked.length}대</b> — 재고금융에서 제시일자를 적으면 끌어옵니다.
+                <b>제시일자가 없어 못 끌어오는 차 {blocked.length}대</b> — 재고 금융에서 제시일자를 적으면 끌어옵니다.
                 매입 관리는 제시일자로 달을 가르는데, 그 날짜가 없으면 어느 달에 넣어야 할지 알 수 없습니다.
               </p>
               <div className="flex flex-wrap gap-1">

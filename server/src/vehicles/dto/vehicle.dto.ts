@@ -38,7 +38,7 @@ export class UpdateVehicleDto {
   @IsOptional() @IsEnum(VehicleSaleType) saleType?: VehicleSaleType;
   @IsOptional() @IsBoolean() isTaxi?: boolean;
 
-  // ── 재고금융(제시) ──
+  // ── 재고 금융(제시) ──
   @IsOptional() @IsString() @MaxLength(10) modelYear?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) mileage?: number;
   // 빈 문자열은 '지운다'는 뜻이다 — 날짜를 잘못 넣었을 때 되돌릴 길이 있어야 한다.

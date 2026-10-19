@@ -18,7 +18,7 @@ import { useEscClose } from '../../lib/useEscClose';
 /**
  * 차량번호 하나로 그 차가 어디 있는지 찾는다.
  *
- * 지금은 차를 찾으려면 주차장 구역도, 재고금융, 상담, 매입을 한 화면씩 열어봐야 한다.
+ * 지금은 차를 찾으려면 주차장 구역도, 재고 금융, 상담, 매입을 한 화면씩 열어봐야 한다.
  * 마당에서 전화를 받으면서 그걸 다 열 수는 없다.
  *
  * 뒤 4자리만 쳐도 찾는다 — 무전으로 부를 때 앞자리까지 부르는 사람은 없다.
@@ -73,7 +73,7 @@ export default function VehicleLookupModal({ onClose }: { onClose: () => void })
     }));
   }, [q, vehicles, state.parkingVehicles, state.consultations, state.purchaseSettlements]);
 
-  /** 재고금융 흐름에서 지금 어디쯤인지 — 재고금융 화면의 보기와 같은 기준이다. */
+  /** 재고 금융 흐름에서 지금 어디쯤인지 — 재고 금융 화면의 보기와 같은 기준이다. */
   const stockStep = (v: ManagedVehicle): string => {
     if (v.soldDate) return `매도 완료 · ${dayjs(v.soldDate).format('M월 D일')}`;
     if (v.cashVehicle) return '현금차량';
@@ -167,7 +167,7 @@ export default function VehicleLookupModal({ onClose }: { onClose: () => void })
                   <dl className="mt-2.5 grid grid-cols-1 gap-1.5 border-t border-slate-100 pt-2.5 text-xs sm:grid-cols-2">
                     {hit.vehicle && (
                       <div className="sm:col-span-2">
-                        <dt className="text-slate-400">재고금융</dt>
+                        <dt className="text-slate-400">재고 금융</dt>
                         <dd className="text-slate-700">
                           {stockStep(hit.vehicle)}
                           {deadline && (
@@ -200,7 +200,7 @@ export default function VehicleLookupModal({ onClose }: { onClose: () => void })
                       <div className="sm:col-span-2">
                         <dt className="text-slate-400">차량 관리</dt>
                         <dd className="text-amber-700">
-                          등록돼 있지 않습니다 — 재고금융 제시 대상에도 안 뜹니다
+                          등록돼 있지 않습니다 — 재고 금융 제시 대상에도 안 뜹니다
                         </dd>
                       </div>
                     )}

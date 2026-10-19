@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import type { ManagedVehicle } from '../types';
 
 /**
- * 재고금융(제시) 가능 여부.
+ * 재고 금융(제시) 가능 여부.
  *
  * 캐피탈에 제시할 수 있는 차의 조건이다 — 10년 이내, 주행거리 20만km 미만.
  * 저장하지 않고 볼 때마다 가린다. 기준이 바뀌면 여기만 고치면 되고, 지난 기록이
@@ -12,7 +12,7 @@ import type { ManagedVehicle } from '../types';
 export const MAX_AGE_YEARS = 10;
 export const MAX_MILEAGE_KM = 200_000;
 
-/** 재고금융을 받는 캐피탈사. */
+/** 재고 금융을 받는 캐피탈사. */
 export const CAPITAL_COMPANIES = [
   '우리금융',
   '메리츠',
@@ -108,7 +108,7 @@ export function needsRegistrationCheck(modelYear: string, today = dayjs()): bool
 }
 
 export interface StockDeadline {
-  /** 재고금융이 가능한 마지막 날 — 최초등록일 + 10년 */
+  /** 재고 금융이 가능한 마지막 날 — 최초등록일 + 10년 */
   date: string;
   /** 이미 지났는가 */
   passed: boolean;
@@ -135,8 +135,8 @@ export function stockDeadline(firstRegisteredOn: string, today = dayjs()): Stock
 /**
  * 상환일이 얼마나 급한가.
  *
- * 재고금융은 상환일까지 팔지 못하면 그 돈을 그냥 갚아야 한다. 그런데 정작 차를 파는
- * 사람(상담·광고)은 재고금융 화면을 안 본다. 그래서 판정만 여기 두고 파는 화면들에
+ * 재고 금융은 상환일까지 팔지 못하면 그 돈을 그냥 갚아야 한다. 그런데 정작 차를 파는
+ * 사람(상담·광고)은 재고 금융 화면을 안 본다. 그래서 판정만 여기 두고 파는 화면들에
  * 같은 라벨을 붙인다 — 어디서 보든 같은 기준이어야 한다.
  *
  * 상환일이 없거나 아직 한 달 넘게 남았으면 null 이다. 급하지 않은 걸 굳이 칠하면
@@ -205,7 +205,7 @@ const OVER_MILEAGE = (km: number) =>
   `${km.toLocaleString()}km — ${(MAX_MILEAGE_KM / 10000).toLocaleString()}만km 이상`;
 
 export function offerEligibility(vehicle: ManagedVehicle, today = dayjs()): OfferEligibility {
-  // 재고금융을 안 쓰기로 한 차는 더 볼 것도 없다.
+  // 재고 금융을 안 쓰기로 한 차는 더 볼 것도 없다.
   if (vehicle.cashVehicle) return { ok: false, reason: '현금차량' };
 
   // 주행거리는 연식과 상관없이 걸리므로 먼저 본다.

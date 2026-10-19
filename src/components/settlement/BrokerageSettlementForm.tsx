@@ -45,7 +45,7 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
   /*
     어느 캐피탈로 얼마를 깔았는가.
 
-    할부 피는 우리가 받은 수수료고, 실행액은 손님이 깔아 준 원금이다. 재고금융 약정은
+    할부 피는 우리가 받은 수수료고, 실행액은 손님이 깔아 준 원금이다. 재고 금융 약정은
     원금으로 세기 때문에 둘을 같이 적는다.
   */
   const [installmentCapital, setInstallmentCapital] = useState(editing?.installmentCapital ?? '');

@@ -108,7 +108,7 @@ const NAV_GROUPS: {
       { key: 'settlement', label: '정산 관리', icon: ReceiptText },
       { key: 'approval', label: '결재 관리', icon: Stamp },
       // '(제시)'를 뗀다 — 메뉴에 붙은 사족이라 읽는 데 품만 든다
-      { key: 'stockFinance', label: '재고금융', icon: Landmark },
+      { key: 'stockFinance', label: '재고 금융', icon: Landmark },
       { key: 'adminSheet', label: '플랫폼 매물 점검', icon: Table2 },
     ],
   },

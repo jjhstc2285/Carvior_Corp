@@ -308,7 +308,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             {/*
               상사 정산서 맨 아래 숫자.
 
-              적어 두면 판매수익을 이 금액으로 낸다 — 매입가도 재고금융 이자도 세금도
+              적어 두면 판매수익을 이 금액으로 낸다 — 매입가도 재고 금융 이자도 세금도
               상사가 이미 빼고 넣어 준 돈이라, 거기서 더 뺄 것은 우리가 쓴 돈뿐이다.
               안 적으면 예전처럼 차량판매가에서 비용을 빼서 낸다.
             */}
@@ -343,7 +343,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             label="판매수익"
             formula={
               nums.payoutAmount > 0
-                ? '실제지급액 − (총비용 − 매입가) — 매입가·재고금융·세금은 상사가 이미 뺀 금액입니다'
+                ? '실제지급액 − (총비용 − 매입가) — 매입가·재고 금융·세금은 상사가 이미 뺀 금액입니다'
                 : '차량판매가 − 총비용 (주유·배터리 같은 차량비용은 표에서 더합니다 · 세금은 상사 정산에서 이미 떼고 들어옵니다)'
             }
             value={profit}

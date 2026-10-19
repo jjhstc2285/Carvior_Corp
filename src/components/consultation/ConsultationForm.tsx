@@ -79,7 +79,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
     저절로 넘어간다.
   */
   const [salePrice, setSalePrice] = useState(editing ? String(editing.salePrice || '') : '');
-  /* 재고금융을 쓴 캐피탈에 할부를 얼마나 깔았는지 — 약정을 채웠는지 세는 값이다 */
+  /* 재고 금융을 쓴 캐피탈에 할부를 얼마나 깔았는지 — 약정을 채웠는지 세는 값이다 */
   const [payMethod, setPayMethod] = useState<PayMethod>(editing?.payMethod ?? 'UNKNOWN');
   const [installmentCapital, setInstallmentCapital] = useState(editing?.installmentCapital ?? '');
   const [installmentAmount, setInstallmentAmount] = useState(
@@ -350,8 +350,8 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
           {/*
             현금인지 할부인지.
 
-            재고금융을 쓴 캐피탈에는 그 회사 할부를 얼마 이상 깔아 줘야 하는 약정이 있다.
-            여기 적어야 상담 화면 위 [재고금융 할부 의무] 에 실적으로 잡힌다.
+            재고 금융을 쓴 캐피탈에는 그 회사 할부를 얼마 이상 깔아 줘야 하는 약정이 있다.
+            여기 적어야 상담 화면 위 [재고 금융 할부 의무] 에 실적으로 잡힌다.
           */}
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">결제 구분</label>

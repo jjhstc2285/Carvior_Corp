@@ -72,7 +72,7 @@ const COLUMNS: Column[] = [
     key: 'intakeDate',
     label: '입고일자',
     title:
-      '차가 들어온 날 — 매입 관리의 매입일입니다(매입 기록이 없으면 재고금융의 제시일자). 옆의 작은 숫자는 그날부터 센 재고일수입니다',
+      '차가 들어온 날 — 매입 관리의 매입일입니다(매입 기록이 없으면 재고 금융의 제시일자). 옆의 작은 숫자는 그날부터 센 재고일수입니다',
   },
   { key: 'date', label: '출고일자', title: '차가 나간 날 — 정산을 적는 날입니다. 아직 안 판 차는 매입일에 머물러 있습니다' },
   { key: 'vehicleName', label: '차량명' },
@@ -107,7 +107,7 @@ const COLUMNS: Column[] = [
     label: '실제지급액',
     align: 'text-right',
     headClass: 'text-emerald-600',
-    title: '상사 정산서 맨 아래 금액. 적으면 판매수익을 이 금액으로 냅니다 — 매입가·재고금융·세금은 상사가 이미 뺀 뒤입니다',
+    title: '상사 정산서 맨 아래 금액. 적으면 판매수익을 이 금액으로 냅니다 — 매입가·재고 금융·세금은 상사가 이미 뺀 뒤입니다',
   },
   // 매도정산 — 차장·본부장만 보인다. 그 밖의 사람에게는 열 자체를 안 그린다
   { key: 'share', label: '매도정산', align: 'text-right' },
@@ -1201,7 +1201,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                         </span>
                       </span>
                     ) : (
-                      <span className="text-slate-300" title="매입 관리에 이 차량번호의 매입 기록이 없습니다(재고금융의 제시일자도 비어 있습니다)">
+                      <span className="text-slate-300" title="매입 관리에 이 차량번호의 매입 기록이 없습니다(재고 금융의 제시일자도 비어 있습니다)">
                         —
                       </span>
                     ),

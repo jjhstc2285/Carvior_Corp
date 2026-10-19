@@ -75,7 +75,7 @@ export class ConsultationsController {
   }
 
   /**
-   * 캐피탈사별로 이번 달에 깔아 준 할부 — 재고금융 약정을 얼마나 채웠는지 센다.
+   * 캐피탈사별로 이번 달에 깔아 준 할부 — 재고 금융 약정을 얼마나 채웠는지 센다.
    * 전 직원이 본다. 어느 할부를 밀지는 파는 사람이 정한다.
    */
   @Get('stats/capital-installments')
