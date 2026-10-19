@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
-import { X } from 'lucide-react';
+import { Eye, FileDown, Loader2, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { digitsOnly, withCommas } from '../../lib/money';
 import {
@@ -11,6 +11,8 @@ import {
   type ApprovalKind,
 } from '../../types';
 import { useEscClose } from '../../lib/useEscClose';
+import { makeIncidentReportPdf } from './incidentReportPdf';
+import { downloadPdf, openPdf } from '../property/leaseContractPdf';
 
 interface Props {
   kind: ApprovalKind;
@@ -72,6 +74,34 @@ export default function ApprovalForm({ kind, editing, me, onSaved, onClose }: Pr
   const [payee, setPayee] = useState(editing?.payee ?? '');
 
   const [error, setError] = useState<string | null>(null);
+  /* PDF 를 만드는 동안 단추를 막는다 — 글꼴이 2MB 라 처음 한 번은 몇 초 걸린다 */
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  /** 지금 적은 값 그대로 양식에 얹어 본다 — 올리기 전에도 된다 */
+  const makePdf = async (mode: 'open' | 'download') => {
+    setPdfBusy(true);
+    try {
+      const bytes = await makeIncidentReportPdf({
+        department: department.trim(),
+        position: position.trim(),
+        name: name.trim(),
+        content: content.trim(),
+        writtenOn,
+        occurredOn: occurredOn || null,
+        occurredTime: occurredTime.trim(),
+        occurredPlace: occurredPlace.trim(),
+        cause: cause.trim(),
+        action: action.trim(),
+        prevention: prevention.trim(),
+      });
+      if (mode === 'open') openPdf(bytes);
+      else downloadPdf(bytes, `시말서_${name.trim() || '작성중'}_${writtenOn}.pdf`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'PDF를 만들지 못했습니다.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
@@ -265,7 +295,32 @@ export default function ApprovalForm({ kind, editing, me, onSaved, onClose }: Pr
           {kind === 'LEAVE' && ' 휴가원은 결재 문서라 근태의 연차 차감과는 따로입니다 — 연차는 근태 신청에서 냅니다.'}
         </p>
 
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          {/*
+            올리기 전에 종이로 본다.
+
+            PDF 단추를 문서 보기에만 뒀더니, 어떻게 나오는지 보려면 결재부터 올려야 했다 —
+            고칠 데가 있어도 이미 올라간 뒤다. 지금 적은 값 그대로 만들어 본다.
+          */}
+          {kind === 'INCIDENT_REPORT' && (
+            <>
+              <button
+                onClick={() => void makePdf('open')}
+                disabled={pdfBusy}
+                className="mr-auto flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Eye size={15} />} 양식 미리보기
+              </button>
+              <button
+                onClick={() => void makePdf('download')}
+                disabled={pdfBusy}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {pdfBusy ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />} PDF 받기
+              </button>
+            </>
+          )}
+
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
             취소
           </button>

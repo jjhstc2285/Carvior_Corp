@@ -3,6 +3,18 @@ import fontkit from '@pdf-lib/fontkit';
 import type { ApprovalDocument } from '../../types';
 
 /**
+ * 그리는 데 쓰는 칸만 받는다.
+ *
+ * 저장된 문서만 받게 두면 올리기 전에는 못 본다 — 다 적어 놓고 어떻게 나오는지 보려고
+ * 결재부터 올리게 된다. 적는 창에서 지금 적은 값 그대로 만들어 볼 수 있어야 한다.
+ */
+export type IncidentReportLike = Pick<
+  ApprovalDocument,
+  'department' | 'position' | 'name' | 'content' | 'writtenOn'
+> &
+  Partial<Pick<ApprovalDocument, 'occurredOn' | 'occurredTime' | 'occurredPlace' | 'cause' | 'action' | 'prevention'>>;
+
+/**
  * 시말서 PDF — 회사 양식 그대로 그린다.
  *
  * 부동산 계약서는 쓰던 한글 양식을 PDF로 깔고 빈칸에 값만 얹는다. 시말서는 그렇게 못 한다 —
@@ -56,7 +68,7 @@ function wrap(text: string, font: PDFFont, size: number, width: number): string[
   return out;
 }
 
-export async function makeIncidentReportPdf(doc: ApprovalDocument): Promise<Uint8Array> {
+export async function makeIncidentReportPdf(doc: IncidentReportLike): Promise<Uint8Array> {
   const fontBytes = await fetch(FONT_URL).then(r => {
     if (!r.ok) throw new Error('글꼴 파일을 찾지 못했습니다.');
     return r.arrayBuffer();
