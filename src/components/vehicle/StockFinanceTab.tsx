@@ -208,8 +208,34 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
     !v.repayDate &&
     !v.prepared;
 
+  /**
+   * 차량관리에서 한 줄을 지운다.
+   *
+   * 빈 줄만 지우게 해 뒀었다. 그런데 번호를 잘못 적어 생긴 줄에 차명·매입가까지 적혀
+   * 있는 일이 있다 — 같은 차가 두 번 들어간 것이라 한쪽은 지워야 하는데, 알맹이가
+   * 있다는 이유로 지울 길이 없었다.
+   *
+   * 적힌 게 있으면 무엇이 같이 사라지는지 적어서 한 번 더 묻는다. 매입 등록·정산은
+   * 여기서 안 지운다 — 그건 돈이 걸린 줄이라 그 화면에서 지우는 게 맞다.
+   */
   const dropVehicle = async (v: ManagedVehicle) => {
-    if (!(await confirmDanger(`${v.vehicleNumber} 를 목록에서 지울까요?`, '빈 줄만 지웁니다. 되돌릴 수 없습니다.'))) return;
+    const blank = isBlank(v);
+    const kept = [
+      v.vehicleModel.trim() && `차명 ${v.vehicleModel.trim()}`,
+      v.offerDate && `제시 ${v.offerDate}`,
+      v.soldDate && `매도 ${v.soldDate}`,
+      v.stockAmount > 0 && `재고금액 ${v.stockAmount.toLocaleString()}원`,
+    ].filter(Boolean) as string[];
+
+    const ok = await confirmDanger(
+      `${v.vehicleNumber} 를 차량 관리에서 지울까요?`,
+      blank
+        ? '빈 줄입니다. 되돌릴 수 없습니다.'
+        : `적힌 것이 같이 사라집니다 — ${kept.join(' · ')}. 되돌릴 수 없습니다.
+` +
+            '매입 등록과 정산은 안 지워집니다. 그쪽도 지우려면 매입 관리·정산에서 따로 지우세요.',
+    );
+    if (!ok) return;
     try {
       await callApi(`/vehicles/${v.id}`, { method: 'DELETE' });
       await reload();
@@ -703,12 +729,20 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                         {eligibility.reason}
                       </span>
                     )}
-                    {/* 아무것도 안 적힌 줄만 — 잘못 적어 생긴 유령 차를 여기서 치운다 */}
-                    {isOfficeManager && isBlank(v) && (
+                    {/*
+                      잘못 적어 생긴 줄을 여기서 치운다.
+
+                      빈 줄에만 보이게 해 뒀었는데, 번호를 잘못 적은 줄에 차명·매입가까지
+                      적혀 있는 일이 있어서 정작 지워야 할 줄에 단추가 없었다. 적힌 게
+                      있는 줄은 무엇이 사라지는지 적어서 한 번 더 묻는다.
+                    */}
+                    {isOfficeManager && (
                       <button
                         onClick={() => void dropVehicle(v)}
-                        title="빈 줄입니다. 목록에서 지웁니다"
-                        className="ml-1.5 rounded p-0.5 align-middle text-slate-300 hover:bg-slate-100 hover:text-red-500"
+                        title={isBlank(v) ? '빈 줄입니다. 목록에서 지웁니다' : '차량 관리에서 이 줄을 지웁니다'}
+                        className={`ml-1.5 rounded p-0.5 align-middle hover:bg-slate-100 hover:text-red-500 ${
+                          isBlank(v) ? 'text-slate-300' : 'text-slate-200'
+                        }`}
                       >
                         <Trash2 size={13} />
                       </button>
