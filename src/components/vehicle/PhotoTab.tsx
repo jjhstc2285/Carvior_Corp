@@ -414,7 +414,82 @@ function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () =>
           ))}
         </div>
       </Image.PreviewGroup>
+
+      {/* 사진만으로는 안 보이는 것 — 사진 아래에 한 줄로 적는다 */}
+      <PhotoMemo set={set} onChanged={onChanged} />
     </section>
+  );
+}
+
+/** 특이사항은 한 줄이다 — 길게 적는 칸이 아니다 */
+const MEMO_MAX = 50;
+
+/**
+ * 사진 아래 특이사항.
+ *
+ * 사진 여섯 장으로는 안 보이는 게 있다 — "뒷범퍼 흠집 도색 예정", "휠 복원 들어감"
+ * 처럼 그 차를 볼 때 같이 알아야 하는 한 줄이다. 어디에도 적을 데가 없어서 카톡으로
+ * 돌다가 사라졌다.
+ *
+ * 쉰 자로 막는다. 길게 적는 칸으로 두면 상담 내용이 들어오고, 그러면 사진 아래가
+ * 아니라 상담에 적어야 할 말이 여기 쌓인다.
+ *
+ * 저장은 칸을 떠날 때 한다 — 한 글자마다 보내면 쉰 번을 부른다.
+ */
+function PhotoMemo({ set, onChanged }: { set: PhotoSet; onChanged: () => Promise<void> }) {
+  const [memo, setMemo] = useState(set.memo ?? '');
+  const [busy, setBusy] = useState(false);
+
+  // 다른 차를 고르면 그 차의 값으로 갈아끼운다
+  useEffect(() => {
+    setMemo(set.memo ?? '');
+  }, [set.id, set.memo]);
+
+  const save = async () => {
+    const next = memo.trim().slice(0, MEMO_MAX);
+    if (next === (set.memo ?? '').trim()) return;
+    setBusy(true);
+    try {
+      await api('/vehicle-photos/sets', {
+        method: 'POST',
+        body: {
+          vehicleNumber: set.vehicleNumber,
+          vehicleName: set.vehicleName,
+          shotOn: set.shotOn,
+          memo: next,
+        },
+      });
+      await onChanged();
+    } catch (e) {
+      void alertError('특이사항을 저장하지 못했습니다', e instanceof Error ? e.message : '');
+      setMemo(set.memo ?? '');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2.5">
+      <div className="mb-1 flex items-baseline gap-2">
+        <label className="text-xs font-semibold text-slate-500">특이사항</label>
+        <span className="text-[11px] text-slate-400">사진으로 안 보이는 것 한 줄 — 예: 뒷범퍼 흠집 도색 예정</span>
+        <span className={`ml-auto text-[11px] ${memo.length >= MEMO_MAX ? 'font-bold text-amber-600' : 'text-slate-300'}`}>
+          {memo.length}/{MEMO_MAX}
+        </span>
+      </div>
+      <input
+        value={memo}
+        maxLength={MEMO_MAX}
+        disabled={busy}
+        onChange={e => setMemo(e.target.value.slice(0, MEMO_MAX))}
+        onBlur={() => void save()}
+        onKeyDown={e => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+        }}
+        placeholder="휠 복원 들어감 · 키 1개"
+        className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400 disabled:bg-slate-50"
+      />
+    </div>
   );
 }
 
