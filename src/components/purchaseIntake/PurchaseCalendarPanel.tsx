@@ -100,8 +100,8 @@ export default function PurchaseCalendarPanel() {
         id: r.id,
         label: `${r.vehicleName || r.vehicleNumber} ${manwon(r.purchaseAmount + r.brokerFee)}`,
         sublabel: `${r.vehicleNumber} · ${(r.purchaseAmount + r.brokerFee).toLocaleString()}원`,
-        colorClass: 'bg-indigo-50 text-indigo-700',
-        dotClass: 'bg-indigo-400',
+        colorClass: 'bg-red-50 text-red-700',
+        dotClass: 'bg-red-400',
         onSelect: () => setDetail(r),
       }));
   };
@@ -109,7 +109,8 @@ export default function PurchaseCalendarPanel() {
   const summaryForDate = (dateStr: string) => {
     const total = byDate.get(dateStr)?.total ?? 0;
     if (total <= 0) return null;
-    return <span className="text-[10px] font-bold text-indigo-600">{manwon(total)}</span>;
+    /* 나가는 돈이라 빨갛게 — 달력에서 제일 먼저 보여야 하는 숫자다 */
+    return <span className="text-[10px] font-bold text-red-600">{manwon(total)}</span>;
   };
 
   return (
@@ -132,7 +133,7 @@ export default function PurchaseCalendarPanel() {
             <>
               <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-xl bg-slate-50 px-3 py-2.5">
                 <p className="text-xs font-bold text-slate-600">{month.format('M월')} 나가는 돈</p>
-                <p className="text-lg font-bold text-slate-900">
+                <p className="text-lg font-bold text-red-600">
                   {monthly.total.toLocaleString()}
                   <span className="ml-1 text-xs font-medium text-slate-400">원</span>
                 </p>
@@ -146,11 +147,11 @@ export default function PurchaseCalendarPanel() {
                   붙는다 — 한 덩어리로 두면 얼마를 누구에게 줬는지 세어볼 자리가 없다.
                 */}
                 <p className="ml-auto text-[11px] text-slate-500">
-                  차값 <b className="font-bold text-slate-700">{monthly.purchase.toLocaleString()}</b>
+                  차값 <b className="font-bold text-red-600">{monthly.purchase.toLocaleString()}</b>
                   {monthly.broker > 0 && (
                     <>
                       {' · 구전 '}
-                      <b className="font-bold text-slate-700">{monthly.broker.toLocaleString()}</b>
+                      <b className="font-bold text-red-600">{monthly.broker.toLocaleString()}</b>
                     </>
                   )}
                 </p>
@@ -192,7 +193,7 @@ export default function PurchaseCalendarPanel() {
               )}
               <div className="flex justify-between border-t border-slate-100 pt-1.5">
                 <dt className="font-bold text-slate-600">합계</dt>
-                <dd className="font-bold text-slate-900">
+                <dd className="font-bold text-red-600">
                   {(detail.purchaseAmount + detail.brokerFee).toLocaleString()}원
                 </dd>
               </div>
