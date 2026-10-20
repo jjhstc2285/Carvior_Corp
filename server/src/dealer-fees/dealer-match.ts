@@ -30,6 +30,8 @@ const BRANDS: { key: string; names: string[] }[] = [
   { key: 'toyota', names: ['토요타', '도요타', 'toyota'] },
   { key: 'lexus', names: ['렉서스', 'lexus'] },
   { key: 'byd', names: ['byd', '비와이디'] },
+  // 지커(ZEEKR) — 로마자로도 적어 와서 둘 다 받는다
+  { key: 'zeekr', names: ['지커', 'zeekr'] },
   { key: 'cadillac', names: ['캐딜락', 'cadillac'] },
   { key: 'jeep', names: ['지프', 'jeep'] },
   { key: 'landrover', names: ['랜드로버', '랜드로바', 'landrover'] },

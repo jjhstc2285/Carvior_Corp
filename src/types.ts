@@ -362,6 +362,7 @@ export const DEALER_BRAND_LABEL: Record<string, string> = {
   kia: '기아',
   renault: '르노삼성',
   byd: 'BYD',
+  zeekr: '지커',
   bmw: 'BMW',
   benz: '벤츠',
   audi: '아우디',
