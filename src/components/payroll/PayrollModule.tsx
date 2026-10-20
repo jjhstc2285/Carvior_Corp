@@ -30,17 +30,20 @@ const BURDENS = ['본인all', '세금 all 회사부담', '공제없음'];
 /**
  * 실 이체 = 급여 − 회사공제 − 본인공제 ± 식대
  *
- * 구내식당(함바집)은 회사가 식당에 직접 낸다. 밥을 현물로 준 것이라 급여에 또 얹으면
- * 두 번 주는 셈이 되고, 먹은 만큼 급여에서 빼는 게 상계다.
+ * 식대는 따로 챙겨 주는 돈이다 — 급여에 더한다.
  *
- * 식대를 따로 챙겨 주던 때도 있어 더하기로도 둘 수 있게 했다. 화면 위에서 고르고,
- * 고른 것은 그 브라우저에 남는다.
+ * 처음에는 빼기로 뒀었다. 구내식당은 회사가 식당에 직접 내니 밥을 현물로 준 셈이고,
+ * 급여에 또 얹으면 두 번 주는 것이라고 봤다. 그런데 우리는 식대를 따로 더 챙겨 준다 —
+ * 그렇게 두는 바람에 하루 구천 원씩 급여에서 빠지고 있었다.
+ *
+ * 상계(빼기)로도 둘 수 있게는 남겨 둔다. 식당 값을 회사가 내고 그만큼 급여에서 빼는
+ * 방식으로 바뀔 수 있다 — 화면 위에서 고르고, 고른 것은 그 브라우저에 남는다.
  */
 function netOf(r: PayrollEntry, meal: number, offset: boolean): number {
   return r.monthlyPay - r.companyDeduction - r.selfDeduction + (offset ? -meal : meal);
 }
 
-/** 식대를 상계(차감)할지 — 켜 두면 급여에서 뺀다 */
+/** 식대를 상계(차감)할지 — 켜 두면 급여에서 뺀다. 기본은 더하기다 */
 const LS_MEAL_OFFSET = 'payrollMealOffset';
 
 /** 그 달 식비 — 서버가 근태를 세어 내려준다 */
@@ -71,7 +74,13 @@ export default function PayrollModule() {
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   const [meal, setMeal] = useState<Meal | null>(null);
   /* 구내식당은 회사가 직접 내므로 급여에서 빼는 게 기본이다 */
-  const [mealOffset, setMealOffset] = useState(() => localStorage.getItem(LS_MEAL_OFFSET) !== 'add');
+  /*
+    기본은 더하기다.
+
+    'offset' 이라고 적어 둔 사람만 뺀다 — 전에는 반대로 두어서, 아무것도 안 고른 사람은
+    모두 상계로 보고 하루 구천 원씩 빠진 금액을 보고 있었다.
+  */
+  const [mealOffset, setMealOffset] = useState(() => localStorage.getItem(LS_MEAL_OFFSET) === 'offset');
 
   // 잠금 — 번호를 받기 전에는 아무것도 안 보여준다
   const [locked, setLocked] = useState(!getPayrollPass());
@@ -257,8 +266,10 @@ export default function PayrollModule() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {/*
-            구내식당은 회사가 식당에 직접 낸다. 밥을 현물로 준 것이라 급여에 또 얹으면
-            두 번 주는 셈이고, 먹은 만큼 빼는 게 상계다. 따로 챙겨 주던 때도 있어 더하기로도 둔다.
+            식대는 따로 챙겨 주는 돈이라 급여에 더한다 — 그게 기본이다.
+
+            상계는 식당 값을 회사가 내고 그만큼 급여에서 빼는 방식이다. 그렇게 바뀔 수
+            있어 고르는 자리는 남겨 둔다.
           */}
           <label className="text-xs text-slate-500">
             식대 처리
@@ -271,8 +282,8 @@ export default function PayrollModule() {
               }}
               className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400"
             >
+              <option value="add">더하기(급여에 얹음) — 기본</option>
               <option value="offset">상계(급여에서 뺌)</option>
-              <option value="add">더하기(급여에 얹음)</option>
             </select>
           </label>
           {/* 어느 달 근태로 식비를 낼지 — 지난달 급여를 이번 달 근태로 세면 안 된다 */}
