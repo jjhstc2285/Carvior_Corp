@@ -2170,6 +2170,23 @@ model DealerIncentive {
  *
  * 금액은 여기에도 안 적는다 — 전 직원이 보는 자리라는 점은 공지방과 같다.
  */
+/**
+ * 그 달 계약 목표.
+ *
+ * 브라우저에만 담아 뒀었다 — 대표 혼자 보는 숫자라 서버에 둘 일이 아니라고 봤다.
+ * 그런데 팀장이 같이 보게 되면서 각자 다른 숫자를 보게 됐다. 한 사람이 적은 목표를
+ * 다른 사람이 못 보면 그건 목표가 아니다.
+ *
+ * 달마다 한 줄이다. 누가 마지막으로 고쳤는지만 남긴다 — 언제 몇으로 바꿨는지까지
+ * 쌓을 값은 아니다.
+ */
+model ContractGoal {
+  month     String   @id @db.VarChar(7) // YYYY-MM
+  target    Int      @default(0)
+  updatedBy String   @default("") @db.VarChar(30)
+  updatedAt DateTime @updatedAt
+}
+
 model Notice {
   id       String  @id @default(cuid())
   category String  @default("일반") @db.VarChar(10) // 공지 · 업무 · 일반

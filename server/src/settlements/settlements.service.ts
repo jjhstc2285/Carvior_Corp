@@ -755,6 +755,29 @@ export class SettlementsService {
     }
   }
 
+  // ── 계약 목표 ──────────────────────────────
+
+  /**
+   * 그 달 계약 목표.
+   *
+   * 적어 둔 적이 없으면 스무 건으로 본다 — 처음 여는 사람에게 0 을 보여 주면 달성률이
+   * 셀 수 없는 값이 되고, 아무도 적지 않으면 그 자리가 영영 비어 있다.
+   */
+  async contractGoal(month: string) {
+    const row = await this.prisma.contractGoal.findUnique({ where: { month } });
+    return { month, target: row?.target ?? 20, updatedBy: row?.updatedBy ?? '' };
+  }
+
+  async setContractGoal(month: string, target: number, user: AuthUser) {
+    const value = Math.max(0, Math.round(target));
+    const row = await this.prisma.contractGoal.upsert({
+      where: { month },
+      create: { month, target: value, updatedBy: user.name },
+      update: { target: value, updatedBy: user.name },
+    });
+    return { month, target: row.target, updatedBy: row.updatedBy };
+  }
+
   /**
    * 이미 적어둔 알선 정산을 한 번에 끌어온다.
    *

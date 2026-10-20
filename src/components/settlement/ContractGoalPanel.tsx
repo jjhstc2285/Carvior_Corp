@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { ChevronDown, FileText, Phone } from 'lucide-react';
 import { useStore } from '../../store';
+import { api, ApiError } from '../../lib/api';
+import { alertError } from '../../lib/alert';
 import { conversionOf, isContracted } from '../../lib/consultationStats';
 import { REASONS } from '../consultation/VisitReviewSection';
 import { CONSULTATION_STATUS_LABEL, type ConsultationRecord } from '../../types';
@@ -16,11 +18,14 @@ import { ContractPhotoThumb, splitPhotos } from './ContractPhotos';
  * 세는 규칙은 전환율과 같다(lib/consultationStats.ts) — 계약 = 계약 + 판매완료,
  * 종결은 모수에서 뺀다. 두 곳이 다르게 세면 같은 화면에서 숫자가 어긋난다.
  *
- * 목표는 이 브라우저에만 남는다. 아직 대표 혼자 보는 숫자라 서버에 둘 일이 아니다 —
- * 팀장 자리가 생기면 그때 옮긴다.
+ * 목표는 서버에 둔다.
+ *
+ * 브라우저에만 담아 뒀었다 — 대표 혼자 보는 숫자라 서버에 둘 일이 아니라고 봤다.
+ * 그런데 팀장이 같이 보게 되면서 각자 다른 숫자를 보게 됐다. 한 사람이 적은 목표를
+ * 다른 사람이 못 보면 그건 목표가 아니다.
+ *
+ * 적는 건 관리자와 알선팀이다. 그 달 숫자를 맞춰 가는 사람들이라 목표도 그쪽이 쥔다.
  */
-
-const LS_GOAL = 'contractGoalByMonth';
 
 /**
  * 숫자를 누르면 펼쳐지는 목록.
@@ -67,17 +72,21 @@ function DrillDown({
   );
 }
 
-function goalsOf(): Record<string, number> {
-  try {
-    return JSON.parse(localStorage.getItem(LS_GOAL) ?? '{}') as Record<string, number>;
-  } catch {
-    return {};
-  }
-}
-
-export default function ContractGoalPanel({ month, allMonths }: { month: string; allMonths: boolean }) {
+export default function ContractGoalPanel({
+  month,
+  allMonths,
+  canEdit,
+}: {
+  month: string;
+  allMonths: boolean;
+  /** 목표를 적을 수 있는가 — 관리자와 알선팀 */
+  canEdit: boolean;
+}) {
   const { state } = useStore();
-  const [goals, setGoals] = useState<Record<string, number>>(goalsOf);
+  /** 적어 둔 적이 없으면 스무 건으로 본다 — 0 이면 달성률을 셀 수 없다 */
+  const [goal, setGoalValue] = useState(20);
+  /** 누가 마지막으로 고쳤나 — 숫자가 바뀌어 있으면 누구에게 물을지 알아야 한다 */
+  const [goalBy, setGoalBy] = useState('');
   /*
     숫자를 누르면 그 건들이 펼쳐진다.
 
@@ -87,15 +96,41 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
   */
   const [open, setOpen] = useState<'done' | 'open' | null>(null);
 
-  const goal = goals[month] ?? 20;
+  // 달을 바꾸면 그 달 목표를 받아온다
+  useEffect(() => {
+    if (allMonths) return;
+    let alive = true;
+    void api<{ target: number; updatedBy: string }>(`/settlements/contract-goal?month=${month}`)
+      .then(r => {
+        if (!alive) return;
+        setGoalValue(r.target);
+        setGoalBy(r.updatedBy);
+      })
+      .catch(() => {
+        // 못 받아와도 화면은 돈다 — 기본값으로 그린다
+      });
+    return () => {
+      alive = false;
+    };
+  }, [month, allMonths]);
 
-  const setGoal = (next: number) => {
-    const merged = { ...goals, [month]: Math.max(0, Math.round(next)) };
-    setGoals(merged);
+  /*
+    적는 동안에는 화면만 바꾸고, 칸을 떠날 때 보낸다.
+
+    한 글자마다 보내면 '2'를 치는 순간 목표가 2가 되어 모두에게 그렇게 보인다.
+  */
+  const setGoal = (next: number) => setGoalValue(Math.max(0, Math.round(next)));
+
+  const saveGoal = async () => {
     try {
-      localStorage.setItem(LS_GOAL, JSON.stringify(merged));
-    } catch {
-      // 저장 못 해도 화면은 돈다 — 다음에 들어오면 기본값으로 돌아갈 뿐이다
+      const r = await api<{ target: number; updatedBy: string }>('/settlements/contract-goal', {
+        method: 'POST',
+        body: { month, target: goal },
+      });
+      setGoalValue(r.target);
+      setGoalBy(r.updatedBy);
+    } catch (e) {
+      void alertError('목표를 저장하지 못했습니다', e instanceof ApiError ? e.message : '');
     }
   };
 
@@ -230,13 +265,22 @@ export default function ContractGoalPanel({ month, allMonths }: { month: string;
                 min={0}
                 value={goal}
                 onChange={e => setGoal(Number(e.target.value))}
-                disabled={allMonths}
+                onBlur={() => void saveGoal()}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                }}
+                disabled={allMonths || !canEdit}
+                title={canEdit ? '고치면 모두에게 같은 목표로 보입니다' : '관리자와 알선팀만 고칩니다'}
                 className="w-16 rounded border border-transparent bg-transparent text-xl font-bold text-slate-900 outline-none hover:border-slate-200 focus:border-indigo-400 disabled:opacity-60"
               />
               <span className="text-sm font-medium text-slate-400">건</span>
             </div>
             <p className="text-[11px] text-slate-400">
-              {allMonths ? '달을 고르면 목표를 적습니다' : `${dayjs(month).format('M월')} 전체`}
+              {allMonths
+                ? '달을 고르면 목표를 적습니다'
+                : goalBy
+                  ? `${dayjs(month).format('M월')} 전체 · ${goalBy} 적음`
+                  : `${dayjs(month).format('M월')} 전체`}
             </p>
           </div>
 

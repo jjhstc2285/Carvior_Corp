@@ -55,6 +55,9 @@ if (!existsSync(PANEL_INVOICE_DIR)) mkdirSync(PANEL_INVOICE_DIR, { recursive: tr
 
 /** 계약팀은 남의 정산도 본다 — 빈칸을 채우는 게 그 팀 일이다. */
 const CONTRACT_TEAM = '계약팀';
+
+/** 계약 목표를 적는 팀 — 그 달 숫자를 맞춰 가는 사람들이다 */
+const BROKER_TEAM = '알선팀';
 import { assertOfficeManager } from '../auth/office-manager';
 import { canEditPanelInvoice, canSeePurchaseSettlements } from './approvers';
 import type { PrepCostKind } from '@prisma/client';
@@ -474,6 +477,29 @@ export class SettlementsController {
     if (!files?.length) throw new BadRequestException('올릴 사진이 없습니다.');
     // Apache가 /uploads 를 정적으로 내주므로 이 경로가 곧 보이는 주소가 된다.
     return { urls: files.map((f) => `/uploads/settlements/${f.filename}`) };
+  }
+
+  /**
+   * 그 달 계약 목표 — 보는 건 누구나.
+   *
+   * 브라우저에만 담아 뒀더니 대표와 팀장이 각자 다른 숫자를 봤다. 한 사람이 적은
+   * 목표를 다른 사람이 못 보면 그건 목표가 아니다.
+   */
+  @Get('contract-goal')
+  contractGoal(@Query('month') month: string) {
+    return this.settlements.contractGoal(month);
+  }
+
+  /** 목표를 적는 건 관리자와 알선팀 — 그 달 숫자를 맞춰 가는 사람들이다 */
+  @Post('contract-goal')
+  setContractGoal(@CurrentUser() user: AuthUser, @Body() dto: { month?: string; target?: number }) {
+    if (user.role !== Role.ADMIN && (user.department ?? '').trim() !== BROKER_TEAM) {
+      throw new ForbiddenException('계약 목표는 관리자와 알선팀만 적을 수 있습니다.');
+    }
+    if (!dto.month || !/^\d{4}-\d{2}$/.test(dto.month)) {
+      throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
+    }
+    return this.settlements.setContractGoal(dto.month, Number(dto.target) || 0, user);
   }
 
   /** 승인을 기다리는 매입 정산 — 관리자 대시보드의 승인함에서 쓴다. */

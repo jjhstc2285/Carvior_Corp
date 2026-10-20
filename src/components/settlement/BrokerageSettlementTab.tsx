@@ -92,6 +92,15 @@ const COLUMNS: Column[] = [
 export default function BrokerageSettlementTab({ role, kind }: Props) {
   const kindLabel = CONSULTATION_KIND_LABEL[kind];
   const { state, deleteBrokerageSettlement, refresh } = useStore();
+
+  /*
+    계약 목표를 보고 고치는 사람 — 관리자와 알선팀.
+
+    부서로 연다. 사람이 바뀌어도 그 팀에 들어오면 그대로 보인다. 서버도 같은 기준으로
+    가린다 — 화면에서 칸만 막는 건 막은 게 아니다.
+  */
+  const goalTeamMe = state.employees.find(e => e.id === state.currentEmployeeId);
+  const seesGoal = role === 'ADMIN' || (goalTeamMe?.department ?? '').trim() === '알선팀';
   /** 표를 잡고 끌어서 옆으로 넘긴다 — 칸이 스무 개가 넘어 화면 밖으로 나간다 */
   const dragRef = useDragScroll<HTMLDivElement>();
   /*
@@ -413,8 +422,16 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
         누르면 그 상담이 바로 열리고, 왜 안 됐는지는 그 자리에서 적는다.
         대표만 전원을 보고 나머지는 자기 것만 본다.
       */}
-      {/* 이번 달 계약이 어디까지 왔나 — 목표를 적어 두고 본다. 대표만 본다 */}
-      {kind === 'BROKERAGE' && role === 'ADMIN' && <ContractGoalPanel month={month} allMonths={allMonths} />}
+      {/*
+        이번 달 계약이 어디까지 왔나 — 목표를 적어 두고 본다.
+
+        대표만 보게 해 뒀었다. 그런데 그 달 숫자를 맞춰 가는 건 알선팀이고, 목표를
+        고쳐야 할 사람도 거기 있다 — 못 보니 못 고친다고 할 수밖에 없었다.
+        알선팀도 보고 고친다.
+      */}
+      {kind === 'BROKERAGE' && seesGoal && (
+        <ContractGoalPanel month={month} allMonths={allMonths} canEdit={seesGoal} />
+      )}
 
       {kind === 'BROKERAGE' && <VisitReviewSection role={role} month={month} allMonths={allMonths} />}
 
