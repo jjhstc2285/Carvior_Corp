@@ -2,10 +2,20 @@ import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Mi
 import { Type } from 'class-transformer';
 import { ConsultationKind, ConsultationStatus, PayMethod } from '@prisma/client';
 import { DATE_PATTERN, TIME_PATTERN } from '../../common/dto';
-import { PLATE_PATTERN } from '../../vehicles/vehicle.rules';
+
+
+/**
+ * 온전한 차량번호이거나 '미정'.
+ *
+ * 114·기타로 들어오는 전화는 차를 짚지 않는 일이 많다 — "삼백만원대 있어요?"까지만
+ * 묻고 끊는다. 그런 건에 아무 번호나 적게 하면 없는 차가 생기고, 못 적게 막으면
+ * 상담 자체를 안 적는다.
+ */
+const PLATE_OR_UNKNOWN = /^(미정|\d{2,3}[가-힣]\d{4})$/;
 
 /** 뒤 네 자리만 친 건지 바로 알아보게 적어 준다 */
-const PLATE_MESSAGE = '차량번호를 온전히 적어 주세요 — 예: 26무7618 (뒤 네 자리만 적으면 차량 관리와 못 맞춥니다).';
+const PLATE_MESSAGE =
+  "차량번호를 온전히 적어 주세요 — 예: 26무7618 (뒤 네 자리만 적으면 차량 관리와 못 맞춥니다). 차를 안 짚은 전화면 '미정'으로 둡니다.";
 
 /**
  * 결제 구분 — 할부면 어느 캐피탈로 얼마를 깔았는지 같이 적는다.
@@ -39,7 +49,7 @@ export class CreateConsultationDto extends PayFields {
   @IsString()
   @IsNotEmpty({ message: '차량번호를 입력해 주세요.' })
   @MaxLength(30)
-  @Matches(PLATE_PATTERN, { message: PLATE_MESSAGE })
+  @Matches(PLATE_OR_UNKNOWN, { message: PLATE_MESSAGE })
   vehicleNumber!: string;
 
   @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
@@ -102,7 +112,7 @@ export class CreateConsultationDto extends PayFields {
 export class UpdateConsultationDto extends PayFields {
   @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
   @IsOptional() @IsString() @MaxLength(30) platform?: string;
-  @IsOptional() @IsString() @MaxLength(30) @Matches(PLATE_PATTERN, { message: PLATE_MESSAGE })
+  @IsOptional() @IsString() @MaxLength(30) @Matches(PLATE_OR_UNKNOWN, { message: PLATE_MESSAGE })
   vehicleNumber?: string;
   @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
   @IsOptional() @IsString() @MaxLength(20) customerPhone?: string;

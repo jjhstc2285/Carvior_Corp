@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { LineChart, X } from 'lucide-react';
+
+/**
+ * 차를 안 짚어도 되는 유입 경로.
+ *
+ * 114 와 기타로 들어오는 전화는 "삼백만원대 있어요?"까지만 묻고 끊는 일이 많다.
+ * 그런 건에 차량번호를 받아 적게 하면 아무 번호나 들어가고, 못 적게 막으면 상담
+ * 자체를 안 적는다.
+ */
+const PLATE_OPTIONAL_PLATFORMS = ['114', '기타'];
+
+/** 차를 안 짚은 전화 — 번호 자리에 이렇게 남긴다 */
+const UNKNOWN_PLATE = '미정';
 import { useStore } from '../../store';
 import { api } from '../../lib/api';
 import PriceCheckModal from '../price/PriceCheckModal';
@@ -58,6 +70,14 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
     차명까지 같이 채워진다. 우리 차가 아니면 안 나오니 그때만 전체를 묻는다.
   */
   const [mates, setMates] = useState<ManagedVehicle[]>([]);
+
+  /*
+    차를 안 짚는 전화 — 114 와 기타.
+
+    "삼백만원대 있어요?"까지만 묻고 끊는 일이 많다. 유입 경로로 가린다 — 전화를
+    받자마자 고르는 값이라 적는 사람이 따로 생각할 게 없다.
+  */
+  const plateOptional = PLATE_OPTIONAL_PLATFORMS.includes(platform.trim());
   const [vehicleName, setVehicleName] = useState(editing?.vehicleName ?? preset?.vehicleName ?? '');
   const [customerPhone, setCustomerPhone] = useState(editing?.customerPhone ?? preset?.customerPhone ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
@@ -126,11 +146,20 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
 
       나중에 맞추려 들면 뒤 네 자리가 같은 차가 둘일 때 누구도 못 가린다. 적는 자리에서 막는다.
     */
-    if (vehicleNumber.trim() && !PLATE_PATTERN.test(normalizePlate(vehicleNumber))) {
+    /*
+      차를 안 짚는 전화가 있다.
+
+      114·기타로 들어오는 전화는 "삼백만원대 있어요?"까지만 묻고 끊는 일이 많다.
+      그런 건에 차량번호를 받아 적게 하면 아무 번호나 들어가고, 못 적게 막으면 상담
+      자체를 안 적는다 — 비워 두면 '미정'으로 넣는다.
+    */
+    const plate = vehicleNumber.trim() || (plateOptional ? UNKNOWN_PLATE : '');
+
+    if (plate && plate !== UNKNOWN_PLATE && !PLATE_PATTERN.test(normalizePlate(plate))) {
       setError('차량번호를 온전히 적어 주세요 — 예: 26무7618 (뒤 네 자리만 적으면 차량 관리와 못 맞춥니다).');
       return;
     }
-    if (!vehicleNumber.trim() || !customerPhone.trim() || !content.trim()) {
+    if (!plate || !customerPhone.trim() || !content.trim()) {
       setError('차량번호, 손님번호, 내용은 필수 입력입니다.');
       return;
     }
@@ -138,7 +167,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
       id: editing?.id,
       kind: editing?.kind ?? kind,
       platform: platform.trim(),
-      vehicleNumber: vehicleNumber.trim(),
+      vehicleNumber: plate,
       vehicleName: vehicleName.trim(),
       customerPhone: customerPhone.trim(),
       // 예전 양식으로 적힌 고객명은 건드리지 않고 그대로 넘긴다.
@@ -211,8 +240,10 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
 
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">차량번호 *</label>
-            <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="42더8955 · 뒤 네 자리만 쳐도 찾습니다"
+            <label className="mb-1 block text-xs font-semibold text-slate-500">
+              차량번호 {plateOptional ? <span className="font-normal text-slate-400">(안 적으면 미정)</span> : '*'}
+            </label>
+            <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder={plateOptional ? '안 적으면 미정으로 들어갑니다' : '42더8955 · 뒤 네 자리만 쳐도 찾습니다'}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
             {/*
               뒤 네 자리로 찾은 우리 차 — 눌러서 넣는다.
