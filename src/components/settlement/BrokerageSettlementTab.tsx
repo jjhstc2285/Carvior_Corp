@@ -347,6 +347,12 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
     };
   }, [state.consultations]);
 
+  /** 금액이 안 적혀 칸으로 세울 수 없는 건 — 숫자 대신 머리에 한 줄로 적는다 */
+  const blankCapital = useMemo(
+    () => byCapital.filter(c => c.amount <= 0).reduce((sum, c) => sum + c.count, 0),
+    [byCapital],
+  );
+
   const capitalTotal = byCapital.reduce((sum, c) => sum + c.amount, 0);
   const capitalCount = byCapital.reduce((sum, c) => sum + c.count, 0);
 
@@ -456,16 +462,28 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
         위 카드가 합계고 여기가 그 속이다. 매입 정산의 상품화총비용 항목별과 같은 모양으로
         둔다 — 같은 뜻의 칸은 같은 자리에 같은 꼴로 있어야 눈이 덜 든다.
       */}
-      {byCapital.length > 0 && (
+      {byCapital.some(c => c.amount > 0) && (
         <div className="mb-3 overflow-hidden rounded-xl border border-teal-200 bg-teal-50/40">
           <div className="flex items-baseline justify-between border-b border-teal-200/70 px-3 py-1.5">
             <span className="text-xs font-bold text-teal-900">캐피탈별 할부</span>
             <span className="text-[11px] text-teal-800/80">
               합계 {NUM(capitalTotal)}원 · {capitalCount}건 기준
+              {/*
+                금액이 안 적힌 건은 머리에 한 줄로 적는다.
+
+                칸으로 세워 두니 '(할부사 안 적음) 0원 1건' 이 캐피탈 하나처럼 자리를
+                차지했다 — 0원짜리 캐피탈은 없다. 그렇다고 지우면 빠뜨린 게 있다는
+                걸 아무도 모르니, 자리는 안 주고 말로만 남긴다.
+              */}
+              {blankCapital > 0 && (
+                <span className="ml-1.5 font-bold text-amber-700">· 할부사 안 적은 건 {blankCapital}건</span>
+              )}
             </span>
           </div>
           <div className="grid grid-cols-2 divide-x divide-y divide-teal-200/60 sm:grid-cols-4 sm:divide-y-0">
-            {byCapital.map(c => (
+            {byCapital
+              .filter(c => c.amount > 0)
+              .map(c => (
               <div key={c.name} className="px-2 py-1.5 text-center">
                 <p
                   className={`truncate text-[11px] font-medium ${
