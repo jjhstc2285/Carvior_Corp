@@ -6,10 +6,12 @@ import { LineChart, X } from 'lucide-react';
  * 차를 안 짚어도 되는 유입 경로.
  *
  * 114 와 기타로 들어오는 전화는 "삼백만원대 있어요?"까지만 묻고 끊는 일이 많다.
+ * 인스타도 같다 — 쪽지로 "이런 차 있어요?"부터 묻지, 매물을 짚고 들어오지 않는다.
+ *
  * 그런 건에 차량번호를 받아 적게 하면 아무 번호나 들어가고, 못 적게 막으면 상담
  * 자체를 안 적는다.
  */
-const PLATE_OPTIONAL_PLATFORMS = ['114', '기타'];
+const PLATE_OPTIONAL_PLATFORMS = ['114', '기타', '인스타'];
 
 /** 차를 안 짚은 전화 — 번호 자리에 이렇게 남긴다 */
 const UNKNOWN_PLATE = '미정';
