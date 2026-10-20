@@ -484,7 +484,14 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
           <div className="flex items-baseline justify-between border-b border-teal-200/70 px-3 py-1.5">
             <span className="text-xs font-bold text-teal-900">캐피탈별 할부</span>
             <span className="text-[11px] text-teal-800/80">
-              합계 {NUM(capitalTotal)}원 · {capitalCount}건 기준
+              {/*
+                위 '재고 금융 할부 의무'와 다른 숫자가 나온다 — 세는 범위가 다르다.
+
+                여기는 정산이 아직 없는 상담까지 같이 센다. 그 달에 깔릴 할부를 미리
+                가늠하는 자리라 그게 맞다. 약정을 채웠는지는 돈이 오간 정산만 세야 하므로
+                위쪽이 더 작게 나온다 — 적어 두지 않으면 둘 중 뭐가 맞냐고 묻게 된다.
+              */}
+              정산 + 아직 정산 없는 상담 · 합계 {NUM(capitalTotal)}원 · {capitalCount}건 기준
               {/*
                 금액이 안 적힌 건은 머리에 한 줄로 적는다.
 

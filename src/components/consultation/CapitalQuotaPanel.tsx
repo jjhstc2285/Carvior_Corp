@@ -63,7 +63,19 @@ export default function CapitalQuotaPanel() {
         <h2 className="text-sm font-bold text-slate-800">재고 금융 할부 의무</h2>
         <span className="text-[11px] text-slate-400">
           {data.from.slice(0, 7).replace('-', '.')} 기준 · BMW·우리캐피탈은 고정, 나머지는 그 달 재고 총액의{' '}
-          {Math.round(QUOTA_RATE * 100)}% · 실적은 상담의 [결제 구분]을 할부로 적으면 잡힙니다
+          {Math.round(QUOTA_RATE * 100)}%
+          {/*
+            어디서 세는지 똑바로 적는다.
+
+            '상담의 결제 구분을 할부로 적으면 잡힌다'고 적어 뒀는데 그렇지 않다 —
+            세는 건 알선 정산에 적힌 할부사·실행액뿐이다. 상담은 "할부로 하겠다"까지만
+            적힌 건이 섞여서 실제로 깔렸는지 모르기 때문이다.
+
+            그 말 때문에 옆 묶음(캐피탈별 할부)과 숫자가 달라 보였다. 거기는 정산이
+            아직 없는 상담까지 같이 세므로 더 크게 나온다.
+          */}
+          {' · '}
+          <b className="font-semibold text-slate-500">알선 정산에 적힌 할부</b>만 셉니다(실제로 깔린 금액)
         </span>
         <span className="ml-auto text-sm font-bold text-slate-800">
           {left > 0 ? (
