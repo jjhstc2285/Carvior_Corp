@@ -61,8 +61,12 @@ interface PhotoSet {
  * 차 한 대에 여섯 장씩, 한 달에 백 대면 육백 장이 쌓인다. 상품화 사진은 그 차를 파는
  * 동안 쓰는 것이고 팔고 나면 다시 열어 볼 일이 거의 없다.
  *
- * 닷새 전부터 빨간 날짜를 띄운다 — 남겨야 할 사진은 그 사이에 내려받는다. 조용히
- * 사라지면 "분명히 올렸는데 없다"가 된다.
+ * 남은 날은 늘 띄운다 — 닷새 전부터만 띄웠더니 그 전에는 언제 사라지는지 알 길이
+ * 없었고, 닷새 안에 못 본 사람은 그대로 놓쳤다. 조용히 사라지면 "분명히 올렸는데
+ * 없다"가 된다.
+ *
+ * 닷새 안쪽만 빨갛게 한다. 늘 빨가면 빨간 게 뜻을 잃는다 — 한 달 남은 것과 이틀 남은
+ * 것이 같은 색이면 급한 걸 못 고른다.
  */
 const WARN_DAYS = 5;
 
@@ -146,10 +150,17 @@ export default function PhotoTab() {
     [state.parkingVehicles],
   );
 
+  /*
+    지워질 날이 가까운 것부터 올린다.
+
+    아래에 묻혀 있으면 내려받을 겨를도 없이 사라진다 — 오늘 할 일이 맨 위에 있어야 한다.
+    남은 날을 모르는 묶음(서버가 안 내려준 것)은 맨 뒤로 보낸다.
+  */
   const filtered = useMemo(() => {
     const q = query.trim();
-    if (!q) return sets;
-    return sets.filter(s => s.vehicleNumber.includes(q) || s.vehicleName.includes(q));
+    const rows = q ? sets.filter(s => s.vehicleNumber.includes(q) || s.vehicleName.includes(q)) : sets;
+    const left = (s: PhotoSet) => (typeof s.daysLeft === 'number' ? s.daysLeft : Number.MAX_SAFE_INTEGER);
+    return [...rows].sort((a, b) => left(a) - left(b) || a.vehicleNumber.localeCompare(b.vehicleNumber));
   }, [sets, query]);
 
   const createSet = async () => {
@@ -188,7 +199,8 @@ export default function PhotoTab() {
     <div className="space-y-4">
       {/* 사진이 조용히 사라지면 "분명히 올렸는데 없다"가 된다 — 미리 적어 둔다 */}
       <p className="rounded-lg bg-slate-100 px-3 py-2 text-[11px] text-slate-500">
-        상품화 사진은 <b>올린 날부터 한 달</b> 보관하고 지워집니다. 지워지기 <b>닷새 전부터 빨간 날짜</b>가 뜨니,
+        상품화 사진은 <b>올린 날부터 한 달</b> 보관하고 지워집니다. 차마다 <b>남은 날(D-○)</b>이 뜨고
+        <b className="text-red-600">닷새 안쪽이면 빨갛게</b> 바뀝니다. <b>지워질 날이 가까운 차가 맨 위</b>에 옵니다 —
         남겨야 할 사진은 그 전에 내려받으세요.
       </p>
       <div className="flex flex-wrap items-center gap-2">
@@ -332,10 +344,17 @@ function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () =>
         </span>
         {set.recordedBy && <span className="text-[11px] text-slate-400">{set.recordedBy}</span>}
 
-        {/* 지워질 때가 가까우면 빨갛게 — 남길 사진은 그 전에 내려받는다 */}
-        {typeof set.daysLeft === 'number' && set.daysLeft <= WARN_DAYS && (
+        {/*
+          남은 날은 늘 띄우고, 닷새 안쪽만 빨갛게 한다.
+
+          닷새 전부터만 띄웠더니 그 전에는 언제 사라지는지 알 길이 없었다. 늘 빨갛게
+          두면 빨간 게 뜻을 잃으니, 급한 것만 빨갛고 나머지는 회색으로 둔다.
+        */}
+        {typeof set.daysLeft === 'number' && (
           <span
-            className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white"
+            className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+              set.daysLeft <= WARN_DAYS ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-500'
+            }`}
             title={`올린 지 한 달이 지나면 지워집니다. ${
               set.createdAt ? `${dayjs(set.createdAt).add(30, 'day').format('M월 D일')}에 지워집니다.` : ''
             } 남길 사진은 그 전에 내려받으세요.`}
