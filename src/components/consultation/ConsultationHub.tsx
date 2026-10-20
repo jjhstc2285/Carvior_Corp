@@ -6,6 +6,7 @@ import ConsultationSheetImportModal from './SheetImportModal';
 import SoldMixChart from './SoldMixChart';
 import PlatformMixChart from './PlatformMixChart';
 import ChartRange, { defaultRange, type Range } from './ChartRange';
+import { SHEET_TEAM } from '../../lib/permissions';
 import { useStore } from '../../store';
 
 interface Props {
@@ -31,14 +32,18 @@ export default function ConsultationHub({ role }: Props) {
   /* 두 그래프가 같이 쓰는 기간 — 처음엔 종류를 나눠 적기 시작한 달부터 오늘까지 */
   const [range, setRange] = useState<Range>(defaultRange);
   const [importOpen, setImportOpen] = useState(false);
-  const { refresh } = useStore();
+  const { state, refresh } = useStore();
+
+  /* 관리자와 광고팀 — 부서로 연다. 사람이 바뀌어도 그 팀에 들어오면 그대로 보인다 */
+  const me = state.employees.find(e => e.id === state.currentEmployeeId);
+  const seesCharts = role === 'ADMIN' || (me?.department ?? '').trim() === SHEET_TEAM;
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900">상담 관리</h1>
         {/* 시트에 쌓인 지난 상담을 옮겨온다. 한 번에 천 건이 넘어 관리자만 부른다. */}
-        {role === 'ADMIN' && (
+        {seesCharts && (
           <button
             onClick={() => setImportOpen(true)}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -69,9 +74,13 @@ export default function ConsultationHub({ role }: Props) {
         (엔카·114·소개…). 둘을 같이 봐야 "엔카에서 많이 들어오는데 정작 수출로
         나간다" 같은 게 보인다. 좁은 화면에서는 위아래로 선다.
 
-        관리자만 본다. 회사 전체가 어디서 들어와 어디로 나가는지를 모아 놓은 숫자라,
-        광고비를 어디에 쓸지 같은 판단에 쓰는 값이지 적는 사람이 볼 값이 아니다 —
-        전환율이 그대로 보이면 누가 몇 건을 놓쳤는지로 읽힌다.
+        관리자와 광고팀만 본다.
+
+        회사 전체가 어디서 들어와 어디로 나가는지를 모아 놓은 숫자다. 적는 사람이
+        볼 값은 아니다 — 전환율이 그대로 보이면 누가 몇 건을 놓쳤는지로 읽힌다.
+
+        다만 광고팀은 봐야 한다. 엔카에 돈을 얼마나 쓸지, 114 를 계속 둘지를 정하는
+        게 그 팀 일인데 그 판단이 이 숫자에서 나온다 — 못 보게 하면 감으로 정하게 된다.
 
         화면에서 안 그리는 것뿐이다. 숫자 자체는 상담 목록에서 나오는 것이라 가린 게
         아니다 — 감춰야 하는 값이면 서버에서 안 내려줘야 한다.
