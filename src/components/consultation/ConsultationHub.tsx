@@ -69,15 +69,26 @@ export default function ConsultationHub({ role }: Props) {
         (엔카·114·소개…). 둘을 같이 봐야 "엔카에서 많이 들어오는데 정작 수출로
         나간다" 같은 게 보인다. 좁은 화면에서는 위아래로 선다.
 
+        관리자만 본다. 회사 전체가 어디서 들어와 어디로 나가는지를 모아 놓은 숫자라,
+        광고비를 어디에 쓸지 같은 판단에 쓰는 값이지 적는 사람이 볼 값이 아니다 —
+        전환율이 그대로 보이면 누가 몇 건을 놓쳤는지로 읽힌다.
+
+        화면에서 안 그리는 것뿐이다. 숫자 자체는 상담 목록에서 나오는 것이라 가린 게
+        아니다 — 감춰야 하는 값이면 서버에서 안 내려줘야 한다.
+
         재고 금융 할부 의무는 알선 정산으로 옮겼다 — 정산에서 보기로 했다.
       */}
-      {/* 기간은 하나로 들고 둘에 같이 내려준다 — 자가 다르면 나란히 둔 뜻이 없다 */}
-      <ChartRange value={range} onChange={setRange} />
+      {role === 'ADMIN' && (
+        <>
+          {/* 기간은 하나로 들고 둘에 같이 내려준다 — 자가 다르면 나란히 둔 뜻이 없다 */}
+          <ChartRange value={range} onChange={setRange} />
 
-      <div className="mb-4 flex flex-col items-stretch gap-4 xl:flex-row">
-        <SoldMixChart range={range} />
-        <PlatformMixChart range={range} />
-      </div>
+          <div className="mb-4 flex flex-col items-stretch gap-4 xl:flex-row">
+            <SoldMixChart range={range} />
+            <PlatformMixChart range={range} />
+          </div>
+        </>
+      )}
 
       {/* key 를 줘서 탭을 옮기면 검색·필터가 초기화된다 — 알선에서 걸어둔 조건이 수출에 남으면 헷갈린다 */}
       <ConsultationModule key={tab} role={role} kind={tab} />
