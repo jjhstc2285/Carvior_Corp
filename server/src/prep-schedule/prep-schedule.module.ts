@@ -31,6 +31,17 @@ export type PrepStep = (typeof PREP_STEPS)[number]['key'];
 /** 들어와서 광고까지 — 이 날수를 넘기면 늦은 것이다 */
 export const PREP_TARGET_DAYS = 4;
 
+/**
+ * 이 날부터 들어온 차만 챙긴다.
+ *
+ * 그 전 차까지 들고 있었더니 목록이 지난 차로 가득 차서, 오늘 챙길 차를 눈으로 훑어
+ * 찾아야 했다 — 할 일 목록이 아니라 지난 기록이 된다.
+ *
+ * 이 줄을 당기면 그만큼 옛 차가 다시 올라온다. 줄은 지우지 않고 안 보여 줄 뿐이라,
+ * 찍어 둔 단계도 그대로 남아 있다.
+ */
+export const PREP_FROM = '2026-10-01';
+
 const DAY = 24 * 60 * 60 * 1000;
 
 @Injectable()
@@ -82,8 +93,10 @@ export class PrepScheduleService implements OnModuleInit {
     const latest = new Map<string, { name: string; date: Date }>();
     for (const r of intakes) latest.set(normalizePlate(r.vehicleNumber), { name: r.vehicleName, date: r.date });
 
+    const from = toDateOnly(PREP_FROM).getTime();
     const made = [...latest.entries()]
-      .filter(([plate]) => !gone.has(plate) && !have.has(plate))
+      // 정한 날 앞에 들어온 차는 아예 만들지 않는다 — 만들어 두고 거르면 쌓이기만 한다
+      .filter(([plate, v]) => !gone.has(plate) && !have.has(plate) && v.date.getTime() >= from)
       .map(([plate, v]) => ({ vehicleNumber: plate, vehicleName: v.name, intakeDate: v.date }));
 
     if (made.length > 0) await this.prisma.prepSchedule.createMany({ data: made, skipDuplicates: true });
@@ -129,7 +142,10 @@ export class PrepScheduleService implements OnModuleInit {
     await this.fillPhotos();
 
     const today = toDateOnly(todayKst()).getTime();
-    const rows = await this.prisma.prepSchedule.findMany({ where: { listedOn: null, lateNotifiedAt: null } });
+    const rows = await this.prisma.prepSchedule.findMany({
+      // 안 보여 주는 옛 차로 지연 알림이 가면 안 된다 — 보는 목록과 같은 기준으로 본다
+      where: { listedOn: null, lateNotifiedAt: null, intakeDate: { gte: toDateOnly(PREP_FROM) } },
+    });
 
     const late = rows.filter((r) => Math.floor((today - r.intakeDate.getTime()) / DAY) > PREP_TARGET_DAYS);
     if (late.length === 0) return { late: 0 };
@@ -158,7 +174,11 @@ export class PrepScheduleService implements OnModuleInit {
     await this.fillPhotos();
 
     const today = toDateOnly(todayKst()).getTime();
-    const rows = await this.prisma.prepSchedule.findMany({ where: { listedOn: null }, orderBy: { intakeDate: 'asc' } });
+    const rows = await this.prisma.prepSchedule.findMany({
+      // 이미 만들어 둔 옛 줄은 지우지 않고 안 보여 준다 — 찍어 둔 단계가 남아야 한다
+      where: { listedOn: null, intakeDate: { gte: toDateOnly(PREP_FROM) } },
+      orderBy: { intakeDate: 'asc' },
+    });
 
     return rows.map((r) => ({
       id: r.id,
@@ -200,7 +220,7 @@ export class PrepScheduleController {
   /** 단계와 목표 날수 — 화면이 같은 말을 쓰게 서버에서 내려준다 */
   @Get('rules')
   rules() {
-    return { steps: PREP_STEPS, targetDays: PREP_TARGET_DAYS };
+    return { steps: PREP_STEPS, targetDays: PREP_TARGET_DAYS, from: PREP_FROM };
   }
 
   @Get()

@@ -18,6 +18,9 @@ import { alertError } from '../../lib/alert';
  *
  * 광고까지 올라간 차는 목록에서 빠진다. 끝난 일이 남아 있으면 할 일 목록이 아니라
  * 지난 기록이 된다.
+ *
+ * 정한 날(서버의 PREP_FROM) 앞에 들어온 차도 안 올린다. 그 전 차까지 들고 있었더니
+ * 지난 차로 가득 차서 오늘 챙길 차를 눈으로 훑어 찾아야 했다.
  */
 
 interface Row {
@@ -36,6 +39,8 @@ interface Row {
 interface Rules {
   steps: { key: keyof Row; label: string; day: number; todo: string }[];
   targetDays: number;
+  /** 이 날부터 들어온 차만 챙긴다 — 그 전 차는 목록에 안 올린다 */
+  from?: string;
 }
 
 export default function PrepSchedulePanel() {
@@ -86,6 +91,8 @@ export default function PrepSchedulePanel() {
         <span className="text-xs font-bold text-indigo-900">상품화 진행</span>
         <span className="text-[11px] text-indigo-800/80">
           광고 전 {rows.length}대 · 들어온 지 {target}일 안에 올리는 것이 목표입니다
+          {/* 언제부터 세는 목록인지 적어 둔다 — 옛 차가 안 보이는 게 고장으로 읽히면 안 된다 */}
+          {rules?.from && ` · ${dayjs(rules.from).format('M월 D일')}부터 들어온 차만 봅니다`}
         </span>
         {late > 0 && (
           <span className="ml-auto shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
