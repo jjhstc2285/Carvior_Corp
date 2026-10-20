@@ -73,20 +73,33 @@ export class PrepScheduleService implements OnModuleInit {
    *
    * 차량번호는 손으로 적는 값이라 공백이 섞여 저장돼 있다 — 걷어내서 맞춘다.
    */
+  /**
+   * 이미 나간 차 — 매입 정산에 차량판매가가 적혔거나, 차량관리에 매도일자가 적힌 차.
+   *
+   * 둘 중 하나만 봐서는 샌다. 판매가를 아직 안 적은 차가 있고, 매도일자를 안 적은
+   * 차도 있다(장기 재고가 쓰는 규칙과 같다).
+   */
+  private async gonePlates(): Promise<Set<string>> {
+    const [sold, vehicles] = await Promise.all([
+      this.prisma.purchaseSettlement.findMany({ where: { salePrice: { gt: 0 } }, select: { vehicleNumber: true } }),
+      this.prisma.managedVehicle.findMany({ where: { soldDate: { not: null } }, select: { vehicleNumber: true } }),
+    ]);
+    const gone = new Set<string>();
+    for (const r of sold) gone.add(normalizePlate(r.vehicleNumber));
+    for (const v of vehicles) gone.add(normalizePlate(v.vehicleNumber));
+    return gone;
+  }
+
   private async ensureRows(): Promise<void> {
-    const [intakes, sold, vehicles, rows] = await Promise.all([
+    const [intakes, gone, rows] = await Promise.all([
       this.prisma.purchaseIntake.findMany({
         select: { vehicleNumber: true, vehicleName: true, date: true },
         orderBy: { date: 'asc' },
       }),
-      this.prisma.purchaseSettlement.findMany({ where: { salePrice: { gt: 0 } }, select: { vehicleNumber: true } }),
-      this.prisma.managedVehicle.findMany({ where: { soldDate: { not: null } }, select: { vehicleNumber: true } }),
+      this.gonePlates(),
       this.prisma.prepSchedule.findMany({ select: { vehicleNumber: true } }),
     ]);
 
-    const gone = new Set<string>();
-    for (const r of sold) gone.add(normalizePlate(r.vehicleNumber));
-    for (const v of vehicles) gone.add(normalizePlate(v.vehicleNumber));
     const have = new Set(rows.map((r) => r.vehicleNumber));
 
     // 오래된 것부터 넣어 최근 매입이 덮어쓰게 한다(되사온 차)
@@ -142,12 +155,18 @@ export class PrepScheduleService implements OnModuleInit {
     await this.fillPhotos();
 
     const today = toDateOnly(todayKst()).getTime();
-    const rows = await this.prisma.prepSchedule.findMany({
-      // 안 보여 주는 옛 차로 지연 알림이 가면 안 된다 — 보는 목록과 같은 기준으로 본다
-      where: { listedOn: null, lateNotifiedAt: null, intakeDate: { gte: toDateOnly(PREP_FROM) } },
-    });
+    const [rows, gone] = await Promise.all([
+      this.prisma.prepSchedule.findMany({
+        // 안 보여 주는 옛 차로 지연 알림이 가면 안 된다 — 보는 목록과 같은 기준으로 본다
+        where: { listedOn: null, lateNotifiedAt: null, intakeDate: { gte: toDateOnly(PREP_FROM) } },
+      }),
+      this.gonePlates(),
+    ]);
 
-    const late = rows.filter((r) => Math.floor((today - r.intakeDate.getTime()) / DAY) > PREP_TARGET_DAYS);
+    const late = rows
+      // 이미 판 차로 "상품화가 늦었다"고 알리면 안 된다
+      .filter((r) => !gone.has(normalizePlate(r.vehicleNumber)))
+      .filter((r) => Math.floor((today - r.intakeDate.getTime()) / DAY) > PREP_TARGET_DAYS);
     if (late.length === 0) return { late: 0 };
 
     const lines = [`🛠 <b>상품화 지연</b> — 들어온 지 ${PREP_TARGET_DAYS}일이 넘었는데 광고가 안 올라갔습니다`];
@@ -174,13 +193,26 @@ export class PrepScheduleService implements OnModuleInit {
     await this.fillPhotos();
 
     const today = toDateOnly(todayKst()).getTime();
-    const rows = await this.prisma.prepSchedule.findMany({
-      // 이미 만들어 둔 옛 줄은 지우지 않고 안 보여 준다 — 찍어 둔 단계가 남아야 한다
-      where: { listedOn: null, intakeDate: { gte: toDateOnly(PREP_FROM) } },
-      orderBy: { intakeDate: 'asc' },
-    });
+    const [rows, gone] = await Promise.all([
+      this.prisma.prepSchedule.findMany({
+        // 이미 만들어 둔 옛 줄은 지우지 않고 안 보여 준다 — 찍어 둔 단계가 남아야 한다
+        where: { listedOn: null, intakeDate: { gte: toDateOnly(PREP_FROM) } },
+        orderBy: { intakeDate: 'asc' },
+      }),
+      this.gonePlates(),
+    ]);
 
-    return rows.map((r) => ({
+    return rows
+      /*
+        팔린 차는 뺀다.
+
+        줄을 만들 때만 걸렀더니, 만들어 둔 뒤에 팔린 차가 '광고 안 올림'으로 그대로
+        남았다 — 이미 나간 차를 두고 "사진 찍어야 한다"가 뜬다. 낼 때도 한 번 본다.
+
+        줄은 지우지 않는다. 되사온 차가 다시 들어오면 그 줄을 그대로 쓴다.
+      */
+      .filter((r) => !gone.has(normalizePlate(r.vehicleNumber)))
+      .map((r) => ({
       id: r.id,
       vehicleNumber: r.vehicleNumber,
       vehicleName: r.vehicleName,
