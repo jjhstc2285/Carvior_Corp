@@ -43,7 +43,7 @@ export default function ConsultationHub({ role }: Props) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900">상담 관리</h1>
         {/* 시트에 쌓인 지난 상담을 옮겨온다. 한 번에 천 건이 넘어 관리자만 부른다. */}
-        {seesCharts && (
+        {role === 'ADMIN' && (
           <button
             onClick={() => setImportOpen(true)}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -87,7 +87,7 @@ export default function ConsultationHub({ role }: Props) {
 
         재고 금융 할부 의무는 알선 정산으로 옮겼다 — 정산에서 보기로 했다.
       */}
-      {role === 'ADMIN' && (
+      {seesCharts && (
         <>
           {/* 기간은 하나로 들고 둘에 같이 내려준다 — 자가 다르면 나란히 둔 뜻이 없다 */}
           <ChartRange value={range} onChange={setRange} />
