@@ -25,6 +25,9 @@ import { api, ApiError } from '../../lib/api';
 import { effectiveKind, isOfKind } from '../../lib/consultationStats';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 
+/** 손대면 뜨는 글에서 줄을 나눈다 */
+const NEW_LINE = String.fromCharCode(10);
+
 /** 표의 칸들 — 제목과 그리는 방법을 한 벌로 묶어야 차례를 바꿔도 값이 안 엉킨다 */
 const COLUMNS: Column[] = [
   { key: 'date', label: '상담일시' },
@@ -37,6 +40,14 @@ const COLUMNS: Column[] = [
   { key: 'visit', label: '방문예정' },
   { key: 'visitDealer', label: '담당 딜러' },
   { key: 'status', label: '상태' },
+  /*
+    담당 딜러가 손님을 맞고 나서 적는 말 — 왜 계약이 안 됐는가.
+
+    적는 자리는 알선 정산의 '방문 리뷰'다. 거기까지 들어가야만 보이니, 상담을 훑어보는
+    사람은 그 차가 왜 안 됐는지 알 길이 없었다 — 적어 둔 사람만 아는 값이 된다.
+    적혀 있으면 여기 붙여 둔다.
+  */
+  { key: 'review', label: '방문 리뷰', nowrap: false },
   { key: 'content', label: '내용', nowrap: false },
   { key: 'actions', label: '관리', align: 'text-right' },
 ];
@@ -520,6 +531,33 @@ export default function ConsultationModule({ role, kind }: Props) {
                         {CONSULTATION_STATUS_LABEL[c.status]}
                       </span>
                     ),
+                    review: (() => {
+                      const reason = (c.missReason ?? '').trim();
+                      const review = (c.missReview ?? '').trim();
+                      const recall = (c.recallNote ?? '').trim();
+                      if (!reason && !review && !recall) return <span className="text-slate-300">—</span>;
+
+                      /* 누가 언제 적었는지는 손대면 뜨게 둔다 — 칸이 좁아 한 줄만 보인다 */
+                      const who = [c.missReviewBy, c.missReviewAt && dayjs(c.missReviewAt).format('M/D')]
+                        .filter(Boolean)
+                        .join(' · ');
+                      return (
+                        <span
+                          className="block max-w-xs text-slate-600"
+                          title={[reason && `사유: ${reason}`, review, recall && `리콜: ${recall}`, who]
+                            .filter(Boolean)
+                            .join(NEW_LINE)}
+                        >
+                          {/* 사유는 골라 적는 말이라 짧다 — 알약으로 띄워 한눈에 가른다 */}
+                          {reason && (
+                            <span className="mr-1 inline-block rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">
+                              {reason}
+                            </span>
+                          )}
+                          <span className="truncate align-middle">{review || recall}</span>
+                        </span>
+                      );
+                    })(),
                     content: (
                       <span className="block max-w-xs truncate text-slate-500" title={c.content}>
                         {c.content}
