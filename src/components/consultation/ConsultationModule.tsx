@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import dayjs from 'dayjs';
 import { CalendarDays, Copy, LineChart, List, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
@@ -28,6 +28,32 @@ import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColu
 /** 손대면 뜨는 글에서 줄을 나눈다 */
 const NEW_LINE = String.fromCharCode(10);
 
+/**
+ * 긴 글은 한 줄로 자르고, 누르면 편다.
+ *
+ * 상담 내용과 방문 리뷰는 길면 서너 줄이 된다. 그대로 두면 줄 하나가 손가락 두 마디만큼
+ * 높아져서, 표를 훑어보는 사람이 한 화면에 몇 건을 못 본다.
+ *
+ * 손대면 뜨는 말풍선으로만 두지 않는다 — 휴대폰에는 손댈 수가 없고, 긴 글은 말풍선이
+ * 화면을 넘긴다. 눌러서 그 자리에서 펴고, 다시 누르면 접는다.
+ */
+function ExpandableText({ text, title, lead }: { text: string; title?: string; lead?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  if (!text && !lead) return <span className="text-slate-300">—</span>;
+
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(v => !v)}
+      title={title ?? text}
+      className={`block w-full max-w-xs text-left ${open ? 'whitespace-pre-wrap' : 'truncate'}`}
+    >
+      {lead}
+      {text}
+    </button>
+  );
+}
+
 /** 표의 칸들 — 제목과 그리는 방법을 한 벌로 묶어야 차례를 바꿔도 값이 안 엉킨다 */
 const COLUMNS: Column[] = [
   { key: 'date', label: '상담일시' },
@@ -47,8 +73,8 @@ const COLUMNS: Column[] = [
     사람은 그 차가 왜 안 됐는지 알 길이 없었다 — 적어 둔 사람만 아는 값이 된다.
     적혀 있으면 여기 붙여 둔다.
   */
-  { key: 'review', label: '방문 리뷰', nowrap: false },
-  { key: 'content', label: '내용', nowrap: false },
+  { key: 'review', label: '방문 리뷰' },
+  { key: 'content', label: '내용' },
   { key: 'actions', label: '관리', align: 'text-right' },
 ];
 
@@ -542,25 +568,27 @@ export default function ConsultationModule({ role, kind }: Props) {
                         .filter(Boolean)
                         .join(' · ');
                       return (
-                        <span
-                          className="block max-w-xs text-slate-600"
-                          title={[reason && `사유: ${reason}`, review, recall && `리콜: ${recall}`, who]
-                            .filter(Boolean)
-                            .join(NEW_LINE)}
-                        >
-                          {/* 사유는 골라 적는 말이라 짧다 — 알약으로 띄워 한눈에 가른다 */}
-                          {reason && (
-                            <span className="mr-1 inline-block rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">
-                              {reason}
-                            </span>
-                          )}
-                          <span className="truncate align-middle">{review || recall}</span>
+                        <span className="block text-slate-600">
+                          <ExpandableText
+                            text={[review, recall && `리콜: ${recall}`].filter(Boolean).join(' · ')}
+                            title={[reason && `사유: ${reason}`, review, recall && `리콜: ${recall}`, who]
+                              .filter(Boolean)
+                              .join(NEW_LINE)}
+                            /* 사유는 골라 적는 말이라 짧다 — 알약으로 띄워 한눈에 가른다 */
+                            lead={
+                              reason ? (
+                                <span className="mr-1 inline-block rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">
+                                  {reason}
+                                </span>
+                              ) : null
+                            }
+                          />
                         </span>
                       );
                     })(),
                     content: (
-                      <span className="block max-w-xs truncate text-slate-500" title={c.content}>
-                        {c.content}
+                      <span className="block text-slate-500">
+                        <ExpandableText text={c.content} />
                       </span>
                     ),
                     actions: (
