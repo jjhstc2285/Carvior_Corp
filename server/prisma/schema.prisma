@@ -2187,6 +2187,34 @@ model ContractGoal {
   updatedAt DateTime @updatedAt
 }
 
+/**
+ * 주차장 구조 — 어떤 주차장에 어떤 구역이 몇 줄로 있는가.
+ *
+ * 코드에 박아 두었다. 줄 하나를 늘리거나 이름을 고치려면 개발자가 고쳐 올려야 했는데,
+ * 실제로 줄을 긋고 차를 대는 건 차량관리팀이다 — 그 팀이 화면에서 고치게 한다.
+ *
+ * 번지(lot)는 저장된 값이다. 세워 둔 차와 세차 기록이 전부 이 값으로 묶여 있어서
+ * 바꾸면 지난 기록이 엉뚱한 주차장을 가리킨다 — 부르는 이름(label)만 따로 둔다.
+ *
+ * 구역과 줄은 줄바꿈으로 이어 한 칸에 담는다. 칸을 따로 두면 표가 둘 늘어나는데,
+ * 늘 통째로 읽고 통째로 쓰는 값이라 쪼갤 까닭이 없다.
+ */
+model ParkingLotLayout {
+  lot       String  @id @db.VarChar(60) // 번지 — 저장된 값이라 안 바꾼다
+  label     String  @default("") @db.VarChar(60) // 화면에 띄울 이름
+  area      String  @default("외부") @db.VarChar(10) // 본관 / 외부
+  bandColor String  @default("#e2e8f0") @db.VarChar(20)
+  zones     String  @db.Text // 구역 이름 — 줄바꿈으로 이어 담는다
+  slots     String  @default("") @db.Text // 줄 이름 — 비우면 본관 기본값(앞1·앞2·뒤1·뒤2)
+  sortOrder Int     @default(0) // 늘어놓는 차례 — 차를 어디로 보낼지 정하는 순서다
+  active    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([area, sortOrder])
+}
+
 model Notice {
   id       String  @id @default(cuid())
   category String  @default("일반") @db.VarChar(10) // 공지 · 업무 · 일반

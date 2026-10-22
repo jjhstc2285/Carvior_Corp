@@ -4,12 +4,14 @@ import { Trash2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { api, ApiError } from '../../lib/api';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
-import { PARKING_LOTS, PARKING_SLOTS, lotLabel } from '../../lib/parkingLayout';
+import { PARKING_SLOTS, lotLabel, type ParkingLotConfig } from '../../lib/parkingLayout';
 import { confirmDanger } from '../../lib/alert';
 import { REINSPECT_MONTHS, reinspectLabel } from '../../lib/reinspection';
 import { useEscClose } from '../../lib/useEscClose';
 
 interface Props {
+  /** 주차장 구조 — 차량관리팀이 화면에서 고친다(서버에서 받아 온다) */
+  lots: ParkingLotConfig[];
   editing: ParkingVehicle | null;
   defaultEmployeeId: string;
   // 그리드 셀을 클릭해서 연 경우 — 위치(주차장/구역/위치)가 이미 정해져 있으므로 고정 표시
@@ -17,13 +19,13 @@ interface Props {
   onClose: () => void;
 }
 
-export default function ParkingForm({ editing, defaultEmployeeId, presetPosition, onClose }: Props) {
+export default function ParkingForm({ editing, defaultEmployeeId, presetPosition, onClose, lots }: Props) {
   /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
   useEscClose(onClose);
   const { state, upsertParkingVehicle, deleteParkingVehicle } = useStore();
   const positionLocked = !!presetPosition;
-  const [lot, setLot] = useState(editing?.lot ?? presetPosition?.lot ?? PARKING_LOTS[0].lot);
-  const [zone, setZone] = useState(editing?.zone ?? presetPosition?.zone ?? PARKING_LOTS[0].zones[0]);
+  const [lot, setLot] = useState(editing?.lot ?? presetPosition?.lot ?? (lots[0]?.lot ?? ''));
+  const [zone, setZone] = useState(editing?.zone ?? presetPosition?.zone ?? (lots[0]?.zones[0] ?? ''));
   const [slot, setSlot] = useState(editing?.slot ?? presetPosition?.slot ?? PARKING_SLOTS[0]);
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? '');
   const [vehicleModel, setVehicleModel] = useState(editing?.vehicleModel ?? '');
@@ -70,10 +72,10 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
     setMemo(found.memo ?? '');
     setStatus(found.status);
     if (found.employeeId) setEmployeeId(found.employeeId);
-    setPulledFrom(`${lotLabel(found.lot)} ${found.zone} ${found.slot}`);
+    setPulledFrom(`${lotLabel(found.lot, lots)} ${found.zone} ${found.slot}`);
   };
 
-  const zoneOptions = PARKING_LOTS.find(l => l.lot === lot)?.zones ?? [];
+  const zoneOptions = lots.find(l => l.lot === lot)?.zones ?? [];
 
 
   /**
@@ -139,15 +141,15 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
 
         {positionLocked ? (
           <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            <span className="font-semibold">{lotLabel(lot)}</span> · {zone} · {slot}
+            <span className="font-semibold">{lotLabel(lot, lots)}</span> · {zone} · {slot}
           </p>
         ) : (
           <div className="mt-4 grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-500">주차장 *</label>
-              <select value={lot} onChange={e => { setLot(e.target.value); setZone(PARKING_LOTS.find(l => l.lot === e.target.value)?.zones[0] ?? ''); }}
+              <select value={lot} onChange={e => { setLot(e.target.value); setZone(lots.find(l => l.lot === e.target.value)?.zones[0] ?? ''); }}
                 className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400">
-                {PARKING_LOTS.map(l => <option key={l.lot} value={l.lot}>{lotLabel(l.lot)}</option>)}
+                {lots.map(l => <option key={l.lot} value={l.lot}>{lotLabel(l.lot, lots)}</option>)}
               </select>
             </div>
             <div>

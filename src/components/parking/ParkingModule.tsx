@@ -8,6 +8,9 @@ import ParkingForm from './ParkingForm';
 import ParkingGrid from './ParkingGrid';
 import SheetImportModal from './SheetImportModal';
 import MoveSuggestions from './MoveSuggestions';
+import { useParkingLayout } from './useParkingLayout';
+import ParkingLayoutEditor from './ParkingLayoutEditor';
+import type { ParkingLotConfig } from '../../lib/parkingLayout';
 import KeyDispatchPanel from './KeyDispatchPanel';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { PARKING_LOTS, lotLabel } from '../../lib/parkingLayout';
@@ -21,6 +24,18 @@ const REINSPECT_FOLD_KEY = 'parking-reinspect-fold';
 
 export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
   const { state, deleteParkingVehicle, refresh } = useStore();
+  /* 주차장 구조 — 차량관리팀이 고치면 배치도와 등록 창이 같이 따라간다 */
+  const layout = useParkingLayout();
+  /*
+    구조를 고칠 수 있는 사람 — 차량관리팀과 관리자.
+
+    부서로 연다. 사람이 바뀌어도 그 팀에 들어오면 그대로 고칠 수 있다. 서버도 같은
+    기준으로 가린다 — 화면에서 단추만 감추는 건 막은 게 아니다.
+  */
+  const me = state.employees.find(e => e.id === state.currentEmployeeId);
+  const canEditLayout = isAdmin || (me?.department ?? '').trim() === '차량관리팀';
+  /** 고치는 창 — null 이면 닫혀 있고, 'new' 면 새로 만든다 */
+  const [editingLot, setEditingLot] = useState<ParkingLotConfig | 'new' | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [query, setQuery] = useState('');
   const [lotFilter, setLotFilter] = useState('all');
@@ -160,6 +175,16 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
               <Download size={15} /> 시트에서 가져오기
             </button>
           )}
+          {/* 주차장을 새로 만든다 — 줄을 긋는 사람에게만 보인다 */}
+          {canEditLayout && (
+            <button
+              onClick={() => setEditingLot('new')}
+              title="주차장을 새로 만듭니다 — 줄·구역·이름"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <Plus size={15} /> 주차장 추가
+            </button>
+          )}
           <button
             onClick={() => { setEditing(null); setPresetPosition(null); setFormOpen(true); }}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
@@ -274,13 +299,16 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
-      <MoveSuggestions />
+      <MoveSuggestions lots={layout.lots} />
 
       {/* 방문 딜러가 QR 로 키를 가져간 기록 — 지금 나가 있는 차가 어느 것인지 */}
       <KeyDispatchPanel />
 
       {view === 'grid' ? (
         <ParkingGrid
+          lots={layout.lots}
+          canEditLayout={canEditLayout}
+          onEditLayout={lot => setEditingLot(lot ?? 'new')}
           showSold={showSold}
           onCellClick={handleCellClick}
           onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)}
@@ -359,10 +387,20 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
 
       {formOpen && (
         <ParkingForm
+          lots={layout.lots}
           editing={editing}
           defaultEmployeeId={state.currentEmployeeId}
           presetPosition={presetPosition ?? undefined}
           onClose={() => setFormOpen(false)}
+        />
+      )}
+
+      {/* 줄·구역·이름을 고치는 창 — 차량관리팀과 관리자만 연다 */}
+      {editingLot && (
+        <ParkingLayoutEditor
+          lot={editingLot === 'new' ? null : editingLot}
+          onClose={() => setEditingLot(null)}
+          onSaved={layout.reload}
         />
       )}
     </div>

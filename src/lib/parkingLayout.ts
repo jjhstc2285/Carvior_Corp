@@ -84,7 +84,7 @@ export const PARKING_LOTS: ParkingLotConfig[] = [
 
 /** 그 주차장이 쓰는 줄 목록 — 안 정해뒀으면 본관 기본값 */
 export function slotsOf(lot: ParkingLotConfig): readonly string[] {
-  return lot.slots ?? PARKING_SLOTS;
+  return lot.slots && lot.slots.length > 0 ? lot.slots : PARKING_SLOTS;
 }
 
 /** 화면 상단 묶음 탭 — 본관과 외부를 따로 본다(다 펼치면 표가 너무 길다). */
@@ -97,6 +97,38 @@ export type ParkingGroup = (typeof PARKING_GROUPS)[number];
  * 따로 정해둔 이름이 있으면 그걸, 없으면 번지 그대로 쓴다. 저장된 값은 건드리지 않는다 —
  * 번지로 쌓인 기록이 그대로 있어야 지난 세차·주차를 찾을 수 있다.
  */
-export function lotLabel(lot: string): string {
-  return PARKING_LOTS.find((l) => l.lot === lot)?.label ?? lot;
+export function lotLabel(lot: string, lots: ParkingLotConfig[] = PARKING_LOTS): string {
+  return lots.find((l) => l.lot === lot)?.label || lot;
+}
+
+/**
+ * 서버가 내려준 구조를 화면이 쓰는 꼴로 맞춘다.
+ *
+ * 서버는 '본관/외부'를 area 로, 구역·줄을 글자 목록으로 내려준다. 화면은 group 과
+ * 배열을 쓴다 — 받는 자리에서 한 번만 맞춘다.
+ *
+ * 한 곳도 안 내려오면 코드에 있던 구조를 그대로 쓴다. 표가 비었거나 못 받아온 것인데,
+ * 그때 주차 배치도가 통째로 빈 화면이 되면 안 된다.
+ */
+export function toLayout(rows: ServerLot[]): ParkingLotConfig[] {
+  if (rows.length === 0) return PARKING_LOTS;
+  return rows.map((r) => ({
+    lot: r.lot,
+    label: r.label || undefined,
+    group: r.area === '본관' ? '본관' : '외부',
+    bandColor: r.bandColor,
+    zones: r.zones,
+    slots: r.slots.length > 0 ? r.slots : undefined,
+  }));
+}
+
+/** 서버가 내려주는 꼴 */
+export interface ServerLot {
+  lot: string;
+  label: string;
+  area: string;
+  bandColor: string;
+  zones: string[];
+  slots: string[];
+  sortOrder: number;
 }

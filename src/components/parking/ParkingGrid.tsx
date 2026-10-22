@@ -14,10 +14,17 @@ import { useStore } from '../../store';
 import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '../../types';
 import { reinspectLabel } from '../../lib/reinspection';
 import { ChevronRight, Move, Search } from 'lucide-react';
-import { PARKING_GROUPS, PARKING_LOTS, slotsOf, type ParkingGroup, lotLabel } from '../../lib/parkingLayout';
+import { PARKING_GROUPS, slotsOf, type ParkingGroup, type ParkingLotConfig, lotLabel } from '../../lib/parkingLayout';
+import { LayoutEditButton } from './ParkingLayoutEditor';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
 interface Props {
+  /** 주차장 구조 — 차량관리팀이 화면에서 고친다(서버에서 받아 온다) */
+  lots: ParkingLotConfig[];
+  /** 구조를 고칠 수 있는 사람인가 — 차량관리팀과 관리자 */
+  canEditLayout?: boolean;
+  /** 그 주차장 구조를 고치러 간다. 없으면 새로 만든다 */
+  onEditLayout?: (lot: ParkingLotConfig | null) => void;
   /**
    * 매도한 차도 보일지.
    *
@@ -160,7 +167,14 @@ function ParkingCell({
 // 차를 끌어다 다른 칸에 놓으면 자리를 옮긴다. 그 칸에 차가 있으면 서로 자리를 바꾼다.
 // 실제 이동은 서버가 한 트랜잭션으로 처리한다 — 화면에서 두 번 나눠 부르면
 // 중간에 끊겼을 때 두 차가 같은 칸에 있거나 한 대가 사라진다.
-export default function ParkingGrid({ onCellClick, onMoveError, showSold = false }: Props) {
+export default function ParkingGrid({
+  onCellClick,
+  onMoveError,
+  showSold = false,
+  lots,
+  canEditLayout = false,
+  onEditLayout,
+}: Props) {
   const { state, moveParkingVehicle } = useStore();
   const [dragging, setDragging] = useState<ParkingVehicle | null>(null);
   // 주차장이 열 곳이 넘어 다 펼치면 표가 너무 길다 — 본관/외부로 나눠 본다.
@@ -227,7 +241,7 @@ export default function ParkingGrid({ onCellClick, onMoveError, showSold = false
     if (jumpedTo.current === found.id) return;
     jumpedTo.current = found.id;
 
-    const lot = PARKING_LOTS.find(l => l.lot === found.lot);
+    const lot = lots.find(l => l.lot === found.lot);
     if (lot) setGroup(lot.group);
   }, [found]);
 
@@ -387,7 +401,7 @@ export default function ParkingGrid({ onCellClick, onMoveError, showSold = false
           {query.replace(/\s+/g, '').length >= 2 &&
             (found ? (
               <span className="text-xs font-semibold text-indigo-700">
-                {lotLabel(found.lot)} {found.zone} {found.slot}
+                {lotLabel(found.lot, lots)} {found.zone} {found.slot}
                 <span className="ml-1.5 font-normal text-slate-500">{found.vehicleModel}</span>
               </span>
             ) : (
@@ -398,16 +412,16 @@ export default function ParkingGrid({ onCellClick, onMoveError, showSold = false
         {/* 다 접어두고 볼 곳만 펴는 게 휴대폰에서는 빠르다 */}
         <button
           onClick={() => {
-            const allCollapsed = PARKING_LOTS.filter(l => l.group === group).every(l => collapsed[l.lot]);
+            const allCollapsed = lots.filter(l => l.group === group).every(l => collapsed[l.lot]);
             setCollapsed(prev => {
               const next = { ...prev };
-              for (const l of PARKING_LOTS.filter(x => x.group === group)) next[l.lot] = !allCollapsed;
+              for (const l of lots.filter(x => x.group === group)) next[l.lot] = !allCollapsed;
               return next;
             });
           }}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 sm:hidden"
         >
-          {PARKING_LOTS.filter(l => l.group === group).every(l => collapsed[l.lot]) ? '다 펴기' : '다 접기'}
+          {lots.filter(l => l.group === group).every(l => collapsed[l.lot]) ? '다 펴기' : '다 접기'}
         </button>
 
         {/* 묶음 탭 — 어느 주차장에 차가 몇 대 있는지도 같이 보여준다 */}
@@ -422,13 +436,13 @@ export default function ParkingGrid({ onCellClick, onMoveError, showSold = false
             >
               {g}
               <span className="ml-1 text-xs text-slate-400">
-                {state.parkingVehicles.filter(v => (showSold || !v.soldDate) && PARKING_LOTS.some(l => l.group === g && l.lot === v.lot)).length}
+                {state.parkingVehicles.filter(v => (showSold || !v.soldDate) && lots.some(l => l.group === g && l.lot === v.lot)).length}
               </span>
             </button>
           ))}
         </div>
 
-        {PARKING_LOTS.filter(l => l.group === group).map(config => {
+        {lots.filter(l => l.group === group).map(config => {
           const { lot, bandColor, zones } = config;
           const slots = slotsOf(config);
           // 본관은 앞/뒤 두 대씩 겹쳐 대서 묶음 이름을 세로로 합쳐 보여준다.
@@ -448,7 +462,7 @@ export default function ParkingGrid({ onCellClick, onMoveError, showSold = false
               className="flex w-full items-center gap-2 px-3 py-2.5 text-left sm:hidden"
             >
               <ChevronRight size={16} className={`shrink-0 text-slate-800 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
-              <span className="text-sm font-bold text-slate-900">{lotLabel(lot)}</span>
+              <span className="text-sm font-bold text-slate-900">{lotLabel(lot, lots)}</span>
               <span className="ml-auto text-xs font-medium text-slate-700">{parked}대</span>
             </button>
 
@@ -459,7 +473,13 @@ export default function ParkingGrid({ onCellClick, onMoveError, showSold = false
                   <tr className="hidden sm:table-row">
                     <th style={{ backgroundColor: bandColor }} className="w-10 border border-white/40" />
                     <th colSpan={zones.length} style={{ backgroundColor: bandColor }} className="border border-white/40 py-1.5 text-center text-sm font-bold text-slate-900">
-                      {lotLabel(lot)}
+                      {lotLabel(lot, lots)}
+                      {/* 줄·구역·이름을 고치는 자리 — 줄을 긋는 사람에게만 보인다 */}
+                      {canEditLayout && (
+                        <span className="ml-1 align-middle">
+                          <LayoutEditButton onClick={() => onEditLayout?.(config)} />
+                        </span>
+                      )}
                     </th>
                   </tr>
                   <tr className="bg-slate-800 text-white">
