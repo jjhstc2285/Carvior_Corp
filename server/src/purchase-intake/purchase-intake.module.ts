@@ -1317,9 +1317,26 @@ export class CarviorAutoImportService implements OnModuleInit, OnModuleDestroy {
         imported: number;
       };
 
+      /*
+        검차 리포트도 같이 붙인다.
+
+        리포트는 계약이 들어온 뒤에 붙는다 — 등록할 때는 아직 없고, 몇 시간 뒤에
+        생긴다. 그래서 등록만 자동으로 돌려 놓으면 리포트는 영영 빈 칸으로 남고,
+        누군가 [검차 리포트 가져오기]를 눌러 줘야만 들어왔다. 아무도 안 누른다.
+
+        붙일 게 없으면 아무것도 안 한다 — 저쪽이 주소를 안 주는 건은 건드리지 않는다.
+      */
+      const reports = await this.intake.syncReports();
+
       // 새로 들어온 게 없으면 조용히 넘어간다 — 10분마다 로그를 남길 일이 아니다.
-      if (res.imported > 0) {
-        this.logger.log(`카비어에서 ${res.imported}건을 매입 관리에 등록했습니다.`);
+      if (res.imported > 0 || reports.updated > 0) {
+        const what = [
+          res.imported > 0 && `${res.imported}건 등록`,
+          reports.updated > 0 && `검차 리포트 ${reports.updated}건`,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        this.logger.log(`카비어에서 ${what}했습니다.`);
         this.realtime.toAll(REALTIME_EVENT.purchaseIntake, { imported: res.imported });
       }
     } catch (e) {

@@ -189,7 +189,8 @@ export default function PurchaseIntakeModule() {
             차를 사올 때 확인한 내용을 등록합니다. 받은 양식을 그대로 붙여넣으면 칸이 채워지고,
             등록하면 <b>차량 관리</b>에 그 차가 올라갑니다.
             <br />
-            카비어에서 성사된 계약은 <b>10분마다 자동으로 들어옵니다</b> — 지금 바로 받으려면 오른쪽 버튼을 누르세요.
+            카비어에서 성사된 계약과 <b>검차 리포트</b>는 <b>10분마다 자동으로 들어옵니다</b> — 지금 바로 받으려면
+            오른쪽 버튼을 누르세요.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -197,7 +198,7 @@ export default function PurchaseIntakeModule() {
             onClick={() => void syncReports()}
             disabled={reportBusy}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-            title="카비어에 올라온 성능점검 리포트 주소를 차량번호로 맞춰 붙입니다"
+            title="10분마다 저절로 들어옵니다. 지금 바로 받으려면 누르세요 — 카비어에 올라온 성능점검 리포트를 차량번호로 맞춰 붙입니다"
           >
             <FileSearch size={15} />
             <span className="hidden sm:inline">{reportBusy ? '가져오는 중…' : '검차 리포트 가져오기'}</span>
