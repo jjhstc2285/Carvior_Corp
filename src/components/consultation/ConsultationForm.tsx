@@ -60,6 +60,17 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
   /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
   useEscClose(onClose);
   const { state, upsertConsultation } = useStore();
+  /*
+    어느 상담인가 — 등록할 때는 탭이 정하고, 고칠 때는 여기서 바꾼다.
+
+    잘못 고른 걸 되돌릴 데가 없었다. 판매로 적어 둔 알선 건이 '우리가 판 차'로 세어져
+    매도 대수에 들어가는데, 그걸 고치려면 지우고 다시 적는 수밖에 없었다 — 그러면
+    방문 리뷰·리콜처럼 뒤에 붙은 기록이 같이 날아간다.
+
+    종류를 바꾸면 고를 수 있는 유입 경로도 같이 바뀐다. 적어 둔 경로가 새 종류에
+    없으면 그대로 둔다 — 지우면 어디서 왔는지가 사라지고, 그건 종류와 다른 값이다.
+  */
+  const [editKind, setEditKind] = useState<ConsultationKind>(editing?.kind ?? kind);
   const [platform, setPlatform] = useState(editing?.platform ?? '');
   const [vehicleNumber, setVehicleNumber] = useState(editing?.vehicleNumber ?? preset?.vehicleNumber ?? '');
   /*
@@ -167,7 +178,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
     }
     upsertConsultation({
       id: editing?.id,
-      kind: editing?.kind ?? kind,
+      kind: editKind,
       platform: platform.trim(),
       vehicleNumber: plate,
       vehicleName: vehicleName.trim(),
@@ -199,8 +210,34 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="flex max-h-[92vh] w-full max-w-4xl flex-col rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">
-            {CONSULTATION_KIND_LABEL[editing?.kind ?? kind]} 상담 {editing ? '수정' : '등록'}
+          <h3 className="flex flex-wrap items-center gap-2 text-base font-bold text-slate-800">
+            {/*
+              고칠 때만 바꿀 수 있다. 등록은 누른 탭이 정하는 값이라 고를 게 없다 —
+              칸을 띄우면 탭과 다른 걸 골라 놓고 목록에서 못 찾는 일이 생긴다.
+            */}
+            {editing ? (
+              <select
+                value={editKind}
+                onChange={e => setEditKind(e.target.value as ConsultationKind)}
+                title="종류를 바꾸면 이 상담이 그 탭으로 옮겨 갑니다"
+                className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-base font-bold text-slate-800 outline-none focus:border-indigo-400"
+              >
+                {(Object.entries(CONSULTATION_KIND_LABEL) as [ConsultationKind, string][]).map(([k, label]) => (
+                  <option key={k} value={k}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              CONSULTATION_KIND_LABEL[kind]
+            )}
+            상담 {editing ? '수정' : '등록'}
+            {editing && editKind !== editing.kind && (
+              <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                {CONSULTATION_KIND_LABEL[editing.kind]} → {CONSULTATION_KIND_LABEL[editKind]} · 저장하면 그 탭으로 옮겨
+                갑니다
+              </span>
+            )}
           </h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
@@ -223,7 +260,7 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
         <div className="mt-4">
           <label className="mb-1 block text-xs font-semibold text-slate-500">플랫폼</label>
           <div className="mb-1.5 flex flex-wrap gap-1">
-            {CONSULTATION_PLATFORMS_BY_KIND[editing?.kind ?? kind].map(p => (
+            {CONSULTATION_PLATFORMS_BY_KIND[editKind].map(p => (
               <button
                 key={p}
                 type="button"
@@ -304,9 +341,9 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">
-              {kind === 'OTHER' || kind === 'PARTNER' ? '판 딜러 · 상사' : '담당자'}
+              {editKind === 'OTHER' || editKind === 'PARTNER' ? '판 딜러 · 상사' : '담당자'}
             </label>
-            {kind === 'OTHER' || kind === 'PARTNER' ? (
+            {editKind === 'OTHER' || editKind === 'PARTNER' ? (
               <>
                 <input
                   value={outsideDealer}
