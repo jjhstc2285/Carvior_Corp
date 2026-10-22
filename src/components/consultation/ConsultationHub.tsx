@@ -70,7 +70,7 @@ export default function ConsultationHub({ role }: Props) {
       </div>
 
       {/*
-        나간 쪽과 들어온 쪽을 나란히 둔다 — 탭과 상관없이 늘 같은 자리다.
+        나간 쪽과 들어온 쪽을 나란히 둔다 — 탭 바로 아래, 늘 같은 자리다.
 
         왼쪽은 어디로 팔렸나(판매·알선·수출·기타), 오른쪽은 어디서 전화가 왔나
         (엔카·114·소개…). 둘을 같이 봐야 "엔카에서 많이 들어오는데 정작 수출로
@@ -96,7 +96,17 @@ export default function ConsultationHub({ role }: Props) {
 
           <div className="mb-4 flex flex-col items-stretch gap-4 xl:flex-row">
             <SoldMixChart range={range} />
-            <PlatformMixChart range={range} />
+            {/*
+              유입 경로는 종류를 가려서 본다 — 탭을 누르면 같이 바뀐다.
+
+              판매는 엔카·차차차로, 타사는 카모두 같은 딜러끼리 쓰는 데서, 수출은 기존
+              거래처에서 온다. 한 덩어리로 세면 건수가 제일 많은 판매가 전부를 덮어서
+              작은 쪽이 어느 길로 들어오는지 아예 안 보인다.
+
+              왼쪽은 그대로 전체다. '어디로 팔렸나'는 종류별로 나누는 그래프 자체라
+              또 가리면 막대가 하나만 남는다.
+            */}
+            <PlatformMixChart range={range} kind={tab} />
           </div>
         </>
       )}

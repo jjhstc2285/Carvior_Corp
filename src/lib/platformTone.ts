@@ -92,3 +92,20 @@ export function platformTone(name: string): PlatformTone {
   for (const ch of key) sum += ch.charCodeAt(0);
   return SPARE[sum % SPARE.length];
 }
+
+/**
+ * 같은 데를 가리키는 다른 이름을 하나로 모은다.
+ *
+ * '인스타'로 쌓인 건이 있는데 고르는 칸의 이름을 '인스타·SNS'로 바꿨다. 그대로 두면
+ * 한 데가 그래프에 두 줄로 서서, 둘 다 적게 보이고 합이 얼마인지도 안 보인다.
+ *
+ * 쌓인 값은 안 건드린다 — 세고 그릴 때만 같은 것으로 본다. 고쳐 쓰면 지난 건이
+ * 언제 무엇으로 들어왔는지가 사라진다.
+ */
+const CANON: [string, string][] = [['인스타', '인스타·SNS']];
+
+export function canonPlatform(name: string): string {
+  const key = (name ?? '').trim();
+  for (const [part, to] of CANON) if (key.includes(part)) return to;
+  return key;
+}
