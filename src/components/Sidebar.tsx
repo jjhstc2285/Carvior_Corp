@@ -348,7 +348,15 @@ export default function Sidebar({
   return (
     <>
       {/* 데스크탑: 고정 사이드바 */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
+      {/*
+        화면에 붙여 둔다.
+
+        본문과 같이 흘러 내려가고 있었다. 주차 배치도처럼 줄이 긴 화면에서는 아래로
+        내려갈수록 메뉴가 위로 사라져서, 다른 화면으로 가려면 꼭대기까지 되올라가야 했다.
+
+        메뉴 자체가 길어지면(열일곱 갈래를 다 펴면) 그 안에서 구른다 — 바깥이 아니라.
+      */}
+      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
         {content}
       </aside>
 
