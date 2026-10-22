@@ -1,8 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { CONSULTATION_KIND_COLOR, CONSULTATION_KIND_LABEL, type ConsultationKind } from '../../types';
+import {
+  CONSULTATION_KIND_COLOR,
+  CONSULTATION_KIND_LABEL,
+  type ConsultationKind,
+} from '../../types';
 import { useStore } from '../../store';
 import { effectiveKind } from '../../lib/consultationStats';
+import ChartDrillPanel from './ChartDrillPanel';
 import type { Range } from './ChartRange';
 
 /**
@@ -10,6 +15,9 @@ import type { Range } from './ChartRange';
  *
  * 넷 중 어느 쪽으로 나갔는지 비율을 본다. 건수만 센다 — 금액은 정산에서 보고,
  * 두 가지를 한 그래프에 섞으면 둘 다 안 읽힌다.
+ *
+ * 줄을 누르면 그 차들이 뜬다. "판매로 41대"까지만 보이면 그게 어느 차인지 확인할
+ * 데가 없어서, 숫자가 이상해 보일 때 그래프를 통째로 안 믿게 된다.
  */
 
 const ORDER: ConsultationKind[] = ['SALE', 'PARTNER', 'BROKERAGE', 'EXPORT', 'OTHER'];
@@ -23,7 +31,10 @@ const C = 2 * Math.PI * R;
 export default function SoldMixChart({ range }: { range: Range }) {
   const { state } = useStore();
 
-  const { rows, total } = useMemo(() => {
+  /** 눌러서 펼쳐 본 조각 — 그 종류의 판매완료 건을 목록으로 띄운다 */
+  const [drill, setDrill] = useState<ConsultationKind | 'ALL' | null>(null);
+
+  const { rows, total, sold } = useMemo(() => {
     const sold = state.consultations.filter(
       c => c.status === 'SOLD' && (c.date ?? '') >= range.from && (c.date ?? '') <= range.to,
     );
@@ -37,6 +48,8 @@ export default function SoldMixChart({ range }: { range: Range }) {
     return {
       rows: ORDER.map(kind => ({ kind, count: sold.filter(c => effectiveKind(c) === kind).length })),
       total: sold.length,
+      // 목록에 그대로 넘긴다 — 여기서 거른 줄과 목록이 어긋나면 어느 쪽이 맞는지 알 수 없다
+      sold,
     };
   }, [state.consultations, range.from, range.to]);
 
@@ -89,18 +102,30 @@ export default function SoldMixChart({ range }: { range: Range }) {
               </circle>
             ))}
           </svg>
-          {/* 가운데는 전체 건수 — 비율만 보면 모수가 몇인지 몰라 크기를 못 가늠한다 */}
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          {/* 가운데는 전체 건수 — 비율만 보면 모수가 몇인지 몰라 크기를 못 가늠한다. 누르면 전부 뜬다 */}
+          <button
+            type="button"
+            onClick={() => setDrill('ALL')}
+            title={`판매완료 ${total}건 전부 보기`}
+            className="absolute inset-0 flex flex-col items-center justify-center rounded-full"
+          >
             <span className="text-xl font-bold text-slate-800">{total}</span>
             <span className="text-[11px] text-slate-400">건</span>
-          </div>
+          </button>
         </div>
 
         <div className="min-w-0 flex-1 space-y-1.5">
           {rows.map(({ kind, count }) => {
             const pct = Math.round((count / total) * 100);
             return (
-              <div key={kind} className="flex items-center gap-2">
+              /* 누르면 그 차들이 뜬다. 0건인 줄은 띄울 게 없어서 안 눌린다 */
+              <button
+                key={kind}
+                type="button"
+                disabled={count === 0}
+                onClick={() => setDrill(kind)}
+                title={count > 0 ? `${CONSULTATION_KIND_LABEL[kind]}로 판매완료된 ${count}건 보기` : undefined}
+                className="flex w-full items-center gap-2 rounded-lg px-1 py-0.5 text-left transition-colors enabled:hover:bg-slate-50 disabled:cursor-default">
                 <i className={`size-2.5 shrink-0 rounded-sm ${CONSULTATION_KIND_COLOR[kind].bar}`} />
                 <span className="w-10 shrink-0 text-xs text-slate-600">{CONSULTATION_KIND_LABEL[kind]}</span>
                 {/* 도넛만으로는 작은 조각끼리 견주기 어렵다 — 막대를 같이 둔다 */}
@@ -111,7 +136,7 @@ export default function SoldMixChart({ range }: { range: Range }) {
                   <b className="text-slate-800">{count}</b>
                   <span className="ml-1 text-slate-400">{pct}%</span>
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -119,8 +144,18 @@ export default function SoldMixChart({ range }: { range: Range }) {
 
       {top && top.count > 0 && (
         <p className="mt-auto border-t border-slate-100 pt-2 text-[11px] text-slate-400">
-          {CONSULTATION_KIND_LABEL[top.kind]}가 {Math.round((top.count / total) * 100)}%로 가장 많습니다.
+          {CONSULTATION_KIND_LABEL[top.kind]}가 {Math.round((top.count / total) * 100)}%로 가장 많습니다. 줄을 누르면 그
+          차들이 뜹니다.
         </p>
+      )}
+
+      {drill && (
+        <ChartDrillPanel
+          title={drill === 'ALL' ? '판매완료 — 전체' : `판매완료 — ${CONSULTATION_KIND_LABEL[drill]}`}
+          hint={`${dayjs(range.from).format('YY.MM.DD')} ~ ${dayjs(range.to).format('YY.MM.DD')} · 상담일 기준`}
+          rows={drill === 'ALL' ? sold : sold.filter(c => effectiveKind(c) === drill)}
+          onClose={() => setDrill(null)}
+        />
       )}
     </section>
   );

@@ -6,6 +6,7 @@ import { effectiveKind, isContracted } from '../../lib/consultationStats';
 import { BLANK_TONE, canonPlatform, platformTone } from '../../lib/platformTone';
 import { CONSULTATION_KIND_LABEL, CONSULTATION_PLATFORMS_BY_KIND, type ConsultationKind } from '../../types';
 import PlatformFixPanel, { isUnsorted } from './PlatformFixPanel';
+import ChartDrillPanel from './ChartDrillPanel';
 import type { Range } from './ChartRange';
 
 /**
@@ -47,9 +48,11 @@ export default function PlatformMixChart({ range, kind }: { range: Range; kind: 
   */
   const [whole, setWhole] = useState(false);
   const [fixing, setFixing] = useState(false);
+  /** 눌러서 펼쳐 본 줄 — 그 경로로 들어온 건을 목록으로 띄운다 */
+  const [drill, setDrill] = useState<string | null>(null);
   const scope: ConsultationKind | null = whole ? null : kind;
 
-  const { rows, total, unsorted } = useMemo(() => {
+  const { rows, total, unsorted, counting } = useMemo(() => {
     /*
       들어온 상담을 다 센다.
 
@@ -91,6 +94,8 @@ export default function PlatformMixChart({ range, kind }: { range: Range; kind: 
     return {
       rows: made,
       total: rows.length,
+      // 목록에 그대로 넘긴다 — 여기서 거른 줄과 목록이 어긋나면 어느 쪽이 맞는지 알 수 없다
+      counting: rows,
       // 아직 안 나눈 건 — 빈칸과 '기타'를 합친다. 둘 다 '어디서 왔는지 모름'이다
       unsorted: rows.filter(c => isUnsorted(c.platform)).length,
     };
@@ -199,7 +204,17 @@ export default function PlatformMixChart({ range, kind }: { range: Range; kind: 
             /* 0건인 줄은 '그 길로는 안 들어온다'는 뜻이라 흐리게 둔다 — 없애면 그 사실이 안 보인다 */
             const empty = r.count === 0;
             return (
-              <div key={r.name} className={`flex items-center gap-2 ${empty ? 'opacity-40' : ''}`}>
+              /* 누르면 그 경로로 들어온 건이 뜬다. 0건인 줄은 띄울 게 없어서 안 눌린다 */
+              <button
+                key={r.name}
+                type="button"
+                disabled={empty}
+                onClick={() => setDrill(r.name)}
+                title={empty ? undefined : `${r.name} 로 들어온 ${r.count}건 보기`}
+                className={`flex w-full items-center gap-2 rounded-lg px-1 py-0.5 text-left transition-colors enabled:hover:bg-slate-50 disabled:cursor-default ${
+                  empty ? 'opacity-40' : ''
+                }`}
+              >
                 <i className={`size-2.5 shrink-0 rounded-sm ${tone.bar}`} />
                 <span className="w-14 shrink-0 truncate text-xs text-slate-600" title={r.name}>
                   {r.name}
@@ -223,7 +238,7 @@ export default function PlatformMixChart({ range, kind }: { range: Range; kind: 
                 >
                   계약 <b className="font-bold text-slate-600">{r.sold}</b>
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -254,6 +269,21 @@ export default function PlatformMixChart({ range, kind }: { range: Range; kind: 
       </div>
 
       {fixing && <PlatformFixPanel from={range.from} to={range.to} kind={scope} onClose={() => setFixing(false)} />}
+
+      {/*
+        그 경로로 들어온 건을 띄운다. '안 적음'은 빈칸이라 경로 이름으로 못 찾는다 —
+        비었는지로 가른다.
+      */}
+      {drill && (
+        <ChartDrillPanel
+          title={`유입 경로 — ${drill}${scope ? ` · ${CONSULTATION_KIND_LABEL[scope]} 상담` : ''}`}
+          hint={`${dayjs(range.from).format('YY.MM.DD')} ~ ${dayjs(range.to).format('YY.MM.DD')} · 상담일 기준 · 상태를 안 가립니다`}
+          rows={counting.filter(c =>
+            drill === BLANK ? !canonPlatform(c.platform) : canonPlatform(c.platform) === drill,
+          )}
+          onClose={() => setDrill(null)}
+        />
+      )}
     </section>
   );
 }
