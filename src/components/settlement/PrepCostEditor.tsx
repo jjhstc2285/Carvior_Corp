@@ -89,7 +89,6 @@ export default function PrepCostEditor({ rows, onChange, vendors, contacts, chec
       wheelCount: check.wheelCount,
       vendor,
       imported: check.imported,
-      bulk: false,
     }).dent;
     const total = panel + dent;
     patchRow(index, total > 0 ? { vendor, amount: String(total) } : { vendor });

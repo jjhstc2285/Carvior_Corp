@@ -103,8 +103,6 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
   const [fuelLevel, setFuelLevel] = useState(editing?.fuelLevel ?? '');
   const [prepVendor, setPrepVendor] = useState(editing?.prepVendor ?? '');
   const [imported, setImported] = useState(editing?.imported ?? false);
-  /** 대산이 그 달 100대를 채웠는가 — 채우면 단가가 내려간다. 그 달 사정이라 저장하지 않는다 */
-  const [bulk, setBulk] = useState(false);
 
   const counts = {
     panelCount: Number(digitsOnly(panelCount)) || 0,
@@ -113,7 +111,6 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
     wheelCount: Number(digitsOnly(wheelCount)) || 0,
     vendor: prepVendor,
     imported,
-    bulk,
   };
   const cost = estimateCost(counts);
 
@@ -588,18 +585,6 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
               />
               수입차
             </label>
-            {/* 그 달 사정이라 저장하지 않는다 — 볼 때마다 고른다 */}
-            {prepVendor === '대산' && (
-              <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={bulk}
-                  onChange={e => setBulk(e.target.checked)}
-                  className="size-4 accent-indigo-600"
-                />
-                대산 100대 채움
-              </label>
-            )}
 
             {cost.total > 0 && (
               <span className="ml-auto text-xs text-slate-600">
@@ -615,8 +600,8 @@ export default function PurchaseIntakeForm({ editing, onSave, onClose }: Props) 
 
           {prepVendor && (
             <p className="mt-1.5 text-[11px] text-slate-400">
-              판 한 곳 {panelUnit(counts).toLocaleString()}원 ({prepVendor} · {imported ? '수입' : '국산'}
-              {bulk ? ' · 100대' : ''}) · 덴트 작은 것 {DENT_PRICE.small.toLocaleString()}원 · 큰 것{' '}
+              판 한 곳 {panelUnit(counts).toLocaleString()}원 ({prepVendor} · {imported ? '수입' : '국산'}) ·
+              덴트 작은 것 {DENT_PRICE.small.toLocaleString()}원 · 큰 것{' '}
               {DENT_PRICE.large.toLocaleString()}원 — 실제로 나간 돈은 매입 정산의 상품화 비용에 적습니다.
             </p>
           )}

@@ -76,7 +76,6 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
     wheelCount: draft.wheelCount,
     vendor: draft.prepVendor,
     imported: draft.imported,
-    bulk: false,
   };
   const cost = estimateCost(counts);
 

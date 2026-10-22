@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { Car, CloudDownload, Download, FileSearch, Plus, Trash2 } from 'lucide-react';
 import { BROKER_FEE_TYPE_LABEL, type PurchaseIntake } from '../../types';
-import { CHECK_ITEMS, DAESAN_BULK_GOAL } from '../../lib/inspectionCheck';
+import { CHECK_ITEMS } from '../../lib/inspectionCheck';
 import IntakeCheckBar from './IntakeCheckBar';
 import PurchaseIntakeForm from './PurchaseIntakeForm';
 import CarviorImportModal from './CarviorImportModal';
@@ -116,13 +116,6 @@ export default function PurchaseIntakeModule() {
   /** 들어온 차 중 그새 나간 차 — 매입 대수에서 재고를 가려 보는 숫자다 */
   const goneCount = items.filter(r => !!r.soldOn).length;
 
-  /*
-    대산에 이번 달 몇 대를 맡겼는가.
-
-    백 대를 채워야 제휴 단가를 받는다. 한 대에 판을 두 곳 했어도 그건 한 대다 —
-    곳수로 세면 실제보다 빨리 채운 것처럼 보이고, 그 숫자를 믿고 있다가 못 받는다.
-  */
-  const daesanCars = items.filter(r => (r.prepVendor ?? '') === '대산' && (r.panelCount ?? 0) > 0).length;
 
   /*
     검차 리포트 주소를 카비어에서 받아 붙인다.
@@ -349,34 +342,6 @@ export default function PurchaseIntakeModule() {
         </div>
       </div>
 
-      {/* 대산 제휴 단가는 달마다 새로 센다 — 달이 바뀌면 처음부터다 */}
-      {period === 'month' && (
-        <div
-          className={`mb-4 flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 ${
-            daesanCars >= DAESAN_BULK_GOAL ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/40'
-          }`}
-        >
-          <span className="text-xs font-bold text-slate-600">대산 판금 {dayjs(month).format('M월')}</span>
-          <span className="text-lg font-bold text-slate-800">
-            {daesanCars}
-            <span className="ml-0.5 text-xs font-medium text-slate-400">/ {DAESAN_BULK_GOAL}대</span>
-          </span>
-          <div className="h-2 w-40 overflow-hidden rounded-full bg-white">
-            <div
-              className={`h-full rounded-full ${daesanCars >= DAESAN_BULK_GOAL ? 'bg-emerald-500' : 'bg-amber-400'}`}
-              style={{ width: `${Math.min(100, (daesanCars / DAESAN_BULK_GOAL) * 100)}%` }}
-            />
-          </div>
-          <span className={`text-xs font-semibold ${daesanCars >= DAESAN_BULK_GOAL ? 'text-emerald-700' : 'text-amber-700'}`}>
-            {daesanCars >= DAESAN_BULK_GOAL
-              ? '채웠습니다 — 제휴 단가가 걸립니다'
-              : `${DAESAN_BULK_GOAL - daesanCars}대 남았습니다`}
-          </span>
-          <span className="ml-auto text-[11px] text-slate-400">
-            채우면 국산 7만 · 수입 12만 — 한 대에 판을 몇 곳 했든 <b>한 대</b>로 셉니다
-          </span>
-        </div>
-      )}
 
       <p className="mb-4 hidden text-[11px] leading-relaxed text-slate-400 sm:block">
         중고차는 매입할 때 낸 세금을 의제매입세액으로 공제받는데, 그 차를 팔아 매출이 잡혀야

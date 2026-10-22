@@ -28,14 +28,7 @@ export const CHECK_ITEMS: CheckItem[] = [
   { key: 'seat', label: '전동시트' },
 ];
 
-/**
- * 대산 제휴 단가가 걸리는 달 대수.
- *
- * 한 달에 이만큼 맡기면 단가가 내려간다. **차 한 대가 한 건이다** — 한 대에 판을 두 곳
- * 했어도 두 건이 아니다. 곳수로 세면 실제보다 빨리 채운 것처럼 보이고, 그 숫자를 믿고
- * 있다가 제휴를 못 받는다. 달마다 새로 센다.
- */
-export const DAESAN_BULK_GOAL = 100; // 대
+/* 대산 제휴 단가(달 100대를 채우면 깎아 주던 것)는 없어졌다 — 세는 자리를 통째로 뺐다 */
 
 /** 판금 업체 — 단가가 갈린다 */
 export const PREP_VENDORS = ['대산', 'KS'] as const;
@@ -44,12 +37,15 @@ export type PrepVendor = (typeof PREP_VENDORS)[number];
 /**
  * 판금 한 곳 값(원).
  *
- * 수입차가 국산보다 비싸고, 업체마다 다르다. 대산은 그 달 100대(차 대수)를 채우면 국산이 내려간다.
- * 숫자가 바뀌면 여기만 고친다 — 화면 여러 곳에 흩어 두면 한 군데는 꼭 안 고쳐진다.
+ * 수입차가 국산보다 비싸고, 업체마다 다르다. 숫자가 바뀌면 여기만 고친다 —
+ * 화면 여러 곳에 흩어 두면 한 군데는 꼭 안 고쳐진다.
+ *
+ * 대산에 달 100대를 채우면 깎아 주던 제휴 단가가 있었는데 이제 안 해 준다.
+ * 채웠는지 세는 자리도 같이 뺐다 — 안 쓰는 숫자가 화면에 남아 있으면 그걸 보고
+ * 비용을 잘못 가늠한다.
  */
-export const PANEL_PRICE: Record<PrepVendor, { domestic: number; imported: number; bulkDomestic?: number; bulkImported?: number }> = {
-  // 100대를 채우면 국산 7만, 수입 12만
-  대산: { domestic: 80_000, imported: 130_000, bulkDomestic: 70_000, bulkImported: 120_000 },
+export const PANEL_PRICE: Record<PrepVendor, { domestic: number; imported: number }> = {
+  대산: { domestic: 80_000, imported: 130_000 },
   KS: { domestic: 90_000, imported: 120_000 },
 };
 
@@ -80,16 +76,13 @@ export interface CheckCounts {
   dentLargeCount: number;
   vendor: string;
   imported: boolean;
-  /** 대산이 그 달 100대를 채웠는가 — 채우면 단가가 내려간다 */
-  bulk: boolean;
 }
 
 /** 판금 한 곳에 얼마인지 */
-export function panelUnit(c: Pick<CheckCounts, 'vendor' | 'imported' | 'bulk'>): number {
+export function panelUnit(c: Pick<CheckCounts, 'vendor' | 'imported'>): number {
   const table = PANEL_PRICE[c.vendor as PrepVendor];
   if (!table) return 0;
-  if (c.imported) return (c.bulk && table.bulkImported) || table.imported;
-  return (c.bulk && table.bulkDomestic) || table.domestic;
+  return c.imported ? table.imported : table.domestic;
 }
 
 /**
@@ -137,13 +130,13 @@ export function vendorOfName(name: string): PrepVendor | null {
  * 업체를 알아보면 그 집 단가로, 못 알아보면 두 집 평균으로 낸다 — 정산에 적을 때는
  * 대개 어디 맡길지 이미 정해져 있지만, 아직 안 정했어도 얼추 잡히는 편이 낫다.
  */
-export function panelCost(name: string, panelCount: number, imported: boolean, bulk = false): number {
+export function panelCost(name: string, panelCount: number, imported: boolean): number {
   const vendor = vendorOfName(name);
   if (panelCount <= 0) return 0;
 
-  if (vendor) return panelUnit({ vendor, imported, bulk }) * panelCount;
+  if (vendor) return panelUnit({ vendor, imported }) * panelCount;
 
-  const units = PREP_VENDORS.map(v => panelUnit({ vendor: v, imported, bulk }));
+  const units = PREP_VENDORS.map(v => panelUnit({ vendor: v, imported }));
   const average = Math.round(units.reduce((sum, u) => sum + u, 0) / units.length);
   return average * panelCount;
 }

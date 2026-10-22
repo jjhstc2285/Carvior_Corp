@@ -160,7 +160,6 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
       wheelCount: check.wheelCount ?? 0,
       vendor: check.prepVendor ?? '',
       imported: check.imported ?? false,
-      bulk: false,
     });
     if (cost.total <= 0) return;
 
