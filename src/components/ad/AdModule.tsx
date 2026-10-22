@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useStore } from '../../store';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
@@ -31,6 +31,18 @@ export default function AdModule({ role }: { role: Role }) {
   useEscClose(() => setAddingTo(null), addingTo !== null);
   const [plates, setPlates] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  /* 기간이 끝난 계약을 펼쳐 볼지 — 기본은 접어 둔다 */
+  const [showEnded, setShowEnded] = useState(false);
+
+  /*
+    기간이 지난 계약과 지금 쓰는 계약을 가른다.
+
+    마감일로 가린다 — '진행중' 스위치는 사람이 끄는 값이라, 계약이 끝나도 아무도
+    안 끄면 그대로 남는다. 날짜는 저절로 지나간다.
+  */
+  const today = dayjs().format('YYYY-MM-DD');
+  const ended = rows.filter(c => c.endOn < today);
+  const shown = showEnded ? rows : rows.filter(c => c.endOn >= today);
 
   /*
     계약을 치는 건 광고팀이다.
@@ -376,8 +388,28 @@ export default function AdModule({ role }: { role: Role }) {
         </p>
       )}
 
+      {/*
+        끝난 계약은 접어 둔다.
+
+        기간이 지난 계약이 '진행중'으로 남아 있으면 지금 쓰는 계약과 나란히 뜬다 —
+        엔카 22만원 상품이 7~9월 것과 10~12월 것으로 둘이 떠서, 어느 쪽에 찍어야
+        하는지 헷갈렸다.
+
+        지우지 않는다. 그 분기에 몇 대를 찍었고 얼마가 나갔는지는 남아야 하는 기록이라,
+        눌러서 볼 수 있게만 둔다.
+      */}
+      {ended.length > 0 && (
+        <button
+          onClick={() => setShowEnded(v => !v)}
+          className="mb-3 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50"
+        >
+          <ChevronDown size={14} className={`transition-transform ${showEnded ? 'rotate-180' : ''}`} />
+          기간이 끝난 계약 {ended.length}건 {showEnded ? '접기' : '보기'}
+        </button>
+      )}
+
       <div className="space-y-3">
-        {rows.map(c => {
+        {shown.map(c => {
           const cur = c.current;
           const hasQuota = !!cur && cur.quota > 0;
           const pct = hasQuota ? Math.min(100, Math.round((cur.count / cur.quota) * 100)) : 0;
