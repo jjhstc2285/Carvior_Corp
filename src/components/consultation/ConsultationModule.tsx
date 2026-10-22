@@ -519,7 +519,7 @@ export default function ConsultationModule({ role, kind }: Props) {
                       </button>
                     ),
                     owner:
-                      c.kind === 'OTHER' && c.outsideDealer ? (
+                      (c.kind === 'OTHER' || c.kind === 'PARTNER') && c.outsideDealer ? (
                         <span className="text-slate-500" title="우리 물건을 판 남의 딜러·상사">
                           {c.outsideDealer}
                         </span>

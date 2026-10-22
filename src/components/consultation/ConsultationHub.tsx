@@ -22,6 +22,8 @@ interface Props {
  */
 const TABS: { key: ConsultationKind; label: string }[] = [
   { key: 'SALE', label: '판매 상담' },
+  // 다른 상사 차를 손님에게 붙이는 건 — 들어오는 길이 딜러 플랫폼이라 따로 센다
+  { key: 'PARTNER', label: '타사 상담' },
   { key: 'BROKERAGE', label: '알선 상담' },
   { key: 'EXPORT', label: '수출 상담' },
   { key: 'OTHER', label: '기타' },

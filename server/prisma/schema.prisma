@@ -537,10 +537,11 @@ model AttendanceDevice {
  *  - OTHER     남의 딜러가 우리 상사 물건을 판다 — 담당자가 우리 직원이 아니다
  */
 enum ConsultationKind {
-  SALE // 판매
+  SALE // 판매 — 우리 상사 차를 우리가 판다
+  PARTNER // 타사 — 다른 상사 차를 손님에게 붙인다. 유입 경로도 딜러 플랫폼이라 따로 센다
   BROKERAGE // 알선
   EXPORT // 수출
-  OTHER // 기타
+  OTHER // 기타 — 전화문의·방문처럼 차를 안 짚고 들어오는 건
 }
 
 enum ConsultationStatus {

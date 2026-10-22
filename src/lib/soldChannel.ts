@@ -75,8 +75,8 @@ export function soldChannelLookup(
         ? 'EXPORT'
         : kind === 'BROKERAGE'
           ? 'BROKERAGE'
-          : // 기타는 파는 사람이 우리 직원이 아니다 — 담당자 자리에 남의 딜러·상사 이름이 들어간다
-            kind === 'OTHER'
+          : // 기타·타사는 우리 차가 아니다 — 남의 딜러·상사가 파는 건이다
+            kind === 'OTHER' || kind === 'PARTNER'
             ? 'OUTSIDE'
             : 'OWN',
     );

@@ -919,38 +919,44 @@ export const CONSULTATION_STATUS_LABEL: Record<ConsultationStatus, string> = {
  * 상담 유입 경로 — 버튼으로 눌러 채운다.
  * 목록에 없는 곳도 있어서 칸은 자유 입력으로 열어둔다.
  */
-export const CONSULTATION_PLATFORMS = ['엔카', '차차차', '오토벨', '114', '자사몰', '인스타', '기타'] as const;
+export const CONSULTATION_PLATFORMS = ['엔카', '차차차', '오토벨', '114', '자사몰', '인스타·SNS', '기타'] as const;
 
 /**
  * 상담 종류. 알선과 수출은 받는 창구도 손님도 다르지만 적는 내용과 흐름
  * (상담 → 계약 → 종결 → 판매완료)이 같아서, 한 곳에 쌓고 구분만 나눈다.
  */
 /**
- * 상담 넷 — 누구 물건을 누가 파느냐로 갈린다.
+ * 상담 다섯 — 누구 물건을 누가 파느냐로 갈린다.
  *
  * 돈이 어디로 가는지가 거기서 정해진다. 기타는 파는 사람이 우리 직원이 아니라
  * 담당자 자리에 남의 딜러·상사 이름이 들어간다.
+ *
+ * 타사는 다른 상사 차를 손님에게 붙이는 건이다. 들어오는 길이 카모두·카매니저 같은
+ * 딜러 플랫폼이라, 자사 상담과 섞어 세면 어느 쪽이 얼마나 들어오는지 알 수 없다.
  */
-export type ConsultationKind = 'SALE' | 'BROKERAGE' | 'EXPORT' | 'OTHER';
+export type ConsultationKind = 'SALE' | 'PARTNER' | 'BROKERAGE' | 'EXPORT' | 'OTHER';
 
 export const CONSULTATION_KIND_LABEL: Record<ConsultationKind, string> = {
   SALE: '판매',
+  PARTNER: '타사',
   BROKERAGE: '알선',
   EXPORT: '수출',
   OTHER: '기타',
 };
 
-/** 무엇을 뜻하는지 — 처음 보는 사람이 넷을 못 가른다 */
+/** 무엇을 뜻하는지 — 처음 보는 사람이 다섯을 못 가른다 */
 export const CONSULTATION_KIND_HINT: Record<ConsultationKind, string> = {
   SALE: '우리 담당자가 우리 상사 물건을 팝니다',
+  PARTNER: '다른 상사 물건을 손님에게 붙입니다 — 카모두·카매니저로 많이 들어옵니다',
   BROKERAGE: '우리 담당자가 타 상사 물건을 팝니다',
   EXPORT: '수출한 물건입니다',
-  OTHER: '타 딜러가 우리 상사 물건을 팝니다 — 담당자에 그 딜러·상사 이름을 적습니다',
+  OTHER: '전화문의·방문처럼 차를 안 짚고 들어온 건입니다',
 };
 
 /** 그래프·배지에서 쓰는 색 */
 export const CONSULTATION_KIND_COLOR: Record<ConsultationKind, { bar: string; chip: string; hex: string }> = {
   SALE: { bar: 'bg-indigo-500', chip: 'bg-indigo-50 text-indigo-700', hex: '#6366f1' },
+  PARTNER: { bar: 'bg-violet-500', chip: 'bg-violet-50 text-violet-700', hex: '#8b5cf6' },
   BROKERAGE: { bar: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700', hex: '#10b981' },
   EXPORT: { bar: 'bg-sky-500', chip: 'bg-sky-50 text-sky-700', hex: '#0ea5e9' },
   OTHER: { bar: 'bg-amber-500', chip: 'bg-amber-50 text-amber-800', hex: '#f59e0b' },
@@ -958,11 +964,12 @@ export const CONSULTATION_KIND_COLOR: Record<ConsultationKind, { bar: string; ch
 
 /** 유입 경로 빠른 선택 — 수출은 들어오는 곳이 다르다. 어느 쪽이든 직접 입력도 된다. */
 export const CONSULTATION_PLATFORMS_BY_KIND: Record<ConsultationKind, readonly string[]> = {
-  // 우리 물건을 파는 쪽(판매·기타)은 손님이 들어오는 곳이 알선과 같다
   SALE: CONSULTATION_PLATFORMS,
-  BROKERAGE: CONSULTATION_PLATFORMS,
-  EXPORT: ['카비어', '딜러', '직거래', '기타'],
-  OTHER: ['딜러 소개', '카비어', '직거래', '기타'],
+  // 타사 차를 붙이는 건은 딜러끼리 쓰는 데서 들어온다
+  PARTNER: ['카모두', '카매니저', '엔카', '차차차', '전화', '기타'],
+  BROKERAGE: ['엔카', '차차차', '자사몰', '지인소개', '기타'],
+  EXPORT: ['엔카', '차차차', '기존거래처', '카비어', '기타'],
+  OTHER: ['전화문의', '방문', '기타'],
 };
 
 /**

@@ -12,7 +12,7 @@ import type { Range } from './ChartRange';
  * 두 가지를 한 그래프에 섞으면 둘 다 안 읽힌다.
  */
 
-const ORDER: ConsultationKind[] = ['SALE', 'BROKERAGE', 'EXPORT', 'OTHER'];
+const ORDER: ConsultationKind[] = ['SALE', 'PARTNER', 'BROKERAGE', 'EXPORT', 'OTHER'];
 
 /* 보는 기간은 바깥에서 내려준다 — 옆 그래프와 같은 자를 써야 견줄 수 있다 */
 
