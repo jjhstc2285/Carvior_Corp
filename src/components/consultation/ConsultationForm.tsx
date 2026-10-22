@@ -341,9 +341,17 @@ export default function ConsultationForm({ kind, editing, defaultEmployeeId, pre
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">
-              {editKind === 'OTHER' || editKind === 'PARTNER' ? '판 딜러 · 상사' : '담당자'}
+              {/*
+                남의 딜러가 판 건은 담당자 자리에 그 사람 이름이 들어간다 — 우리 직원이
+                아니라서 목록에서 못 고른다.
+
+                기타는 이제 그 자리가 아니다. 쌓여 있던 남의 상사 건은 타사로 옮겼고,
+                앞으로 기타에 들어오는 건 전화문의·방문처럼 차를 안 짚고 들어온 건이다 —
+                그건 우리 직원이 받은 전화라 담당자를 적어야 한다.
+              */}
+              {editKind === 'PARTNER' ? '판 딜러 · 상사' : '담당자'}
             </label>
-            {editKind === 'OTHER' || editKind === 'PARTNER' ? (
+            {editKind === 'PARTNER' ? (
               <>
                 <input
                   value={outsideDealer}
