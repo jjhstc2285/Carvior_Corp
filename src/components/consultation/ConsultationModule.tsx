@@ -418,16 +418,31 @@ export default function ConsultationModule({ role, kind }: Props) {
           <option value="ON_HOLD">보류</option>
           <option value="all">종결까지 전체</option>
         </select>
-        {/* 종결은 기본으로 뺀다 — 지난 건이 천 단위라 다 그리면 화면이 느려진다 */}
+        {/*
+          종결은 기본으로 뺀다 — 지난 건이 천 단위라 다 그리면 화면이 느려진다.
+
+          그런데 탭마다 종결 비율이 딴판이다. 판매 상담은 천이백 건 중 천백 건이 종결이라
+          기본 보기에 백 건만 뜨고, 타사는 마흔세 건 중 하나만 종결이라 거의 다 뜬다.
+          그래서 "판매 상담은 안 보이는데 타사는 보인다"로 읽힌다 — 가린 게 아니라
+          숨겨 둔 것이라고 단추에 적어 둔다.
+        */}
         <button
           onClick={() => setStatusFilter(statusFilter === 'CLOSED' ? 'open' : 'CLOSED')}
+          title={
+            statusFilter === 'CLOSED'
+              ? '종결한 건만 보고 있습니다 — 눌러서 진행 중으로 돌아갑니다'
+              : '종결한 건은 기본으로 안 보입니다 — 눌러서 펼칩니다'
+          }
           className={`rounded-lg border px-2.5 py-1.5 text-sm font-medium ${
             statusFilter === 'CLOSED'
               ? 'border-slate-700 bg-slate-700 text-white'
-              : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+              : closedCount > 0
+                ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
           }`}
         >
           종결함 {closedCount.toLocaleString()}
+          {statusFilter === 'open' && closedCount > 0 && <span className="ml-1 font-normal">숨김</span>}
         </button>
         {/* 제목줄을 끌어 옮긴 차례를 되돌린다 — 리스트에서만 뜻이 있다 */}
         {view === 'list' && <ColumnResetButton onReset={cols.reset} />}
