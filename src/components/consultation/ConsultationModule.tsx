@@ -60,6 +60,13 @@ const COLUMNS: Column[] = [
   { key: 'platform', label: '플랫폼' },
   { key: 'vehicleNumber', label: '차량번호' },
   { key: 'vehicleName', label: '차명', nowrap: false },
+  /*
+    차량판매가 — 차가 얼마에 나갔나.
+
+    수정 창을 열어야만 보이던 값이다. 그런데 이 값은 네 곳(상담·제시 금융·알선 정산·
+    매입 정산)이 같이 쓰는 숫자라, 훑어보다 틀린 걸 찾는 자리가 여기여야 한다.
+  */
+  { key: 'salePrice', label: '차량판매가', align: 'text-right' },
   { key: 'offerDate', label: '매입날짜' },
   { key: 'customer', label: '손님번호' },
   { key: 'owner', label: '담당자' },
@@ -498,7 +505,27 @@ export default function ConsultationModule({ role, kind }: Props) {
                 </tr>
               )}
               {shown.map(c => (
-                <tr key={c.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
+                /*
+                  줄을 누르면 수정 창이 뜬다.
+
+                  칸이 열넷이라 [수정] 단추는 맨 오른쪽 끝에 있다 — 왼쪽 끝 상담일시를
+                  보고 고치러 가려면 화면을 옆으로 끝까지 밀어야 했다.
+
+                  단추·링크·입력칸 위에서 누른 건 그 자리 일이다. 손님번호를 눌러 지난
+                  상담을 보려다, 내용을 펴 보려다 수정 창이 뜨면 안 된다 — closest 로
+                  가른다(칸 안에 더 깊이 들어 있어도 걸린다).
+                */
+                <tr
+                  key={c.id}
+                  onClick={e => {
+                    if ((e.target as HTMLElement).closest('button, a, input, select, textarea, label')) return;
+                    setEditing(c);
+                    setPreset(undefined);
+                    setFormOpen(true);
+                  }}
+                  title="눌러서 상담을 고칩니다"
+                  className="cursor-pointer border-b border-slate-50 last:border-0 hover:bg-indigo-50/40"
+                >
                   {cols.cells({
                     date: (
                       <span className="text-slate-600">
@@ -518,6 +545,21 @@ export default function ConsultationModule({ role, kind }: Props) {
                     ) : (
                       <span className="text-slate-300">—</span>
                     ),
+                    /*
+                      만원으로 줄여 적는다 — 원 단위로 두면 칸이 넓어져 옆 칸이 밀린다.
+                      올려두면 원 단위 그대로 보인다.
+                    */
+                    salePrice:
+                      (c.salePrice ?? 0) > 0 ? (
+                        <span
+                          className="font-semibold text-emerald-700"
+                          title={`${(c.salePrice ?? 0).toLocaleString()}원`}
+                        >
+                          {Math.round((c.salePrice ?? 0) / 10000).toLocaleString()}만
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      ),
                     // 매입날짜(제시일자) — 차량 관리에서 맞춰 붙여 준다. 얼마나 들고 있는 차인지가 보인다
                     offerDate: c.offerDate ? (
                       <span className="text-slate-500">{dayjs(c.offerDate).format('YY.M.D')}</span>
