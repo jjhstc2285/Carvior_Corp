@@ -1076,14 +1076,17 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
         </select>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* 알선 정산에 적어둔 판매금액·이전비를 지난 것까지 한 번에 끌어온다 */}
+          {/*
+            판매가는 서버가 30분마다 알아서 넣는다(settlements/sale-price-sync.service.ts).
+            이 단추는 기다리지 않고 지금 당장 돌리는 자리다 — 어디서 끊겼는지도 같이 알려 준다.
+          */}
           {canClear && (
             <button
               onClick={() => void pullFromBrokerage()}
               className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              title="알선 정산의 실차주입금(없으면 총 진행 판매금액)을 매입 정산의 차량판매가로 가져옵니다"
+              title="알선·수출 정산과 상담에 적힌 판매가는 30분마다 저절로 들어옵니다 — 기다리지 않고 지금 돌립니다"
             >
-              <RefreshCw size={14} /> 판매가 가져오기
+              <RefreshCw size={14} /> 판매가 지금 가져오기
             </button>
           )}
           {/* 따로 정산을 끝낸 달을 정리할 때. 사무장·대표만 보인다 */}

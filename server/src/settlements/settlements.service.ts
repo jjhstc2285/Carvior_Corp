@@ -800,7 +800,7 @@ export class SettlementsService {
    * 못 찾은 건수도 같이 돌려준다 — 안 넘어온 게 짝이 없어서인지 이미 같은 값이어서인지
    * 알아야 다음에 무엇을 볼지 정할 수 있다.
    */
-  async syncAllFromBrokerage() {
+  async syncAllFromBrokerage(quiet = false) {
     const rows = await this.prisma.brokerageSettlement.findMany({
       select: {
         vehicleNumber: true,
@@ -838,10 +838,13 @@ export class SettlementsService {
       ),
     );
 
-    this.logger.log(
-      `알선 → 매입 정산 옮기기: 알선 ${rows.length}건(금액 적힌 것 ${withAmount}건) / ` +
-        `매입 정산 ${purchasePlates.size}대 / ${updated}건 옮김 / ${already}건 그대로 / ${missing.length}건 짝 없음`,
-    );
+    // 돌면서 훑을 때는 바뀐 게 있을 때만 적는다 — 30분마다 같은 줄을 남길 일이 아니다
+    if (!quiet || updated > 0) {
+      this.logger.log(
+        `알선 → 매입 정산 옮기기: 알선 ${rows.length}건(금액 적힌 것 ${withAmount}건) / ` +
+          `매입 정산 ${purchasePlates.size}대 / ${updated}건 옮김 / ${already}건 그대로 / ${missing.length}건 짝 없음`,
+      );
+    }
 
     return {
       updated,
@@ -1600,6 +1603,35 @@ export class SettlementsService {
     });
     this.logger.log(`${month} 매입 정산 ${count}건을 지웠습니다(승인된 ${approved}건은 남김, 전체 ${total}건).`);
     return { deleted: count, kept: approved };
+  }
+
+  /**
+   * 상담에 적어둔 차량판매가를 한 번에 훑어 옮긴다.
+   *
+   * 옮기는 건 상담을 저장할 때 일어난다. 그런데 매입 정산이 나중에 만들어지는 차가 있다 —
+   * 상담을 적을 때는 옮길 데가 없었고, 정산이 생긴 뒤에는 아무도 상담을 다시 저장하지
+   * 않는다. 그 차는 판매가가 영영 빈 채로 남는다.
+   *
+   * 알선·수출 정산이 있는 차는 syncSalePriceFromConsultation 이 알아서 비킨다 —
+   * 돈이 오간 자리에 적힌 값이 더 정확하다.
+   */
+  async syncAllFromConsultations(): Promise<{ updated: number; already: number; noMatch: number }> {
+    const rows = await this.prisma.consultation.findMany({
+      where: { salePrice: { gt: 0 }, vehicleNumber: { not: '' } },
+      select: { vehicleNumber: true, salePrice: true },
+      orderBy: { date: 'asc' },
+    });
+
+    let updated = 0;
+    let already = 0;
+    let noMatch = 0;
+    for (const row of rows) {
+      const result = await this.syncSalePriceFromConsultation(row);
+      if (result === 'updated') updated += 1;
+      else if (result === 'already') already += 1;
+      else noMatch += 1;
+    }
+    return { updated, already, noMatch };
   }
 
   /**
