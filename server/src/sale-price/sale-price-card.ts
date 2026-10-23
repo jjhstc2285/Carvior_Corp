@@ -25,8 +25,8 @@ export interface SaleCard {
   vehicleName: string;
   /** 매입가(원). 매입 정산이 아직 없으면 0 */
   purchasePrice: number;
-  /** 이전비 + 추가이전비(원) */
-  transferFee: number;
+  /** 구전(원) — 매입가 뒤에 '+7만원'으로 붙는 그 값이다 */
+  brokerFee: number;
   /** 차량판매가(원) — 광고가로 적는다 */
   salePrice: number;
   /** 유입 경로 — 상담에 적어 둔 값 */
@@ -46,13 +46,15 @@ const orBlank = (text: string) => text || '';
 /**
  * 매입가 줄.
  *
- * 이전비가 따로 있으면 붙여 적는다 — 카톡에 '3000만원+20만원'으로 적던 그 꼴이다.
+ * 뒤에 붙는 '+7만원'은 구전이다. 이전비가 아니다 — 이전비는 매입가로 정해지는 값이라
+ * 차마다 붙고, 그걸 적으면 모든 줄에 쓸데없는 숫자가 붙는다. 구전은 준 건에만 있다.
+ *
  * 매입 정산이 아직 없으면 비워 둔다. 모르는 값을 0으로 적으면 안 된다.
  */
 function purchaseLine(card: SaleCard): string {
   if (card.purchasePrice <= 0) return '';
   const base = `${NUM(man(card.purchasePrice))}만원`;
-  return card.transferFee > 0 ? `${base}+${NUM(man(card.transferFee))}만원` : base;
+  return card.brokerFee > 0 ? `${base}+${NUM(man(card.brokerFee))}만원` : base;
 }
 
 export function saleCardText(card: SaleCard): string {

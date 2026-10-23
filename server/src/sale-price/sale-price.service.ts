@@ -195,6 +195,8 @@ export class SalePriceService {
   /**
    * 쪽지에 들어갈 것을 모은다.
    *
+   * 매입가 뒤에 붙는 '+7만원'은 구전이다 — 이전비가 아니다.
+   *
    * 차명은 차량 관리가 먼저다 — 거기가 트림까지 적힌 이름이다. 없으면 정산·상담 순으로 쓴다.
    * 담당자와 유입 경로는 상담에서 온다. 판 건(계약·판매완료)이 먼저고, 없으면 가장 최근
    * 상담이다 — 문의만 하고 만 상담의 담당자를 '판 사람'으로 적으면 안 된다.
@@ -208,7 +210,7 @@ export class SalePriceService {
       this.prisma.purchaseSettlement.findFirst({
         where: { vehicleNumber: { in: plates } },
         orderBy: { date: 'desc' },
-        select: { vehicleName: true, purchasePrice: true, transferFee: true, employee: { select: { name: true } } },
+        select: { vehicleName: true, purchasePrice: true, brokerFee: true, employee: { select: { name: true } } },
       }),
       this.prisma.consultation.findMany({
         where: { vehicleNumber: { in: plates } },
@@ -234,7 +236,7 @@ export class SalePriceService {
       vehicleNumber: plate,
       vehicleName: vehicle?.vehicleModel || purchase?.vehicleName || lead?.vehicleName || '',
       purchasePrice: purchase?.purchasePrice ?? 0,
-      transferFee: purchase?.transferFee ?? 0,
+      brokerFee: purchase?.brokerFee ?? 0,
       salePrice: amount,
       platform: (lead?.platform ?? '').trim(),
       from: SOURCE_LABEL[from],
