@@ -1,6 +1,6 @@
 import { request as httpsRequest } from 'node:https';
 import { resolve4 } from 'node:dns/promises';
-import { Controller, Global, Injectable, Logger, Module, OnModuleInit, Post } from '@nestjs/common';
+import { Controller, Get, Global, Injectable, Logger, Module, OnModuleInit, Post } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
@@ -209,6 +209,88 @@ export class TelegramService implements OnModuleInit {
   }
 
   /**
+   * 봇이 들어가 있는 방을 찾아 준다.
+   *
+   * 방 번호는 초대 링크(t.me/+...)가 아니다. 그 링크는 사람을 부르는 열쇠일 뿐이고,
+   * 보낼 때 쓰는 건 '-1001234567890' 같은 음수다. 어디에도 안 적혀 있어서, 지금까지는
+   * 주소창에 토큰을 넣고 getUpdates 를 쳐서 눈으로 찾아야 했다 — 토큰이 브라우저
+   * 기록에 남는다.
+   *
+   * 봇이 본 것만 나온다. 텔레그램은 봇을 부르기 전 이야기를 안 준다 — 방에 봇을
+   * 넣고 아무 말이나 한 줄 치면 그때부터 보인다.
+   */
+  async chats(): Promise<{ rooms: { id: string; title: string; type: string }[]; reason?: string }> {
+    if (!this.token) return { rooms: [], reason: '서버에 봇 토큰이 없습니다(.env TELEGRAM_BOT_TOKEN).' };
+    try {
+      const raw = await this.getUpdates();
+      const seen = new Map<string, { id: string; title: string; type: string }>();
+      for (const u of raw) {
+        // 글·채널글·봇을 넣고 뺀 기록 — 어느 쪽에나 방이 붙어 있다
+        const chat = u.message?.chat ?? u.channel_post?.chat ?? u.my_chat_member?.chat;
+        if (!chat?.id) continue;
+        seen.set(String(chat.id), {
+          id: String(chat.id),
+          title: chat.title ?? chat.username ?? chat.first_name ?? '(이름 없음)',
+          type: chat.type ?? '',
+        });
+      }
+      const rooms = [...seen.values()];
+      return {
+        rooms,
+        reason: rooms.length === 0 ? '봇이 본 방이 없습니다 — 방에 봇을 넣고 아무 말이나 한 줄 쳐 주세요.' : undefined,
+      };
+    } catch (e) {
+      const err = e as Error & { cause?: { code?: string; message?: string } };
+      const why = err.cause?.code ?? err.cause?.message ?? '';
+      return { rooms: [], reason: `${err.message}${why ? ` — ${why}` : ''}` };
+    }
+  }
+
+  /**
+   * 최근 소식을 읽어 온다.
+   *
+   * offset 을 안 보낸다 — 보내면 읽은 것으로 쳐서 지워진다. 여기서는 보기만 한다.
+   */
+  private async getUpdates(): Promise<TelegramUpdate[]> {
+    const ips = await this.addresses();
+    let last: Error | null = null;
+    for (const ip of ips) {
+      try {
+        const body = await this.get(ip, `/bot${this.token}/getUpdates?limit=100`);
+        const parsed = JSON.parse(body) as { ok: boolean; result?: TelegramUpdate[]; description?: string };
+        if (!parsed.ok) throw new Error(parsed.description ?? '텔레그램이 거절했습니다');
+        this.lastGoodIp = ip;
+        return parsed.result ?? [];
+      } catch (e) {
+        last = e as Error;
+      }
+    }
+    throw last ?? new Error('읽을 주소를 찾지 못했습니다');
+  }
+
+  /** 주소 하나로 읽어 온다 — post 와 같은 방식이다(주소로 붙고 이름은 따로 말한다) */
+  private get(ip: string, path: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const req = httpsRequest(
+        { host: ip, port: 443, servername: HOST, path, method: 'GET', headers: { host: HOST }, timeout: 8000 },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () => {
+            const status = res.statusCode ?? 0;
+            const text = Buffer.concat(chunks).toString('utf8');
+            if (status >= 200 && status < 300) resolve(text);
+            else reject(new Error(`${status} ${text.slice(0, 200)}`));
+          });
+        },
+      );
+      req.on('timeout', () => req.destroy(new Error(`${ip} 응답 없음(8초)`)));
+      req.on('error', (e: Error) => reject(new Error(`${ip} ${e.message}`)));
+      req.end();
+    });
+  }
+
+  /**
    * 잘 붙었는지 한 번 보내 본다.
    *
    * 실패를 던지지 않는다 — 던지면 화면에는 '서버 오류'만 뜨고 정작 왜 못 갔는지가 묻힌다.
@@ -229,6 +311,21 @@ export class TelegramService implements OnModuleInit {
   }
 }
 
+/** 텔레그램이 돌려주는 소식 — 우리가 보는 건 방이 붙은 세 가지뿐이다 */
+interface TelegramChat {
+  id: number | string;
+  title?: string;
+  username?: string;
+  first_name?: string;
+  type?: string;
+}
+
+interface TelegramUpdate {
+  message?: { chat?: TelegramChat };
+  channel_post?: { chat?: TelegramChat };
+  my_chat_member?: { chat?: TelegramChat };
+}
+
 @Controller('telegram')
 export class TelegramController {
   constructor(private readonly telegram: TelegramService) {}
@@ -238,6 +335,17 @@ export class TelegramController {
   @Post('test')
   test() {
     return this.telegram.test();
+  }
+
+  /**
+   * 봇이 들어가 있는 방 목록 — 관리자만.
+   *
+   * .env 에 적을 방 번호를 여기서 찾는다. 토큰은 안 돌려준다 — 번호와 방 이름만이다.
+   */
+  @Roles(Role.ADMIN)
+  @Get('chats')
+  chats() {
+    return this.telegram.chats();
   }
 }
 
