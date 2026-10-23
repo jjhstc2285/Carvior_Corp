@@ -25,6 +25,7 @@ import {
   purchaseGrandTotal,
   purchasePrepTotal,
   SETTLEMENT_STATUS_LABEL,
+  type ConsultationKind,
   type PrepCostKind,
   type PurchaseSettlement,
   type SettlementStatus,
@@ -166,10 +167,26 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
   /** 표를 잡고 끌어서 옆으로 넘긴다 — 칸이 스무 개가 넘어 화면 밖으로 나간다 */
   const dragRef = useDragScroll<HTMLDivElement>();
-  /* 차량번호 → 어떻게 팔렸나. 줄마다 뒤지면 백 줄 × 수천 건이라 한 번 묶어 둔다 */
+  /*
+    차량번호 → 어떻게 팔렸나.
+
+    알선 정산 목록은 본인 것만 내려온다(서버 ownScope). 그래서 남이 적은 수출 건은
+    안 보이고, 같은 줄이 사무장 화면에는 '수출', 다른 사람 화면에는 '모름'으로 떴다.
+
+    차량번호와 종류만 따로 받아 온다 — 금액은 안 받는다. 어디로 나갔는지만 알면 되는
+    칸이라 수수료·입금액까지 열 까닭이 없다. 못 받아 오면 들고 있는 목록으로 돈다.
+
+    줄마다 뒤지면 백 줄 × 수천 건이라 한 번 묶어 둔다.
+  */
+  const [channels, setChannels] = useState<{ vehicleNumber: string; kind: ConsultationKind }[] | null>(null);
+  useEffect(() => {
+    void api<{ vehicleNumber: string; kind: ConsultationKind }[]>('/settlements/brokerage/channels')
+      .then(setChannels)
+      .catch(() => setChannels(null));
+  }, []);
   const soldChannelOf = useMemo(
-    () => soldChannelLookup(state.brokerageSettlements, state.consultations),
-    [state.brokerageSettlements, state.consultations],
+    () => soldChannelLookup(channels ?? state.brokerageSettlements, state.consultations),
+    [channels, state.brokerageSettlements, state.consultations],
   );
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
   /** 이번 달부터 본다. 지난 달 것까지 한 화면에 쌓이면 지금 처리할 게 안 보인다. */
@@ -1247,16 +1264,25 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                       판 차는 따라올 데가 없어 손으로 적어야 한다. 그걸 적자고 줄마다
                       수정 창을 열고 닫게 두면, 스무 대를 적는 데 창을 마흔 번 여닫는다.
 
-                      승인이 찍힌 줄은 안 열어 준다 — 결재한 뒤에 금액이 바뀌면 무엇을
-                      보고 찍었는지가 안 남는다. 그 줄은 지금처럼 숫자만 보여 준다.
+                      승인이 찍힌 줄도 이 칸만은 연다.
+
+                      결재가 지키는 건 우리가 얼마를 들였느냐다 — 매입가·상품화 비용·
+                      이전비가 그것이고, 본부장과 대표가 보고 찍은 것도 그 숫자다.
+                      차량판매가는 그 뒤에 차가 팔려야 생기는 값이라 찍을 때 있지도 않았다.
+
+                      막아 두니 9월에 결재가 끝난 차가 10월에 팔리면 판매가를 영영 못
+                      적었다 — 결재된 110건 중 91건이 빈칸이고 그 줄의 판매수익은 거짓이다.
+                      나머지 칸은 그대로 잠겨 있다(서버도 같은 기준으로 다시 본다).
                     */
-                    salePrice: lockedFor(s) ? (
-                      <span className="text-slate-600">{s.salePrice > 0 ? MAN(s.salePrice) : '—'}</span>
-                    ) : (
+                    salePrice: (
                       <MoneyCell
                         amount={s.salePrice}
                         onSave={next => void saveSalePrice(s, next)}
-                        title="차량판매가 — 적으면 바로 저장됩니다"
+                        title={
+                          s.locked
+                            ? '차량판매가 — 결재된 줄이지만 이 칸은 적을 수 있습니다(판 뒤에 생기는 값입니다)'
+                            : '차량판매가 — 적으면 바로 저장됩니다'
+                        }
                       />
                     ),
                     /*

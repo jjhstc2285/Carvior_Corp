@@ -710,11 +710,17 @@ export class SettlementsService {
   /**
    * 그 차의 매입 정산에 차량판매가를 적는다.
    *
-   * 승인이 찍힌 정산은 건드리지 않는다 — 결재한 뒤에 금액이 저절로 바뀌면 무엇을 보고
-   * 찍었는지가 남지 않는다.
+   * 승인이 찍힌 정산에도 차량판매가는 넣는다. 결재가 지키는 건 우리가 얼마를 들였느냐지
+   * 얼마에 팔렸느냐가 아니다 — 판매가는 찍은 뒤에 차가 팔려야 생기는 값이라, 막아 두면
+   * 9월에 결재가 끝난 차는 판매가를 영영 못 적고 판매수익이 거짓으로 남는다.
+   *
+   * 다만 날짜는 안 옮긴다. 결재된 줄을 다른 달로 옮기면 그 달 합계가 결재한 뒤에
+   * 바뀐다 — 그건 무엇을 보고 찍었는지를 건드리는 일이다.
+   *
+   * 아직 결재 안 된 줄이 있으면 그쪽이 먼저다. 같은 차를 두 번 사고팔았으면 이번 건이
+   * 아직 안 끝난 쪽이다.
    *
    * 차량번호는 손으로 적는 값이라 띄어쓰기가 섞여 들어온다 — 정리한 꼴로도 찾는다.
-   * 같은 차를 두 번 사고팔았으면 최근 매입 건에 넣는다.
    */
   private async applySalePrice(
     vehicleNumber: string,
@@ -724,11 +730,13 @@ export class SettlementsService {
   ): Promise<'updated' | 'already' | 'noMatch'> {
     try {
       const plates = [...new Set([vehicleNumber, normalizePlate(vehicleNumber)])].filter(Boolean);
-      const target = await this.prisma.purchaseSettlement.findFirst({
-        where: { vehicleNumber: { in: plates }, chiefApprovedAt: null },
+      const found = await this.prisma.purchaseSettlement.findMany({
+        where: { vehicleNumber: { in: plates } },
         orderBy: { date: 'desc' },
-        select: { id: true, salePrice: true, date: true },
+        select: { id: true, salePrice: true, date: true, chiefApprovedAt: true },
       });
+      // 아직 안 끝난 줄이 먼저 — 같은 차를 두 번 샀으면 이번 건이 그쪽이다
+      const target = found.find((r) => r.chiefApprovedAt === null) ?? found[0];
       if (!target) return 'noMatch';
 
       /*
@@ -741,7 +749,12 @@ export class SettlementsService {
       // 0으로 덮어써서 이미 적어둔 값을 지우지 않는다 — 안 적은 칸은 그대로 둔다.
       const data = {
         ...(target.salePrice !== amount ? { salePrice: amount } : {}),
-        ...(soldOn && formatDateOnly(target.date) !== formatDateOnly(soldOn) ? { date: soldOn } : {}),
+        // 결재된 줄은 달을 안 옮긴다 — 찍은 뒤에 그 달 합계가 바뀌면 안 된다
+        ...(target.chiefApprovedAt === null &&
+        soldOn &&
+        formatDateOnly(target.date) !== formatDateOnly(soldOn)
+          ? { date: soldOn }
+          : {}),
       };
       if (Object.keys(data).length === 0) return 'already';
 
@@ -1189,8 +1202,16 @@ export class SettlementsService {
    *
    * 본부장이 찍은 다음부터는 못 고친다 — 승인한 뒤에 금액이 바뀌면 무엇을 보고 찍었는지가
    * 남지 않는다. 고쳐야 하면 승인을 먼저 취소한다.
+   *
+   * 차량판매가만 빼 준다(salePriceOnly). 결재가 지키는 건 우리가 얼마를 들였느냐다 —
+   * 매입가·상품화 비용·이전비가 그것이고, 본부장과 대표가 보고 찍은 것도 그 숫자다.
+   * 차량판매가는 그 뒤에 차가 팔려야 생기는 값이라 찍을 때 있지도 않았다.
+   *
+   * 막아 두니 9월에 결재가 끝난 차가 10월에 팔리면 판매가를 영영 못 적는다. 지금
+   * 결재된 정산 110건 중 91건이 판매가가 빈 채로 남아 있고, 그 줄의 판매수익은 전부
+   * 거짓이다. 알선·수출 정산에서 저절로 넘어오던 값도 같이 막혀 있었다.
    */
-  private async assertEditable(id: string, user?: AuthUser): Promise<void> {
+  private async assertEditable(id: string, user?: AuthUser, salePriceOnly = false): Promise<void> {
     const row = await this.prisma.purchaseSettlement.findUnique({
       where: { id },
       select: { submittedAt: true, chiefApprovedAt: true, ceoApprovedAt: true, ...OWNER_NAME },
@@ -1198,9 +1219,21 @@ export class SettlementsService {
     if (!row) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
     // 모르고 찍어 버린 건을 되돌릴 사람이 하나는 있어야 한다(approvers.ts)
     if (user && canEditLocked(user)) return;
+    if (salePriceOnly) return;
     if (isLocked(stageOf(row, needsChief(row.employee?.name)))) {
       throw new ForbiddenException('승인된 정산은 고칠 수 없습니다. 승인을 먼저 취소해 주세요.');
     }
+  }
+
+  /**
+   * 이번 수정이 차량판매가 하나뿐인가.
+   *
+   * 다른 칸이 하나라도 같이 오면 잠금을 그대로 건다 — 판매가에 얹어서 매입가를 바꾸면
+   * 무엇을 보고 결재했는지가 또 사라진다.
+   */
+  private static salePriceOnly(dto: UpdatePurchaseDto): boolean {
+    const keys = Object.keys(dto).filter((k) => dto[k as keyof UpdatePurchaseDto] !== undefined);
+    return keys.length === 1 && keys[0] === 'salePrice';
   }
 
   /**
@@ -1530,7 +1563,7 @@ export class SettlementsService {
    * 명세를 아예 안 보내면 건드리지 않는다(다른 칸만 고치는 경우).
    */
   async updatePurchase(id: string, dto: UpdatePurchaseDto, user?: AuthUser) {
-    await this.assertEditable(id, user);
+    await this.assertEditable(id, user, SettlementsService.salePriceOnly(dto));
     const { prepCosts, ...rest } = dto;
 
     const row = await this.prisma.purchaseSettlement.update({
@@ -1567,6 +1600,18 @@ export class SettlementsService {
     });
     this.logger.log(`${month} 매입 정산 ${count}건을 지웠습니다(승인된 ${approved}건은 남김, 전체 ${total}건).`);
     return { deleted: count, kept: approved };
+  }
+
+  /**
+   * 차량번호별 알선·수출 — 매입 정산의 '판매 경로' 칸이 쓴다.
+   *
+   * 차량번호와 종류만 보낸다. 어디로 나갔는지만 알면 되는 칸이라 금액까지 열지 않는다.
+   */
+  async brokerageChannels(): Promise<{ vehicleNumber: string; kind: ConsultationKind }[]> {
+    return this.prisma.brokerageSettlement.findMany({
+      where: { vehicleNumber: { not: '' } },
+      select: { vehicleNumber: true, kind: true },
+    });
   }
 
   /** 자동완성용 — 지금까지 쓴 업체·카테고리 이름. 항목별로 나눠서 준다. */

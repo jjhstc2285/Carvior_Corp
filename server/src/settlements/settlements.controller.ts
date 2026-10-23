@@ -159,6 +159,24 @@ export class SettlementsController {
     return this.settlements.confirmCash(id, user, dto.confirmed !== false);
   }
 
+  /**
+   * 그 차가 알선으로 나갔나 수출로 나갔나 — 차량번호와 종류만.
+   *
+   * 매입 정산의 '판매 경로' 칸이 이걸 본다. 알선 정산 목록은 본인 것만 내려가서(ownScope),
+   * 매입 정산을 보는 사람이라도 남이 적은 수출 건은 안 보인다 — 그래서 같은 줄이 사무장
+   * 화면에는 '수출', 다른 사람 화면에는 '모름'으로 떴다.
+   *
+   * 금액은 안 보낸다. 어디로 나갔는지만 알면 되는 칸이라 수수료·입금액까지 열 까닭이 없다.
+   * 보는 자리는 매입 정산과 같다.
+   */
+  @Get('brokerage/channels')
+  brokerageChannels(@CurrentUser() user: AuthUser) {
+    if (user.role !== Role.ADMIN && user.department !== CONTRACT_TEAM && !canSeePurchaseSettlements(user)) {
+      throw new ForbiddenException('매입 정산을 보는 사람만 볼 수 있습니다.');
+    }
+    return this.settlements.brokerageChannels();
+  }
+
   /** 승인을 기다리는 알선 정산 — 관리자 대시보드의 승인함에서 쓴다. */
   @Get('brokerage/pending')
   pendingBrokerage() {
