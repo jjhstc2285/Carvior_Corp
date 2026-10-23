@@ -68,25 +68,39 @@ export class SalePriceService {
     vehicleNumber: string,
     amount: number,
     from: SalePriceSource,
-    /*
-      방에 띄울 것인가.
+    opts: {
+      /*
+        방에 띄울 것인가.
 
-      돌면서 빈칸을 채울 때는 안 띄운다. 쌓여 있는 백 대를 한 바퀴에 채우는데 그때마다
-      쪽지가 가면 방이 백 줄로 덮인다 — 사람이 고친 것만 알린다.
-    */
-    announce = true,
+        돌면서 빈칸을 채울 때는 안 띄운다. 쌓여 있는 백 대를 한 바퀴에 채우는데 그때마다
+        쪽지가 가면 방이 백 줄로 덮인다 — 사람이 고친 것만 알린다.
+      */
+      announce?: boolean;
+      /*
+        고치기 전 값(원).
+
+        제시 금융에서 적으면 그 차는 이미 저장된 뒤에 여기로 온다 — 그때 차량 관리를
+        읽어 '전 값'으로 삼으면 방금 적은 값이 나와서 "안 바뀌었다"가 된다. 그래서
+        부르는 쪽이 알고 있으면 넘겨 준다.
+      */
+      before?: number;
+    } = {},
   ): Promise<SpreadResult> {
     if (!vehicleNumber || amount <= 0) return EMPTY;
     const plates = this.platesOf(vehicleNumber);
     if (plates.length === 0) return EMPTY;
 
+    const announce = opts.announce !== false;
     const done = { ...EMPTY };
     try {
       /* 바뀐 게 있을 때만 알린다 — 같은 값을 다시 저장해도 쪽지가 가면 안 된다 */
-      const before = await this.prisma.managedVehicle.findFirst({
-        where: { vehicleNumber: { in: plates } },
-        select: { salePrice: true },
-      });
+      const before =
+        opts.before !== undefined
+          ? { salePrice: opts.before }
+          : await this.prisma.managedVehicle.findFirst({
+              where: { vehicleNumber: { in: plates } },
+              select: { salePrice: true },
+            });
       const changed = !before || before.salePrice !== amount;
       if (from !== 'vehicle') done.vehicle = await this.writeVehicle(plates, amount);
       if (from !== 'purchase') done.purchase = await this.writePurchase(plates, amount);
@@ -152,7 +166,7 @@ export class SalePriceService {
       }
       const [[amount, from]] = [...seen];
       // 백 대를 한 바퀴에 채운다 — 그때마다 쪽지가 가면 방이 덮인다
-      const done = await this.spread(plate, amount, from, false);
+      const done = await this.spread(plate, amount, from, { announce: false });
       filled += done.vehicle + done.purchase + done.brokerage + done.consultation;
     }
     return { filled, conflicts };
