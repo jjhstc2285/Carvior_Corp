@@ -46,6 +46,19 @@ export class TelegramService implements OnModuleInit {
     return this.config.get<string>('TELEGRAM_CHAT_ID', '');
   }
 
+  /**
+   * 금액이 오가는 방 — 공지방과 다른 방이다.
+   *
+   * 공지방은 전 직원이 본다. 매입가·판매가가 거기 뜨면 차 한 대에 얼마가 남는지가
+   * 온 회사에 공개된다 — 그래서 공지방에는 금액을 안 보낸다.
+   *
+   * 이 방이 안 적혀 있으면 아무 데도 안 보낸다. 공지방으로 흘려보내지 않는다 —
+   * 설정을 빠뜨린 게 금액이 새는 쪽으로 기울면 안 된다.
+   */
+  private get saleChatId() {
+    return this.config.get<string>('TELEGRAM_SALE_CHAT_ID', '');
+  }
+
   get configured() {
     return !!this.token && !!this.chatId;
   }
@@ -65,6 +78,11 @@ export class TelegramService implements OnModuleInit {
     } else {
       this.logger.warn('공지방이 설정되지 않았습니다(.env TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID). 공지는 나가지 않습니다.');
     }
+    if (this.token && this.saleChatId) {
+      this.logger.log(`입금확인방 연결됨 — 방 ${this.saleChatId}`);
+    } else {
+      this.logger.warn('입금확인방이 없습니다(.env TELEGRAM_SALE_CHAT_ID). 판매가 알림은 나가지 않습니다.');
+    }
   }
 
   /**
@@ -75,7 +93,7 @@ export class TelegramService implements OnModuleInit {
    */
   notify(text: string): void {
     if (!this.configured || !text.trim()) return;
-    void this.send(text).catch((e: Error) => {
+    void this.send(text, this.chatId).catch((e: Error) => {
       /*
         'fetch failed' 만 적으면 왜 못 갔는지 알 수 없다.
 
@@ -90,6 +108,22 @@ export class TelegramService implements OnModuleInit {
   }
 
   /**
+   * 금액이 든 알림 — 입금확인방으로만 간다.
+   *
+   * 방이 안 적혀 있으면 조용히 안 보낸다. 공지방으로 대신 보내지 않는다 — 거기는
+   * 전 직원이 보는 자리라, 설정이 빠진 값이 금액을 흘리는 쪽으로 기울면 안 된다.
+   */
+  notifySale(text: string): void {
+    const chatId = this.saleChatId;
+    if (!this.token || !chatId || !text.trim()) return;
+    void this.send(text, chatId).catch((e: Error) => {
+      const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
+      const why = cause?.code ?? cause?.message ?? '';
+      this.logger.warn(`판매가 알림을 보내지 못했습니다(방 ${chatId}): ${e.message}${why ? ` — ${why}` : ''}`);
+    });
+  }
+
+  /**
    * 방에 보낸다.
    *
    * fetch 를 안 쓴다. 같은 상자에서 curl 로는 붙는데(302) fetch 만 ETIMEDOUT 으로 죽었다 —
@@ -100,9 +134,9 @@ export class TelegramService implements OnModuleInit {
    * 잡고 죽을 이유가 없다 — 찾아둔 주소를 차례로 두드려 되는 곳으로 보낸다. 되는 주소는
    * 기억해 두고 다음부터 먼저 쓴다(매번 다 두드리면 공지가 느려진다).
    */
-  private async send(text: string): Promise<void> {
+  private async send(text: string, chatId: string): Promise<void> {
     const body = JSON.stringify({
-      chat_id: this.chatId,
+      chat_id: chatId,
       text,
       parse_mode: 'HTML',
       // 링크 미리보기가 뜨면 짧은 알림이 화면 반을 차지한다
@@ -185,7 +219,7 @@ export class TelegramService implements OnModuleInit {
       return { sent: false, reason: '서버에 봇 토큰이나 방 번호가 없습니다(.env TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).' };
     }
     try {
-      await this.send('🔔 애니원모터스 통합관리 — 공지방이 연결되었습니다.');
+      await this.send('🔔 애니원모터스 통합관리 — 공지방이 연결되었습니다.', this.chatId);
       return { sent: true };
     } catch (e) {
       const err = e as Error & { cause?: { code?: string; message?: string } };
