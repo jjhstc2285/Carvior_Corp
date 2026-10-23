@@ -12,6 +12,7 @@ import { formatDateOnly, formatDateOnlyOrNull, toDateOnly, toDateOnlyOrNull } fr
 import type { CreateConsultationDto, UpdateConsultationDto } from './dto/consultation.dto';
 import { TelegramService } from '../telegram/telegram.module';
 import { SettlementsService } from '../settlements/settlements.service';
+import { SalePriceService } from '../sale-price/sale-price.service';
 
 /**
  * 출고 준비를 해야 하는 팀.
@@ -59,21 +60,25 @@ export class ConsultationsService {
     private readonly push: PushService,
     private readonly telegram: TelegramService,
     private readonly settlements: SettlementsService,
+    private readonly salePrice: SalePriceService,
   ) {}
 
   /**
-   * 상담에 적은 차량판매가를 매입 정산의 차량판매가로 옮긴다.
+   * 상담에 적은 차량판매가를 나머지 세 곳에 같이 넣는다.
+   *
+   * 제시 금융의 매도금액, 알선 정산의 실 차량판매가, 매입 정산의 차량판매가 —
+   * 다 같은 값이다. 적는 사람이 달라서 화면마다 다른 숫자가 떴다.
    *
    * 남의 딜러가 우리 상사 차를 팔아 주면 우리 딜러가 정산을 안 받는다 — 전화를 받은
-   * TM 말고는 얼마에 팔렸는지 아무도 모른다. 그 사람이 여기 적으면 매입 정산이 채워진다.
+   * TM 말고는 얼마에 팔렸는지 아무도 모른다. 그 사람이 여기 적으면 나머지가 채워진다.
    *
    * 못 옮겨도 상담은 그대로 저장된다 — 옮기다 막혀서 적은 게 날아가면 안 된다.
    */
   private async pushSalePrice(row: { vehicleNumber: string; salePrice: number }): Promise<void> {
     try {
-      await this.settlements.syncSalePriceFromConsultation(row);
+      await this.salePrice.spread(row.vehicleNumber, row.salePrice, 'consultation');
     } catch {
-      // 옮기지 못해도 상담은 저장된 뒤다 — 매입 정산에서 손으로 적으면 된다
+      // 옮기지 못해도 상담은 저장된 뒤다 — 다른 화면에서 손으로 적으면 된다
     }
   }
 

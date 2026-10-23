@@ -32,6 +32,7 @@ import {
 import type { AuthUser } from '../auth/current-user.decorator';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { PushService } from '../push/push.service';
+import { SalePriceService } from '../sale-price/sale-price.service';
 import type {
   CreateBrokerageDto,
   PrepCostInput,
@@ -120,6 +121,8 @@ export class SettlementsService {
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
     private readonly push: PushService,
+    // 판매가는 네 곳에 같이 들어간다 — 퍼뜨리는 일은 sale-price 한 곳에서 한다
+    private readonly salePrice: SalePriceService,
   ) {}
 
   /** 목록 공통 필터 — 날짜 범위 + 상태 + 담당자 */
@@ -665,46 +668,14 @@ export class SettlementsService {
     totalSaleAmount: number;
     date: Date;
   }): Promise<'updated' | 'already' | 'noMatch'> {
-    const amount =
-      row.realSalePrice > 0
-        ? row.realSalePrice
-        : row.ownerDeposit > 0
-          ? row.ownerDeposit + row.etcCost
-          : row.totalSaleAmount;
+    const amount = this.salePrice.brokerageAmount(row);
     if (amount <= 0) return 'already';
+    /*
+      제시 금융의 매도금액과 상담의 차량판매가에도 같이 넣는다 — 같은 값이다.
+      매입 정산은 날짜까지 옮겨야 해서(판 달로 잡는다) 아래 applySalePrice 가 따로 한다.
+    */
+    void (await this.salePrice.spread(row.vehicleNumber, amount, 'brokerage'));
     return this.applySalePrice(row.vehicleNumber, amount, row.date, '알선');
-  }
-
-  /**
-   * 상담에 적은 차량판매가를 매입 정산으로 옮긴다.
-   *
-   * 남의 딜러가 우리 상사 차를 팔아 주면 우리 딜러가 정산을 안 받는다 — 전화를 받은
-   * TM 말고는 얼마에 팔렸는지 아무도 모른다. 그 사람이 상담에 적으면 매입 정산의
-   * 차량판매가가 저절로 채워진다.
-   *
-   * 알선·수출 정산이 있는 차는 건드리지 않는다. 돈이 오간 자리에 적힌 값이 더 정확하고,
-   * 둘 다 덮으려 들면 저장할 때마다 값이 서로 밀어내며 왔다 갔다 한다.
-   *
-   * 정산 날짜는 안 옮긴다. 상담일은 전화를 받은 날이라 판 날이 아니다 — 알선 정산과
-   * 달리 날짜를 믿을 수 없다.
-   */
-  async syncSalePriceFromConsultation(row: {
-    vehicleNumber: string;
-    salePrice: number;
-  }): Promise<'updated' | 'already' | 'noMatch'> {
-    if (!row.vehicleNumber || row.salePrice <= 0) return 'already';
-
-    const plates = [...new Set([row.vehicleNumber, normalizePlate(row.vehicleNumber)])].filter(Boolean);
-    const brokerage = await this.prisma.brokerageSettlement.findFirst({
-      where: {
-        vehicleNumber: { in: plates },
-        OR: [{ realSalePrice: { gt: 0 } }, { ownerDeposit: { gt: 0 } }, { totalSaleAmount: { gt: 0 } }],
-      },
-      select: { id: true },
-    });
-    if (brokerage) return 'already';
-
-    return this.applySalePrice(row.vehicleNumber, row.salePrice, null, '상담');
   }
 
   /**
@@ -789,75 +760,6 @@ export class SettlementsService {
       update: { target: value, updatedBy: user.name },
     });
     return { month, target: row.target, updatedBy: row.updatedBy };
-  }
-
-  /**
-   * 이미 적어둔 알선 정산을 한 번에 끌어온다.
-   *
-   * 옮기는 건 알선 정산을 저장할 때 일어난다. 그 전에 적어둔 건은 아무 일도 안 일어나서
-   * "한 대도 안 넘어왔다"가 된다. 여기서 지난 것까지 한 번 훑는다.
-   *
-   * 못 찾은 건수도 같이 돌려준다 — 안 넘어온 게 짝이 없어서인지 이미 같은 값이어서인지
-   * 알아야 다음에 무엇을 볼지 정할 수 있다.
-   */
-  async syncAllFromBrokerage(quiet = false) {
-    const rows = await this.prisma.brokerageSettlement.findMany({
-      select: {
-        vehicleNumber: true,
-        ownerDeposit: true,
-        etcCost: true,
-        realSalePrice: true,
-        totalSaleAmount: true,
-        date: true,
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    let updated = 0;
-    let already = 0;
-    const missing: string[] = [];
-
-    for (const row of rows) {
-      const result = await this.syncFromBrokerage(row);
-      if (result === 'updated') updated += 1;
-      else if (result === 'already') already += 1;
-      else missing.push(row.vehicleNumber);
-    }
-
-    /*
-     * 어디서 끊겼는지 같이 돌려준다.
-     *
-     * '0건 가져옴'만 보면 왜 안 됐는지 알 수가 없다. 알선 정산이 아예 없는 건지,
-     * 판매금액을 안 적은 건지, 차량번호가 매입 정산과 안 겹치는 건지 —
-     * 셋은 고칠 방법이 완전히 다르다.
-     */
-    const withAmount = rows.filter((r) => r.ownerDeposit > 0 || r.totalSaleAmount > 0).length;
-    const purchasePlates = new Set(
-      (await this.prisma.purchaseSettlement.findMany({ select: { vehicleNumber: true } })).map((p) =>
-        normalizePlate(p.vehicleNumber),
-      ),
-    );
-
-    // 돌면서 훑을 때는 바뀐 게 있을 때만 적는다 — 30분마다 같은 줄을 남길 일이 아니다
-    if (!quiet || updated > 0) {
-      this.logger.log(
-        `알선 → 매입 정산 옮기기: 알선 ${rows.length}건(금액 적힌 것 ${withAmount}건) / ` +
-          `매입 정산 ${purchasePlates.size}대 / ${updated}건 옮김 / ${already}건 그대로 / ${missing.length}건 짝 없음`,
-      );
-    }
-
-    return {
-      updated,
-      already,
-      noMatch: missing.length,
-      missingPlates: missing.slice(0, 10),
-      // 점검용 — 양쪽에 무엇이 있는지
-      brokerageCount: rows.length,
-      brokerageWithAmount: withAmount,
-      purchaseCount: purchasePlates.size,
-      brokeragePlates: rows.slice(0, 5).map((r) => r.vehicleNumber),
-      purchasePlates: [...purchasePlates].slice(0, 5),
-    };
   }
 
   /**
@@ -1228,6 +1130,15 @@ export class SettlementsService {
     }
   }
 
+  /** 그 매입 정산이 어느 차인가 — 판매가를 퍼뜨릴 때 차량번호가 필요하다 */
+  private async plateOfPurchase(id: string): Promise<string | null> {
+    const row = await this.prisma.purchaseSettlement.findUnique({
+      where: { id },
+      select: { vehicleNumber: true },
+    });
+    return row?.vehicleNumber ?? null;
+  }
+
   /**
    * 이번 수정이 차량판매가 하나뿐인가.
    *
@@ -1567,6 +1478,14 @@ export class SettlementsService {
    */
   async updatePurchase(id: string, dto: UpdatePurchaseDto, user?: AuthUser) {
     await this.assertEditable(id, user, SettlementsService.salePriceOnly(dto));
+    /*
+      차량판매가를 적었으면 나머지 세 곳에도 같이 넣는다 — 제시 금융의 매도금액,
+      알선 정산의 실 차량판매가, 상담의 차량판매가가 다 같은 값이다.
+    */
+    if ((dto.salePrice ?? 0) > 0) {
+      const plate = dto.vehicleNumber ?? (await this.plateOfPurchase(id));
+      if (plate) void (await this.salePrice.spread(plate, dto.salePrice as number, 'purchase'));
+    }
     const { prepCosts, ...rest } = dto;
 
     const row = await this.prisma.purchaseSettlement.update({
@@ -1603,35 +1522,6 @@ export class SettlementsService {
     });
     this.logger.log(`${month} 매입 정산 ${count}건을 지웠습니다(승인된 ${approved}건은 남김, 전체 ${total}건).`);
     return { deleted: count, kept: approved };
-  }
-
-  /**
-   * 상담에 적어둔 차량판매가를 한 번에 훑어 옮긴다.
-   *
-   * 옮기는 건 상담을 저장할 때 일어난다. 그런데 매입 정산이 나중에 만들어지는 차가 있다 —
-   * 상담을 적을 때는 옮길 데가 없었고, 정산이 생긴 뒤에는 아무도 상담을 다시 저장하지
-   * 않는다. 그 차는 판매가가 영영 빈 채로 남는다.
-   *
-   * 알선·수출 정산이 있는 차는 syncSalePriceFromConsultation 이 알아서 비킨다 —
-   * 돈이 오간 자리에 적힌 값이 더 정확하다.
-   */
-  async syncAllFromConsultations(): Promise<{ updated: number; already: number; noMatch: number }> {
-    const rows = await this.prisma.consultation.findMany({
-      where: { salePrice: { gt: 0 }, vehicleNumber: { not: '' } },
-      select: { vehicleNumber: true, salePrice: true },
-      orderBy: { date: 'asc' },
-    });
-
-    let updated = 0;
-    let already = 0;
-    let noMatch = 0;
-    for (const row of rows) {
-      const result = await this.syncSalePriceFromConsultation(row);
-      if (result === 'updated') updated += 1;
-      else if (result === 'already') already += 1;
-      else noMatch += 1;
-    }
-    return { updated, already, noMatch };
   }
 
   /**

@@ -1367,6 +1367,14 @@ export interface ManagedVehicle {
   intakeDate?: string | null;
   stockCapital: string; // 할부사
   stockAmount: number; // 재고금액(원)
+  /**
+   * 매도금액(원) — 차가 얼마에 나갔나.
+   *
+   * 같은 값이 네 곳에 적힌다: 상담 등록의 차량판매가, 제시 금융의 매도금액(여기),
+   * 알선 정산의 실 차량판매가, 매입 정산의 차량판매가. 어디서 적든 나머지 셋에
+   * 같이 들어간다 — 나중에 적은 사람이 이긴다.
+   */
+  salePrice: number;
   /** 이 차 한 대에 쓴 광고비(원) — 광고 관리에서 적는다 */
   adCost: number;
   repayDate: string | null; // 상환일자 — 월별로 모아 본다

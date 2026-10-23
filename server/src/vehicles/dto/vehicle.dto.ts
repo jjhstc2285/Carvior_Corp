@@ -50,6 +50,8 @@ export class UpdateVehicleDto {
   @IsOptional() @IsBoolean() cashVehicle?: boolean;
   @IsOptional() @IsString() @MaxLength(20) stockCapital?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) stockAmount?: number;
+  /** 매도금액(원) — 상담·알선 정산·매입 정산의 판매가와 같은 값이다 */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) salePrice?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) adCost?: number; // 광고금액(원)
 }
 

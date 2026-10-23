@@ -1406,6 +1406,11 @@ model ManagedVehicle {
   // 그 사이가 광고·주차·상품화가 준비해야 하는 구간이다.
   soldDate DateTime? @db.Date
 
+  // 매도금액(원) — 차가 얼마에 나갔나.
+  // 같은 값이 네 곳에 적힌다: 상담 등록 · 제시 금융(여기) · 알선 정산의 실 차량판매가 ·
+  // 매입 정산의 차량판매가. 어디서 적든 나머지 셋에 같이 들어간다(sale-price 모듈).
+  salePrice Int @default(0)
+
   stockCapital String @default("") @db.VarChar(20) // 할부사
   stockAmount  Int    @default(0) // 재고금액(원)
 

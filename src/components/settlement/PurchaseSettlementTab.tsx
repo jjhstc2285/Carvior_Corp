@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
-import { Check, Download, FileSpreadsheet, Lock, Pencil, Percent, Plus, ReceiptText, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react';
+import { Check, Download, FileSpreadsheet, Lock, Pencil, Percent, Plus, ReceiptText, Send, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import type { Focus } from '../../lib/goto';
 import { useDragScroll } from '../../lib/useDragScroll';
@@ -25,7 +25,6 @@ import {
   purchaseGrandTotal,
   purchasePrepTotal,
   SETTLEMENT_STATUS_LABEL,
-  type ConsultationKind,
   type PrepCostKind,
   type PurchaseSettlement,
   type SettlementStatus,
@@ -37,7 +36,8 @@ import { ContractPhotoThumb } from './ContractPhotos';
 import { alertError, alertSuccess, confirmDanger } from '../../lib/alert';
 import { api, ApiError } from '../../lib/api';
 import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
-import { SOLD_CHANNEL_HINT, SOLD_CHANNEL_LABEL, SOLD_CHANNEL_TONE, soldChannelLookup } from '../../lib/soldChannel';
+import { SOLD_CHANNEL_HINT, SOLD_CHANNEL_LABEL, SOLD_CHANNEL_TONE } from '../../lib/soldChannel';
+import { useSoldChannels } from '../../lib/useSoldChannels';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from './SettlementCalendar';
 
 interface Props {
@@ -167,27 +167,8 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
   const { state, deletePurchaseSettlement, refresh } = useStore();
   /** 표를 잡고 끌어서 옆으로 넘긴다 — 칸이 스무 개가 넘어 화면 밖으로 나간다 */
   const dragRef = useDragScroll<HTMLDivElement>();
-  /*
-    차량번호 → 어떻게 팔렸나.
-
-    알선 정산 목록은 본인 것만 내려온다(서버 ownScope). 그래서 남이 적은 수출 건은
-    안 보이고, 같은 줄이 사무장 화면에는 '수출', 다른 사람 화면에는 '모름'으로 떴다.
-
-    차량번호와 종류만 따로 받아 온다 — 금액은 안 받는다. 어디로 나갔는지만 알면 되는
-    칸이라 수수료·입금액까지 열 까닭이 없다. 못 받아 오면 들고 있는 목록으로 돈다.
-
-    줄마다 뒤지면 백 줄 × 수천 건이라 한 번 묶어 둔다.
-  */
-  const [channels, setChannels] = useState<{ vehicleNumber: string; kind: ConsultationKind }[] | null>(null);
-  useEffect(() => {
-    void api<{ vehicleNumber: string; kind: ConsultationKind }[]>('/settlements/brokerage/channels')
-      .then(setChannels)
-      .catch(() => setChannels(null));
-  }, []);
-  const soldChannelOf = useMemo(
-    () => soldChannelLookup(channels ?? state.brokerageSettlements, state.consultations),
-    [channels, state.brokerageSettlements, state.consultations],
-  );
+  /* 차량번호 → 어떻게 팔렸나. 제시 금융과 같은 자를 쓴다(lib/useSoldChannels) */
+  const soldChannelOf = useSoldChannels();
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | 'all'>('all');
   /** 이번 달부터 본다. 지난 달 것까지 한 화면에 쌓이면 지금 처리할 게 안 보인다. */
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
@@ -275,54 +256,6 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
       void alertError('지우지 못했습니다', e instanceof ApiError ? e.message : '');
     }
   };
-
-  /**
-   * 이미 적어둔 알선 정산을 한 번에 끌어온다.
-   *
-   * 옮기는 건 알선 정산을 저장할 때 일어난다. 그 전에 적어둔 건은 아무 일도 안 일어나서
-   * "한 대도 안 넘어왔다"가 된다.
-   */
-  const pullFromBrokerage = async () => {
-    try {
-      const res = await api<{
-        updated: number;
-        already: number;
-        noMatch: number;
-        missingPlates: string[];
-        brokerageCount: number;
-        brokerageWithAmount: number;
-        purchaseCount: number;
-        brokeragePlates: string[];
-        purchasePlates: string[];
-      }>('/settlements/purchase/sync-from-brokerage', { method: 'POST' });
-      await refresh();
-
-      /*
-       * 어디서 끊겼는지 그대로 보여준다.
-       *
-       * '0건 가져옴'만 띄우면 왜 안 됐는지 알 수가 없다. 알선 정산이 없는 건지,
-       * 판매금액을 안 적은 건지, 차량번호가 안 겹치는 건지 — 고칠 방법이 다 다르다.
-       */
-      const lines = [
-        `알선 정산 ${res.brokerageCount}건 (판매금액 적힌 것 ${res.brokerageWithAmount}건)`,
-        `매입 정산 ${res.purchaseCount}대`,
-        `가져옴 ${res.updated}건 · 이미 같음 ${res.already}건 · 짝 없음 ${res.noMatch}건`,
-      ];
-      if (res.noMatch > 0) lines.push(`짝 없는 알선 차량번호: ${res.missingPlates.join(', ')}`);
-      if (res.updated === 0 && res.brokeragePlates.length > 0) {
-        lines.push(`알선 쪽 차량번호 예: ${res.brokeragePlates.join(', ')}`);
-        lines.push(`매입 정산 쪽 차량번호 예: ${res.purchasePlates.join(', ')}`);
-      }
-
-      void alertSuccess(
-        res.updated > 0 ? `${res.updated}건을 가져왔습니다` : '가져온 게 없습니다',
-        lines.join(' / '),
-      );
-    } catch (e) {
-      void alertError('가져오지 못했습니다', e instanceof ApiError ? e.message : '');
-    }
-  };
-
 
   /*
     되돌리기 — 누가 어느 자리에서 누를 수 있는가.
@@ -1076,19 +1009,6 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
         </select>
 
         <div className="ml-auto flex items-center gap-2">
-          {/*
-            판매가는 서버가 30분마다 알아서 넣는다(settlements/sale-price-sync.service.ts).
-            이 단추는 기다리지 않고 지금 당장 돌리는 자리다 — 어디서 끊겼는지도 같이 알려 준다.
-          */}
-          {canClear && (
-            <button
-              onClick={() => void pullFromBrokerage()}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              title="알선·수출 정산과 상담에 적힌 판매가는 30분마다 저절로 들어옵니다 — 기다리지 않고 지금 돌립니다"
-            >
-              <RefreshCw size={14} /> 판매가 지금 가져오기
-            </button>
-          )}
           {/* 따로 정산을 끝낸 달을 정리할 때. 사무장·대표만 보인다 */}
           {canClear && !allMonths && filtered.length > 0 && (
             <button

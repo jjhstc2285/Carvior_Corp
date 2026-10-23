@@ -23,6 +23,8 @@ import UnregisteredSoldPanel from './UnregisteredSoldPanel';
 import UnregisteredIntakePanel from './UnregisteredIntakePanel';
 import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import StockSheetImportModal from './StockSheetImportModal';
+import { SOLD_CHANNEL_HINT, SOLD_CHANNEL_LABEL, SOLD_CHANNEL_TONE } from '../../lib/soldChannel';
+import { useSoldChannels, useSoldDealer } from '../../lib/useSoldChannels';
 
 type View = 'candidate' | 'offered' | 'stocked' | 'repay' | 'cash' | 'release' | 'sold';
 
@@ -336,6 +338,9 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   }, [query, vehicles, views, view, month]);
 
   const stockTotal = rows.reduce((sum, r) => sum + r.vehicle.stockAmount, 0);
+  /* 어디로 나갔고 누가 팔았나 — 정산·상담에 적힌 것으로 가려낸다(따로 적는 칸이 아니다) */
+  const soldChannelOf = useSoldChannels();
+  const soldDealerOf = useSoldDealer();
   const current = views.find(v => v.key === view) ?? views[0];
 
   /*
@@ -400,6 +405,9 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       제시일자: v.offerDate ?? '',
       이전일자: v.transferDate ?? '',
       매도일자: v.soldDate ?? '',
+      '매도금액(원)': v.salePrice || '',
+      '판매 경로': SOLD_CHANNEL_LABEL[soldChannelOf(v.vehicleNumber)],
+      '담당 딜러': soldDealerOf(v.vehicleNumber),
       판매상태: saleStage(v) ? SALE_STAGE_LABEL[saleStage(v)!] : '',
       할부사: v.stockCapital,
       '재고금액(원)': v.stockAmount || '',
@@ -601,6 +609,20 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                 <th className="px-3 py-3 font-medium">제시일자</th>
                 <th className="px-3 py-3 font-medium">이전일자</th>
                 <th className="px-3 py-3 font-medium">매도일자</th>
+                {/*
+                  차가 얼마에 나갔나 — 상담 등록·알선 정산·매입 정산의 판매가와 같은 값이다.
+                  여기 적으면 나머지 셋에도 같이 들어간다(서버 sale-price).
+                */}
+                <th className="px-3 py-3 text-right font-medium text-emerald-600">매도금액</th>
+                {/*
+                  어디로 나갔고 누가 팔았나.
+
+                  따로 적는 칸이 아니다 — 알선·수출 정산과 상담에 이미 적혀 있는 것으로
+                  가려낸다. 칸을 하나 더 만들면 적는 사람이 또 생기고, 두 값이 어긋나면
+                  어느 쪽이 맞는지 알 수 없게 된다.
+                */}
+                <th className="px-3 py-3 text-center font-medium">판매 경로</th>
+                <th className="px-3 py-3 font-medium">담당 딜러</th>
                 <th className="px-3 py-3 font-medium">할부사</th>
                 <th className="px-3 py-3 text-right font-medium">재고금액</th>
                 <th className="px-3 py-3 font-medium">상환일자</th>
@@ -613,7 +635,7 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={16} className="px-5 py-10 text-center text-sm text-slate-400">
                     해당하는 차량이 없습니다.
                   </td>
                 </tr>
@@ -681,6 +703,50 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                         </button>
                       </div>
                     )}
+                  </td>
+
+                  {/*
+                    매도금액 — 상담 등록·알선 정산·매입 정산의 판매가와 같은 값이다.
+
+                    여기 적으면 나머지 셋에도 그대로 들어간다. 나중에 적은 사람이 이긴다 —
+                    가장 최근에 그 차를 본 사람이 아는 값이고, 못 고치게 막으면 틀린 채로 남는다.
+
+                    빈칸으로 두면 아무것도 안 바꾼다. 0 을 퍼뜨리면 다른 세 곳에 적어 둔
+                    값이 같이 날아간다.
+                  */}
+                  <td className="px-3 py-2.5 text-right">
+                    <input
+                      key={`sale-${v.id}-${v.salePrice}`}
+                      defaultValue={v.salePrice ? withCommas(v.salePrice) : ''}
+                      onBlur={e => {
+                        const next = Number(digitsOnly(e.target.value)) || 0;
+                        if (next > 0 && next !== v.salePrice) patch(v, { salePrice: next });
+                      }}
+                      inputMode="numeric"
+                      placeholder="원"
+                      title="상담 등록·알선 정산·매입 정산의 판매가와 같은 값입니다 — 여기 적으면 그쪽도 같이 바뀝니다"
+                      className="w-28 rounded-lg border border-emerald-200 bg-emerald-50/40 px-1.5 py-1 text-right text-[13px] outline-none focus:border-emerald-400 focus:bg-white"
+                    />
+                  </td>
+
+                  {/* 수출·알선·타 딜러·우리 딜러 — 정산과 상담에 적힌 것으로 가려낸다 */}
+                  <td className="px-3 py-2.5 text-center">
+                    {(() => {
+                      const how = soldChannelOf(v.vehicleNumber);
+                      return (
+                        <span
+                          className={`inline-block whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold ${SOLD_CHANNEL_TONE[how]}`}
+                          title={SOLD_CHANNEL_HINT[how]}
+                        >
+                          {SOLD_CHANNEL_LABEL[how]}
+                        </span>
+                      );
+                    })()}
+                  </td>
+
+                  {/* 누가 팔았나 — 상담 담당자다. 타사·기타는 남의 딜러 이름이 들어간다 */}
+                  <td className="px-3 py-2.5 text-[13px] text-slate-600">
+                    {soldDealerOf(v.vehicleNumber) || <span className="text-slate-300">—</span>}
                   </td>
 
                   <td className="px-3 py-2.5">

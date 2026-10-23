@@ -167,13 +167,11 @@ export class SettlementsController {
    * 화면에는 '수출', 다른 사람 화면에는 '모름'으로 떴다.
    *
    * 금액은 안 보낸다. 어디로 나갔는지만 알면 되는 칸이라 수수료·입금액까지 열 까닭이 없다.
-   * 보는 자리는 매입 정산과 같다.
+   * 그래서 자리를 안 가린다 — 제시 금융의 매도 차량도 같은 칸을 쓰는데 그건 전 직원이
+   * 보는 화면이다. 가려 두면 같은 줄이 사람마다 다르게 떠서 아무도 안 믿는다.
    */
   @Get('brokerage/channels')
-  brokerageChannels(@CurrentUser() user: AuthUser) {
-    if (user.role !== Role.ADMIN && user.department !== CONTRACT_TEAM && !canSeePurchaseSettlements(user)) {
-      throw new ForbiddenException('매입 정산을 보는 사람만 볼 수 있습니다.');
-    }
+  brokerageChannels() {
     return this.settlements.brokerageChannels();
   }
 
@@ -270,17 +268,6 @@ export class SettlementsController {
     if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
     return this.settlements.removePurchaseMonth(month);
   }
-
-  /**
-   * 이미 적어둔 알선 정산을 한 번에 끌어온다.
-   * 옮기는 건 알선 정산을 저장할 때 일어나서, 그 전에 적어둔 건은 이걸로 훑는다.
-   */
-  @Post('purchase/sync-from-brokerage')
-  syncFromBrokerage(@CurrentUser() user: AuthUser) {
-    assertOfficeManager(user);
-    return this.settlements.syncAllFromBrokerage();
-  }
-
 
   /**
    * 판금집 청구서 반영.

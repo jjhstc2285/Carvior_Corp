@@ -10,6 +10,7 @@ import type { AuthUser } from "../auth/current-user.decorator";
 import { ConsultationKind, ConsultationStatus, Prisma, VehicleExpenseKind } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { TelegramService } from "../telegram/telegram.module";
+import { SalePriceService } from '../sale-price/sale-price.service';
 import {
   formatDateOnly,
   formatDateOnlyOrNull,
@@ -42,6 +43,8 @@ export class VehiclesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly telegram: TelegramService,
+    // 매도금액은 네 곳에 같이 들어간다 — 퍼뜨리는 일은 sale-price 한 곳에서 한다
+    private readonly salePrice: SalePriceService,
   ) {}
 
   /**
@@ -576,10 +579,19 @@ export class VehiclesService {
           ...(dto.stockAmount !== undefined
             ? { stockAmount: dto.stockAmount }
             : {}),
+          ...(dto.salePrice !== undefined ? { salePrice: dto.salePrice } : {}),
         },
       })
-      .then((row) => {
+      .then(async (row) => {
         this.announceChange(current, row);
+        /*
+          매도금액을 적었으면 나머지 세 곳에도 같이 넣는다 — 상담의 차량판매가,
+          알선 정산의 실 차량판매가, 매입 정산의 차량판매가가 다 같은 값이다.
+          못 넣어도 이 차는 저장된 뒤다(sale-price 안에서 삼킨다).
+        */
+        if ((dto.salePrice ?? 0) > 0) {
+          void (await this.salePrice.spread(row.vehicleNumber, row.salePrice, 'vehicle'));
+        }
         return this.toView(row);
       });
   }

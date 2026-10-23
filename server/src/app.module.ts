@@ -9,6 +9,7 @@ import { EmployeesModule } from './employees/employees.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ConsultationsModule } from './consultations/consultations.module';
 import { SettlementsModule } from './settlements/settlements.module';
+import { SalePriceModule } from './sale-price/sale-price.module';
 import { ParkingModule } from './parking/parking.module';
 import { VendorsModule } from './vendors/vendors.module';
 import { PropertiesModule } from './properties/properties.module';
@@ -55,6 +56,8 @@ import { RolesGuard } from './auth/roles.guard';
     AttendanceModule,
     ConsultationsModule,
     SettlementsModule,
+    // 차량판매가 한 값 — 네 자리에 같이 들어간다(전역이라 어디서든 가져다 쓴다)
+    SalePriceModule,
     ParkingModule,
     VendorsModule,
     PropertiesModule,
