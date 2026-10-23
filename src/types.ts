@@ -482,16 +482,20 @@ export function brokerageProfit(r: Pick<BrokerageSettlement, 'cashCommission' | 
 /**
  * 실 차량판매가 — 차가 실제로 얼마에 나갔나.
  *
- * 적어 둔 값이 먼저다. 실차주입금은 세금을 떼고 들어온 돈이라 판매가가 아니다 —
- * 차대금업을 더해도 떼인 만큼이 모자라서, 더해서 낸 값으로는 실제 판매가를 알 수 없다.
+ * 실차주입금이 먼저다. 네 곳(상담·제시 금융·알선 정산·매입 정산)이 같이 쓰는 판매가가
+ * 그 칸에 들어간다 — 어디서 고치든 그 값으로 맞춰진다(서버 sale-price).
  *
- * 안 적었으면 실차주입금 + 차대금업으로 대신 보여 준다. 적기 전에도 대중은 보여야 하고,
- * 지난 자료에는 이 칸이 아예 없다. 0은 '아직 안 적음'이다 — 공짜로 판 차는 없다.
+ * 그 전에는 '실 차량판매가' 칸을 먼저 봤다. 적는 사람이 거의 안 쓰는 칸이라 대개
+ * 비어 있었고, 그래서 실차주입금 + 차대금업으로 대중을 잡았다. 지금은 맞춰 넣는
+ * 자리가 실차주입금이라 그걸 그대로 쓴다 — 더하면 두 번 더하는 셈이 된다.
+ *
+ * 둘 다 비면 0이다. 0은 '아직 안 적음'이다 — 공짜로 판 차는 없다.
  */
 export function brokerageSalePrice(
   r: Pick<BrokerageSettlement, 'ownerDeposit' | 'etcCost'> & { realSalePrice?: number },
 ): number {
-  return r.realSalePrice && r.realSalePrice > 0 ? r.realSalePrice : r.ownerDeposit + r.etcCost;
+  if (r.ownerDeposit > 0) return r.ownerDeposit;
+  return r.realSalePrice && r.realSalePrice > 0 ? r.realSalePrice : 0;
 }
 
 /**

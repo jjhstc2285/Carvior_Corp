@@ -11,7 +11,7 @@ import { saleCardText, type SaleCard } from './sale-price-card';
  *
  *   상담 등록          차량판매가        Consultation.salePrice
  *   제시 금융          매도금액          ManagedVehicle.salePrice
- *   알선·수출 정산     실 차량판매가     BrokerageSettlement.realSalePrice
+ *   알선·수출 정산     실차주입금        BrokerageSettlement.ownerDeposit
  *   매입 정산          차량판매가        PurchaseSettlement.salePrice
  *
  * 적는 사람이 다 다르다. TM 이 전화로 듣고, 사무장이 제시 금융에서 보고, 알선팀이
@@ -21,9 +21,11 @@ import { saleCardText, type SaleCard } from './sale-price-card';
  * 한 곳에 적으면 나머지 셋에 그대로 들어간다. 나중에 적은 사람이 이긴다 —
  * 가장 최근에 그 차를 본 사람이 아는 값이고, 못 고치게 막으면 틀린 채로 남는다.
  *
- * 실차주입금(ownerDeposit)은 안 건드린다. 그건 세금을 떼고 실제로 들어온 돈이라
- * 차가 나간 값과 다른 숫자다 — 알선 정산 화면도 둘을 따로 받는다. 덮어쓰면 수수료가
- * 어긋난다.
+ * 알선 정산에서는 실차주입금이 그 자리다. 옆에 '실 차량판매가' 칸이 따로 있지만 적는
+ * 사람이 거의 안 쓴다 — 실제로 보고 적는 숫자가 실차주입금이라 그쪽에 맞춘다.
+ *
+ * 수수료는 안 건드린다. 실차주입금은 정산 계산에 안 들어가고(settlement.calc 가 안
+ * 읽는다) 표에 그대로 보여 주는 값이라, 맞춰 넣어도 받을 돈이 바뀌지 않는다.
  */
 
 /** 어느 화면에서 적었나 — 적은 자리는 다시 안 건드린다 */
@@ -243,16 +245,23 @@ export class SalePriceService {
     };
   }
 
-  /** 알선·수출 정산이 말하는 판매가 — 실 차량판매가가 먼저고, 없으면 들어온 돈으로 본다 */
+  /**
+   * 알선·수출 정산이 말하는 판매가.
+   *
+   * 실차주입금이 먼저다 — 맞춰 넣는 자리가 거기라, 다른 칸을 먼저 보면 방금 맞춘 값이
+   * 아니라 옛 값을 도로 퍼뜨리게 된다.
+   *
+   * 없으면 실 차량판매가, 그것도 없으면 총 진행 판매금액으로 대중을 잡는다 — 지난
+   * 자료에는 실차주입금이 빈 건이 있다.
+   */
   brokerageAmount(row: {
     realSalePrice: number;
     ownerDeposit: number;
     etcCost: number;
     totalSaleAmount: number;
   }): number {
+    if (row.ownerDeposit > 0) return row.ownerDeposit;
     if (row.realSalePrice > 0) return row.realSalePrice;
-    // 실차주입금은 세금을 떼고 들어온 돈이라 판매가보다 적다 — 차대금업 몫을 같이 더한다
-    if (row.ownerDeposit > 0) return row.ownerDeposit + row.etcCost;
     return row.totalSaleAmount;
   }
 
@@ -290,14 +299,15 @@ export class SalePriceService {
   }
 
   /**
-   * 알선·수출 정산의 실 차량판매가에 넣는다.
+   * 알선·수출 정산의 실차주입금에 넣는다.
    *
-   * 실차주입금은 안 건드린다 — 세금을 떼고 실제로 들어온 돈이라 다른 숫자다.
+   * '실 차량판매가' 칸은 안 건드린다. 적는 사람이 거의 안 쓰는 칸이라 거기 넣어 봐야
+   * 보는 자리가 아니었고, 둘 다 쓰면 한 정산에 판매가가 두 개로 적힌다.
    */
   private async writeBrokerage(plates: string[], amount: number): Promise<number> {
     const { count } = await this.prisma.brokerageSettlement.updateMany({
-      where: { vehicleNumber: { in: plates }, realSalePrice: { not: amount } },
-      data: { realSalePrice: amount },
+      where: { vehicleNumber: { in: plates }, ownerDeposit: { not: amount } },
+      data: { ownerDeposit: amount },
     });
     return count;
   }
