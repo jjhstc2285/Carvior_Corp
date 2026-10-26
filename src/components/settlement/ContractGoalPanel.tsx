@@ -4,7 +4,7 @@ import { ChevronDown, FileText, Phone } from 'lucide-react';
 import { useStore } from '../../store';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
-import { conversionOf, isContracted } from '../../lib/consultationStats';
+import { conversionOf, countsToward, isContracted } from '../../lib/consultationStats';
 import { REASONS } from '../consultation/VisitReviewSection';
 import { CONSULTATION_STATUS_LABEL, type ConsultationRecord } from '../../types';
 import { ContractPhotoThumb, splitPhotos } from './ContractPhotos';
@@ -155,8 +155,19 @@ export default function ContractGoalPanel({
    * 아직 안 적은 건도 같이 센다 — 그 숫자가 크면 아래 사유 분포 자체를 믿을 수 없다.
    */
   const reasons = useMemo(() => {
+    /*
+      위 칸과 같은 모수로 센다.
+
+      전에는 종결·방문취소까지 끌어와서 '계약으로 안 간 174건'이 떴다. 바로 위에서는
+      같은 것을 '진행/미체결 87건'이라고 적어 놓고서다 — 한 카드 안에서 같은 말이 두
+      숫자로 나오니 보는 사람은 어느 쪽이 맞는지 알 수가 없었다.
+
+      종결은 모수에서 뺀 건이다(countsToward). 손님이 오지도 않은 방문취소와 상담
+      자체가 끝난 건을 '못 판 건'으로 세면, 정리를 안 하는 쪽이 숫자가 좋아 보인다.
+    */
     const open = state.consultations
       .filter(c => allMonths || c.date.startsWith(month))
+      .filter(c => countsToward(c.status))
       .filter(c => !isContracted(c.status));
 
     const counted = new Map<string, number>();
