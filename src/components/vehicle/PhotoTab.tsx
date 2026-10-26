@@ -53,6 +53,8 @@ interface PhotoSet {
   createdAt?: string;
   /** 지워질 날까지 며칠 남았나. 서버가 내려준다 */
   daysLeft?: number;
+  /** 이미 나간 차인가 — 꺼내 볼 때만 뜬다 */
+  sold?: boolean;
 }
 
 /**
@@ -125,17 +127,28 @@ export default function PhotoTab() {
   const [picked, setPicked] = useState<{ vehicleNumber: string; vehicleModel: string; lot: string } | null>(null);
   const [newDate, setNewDate] = useState(() => dayjs().format('YYYY-MM-DD'));
 
+  /*
+    팔린 차는 목록에서 내린다.
+
+    상품화 사진은 그 차를 파는 동안 쓰는 것이다. 나가고 나면 목록에 남아 있어 봐야
+    지금 팔 차를 찾는 데 방해만 된다.
+
+    지우지는 않는다 — 흠집을 두고 다투는 일은 넘기고 나서 생기고, 그때 기준이 되는 게
+    이 여섯 장이다. 보관은 그대로 한 달이고, 필요하면 눌러서 꺼내 본다.
+  */
+  const [withSold, setWithSold] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setSets(await api<PhotoSet[]>('/vehicle-photos'));
+      setSets(await api<PhotoSet[]>(`/vehicle-photos${withSold ? '?includeSold=1' : ''}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : '사진을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [withSold]);
 
   useEffect(() => {
     void load();
@@ -220,6 +233,17 @@ export default function PhotoTab() {
             className="w-48 rounded-lg border border-slate-200 py-1.5 pl-7 pr-2.5 text-sm outline-none focus:border-indigo-400"
           />
         </span>
+
+        {/* 팔린 차는 기본으로 안 보인다 — 다툴 일이 생기면 눌러서 꺼내 본다 */}
+        <button
+          onClick={() => setWithSold(v => !v)}
+          title="팔린 차 사진은 목록에서 내려 둡니다. 지워지지는 않습니다(올린 날부터 한 달)"
+          className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+            withSold ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          팔린 차도 보기
+        </button>
 
         <span className="ml-auto text-xs text-slate-400">{filtered.length}대</span>
       </div>
@@ -333,6 +357,10 @@ function SetCard({ set, onChanged, onRemove }: { set: PhotoSet; onChanged: () =>
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="font-mono text-sm font-bold text-slate-800">{set.vehicleNumber}</span>
+        {/* 꺼내 봤을 때만 뜬다 — 이미 나간 차라고 적어 둬야 지금 팔 차와 안 섞인다 */}
+        {set.sold && (
+          <span className="rounded-md bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">팔린 차</span>
+        )}
         <span className="text-sm text-slate-600">{set.vehicleName}</span>
         <span className="text-xs text-slate-400">{dayjs(set.shotOn).format('YYYY-MM-DD (ddd)')}</span>
         <span

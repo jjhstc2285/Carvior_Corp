@@ -146,7 +146,26 @@ export class VehiclePhotosService implements OnModuleInit {
     return old.length;
   }
 
-  async list(params: { vehicleNumber?: string; month?: string }) {
+  /**
+   * 팔린 차를 가려낸다 — 차량번호로.
+   *
+   * 상품화 사진은 그 차를 파는 동안 쓰는 것이다. 나가고 나면 목록에 남아 있어 봐야
+   * 지금 팔 차를 찾는 데 방해만 된다 — 주차장에서 차를 눌러도 이미 나간 차 사진이 떴다.
+   *
+   * 지우지는 않는다. 흠집을 두고 다투는 일은 넘기고 나서 생기고, 그때 기준이 되는 게
+   * 이 여섯 장이다 — 나가자마자 지우면 정작 필요할 때 없다. 보관은 그대로 한 달이고,
+   * 목록에서만 내린다(관리자는 [팔린 차도] 로 꺼내 본다).
+   */
+  private async soldPlates(plates: string[]): Promise<Set<string>> {
+    if (plates.length === 0) return new Set();
+    const rows = await this.prisma.managedVehicle.findMany({
+      where: { vehicleNumber: { in: plates }, soldDate: { not: null } },
+      select: { vehicleNumber: true },
+    });
+    return new Set(rows.map((r) => r.vehicleNumber));
+  }
+
+  async list(params: { vehicleNumber?: string; month?: string; includeSold?: boolean }) {
     const where: Record<string, unknown> = {};
     if (params.vehicleNumber) where.vehicleNumber = normalizePlate(params.vehicleNumber);
     if (params.month && /^\d{4}-\d{2}$/.test(params.month)) {
@@ -163,9 +182,15 @@ export class VehiclePhotosService implements OnModuleInit {
       include: { photos: true, recordedBy: { select: { name: true } } },
     });
 
-    return rows.map((r) => ({
+    /* 팔린 차는 목록에서 내린다 — 꺼내 보려면 includeSold 로 부른다 */
+    const sold = await this.soldPlates([...new Set(rows.map((r) => r.vehicleNumber))]);
+    const shown = params.includeSold ? rows : rows.filter((r) => !sold.has(r.vehicleNumber));
+
+    return shown.map((r) => ({
       id: r.id,
       vehicleNumber: r.vehicleNumber,
+      /** 이미 나간 차인가 — 꺼내 볼 때 표를 붙인다 */
+      sold: sold.has(r.vehicleNumber),
       vehicleName: r.vehicleName,
       shotOn: formatDateOnly(r.shotOn),
       memo: r.memo,
@@ -263,8 +288,12 @@ export class VehiclePhotosController {
   constructor(private readonly service: VehiclePhotosService) {}
 
   @Get()
-  list(@Query('vehicleNumber') vehicleNumber?: string, @Query('month') month?: string) {
-    return this.service.list({ vehicleNumber, month });
+  list(
+    @Query('vehicleNumber') vehicleNumber?: string,
+    @Query('month') month?: string,
+    @Query('includeSold') includeSold?: string,
+  ) {
+    return this.service.list({ vehicleNumber, month, includeSold: includeSold === '1' });
   }
 
   /**
