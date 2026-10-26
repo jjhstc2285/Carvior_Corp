@@ -366,7 +366,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             label="이전비 + 추가이전비"
             formula={
               nums.payoutAmount > 0
-                ? '상사 이전비 + 추가이전비 — 실제지급액에 이미 빠져 있어 총비용에는 안 더합니다'
+                ? '상사 이전비 + 추가이전비 — 추가이전비는 실제지급액에 이미 빠져 있어 총비용에 안 더합니다'
                 : '상사 이전비 + 추가이전비 — 매입가로 정해집니다'
             }
             value={transferFee}
@@ -387,7 +387,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             label="총비용"
             formula={
               nums.payoutAmount > 0
-                ? '매입가 + 구전 + 상품화총비용 — 이전비는 상사가 먼저 뗀 금액이라 뺍니다'
+                ? '매입가 + 상사 이전비 + 구전 + 상품화총비용 — 추가이전비는 상사가 먼저 뗀 금액이라 뺍니다'
                 : '매입가 + 이전비 + 구전 + 상품화총비용'
             }
             value={grandTotal}

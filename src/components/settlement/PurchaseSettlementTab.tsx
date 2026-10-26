@@ -1293,7 +1293,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                         className="font-semibold text-emerald-700"
                         title={
                           (s.payoutAmount ?? 0) > 0
-                            ? '실제지급액 − (총합계 − 매입가) · 실제지급액을 적으면 이전비는 총비용에서 빠집니다(상사가 먼저 뗀 금액입니다)'
+                            ? '실제지급액 − (총합계 − 매입가) · 실제지급액을 적으면 추가이전비는 총비용에서 빠집니다(상사가 먼저 뗀 금액입니다)'
                             : '차량판매가 − 총합계'
                         }
                       >

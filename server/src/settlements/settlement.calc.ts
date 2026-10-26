@@ -190,11 +190,13 @@ export function extraTransferFee(purchasePrice: number): number {
  * 상사 이전비와 추가이전비는 '이전비 + 추가이전비' 칸에 들어간다(transferFeeOf).
  * 여기서 또 더하면 두 번 잡힌다.
  *
- * 실제지급액을 적었으면 이전비는 안 더한다.
+ * 실제지급액을 적었으면 추가이전비는 안 더한다.
  *
- * 상사는 판매가에서 매입가와 이전비를 먼저 떼고 통장에 넣어 준다 — 그 숫자가
- * 실제지급액이다. 우리 총비용에 이전비를 또 얹으면 같은 돈을 두 번 세는 꼴이고,
- * 상사 정산서와 견줄 수도 없게 된다.
+ * 둘을 갈라 본다. 상사 이전비(매입가의 1%)는 우리가 상사에게 내는 돈이라 그대로
+ * 총비용에 든다. 추가이전비(취득세의 15%)는 상사가 먼저 떼고 통장에 넣어 준다 —
+ * 실제지급액에 이미 빠져 있는 돈이라 또 얹으면 같은 돈을 두 번 센다.
+ *
+ * 이전비 칸은 둘을 더한 값이라(transferFeeOf) 여기서 추가이전비만 덜어 낸다.
  */
 export function purchaseGrandTotal(
   purchasePrice: number,
@@ -203,11 +205,11 @@ export function purchaseGrandTotal(
   brokerFee = 0,
   /** 헤이딜러·엔카 경매장 수수료 — 사오는 데 든 돈이라 총비용에 들어간다 */
   platformFee = 0,
-  /** 상사 정산서 맨 아래 '실제지급액' — 적혀 있으면 이전비는 안 더한다 */
+  /** 상사 정산서 맨 아래 '실제지급액' — 적혀 있으면 추가이전비는 안 더한다 */
   payoutAmount = 0,
 ): number {
-  // 상사가 먼저 뗀 돈이라 실제지급액에는 이미 빠져 있다 — 또 얹으면 두 번 센다
-  const transfer = payoutAmount > 0 ? 0 : transferFee;
+  // 추가이전비는 상사가 먼저 뗀 돈이라 실제지급액에 이미 빠져 있다 — 또 얹으면 두 번 센다
+  const transfer = payoutAmount > 0 ? Math.max(transferFee - extraTransferFee(purchasePrice), 0) : transferFee;
   return purchasePrice + transfer + brokerFee + platformFee + prepTotal;
 }
 
@@ -279,7 +281,7 @@ export function saleProfit(
     매입가와 이전비는 이미 저쪽에서 빠졌으므로 다시 빼지 않는다. 총합계에서 그 둘을
     덜어 내고 뺀다 — 두 번 빼면 그만큼 손해로 보인다.
 
-    이전비는 총비용에서 이미 빠져 있다 — 실제지급액을 적으면 purchaseGrandTotal 이
+    추가이전비는 총비용에서 이미 빠져 있다 — 실제지급액을 적으면 purchaseGrandTotal 이
     안 더한다. 그래서 여기서는 매입가만 덜어 내면 된다.
 
     이렇게 하면 재고 금융 이자도 세금도 우리가 따로 적을 필요가 없다. 이미 빠진 금액이다.
