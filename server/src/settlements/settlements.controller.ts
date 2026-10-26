@@ -175,6 +175,21 @@ export class SettlementsController {
     return this.settlements.brokerageChannels();
   }
 
+  /**
+   * 정산이 올라온 차량번호 — 번호만.
+   *
+   * 상담에서 '계약'까지 간 차가 정산에 올라왔는지를 가리는 데 쓴다. 계약은 됐는데
+   * 정산이 비어 있는 차가 달마다 몇 대씩 생기는데, 지금은 두 화면을 눈으로 맞춰 봐야
+   * 찾을 수 있었다.
+   *
+   * 금액은 안 보낸다 — '올라왔다/아니다'만 알면 되는 값이라 자리를 안 가린다.
+   * 매입 정산은 차량판매가가 적힌 것만 센다. 매입만 적어 둔 줄은 아직 판 게 아니다.
+   */
+  @Get('settled-plates')
+  settledPlates() {
+    return this.settlements.settledPlates();
+  }
+
   /** 승인을 기다리는 알선 정산 — 관리자 대시보드의 승인함에서 쓴다. */
   @Get('brokerage/pending')
   pendingBrokerage() {

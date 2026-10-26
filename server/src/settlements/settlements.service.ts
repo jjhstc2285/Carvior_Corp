@@ -1549,6 +1549,26 @@ export class SettlementsService {
   }
 
   /**
+   * 정산이 올라온 차량번호를 모아 준다.
+   *
+   * 알선·수출 정산은 줄이 있으면 올라온 것이고, 매입 정산은 차량판매가가 적혀야 판 것이다 —
+   * 매입만 적어 둔 줄은 아직 안 판 차다.
+   */
+  async settledPlates(): Promise<string[]> {
+    const [brokerage, purchase] = await Promise.all([
+      this.prisma.brokerageSettlement.findMany({
+        where: { vehicleNumber: { not: '' } },
+        select: { vehicleNumber: true },
+      }),
+      this.prisma.purchaseSettlement.findMany({
+        where: { vehicleNumber: { not: '' }, salePrice: { gt: 0 } },
+        select: { vehicleNumber: true },
+      }),
+    ]);
+    return [...new Set([...brokerage, ...purchase].map((r) => normalizePlate(r.vehicleNumber)).filter(Boolean))];
+  }
+
+  /**
    * 차량번호별 알선·수출 — 매입 정산의 '판매 경로' 칸이 쓴다.
    *
    * 차량번호와 종류만 보낸다. 어디로 나갔는지만 알면 되는 칸이라 금액까지 열지 않는다.

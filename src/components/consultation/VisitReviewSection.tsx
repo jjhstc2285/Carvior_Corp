@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { ChevronDown, ChevronRight, MessageSquarePlus, PhoneOutgoing, UserX } from 'lucide-react';
 import { useStore } from '../../store';
@@ -185,6 +185,37 @@ export default function VisitReviewSection({
       .sort((a, b) => b.rate - a.rate || b.came - a.came);
   }, [people, state.consultations, month, allMonths, today]);
 
+  /*
+    정산이 올라온 차.
+
+    "방문 60명인데 정산은 35건이다"가 자꾸 나온다. 둘은 세는 게 달라서 영영 안 맞는데,
+    그 말을 아무 데도 안 적어 두니 볼 때마다 다시 묻게 된다.
+
+    맞춰 볼 수 있는 건 하나뿐이다 — 계약까지 간 차가 정산에 올라왔나. 그건 숫자로
+    뽑아 준다. 번호만 받아 온다(금액은 안 받는다).
+  */
+  const [settled, setSettled] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    void api<string[]>('/settlements/settled-plates')
+      .then(rows => setSettled(new Set(rows)))
+      .catch(() => setSettled(null));
+  }, []);
+
+  /** 계약까지 갔는데 정산이 아직 비어 있는 차 — 이게 실제로 찾아야 하는 것이다 */
+  const unsettled = useMemo(() => {
+    if (!settled) return [];
+    const plate = (v?: string | null) => (v ?? '').replace(/\s+/g, '').trim();
+    const cars = new Set(
+      state.consultations
+        .filter(c => !!c.visitDate && (c.visitDate ?? '') <= today)
+        .filter(c => allMonths || (c.visitDate ?? '').startsWith(month))
+        .filter(c => isContracted(c.status))
+        .map(c => plate(c.vehicleNumber))
+        .filter(Boolean),
+    );
+    return [...cars].filter(c => !settled.has(c));
+  }, [settled, state.consultations, month, allMonths, today]);
+
   /** 팀 전체 — 사람별로 나누기 전에 전체가 몇인지 먼저 보인다 */
   const team = useMemo(() => {
     const sum = stats.reduce(
@@ -292,6 +323,49 @@ export default function VisitReviewSection({
               </span>
               <span className="ml-auto font-bold text-indigo-700">전환 {team.rate}%</span>
             </p>
+          )}
+
+          {/*
+            정산 건수와 왜 다른지 적어 둔다.
+
+            "방문 60명인데 정산은 35건이다"가 볼 때마다 나온다. 둘은 세는 게 달라서
+            영영 안 맞는데, 그 말이 화면 어디에도 없으니 매번 다시 묻게 된다.
+
+            맞춰 볼 수 있는 건 '계약까지 간 차가 정산에 올라왔나' 하나뿐이고,
+            그건 바로 아래에 숫자로 띄운다.
+          */}
+          {stats.length > 0 && (
+            <div className="mb-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] leading-relaxed text-slate-500">
+              <p>
+                <b className="text-slate-700">이 숫자는 정산 건수와 다릅니다.</b> 여기는 <b>손님이 몇 번 왔나</b>(방문일
+                기준)를 세고, 정산은 <b>차를 몇 대 팔았나</b>(정산일 기준)를 셉니다.
+              </p>
+              <p className="mt-0.5">
+                · 와도 다 사지는 않습니다 — 왔다 {team.came}명 중 계약은 {team.contracted}명입니다.
+                <br />· 한 차에 여러 손님이 옵니다 — 방문은 사람 수, 정산은 차 수입니다.
+                <br />· 달이 어긋납니다 — 지난달에 보고 이번 달에 출고하면 방문은 지난달, 정산은 이번 달입니다.
+                <br />· 방문 없이 팔린 차(수출·타 딜러)는 정산에만 있습니다.
+              </p>
+
+              {/* 하나만 맞춰 볼 수 있다 — 계약까지 간 차가 정산에 올라왔나 */}
+              {settled && team.contracted > 0 && (
+                <p className="mt-1.5 border-t border-slate-100 pt-1.5">
+                  {unsettled.length === 0 ? (
+                    <span className="font-semibold text-emerald-700">
+                      계약 {team.contracted}명 — 정산이 다 올라와 있습니다.
+                    </span>
+                  ) : (
+                    <>
+                      <span className="font-bold text-rose-700">
+                        계약한 차 {unsettled.length}대가 아직 정산에 안 올라왔습니다
+                      </span>
+                      <span className="ml-1 font-mono text-slate-600">{unsettled.join(' · ')}</span>
+                      <span className="ml-1 text-slate-400">— 알선·수출 정산이나 매입 정산의 차량판매가를 적어 주세요</span>
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
           )}
 
           {stats.length > 0 && (
