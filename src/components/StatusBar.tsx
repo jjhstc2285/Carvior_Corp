@@ -161,6 +161,17 @@ export default function StatusBar() {
     기준은 한 곳에서 온다(lib/attendance 의 WORK_START = 09:30). 소명이 받아들여진 날은
     지각으로 안 센다 — 세는 규칙은 등수를 매기는 자리와 같다.
   */
+  /*
+    대표는 안 센다.
+
+    출퇴근 시각이 매여 있는 자리가 아니다 — 아침에 밖에서 돌다 들어오는 날이 잦아서,
+    그걸 지각으로 세면 숫자가 사실과 멀어진다. 직급으로 가린다(사람이 바뀌어도 그대로).
+
+    세는 규칙 자체는 안 건드린다. 등수·소명·인건비가 다 그 규칙을 쓰고 있어서, 여기
+    하나 때문에 고치면 다른 자리 숫자가 같이 움직인다 — 띄울 때만 가린다.
+  */
+  const hidesLate = useCallback((e: Employee) => (e.position ?? '').includes('대표'), []);
+
   const lateToday = useMemo(() => {
     const today = dayjs().format('YYYY-MM-DD');
     // 'HH:mm' 은 글자로 견줘도 시각 차례와 같다 — 분으로 바꿀 까닭이 없다
@@ -319,13 +330,13 @@ export default function StatusBar() {
                         type="button"
                         /* 오늘 늦은 사람은 알약째 빨개진다 — 숫자만 달면 지난 일처럼 읽힌다 */
                         className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs ${
-                          lateToday.has(e.id)
+                          lateToday.has(e.id) && !hidesLate(e)
                             ? 'border-red-300 bg-red-50'
                             : e.id === state.currentEmployeeId
                               ? 'border-indigo-300 bg-indigo-50'
                               : group.chip
                         } ${openId === e.id ? 'ring-2 ring-indigo-300' : ''}`}
-                        title={lateToday.has(e.id) ? '오늘 늦게 찍었습니다' : undefined}
+                        title={lateToday.has(e.id) && !hidesLate(e) ? '오늘 늦게 찍었습니다' : undefined}
                       >
                         {/* 열 몇 명이 한 줄로 늘어서 있어 이름만으로는 눈이 안 잡힌다 */}
                         <ReferralTitleBadge title={e.referralTitle} />
@@ -336,7 +347,7 @@ export default function StatusBar() {
                           이번 달에 몇 번 늦었나 — 0이면 안 단다.
                           0을 달면 온 줄에 '지각 0'이 붙어서 정작 늦은 사람이 안 보인다.
                         */}
-                        {(rankOf(e.id)?.late ?? 0) > 0 && (
+                        {!hidesLate(e) && (rankOf(e.id)?.late ?? 0) > 0 && (
                           <span
                             className="shrink-0 rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700"
                             title={`이번 달 ${rankOf(e.id)?.late}번 늦었습니다 (${WORK_START} 기준 · 소명이 받아들여진 날은 뺍니다)`}
