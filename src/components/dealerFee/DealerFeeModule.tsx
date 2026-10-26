@@ -5,9 +5,11 @@ import { ClipboardPaste, Download, Plus, Trash2, Trophy, X } from 'lucide-react'
 import { api, ApiError } from '../../lib/api';
 import DealerRankingModal from './DealerRankingModal';
 import { alertError, confirmDanger } from '../../lib/alert';
-import { digitsOnly, withCommas } from '../../lib/money';
-import { DEALER_BRAND_LABEL, DEALER_FEE_METHOD_LABEL, type DealerFeeAccount, type DealerFeeMethod } from '../../types';
-import ContractPhotos from '../settlement/ContractPhotos';
+import { withCommas } from '../../lib/money';
+import { DEALER_BRAND_LABEL, DEALER_FEE_METHOD_LABEL, type DealerFeeAccount } from '../../types';
+import { ContractPhotoThumb } from '../settlement/ContractPhotos';
+import DealerFeeForm from './DealerFeeForm';
+import { useColumnOrder, ColumnResetButton, type Column } from '../table/useColumnOrder';
 import DealerFeePasteModal from './DealerFeePasteModal';
 
 /**
@@ -19,6 +21,41 @@ import DealerFeePasteModal from './DealerFeePasteModal';
  * 날짜 꼴이 제각각이라(매달5일 / 10-01 / 매달1일고정 / 직접이체) 날짜 입력칸으로 두지
  * 않고 적힌 그대로 받는다. 억지로 맞추면 원장과 달라진다.
  */
+/**
+ * 표의 칸들.
+ *
+ * 제목과 그리는 방법을 한 벌로 묶어야 차례를 바꿔도 값이 안 엉킨다. 칸이 스무 개라
+ * 보는 사람마다 먼저 보고 싶은 게 다르다 — 회비부터 보는 사람, 이체일부터 보는 사람.
+ */
+const COLUMNS: Column[] = [
+  // 지우는 건 제일 앞에 둔다 — 칸이 스물 가까이 돼서 옆으로 끝까지 밀어야 나왔다
+  { key: 'actions', label: '' },
+  { key: 'brand', label: '제조사' },
+  { key: 'dealerName', label: '업체명' },
+  { key: 'managerName', label: '담당자' },
+  { key: 'managerPhone', label: '담당연락처' },
+  { key: 'startedOn', label: '거래시작일' },
+  { key: 'bank', label: '은행' },
+  { key: 'accountHolder', label: '예금주' },
+  { key: 'accountNumber', label: '자동이체계좌' },
+  { key: 'transferDay', label: '자동이체날짜' },
+  { key: 'transferDayOfMonth', label: '이체일', align: 'text-center', title: '이 날 아침에 이체 알림이 갑니다' },
+  { key: 'monthlyFee', label: '매달 회비', align: 'text-right' },
+  { key: 'inspected', label: '판매 누적', align: 'text-right', title: '카비어에 접수된 건수 / 그중 판매완료(매입가가 잡힌 건)' },
+  { key: 'purchased', label: '매입', align: 'text-right', title: '매입 관리의 매입처로 셉니다' },
+  { key: 'lastAt', label: '최근 판매' },
+  { key: 'method', label: '자동이체여부' },
+  { key: 'autoTransferUntil', label: '자동이체기한' },
+  { key: 'note', label: '비고' },
+  { key: 'memo', label: '메모' },
+  // 명함·간판·약정서처럼 글로 못 적는 것 — 한 장만 받는다
+  { key: 'photo', label: '사진', align: 'text-center' },
+  { key: 'active', label: '거래중', align: 'text-center' },
+];
+
+/** 빈 칸은 줄표로 — 비어 있는 것과 안 받아온 것이 같아 보이면 안 된다 */
+const dash = (v: string) => (v ? <span className="text-slate-600">{v}</span> : <span className="text-slate-300">—</span>);
+
 export default function DealerFeeModule() {
   const [rows, setRows] = useState<DealerFeeAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +119,11 @@ export default function DealerFeeModule() {
   }, []);
 
   /** 한 칸만 고쳐 보낸다. 고친 게 이체 조건이면 서버가 알림을 띄운다. */
+  /* 제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다. 칸이 스무 개라 빽빽하게 */
+  const cols = useColumnOrder('dealerFeeColOrder', COLUMNS, { dense: true });
+  /** 가로로 펴서 고치는 창 — 줄을 누르면 열린다 */
+  const [editing, setEditing] = useState<DealerFeeAccount | null>(null);
+
   const patch = async (row: DealerFeeAccount, body: Partial<DealerFeeAccount>) => {
     setBusyId(row.id);
     try {
@@ -203,18 +245,6 @@ export default function DealerFeeModule() {
   };
 
   /** 칸을 벗어날 때만 저장한다 — 한 글자마다 보내면 요청이 쏟아진다. */
-  const text = (row: DealerFeeAccount, key: keyof DealerFeeAccount, width: string, placeholder = '') => (
-    <input
-      defaultValue={String(row[key] ?? '')}
-      onBlur={e => {
-        const next = e.target.value.trim();
-        if (next !== String(row[key] ?? '')) void patch(row, { [key]: next });
-      }}
-      disabled={busyId === row.id}
-      placeholder={placeholder}
-      className={`${width} rounded-lg border border-slate-200 px-2 py-1.5 text-[13px] outline-none focus:border-indigo-400 disabled:opacity-50`}
-    />
-  );
 
   return (
     <div className="mx-auto max-w-[1700px] px-4 py-6 sm:px-6 sm:py-8">
@@ -241,6 +271,8 @@ export default function DealerFeeModule() {
           >
             <Trophy size={15} /> 판매 순위
           </button>
+          {/* 제목줄을 끌어 옮긴 차례를 되돌린다 — 화면마다 같은 자리에 둔다 */}
+          <ColumnResetButton onReset={cols.reset} />
           <button
             onClick={handleExport}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -386,194 +418,161 @@ export default function DealerFeeModule() {
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full whitespace-nowrap text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
-                {/* 지우는 건 제일 앞에 둔다 — 칸이 스물 가까이 돼서 옆으로 끝까지 밀어야 나왔다 */}
-                <th className="px-3 py-3" />
-                <th className="px-3 py-3 font-medium">제조사</th>
-                <th className="px-3 py-3 font-medium">업체명</th>
-                <th className="px-3 py-3 font-medium">담당자</th>
-                <th className="px-3 py-3 font-medium">담당연락처</th>
-                <th className="px-3 py-3 font-medium">거래시작일</th>
-                <th className="px-3 py-3 font-medium">은행</th>
-                <th className="px-3 py-3 font-medium">예금주</th>
-                <th className="px-3 py-3 font-medium">자동이체계좌</th>
-                <th className="px-3 py-3 font-medium">자동이체날짜</th>
-                <th className="px-3 py-3 text-center font-medium">이체일</th>
-                <th className="px-3 py-3 text-right font-medium">매달 회비</th>
-                <th
-                  className="px-3 py-3 text-right font-medium"
-                  title="카비어에 접수된 건수 / 그중 판매완료(매입가가 잡힌 건)"
-                >
-                  판매 누적
-                </th>
-                <th className="px-3 py-3 text-right font-medium" title="매입 관리의 매입처로 셉니다">
-                  매입
-                </th>
-                <th className="px-3 py-3 font-medium">최근 판매</th>
-                <th className="px-3 py-3 font-medium">자동이체여부</th>
-                <th className="px-3 py-3 font-medium">자동이체기한</th>
-                <th className="px-3 py-3 font-medium">비고</th>
-                <th className="px-3 py-3 font-medium">메모</th>
-                {/* 명함·간판·약정서처럼 글로 못 적는 것 — 한 장만 받는다 */}
-                <th className="px-3 py-3 text-center font-medium">사진</th>
-                <th className="px-3 py-3 text-center font-medium">거래중</th>
-              </tr>
+            <thead className="bg-slate-50 text-left text-xs text-slate-500">
+              <tr className="border-b border-slate-100">{cols.headers()}</tr>
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={19} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={cols.count} className="px-5 py-10 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : idleOnly ? '판매·매입 없는 곳이 없습니다.' : '등록된 영업소가 없습니다.'}
                   </td>
                 </tr>
               )}
               {shown.map(r => (
+                /*
+                  줄을 누르면 가로로 펴진 수정 창이 뜬다.
+
+                  칸이 스무 개라 표에서 바로 고치면 옆으로 끝까지 밀어야 끝 칸이 나오고,
+                  밀고 나면 어느 줄을 고치고 있었는지 놓친다.
+
+                  단추 위에서 누른 건 그 자리 일로 둔다 — 지우려다 수정 창이 뜨면 안 된다.
+                */
                 <tr
                   key={r.id}
-                  className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/60 ${r.active ? '' : 'bg-slate-50/60 text-slate-400'}`}
+                  onClick={e => {
+                    if ((e.target as HTMLElement).closest('button, input, select, a')) return;
+                    setEditing(r);
+                  }}
+                  title="눌러서 고칩니다"
+                  className={`cursor-pointer border-b border-slate-50 last:border-0 hover:bg-indigo-50/40 ${
+                    r.active ? '' : 'bg-slate-50/60 text-slate-400'
+                  } ${busyId === r.id ? 'opacity-50' : ''}`}
                 >
-                  <td className="px-3 py-2.5">
-                    <button
-                      onClick={() => void removeRow(r)}
-                      className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
-                      aria-label="삭제"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                  {/* 업체명에서 뽑는 값이라 고칠 수 없다 — 업체명을 고치면 따라 바뀐다 */}
-                  <td className="whitespace-nowrap px-3 py-2.5 text-xs text-slate-500">
-                    {r.brand ? (DEALER_BRAND_LABEL[r.brand] ?? r.brand) : <span className="text-slate-300">기타</span>}
-                  </td>
-                  <td className="px-3 py-2.5">{text(r, 'dealerName', 'w-40', '업체명')}</td>
-                  <td className="px-3 py-2.5">{text(r, 'managerName', 'w-20')}</td>
-                  <td className="px-3 py-2.5">{text(r, 'managerPhone', 'w-32', '010-')}</td>
-                  <td className="px-3 py-2.5">
-                    <input
-                      type="date"
-                      defaultValue={r.startedOn ?? ''}
-                      onBlur={e => {
-                        if (e.target.value !== (r.startedOn ?? '')) void patch(r, { startedOn: e.target.value || null });
-                      }}
-                      className="rounded-lg border border-slate-200 px-2 py-1.5 text-[13px] outline-none focus:border-indigo-400"
-                    />
-                  </td>
-                  <td className="px-3 py-2.5">{text(r, 'bank', 'w-24', '카카오뱅크')}</td>
-                  <td className="px-3 py-2.5">{text(r, 'accountHolder', 'w-20')}</td>
-                  <td className="px-3 py-2.5">{text(r, 'accountNumber', 'w-40')}</td>
-                  {/* 꼴이 제각각이라(매달5일 / 10-01 / 매달1일고정) 적힌 그대로 받는다 */}
-                  <td className="px-3 py-2.5">{text(r, 'transferDay', 'w-28', '매달5일')}</td>
-                  {/*
-                    적힌 문장에서 뽑아낸 날. 이 숫자로 그날 아침 알림이 돈다.
-                    못 뽑았으면 노랗게 칠해 채우라고 알린다 — 틀린 날에 알리느니 안 알리는 게 낫다.
-                  */}
-                  <td className="px-3 py-2.5 text-center">
-                    <input
-                      defaultValue={r.transferDayOfMonth || ''}
-                      onBlur={e => {
-                        const next = Math.min(31, Number(digitsOnly(e.target.value)) || 0);
-                        if (next !== r.transferDayOfMonth) void patch(r, { transferDayOfMonth: next });
-                      }}
-                      inputMode="numeric"
-                      placeholder="—"
-                      title="이 날 아침에 알림이 갑니다"
-                      className={`w-14 rounded-lg border px-2 py-1.5 text-center text-[13px] outline-none focus:border-indigo-400 ${
-                        r.transferDayOfMonth ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
-                      }`}
-                    />
-                  </td>
-
-                  <td className="px-3 py-2.5 text-right">
-                    <input
-                      defaultValue={r.monthlyFee ? withCommas(r.monthlyFee) : ''}
-                      onBlur={e => {
-                        const next = Number(digitsOnly(e.target.value)) || 0;
-                        if (next !== r.monthlyFee) void patch(r, { monthlyFee: next });
-                      }}
-                      inputMode="numeric"
-                      placeholder="100,000"
-                      className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-[13px] outline-none focus:border-indigo-400"
-                    />
-                  </td>
-
-                  {/*
-                    회비만 나가고 아무것도 안 들어오는 곳을 찾는 칸이다.
-                    판매도 매입도 0이면 빨갛게 — 그게 끊을지 말지 볼 자리다.
-                  */}
-                  <td className={`whitespace-nowrap px-3 py-2.5 text-right ${idle(r.id) ? 'font-bold text-red-600' : 'text-slate-700'}`}>
-                    {activity[r.id]?.inspected ?? 0}
-                    {(activity[r.id]?.completed ?? 0) > 0 && (
-                      <span className="ml-1 text-[11px] font-normal text-slate-400">
-                        (판매 {activity[r.id]?.completed})
+                  {cols.cells({
+                    actions: (
+                      <button
+                        onClick={() => void removeRow(r)}
+                        className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                        aria-label="삭제"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    ),
+                    /* 업체명에서 뽑는 값이라 고칠 수 없다 — 업체명을 고치면 따라 바뀐다 */
+                    brand: r.brand ? (
+                      <span className="text-xs text-slate-500">{DEALER_BRAND_LABEL[r.brand] ?? r.brand}</span>
+                    ) : (
+                      <span className="text-xs text-slate-300">기타</span>
+                    ),
+                    dealerName: <span className="font-semibold text-slate-800">{r.dealerName}</span>,
+                    managerName: dash(r.managerName),
+                    managerPhone: dash(r.managerPhone),
+                    startedOn: r.startedOn ? (
+                      <span className="text-slate-500">{dayjs(r.startedOn).format('YY.M.D')}</span>
+                    ) : (
+                      dash('')
+                    ),
+                    bank: dash(r.bank),
+                    accountHolder: dash(r.accountHolder),
+                    accountNumber: dash(r.accountNumber),
+                    transferDay: dash(r.transferDay),
+                    /*
+                      적힌 문장에서 뽑아낸 날. 이 숫자로 그날 아침 알림이 돈다.
+                      못 뽑았으면 노랗게 칠해 채우라고 알린다 — 틀린 날에 알리느니 안 알리는 게 낫다.
+                    */
+                    transferDayOfMonth: r.transferDayOfMonth ? (
+                      <span className="text-slate-700">{r.transferDayOfMonth}</span>
+                    ) : (
+                      <span
+                        className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700"
+                        title="이 날이 없으면 이체 알림이 안 갑니다"
+                      >
+                        없음
                       </span>
-                    )}
-                  </td>
-                  <td className={`px-3 py-2.5 text-right ${idle(r.id) ? 'font-bold text-red-600' : 'text-slate-700'}`}>
-                    {activity[r.id]?.purchased ?? 0}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-500">
-                    {activity[r.id]?.lastAt ? (
-                      dayjs(activity[r.id]!.lastAt!).format('YY.M.D')
+                    ),
+                    monthlyFee: r.monthlyFee ? (
+                      <span className="font-semibold text-slate-800">{withCommas(r.monthlyFee)}</span>
+                    ) : (
+                      dash('')
+                    ),
+                    /*
+                      회비만 나가고 아무것도 안 들어오는 곳을 찾는 칸이다.
+                      판매도 매입도 0이면 빨갛게 — 그게 끊을지 말지 볼 자리다.
+                    */
+                    inspected: (
+                      <span className={idle(r.id) ? 'font-bold text-red-600' : 'text-slate-700'}>
+                        {activity[r.id]?.inspected ?? 0}
+                        {(activity[r.id]?.completed ?? 0) > 0 && (
+                          <span className="ml-1 text-[11px] font-normal text-slate-400">
+                            (판매 {activity[r.id]?.completed})
+                          </span>
+                        )}
+                      </span>
+                    ),
+                    purchased: (
+                      <span className={idle(r.id) ? 'font-bold text-red-600' : 'text-slate-700'}>
+                        {activity[r.id]?.purchased ?? 0}
+                      </span>
+                    ),
+                    lastAt: activity[r.id]?.lastAt ? (
+                      <span className="text-slate-500">{dayjs(activity[r.id]!.lastAt!).format('YY.M.D')}</span>
+                    ) : (
+                      dash('')
+                    ),
+                    method: (
+                      <span
+                        className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                          r.method === 'CANCELED' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {DEALER_FEE_METHOD_LABEL[r.method]}
+                      </span>
+                    ),
+                    autoTransferUntil: dash(r.autoTransferUntil),
+                    note: dash(r.note),
+                    memo: dash(r.memo),
+                    /* 한 장만 받는다 — 여러 장이면 어느 게 지금 맞는 것인지 아무도 모른다 */
+                    photo: r.photo ? (
+                      <ContractPhotoThumb value={r.photo} size={32} alt="상조회 사진" />
                     ) : (
                       <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-
-                  <td className="px-3 py-2.5">
-                    <select
-                      value={r.method}
-                      onChange={e => void patch(r, { method: e.target.value as DealerFeeMethod })}
-                      className={`rounded-lg border px-2 py-1.5 text-[13px] outline-none focus:border-indigo-400 ${
-                        r.method === 'CANCELED' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200'
-                      }`}
-                    >
-                      {(Object.entries(DEALER_FEE_METHOD_LABEL) as [DealerFeeMethod, string][]).map(([k, label]) => (
-                        <option key={k} value={k}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-
-                  <td className="px-3 py-2.5">{text(r, 'autoTransferUntil', 'w-32', '2026년12월')}</td>
-                  <td className="px-3 py-2.5">{text(r, 'note', 'w-56')}</td>
-                  <td className="px-3 py-2.5">{text(r, 'memo', 'w-56')}</td>
-
-                  {/*
-                    사진 한 장.
-
-                    명함·간판·약정서처럼 글로 못 적는 것이 있다. 지금은 각자 휴대폰에
-                    남아서 찾으려면 찍은 사람을 찾아 다녀야 한다.
-
-                    올리면 바로 저장된다 — 따로 누를 단추를 두면 올려놓고 안 누른 줄이 생긴다.
-                  */}
-                  <td className="px-3 py-2.5 text-center">
-                    <ContractPhotos
-                      value={r.photo ?? ''}
-                      onChange={next => void patch(r, { photo: next })}
-                      max={1}
-                      title="상조회 사진"
-                      endpoint="/dealer-fees/photos"
-                      watermark={false}
-                    />
-                  </td>
-
-                  <td className="px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={r.active}
-                      onChange={e => void patch(r, { active: e.target.checked })}
-                      className="size-4 accent-indigo-600"
-                      aria-label="거래중"
-                    />
-                  </td>
+                    ),
+                    active: (
+                      <input
+                        type="checkbox"
+                        checked={r.active}
+                        onChange={e => void patch(r, { active: e.target.checked })}
+                        className="size-4 accent-indigo-600"
+                        aria-label="거래중"
+                      />
+                    ),
+                  })}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/*
+        가로로 펴서 고치는 창.
+
+        저장은 한 번에 한다 — 표에서 칸마다 보내던 때는 한 곳을 손보는 동안 열 번이
+        넘게 날아갔고, 중간에 끊기면 반만 들어갔다.
+      */}
+      {editing && (
+        <DealerFeeForm
+          row={editing}
+          onSave={body => patch(editing, body)}
+          onDelete={() => {
+            const row = editing;
+            setEditing(null);
+            void removeRow(row);
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
 
       {/*
         장부 어디에도 안 붙은 이름.
