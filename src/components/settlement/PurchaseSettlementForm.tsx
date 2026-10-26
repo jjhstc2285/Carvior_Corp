@@ -255,9 +255,24 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         <p className="mt-1 text-xs text-slate-400">금액은 <b>원</b>으로 적습니다 — 35000 이면 35,000원입니다.</p>
         <p className="mt-0.5 text-xs text-slate-400">구전은 방식마다 나가는 금액이 다릅니다 — 현금 90 / 3.3% 88 / 13.3% 75 처럼 <b>실제로 나간 금액</b>을 적습니다.</p>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">
+        {/*
+          넷으로 세운다.
+
+          여섯으로 쪼갰더니 한 칸이 좁아 글자가 잘렸다 — 수입차 차명은 트림까지 붙어
+          길고('르노(삼성) 그랑 콜레오스 2.0 터보 4WD 에스프리 알핀'), 매입가는 자리
+          수가 여덟이다. 칸을 더 나누는 것보다 한 칸을 넓게 쓰는 게 낫다.
+        */}
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           <DateField label="정산일자" value={date} onChange={setDate} />
-          <TextField label="차량명" value={vehicleName} onChange={setVehicleName} placeholder="그랜저 GN7" required />
+          {/* 차명은 길다 — 두 칸을 쓴다 */}
+          <TextField
+            label="차량명"
+            value={vehicleName}
+            onChange={setVehicleName}
+            placeholder="그랜저 GN7"
+            required
+            className="sm:col-span-2"
+          />
           <TextField label="차량번호" value={vehicleNumber} onChange={setVehicleNumber} placeholder="12가3456" required />
           {/*
             담당자는 계약팀에서 고른다.
@@ -308,7 +323,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             그 값(<b>실 차량판매가</b> → 없으면 <b>실차주입금 + 차대금업</b> → 없으면 <b>총 진행 판매금액</b>)으로
             덮입니다. 매입 정산 표에서도 바로 적을 수 있습니다.
           </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-8">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MoneyField label="차량판매가" value={salePrice} onChange={setSalePrice} />
             {/*
               상사 정산서 맨 아래 숫자.
@@ -356,7 +371,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           />
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <MoneyField
             label="정산금액"
             value={amountManual ? settlementAmount : String(grandTotal)}
