@@ -376,6 +376,17 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
   const [editing, setEditing] = useState<ManagedVehicle | null>(null);
 
   const stockTotal = rows.reduce((sum, r) => sum + r.vehicle.stockAmount, 0);
+  /*
+    지금 보고 있는 목록의 매도금액 합계.
+
+    현금차량은 재고 금융을 안 쓰는 차라 '재고금액'이 늘 0이다 — 그 칸만 띄워 두면
+    몇 대인지는 보이는데 그 차들이 얼마어치인지는 알 수가 없다.
+
+    걸러 본 목록 그대로 더한다(재고금액 총액과 다르다). 달을 고르거나 검색해서
+    추려 놓고 "이만큼이 얼마냐"를 묻는 자리라, 화면에 보이는 것만 센다.
+  */
+  const saleTotal = rows.reduce((sum, r) => sum + (r.vehicle.salePrice ?? 0), 0);
+  const saleCount = rows.filter(r => (r.vehicle.salePrice ?? 0) > 0).length;
   /* 어디로 나갔고 누가 팔았나 — 정산·상담에 적힌 것으로 가려낸다(따로 적는 칸이 아니다) */
   const soldChannelOf = useSoldChannels();
   const soldDealerOf = useSoldDealer();
@@ -516,6 +527,22 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
           )}
           {stockTotal > 0 && (
             <p className="text-[11px] text-slate-400">재고금액 {stockTotal.toLocaleString()}원</p>
+          )}
+          {/*
+            매도금액 합계 — 몇 대가 적혀 있는지도 같이 적는다.
+
+            안 적은 차가 섞여 있으면 합계가 실제보다 적게 나온다. 몇 대 중 몇 대를
+            더한 값인지 모르면 그 숫자를 그대로 믿게 된다.
+          */}
+          {saleTotal > 0 && (
+            <p className="text-[11px] font-semibold text-emerald-700">
+              매도금액 {saleTotal.toLocaleString()}원
+              {saleCount < rows.length && (
+                <span className="ml-1 font-normal text-slate-400">
+                  ({rows.length}대 중 {saleCount}대만 적혀 있습니다)
+                </span>
+              )}
+            </p>
           )}
         </div>
       </div>
