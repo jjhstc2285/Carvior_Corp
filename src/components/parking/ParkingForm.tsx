@@ -8,6 +8,7 @@ import { PARKING_SLOTS, lotLabel, type ParkingLotConfig } from '../../lib/parkin
 import { confirmDanger } from '../../lib/alert';
 import { REINSPECT_MONTHS, reinspectLabel } from '../../lib/reinspection';
 import { useEscClose } from '../../lib/useEscClose';
+import VehiclePhotoStrip from '../vehicle/VehiclePhotoStrip';
 
 interface Props {
   /** 주차장 구조 — 차량관리팀이 화면에서 고친다(서버에서 받아 온다) */
@@ -131,7 +132,8 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+      {/* 사진이 붙으면 창이 길어진다 — 작은 화면에서 저장 단추가 밖으로 나가지 않게 */}
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">{editing ? '차량 위치 수정' : '차량 위치 등록'}</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -257,6 +259,16 @@ export default function ParkingForm({ editing, defaultEmployeeId, presetPosition
               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400" />
           </div>
         </div>
+
+        {/*
+          그 차의 상품화 사진.
+
+          자리에서 궁금한 건 "이 차가 어떻게 생겼나"다 — 손님이 옆에 서서 묻는 일도
+          여기서 생긴다. 사진을 보려고 차량 관리로 넘어갔다 돌아오면 고치던 값이 날아간다.
+
+          보여 주기만 한다. 사진이 없으면 아무것도 안 그린다.
+        */}
+        <VehiclePhotoStrip vehicleNumber={vehicleNumber} />
 
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
