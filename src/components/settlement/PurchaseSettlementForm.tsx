@@ -238,31 +238,39 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   };
 
   return (
-    <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-6">
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4 py-6">
       {/*
-        가로로 넓게 편다.
+        왼쪽은 산 값, 오른쪽은 들인 값과 판 값.
 
-        칸이 스물이 넘어 좁은 창에서는 한 칸씩 내려가며 적게 된다 — 매입가와 상품화
-        비용을 같이 보면서 적어야 하는데 둘이 화면 위아래로 갈라졌다.
+        세로로 쌓아 두었더니 창이 화면을 두 번 넘겼다 — 매입가를 보며 상품화 비용을
+        적어야 하는데 둘이 위아래로 갈라져서, 적는 내내 굴려 가며 맞춰 봐야 했다.
+
+        머리와 저장 단추는 붙박이로 둔다. 다 적고도 저장 단추가 화면 밖에 있으면 안 된다.
       */}
-      <div className="w-full max-w-5xl rounded-2xl bg-white p-5 shadow-xl">
+      <div className="flex max-h-[92vh] w-full max-w-6xl flex-col rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">{editing ? '매입 정산 수정' : '매입 정산 추가'}</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
         </div>
-        <p className="mt-1 text-xs text-slate-400">금액은 <b>원</b>으로 적습니다 — 35000 이면 35,000원입니다.</p>
-        <p className="mt-0.5 text-xs text-slate-400">구전은 방식마다 나가는 금액이 다릅니다 — 현금 90 / 3.3% 88 / 13.3% 75 처럼 <b>실제로 나간 금액</b>을 적습니다.</p>
+        <p className="mt-1 text-xs text-slate-400">
+          금액은 <b>원</b>으로 적습니다 — 35000 이면 35,000원입니다. 구전은 방식마다 나가는 금액이 다릅니다(현금 90 /
+          3.3% 88 / 13.3% 75) — <b>실제로 나간 금액</b>을 적습니다.
+        </p>
+
+        <div className="-mr-2 mt-3 min-h-0 flex-1 overflow-y-auto pr-2">
+        <div className="grid items-start gap-x-5 xl:grid-cols-2">
+        <div>
 
         {/*
-          넷으로 세운다.
+          셋으로 세운다.
 
           여섯으로 쪼갰더니 한 칸이 좁아 글자가 잘렸다 — 수입차 차명은 트림까지 붙어
           길고('르노(삼성) 그랑 콜레오스 2.0 터보 4WD 에스프리 알핀'), 매입가는 자리
           수가 여덟이다. 칸을 더 나누는 것보다 한 칸을 넓게 쓰는 게 낫다.
         */}
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <DateField label="정산일자" value={date} onChange={setDate} />
           {/* 차명은 길다 — 두 칸을 쓴다 */}
           <TextField
@@ -303,16 +311,20 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           </div>
         </div>
 
-        <div className="mt-4">
-          <PrepCostEditor rows={prepRows} onChange={setPrepRows} vendors={vendors} contacts={contacts} check={check} />
-        </div>
-
-        <div className="mt-4">
+        <div className="mt-3">
           <ContractPhotos value={contractPhotos} onChange={setContractPhotos} />
         </div>
 
+        {/* 왼쪽 끝 — 오른쪽으로 넘어간다 */}
+        </div>
+        <div className="mt-4 xl:mt-0">
+
+        <div>
+          <PrepCostEditor rows={prepRows} onChange={setPrepRows} vendors={vendors} contacts={contacts} check={check} />
+        </div>
+
         {/* 판 값. 산 값과 한 화면에 있어야 그 차에서 얼마가 남았는지가 보인다. */}
-        <div className="mt-4 rounded-xl border border-slate-200 p-3">
+        <div className="mt-3 rounded-xl border border-slate-200 p-3">
           <p className="mb-2 text-xs font-semibold text-slate-600">판매 (판매완료된 뒤에 적습니다)</p>
           {/*
             "따라옵니다"만 적어 두었더니 못 적는 칸으로 읽혔다. 우리가 직접 판 차는 따라올
@@ -340,7 +352,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           </div>
         </div>
 
-        <div className="mt-4 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+        <div className="mt-3 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
           {/* 이전비는 적는 칸이 아니라 계산 결과다 — 무엇이 더해졌는지 펼쳐 보여준다 */}
           <CalcRow
             label="이전비 + 추가이전비"
@@ -371,7 +383,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           />
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MoneyField
             label="정산금액"
             value={amountManual ? settlementAmount : String(grandTotal)}
@@ -400,9 +412,14 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           </p>
         )}
 
+        {/* 오른쪽 끝 */}
+        </div>
+        </div>
+        </div>
+
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-3 flex justify-end gap-2 border-t border-slate-100 pt-3">
           <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">취소</button>
           <button
             onClick={() => void handleSubmit()}
