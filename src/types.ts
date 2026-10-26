@@ -345,6 +345,12 @@ export interface DealerFeeAccount {
   autoTransferUntil: string; // 자동이체기한
   note: string; // 비고
   memo: string;
+  /**
+   * 사진 한 장 — 명함·간판·약정서처럼 글로 못 적는 것.
+   *
+   * 한 장만 받는다. 여러 장을 받으면 어느 게 지금 맞는 것인지 아무도 모른다.
+   */
+  photo: string;
   active: boolean; // 거래중
   createdAt: string;
   updatedAt: string;

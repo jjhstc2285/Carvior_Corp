@@ -16,7 +16,14 @@ import {
   OnModuleInit,
   Post,
   Query,
+  UploadedFiles,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { existsSync, mkdirSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { ConfigService } from '@nestjs/config';
 import { Type } from 'class-transformer';
 import {
@@ -39,7 +46,16 @@ import { bestMatch, brandOf, dealerKey } from './dealer-match';
 import { formatDateOnly, formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertOfficeManager, LEDGER_VIEWER_WHERE } from '../auth/office-manager';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+
+/**
+ * 상조회 사진이 쌓이는 곳.
+ *
+ * Apache 가 /uploads 를 그대로 내주므로 여기 떨어진 파일 경로가 곧 보이는 주소가 된다.
+ * 뜰 때 한 번 만들어 둔다 — 없으면 올릴 때마다 실패한다.
+ */
+const DEALER_PHOTO_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'dealer-fees');
+if (!existsSync(DEALER_PHOTO_DIR)) mkdirSync(DEALER_PHOTO_DIR, { recursive: true });
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { PushService } from '../push/push.service';
@@ -107,6 +123,8 @@ export class CreateDealerFeeDto {
   @IsOptional() @IsString() @MaxLength(30) autoTransferUntil?: string;
   @IsOptional() @IsString() @MaxLength(255) note?: string;
   @IsOptional() @IsString() @MaxLength(255) memo?: string;
+  /** 사진 한 장 — 명함·간판·약정서처럼 글로 못 적는 것 */
+  @IsOptional() @IsString() @MaxLength(300) photo?: string;
   @IsOptional() @IsBoolean() active?: boolean;
 }
 
@@ -732,6 +750,41 @@ export class DealerFeesController {
   create(@CurrentUser() user: AuthUser, @Headers('x-property-pass') pass: string, @Body() dto: CreateDealerFeeDto) {
     assertUnlocked(user, pass);
     return this.dealerFees.create(dto);
+  }
+
+  /**
+   * 사진 올리기 — 먼저 올려 경로를 받고, 그 경로를 줄에 붙인다.
+   *
+   * 원본 파일명은 안 쓴다. 한글 이름이 깨지고 경로에 넣기 위험한 글자가 섞여 들어온다.
+   * 번호를 풀어야 올릴 수 있다 — 장부와 같은 자리다.
+   */
+  @Post('photos')
+  @UseInterceptors(
+    FilesInterceptor('files', 1, {
+      storage: diskStorage({
+        destination: DEALER_PHOTO_DIR,
+        filename: (_req, file, cb) =>
+          cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
+      }),
+      limits: { fileSize: 12 * 1024 * 1024, files: 1 },
+      fileFilter: (_req, file, cb) => {
+        if (!/^image\//.test(file.mimetype)) {
+          cb(new BadRequestException('이미지 파일만 올릴 수 있습니다.'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadPhotos(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-property-pass') pass: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    assertUnlocked(user, pass);
+    if (!files?.length) throw new BadRequestException('올릴 사진이 없습니다.');
+    // Apache가 /uploads 를 그대로 내주므로 이 경로가 곧 보이는 주소가 된다
+    return { urls: files.map((f) => `/uploads/dealer-fees/${f.filename}`) };
   }
 
   /** 엑셀에서 붙여넣은 줄을 한 번에 — 이미 있는 업체명은 건너뛴다 */

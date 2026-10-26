@@ -7,6 +7,7 @@ import DealerRankingModal from './DealerRankingModal';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { digitsOnly, withCommas } from '../../lib/money';
 import { DEALER_BRAND_LABEL, DEALER_FEE_METHOD_LABEL, type DealerFeeAccount, type DealerFeeMethod } from '../../types';
+import ContractPhotos from '../settlement/ContractPhotos';
 import DealerFeePasteModal from './DealerFeePasteModal';
 
 /**
@@ -414,13 +415,15 @@ export default function DealerFeeModule() {
                 <th className="px-3 py-3 font-medium">자동이체기한</th>
                 <th className="px-3 py-3 font-medium">비고</th>
                 <th className="px-3 py-3 font-medium">메모</th>
+                {/* 명함·간판·약정서처럼 글로 못 적는 것 — 한 장만 받는다 */}
+                <th className="px-3 py-3 text-center font-medium">사진</th>
                 <th className="px-3 py-3 text-center font-medium">거래중</th>
               </tr>
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={18} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={19} className="px-5 py-10 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : idleOnly ? '판매·매입 없는 곳이 없습니다.' : '등록된 영업소가 없습니다.'}
                   </td>
                 </tr>
@@ -536,6 +539,25 @@ export default function DealerFeeModule() {
                   <td className="px-3 py-2.5">{text(r, 'autoTransferUntil', 'w-32', '2026년12월')}</td>
                   <td className="px-3 py-2.5">{text(r, 'note', 'w-56')}</td>
                   <td className="px-3 py-2.5">{text(r, 'memo', 'w-56')}</td>
+
+                  {/*
+                    사진 한 장.
+
+                    명함·간판·약정서처럼 글로 못 적는 것이 있다. 지금은 각자 휴대폰에
+                    남아서 찾으려면 찍은 사람을 찾아 다녀야 한다.
+
+                    올리면 바로 저장된다 — 따로 누를 단추를 두면 올려놓고 안 누른 줄이 생긴다.
+                  */}
+                  <td className="px-3 py-2.5 text-center">
+                    <ContractPhotos
+                      value={r.photo ?? ''}
+                      onChange={next => void patch(r, { photo: next })}
+                      max={1}
+                      title="상조회 사진"
+                      endpoint="/dealer-fees/photos"
+                      watermark={false}
+                    />
+                  </td>
 
                   <td className="px-3 py-2.5 text-center">
                     <input

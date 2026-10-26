@@ -250,6 +250,10 @@ model DealerFeeAccount {
   note              String @default("") @db.VarChar(255) // 비고
   memo              String @default("") @db.VarChar(255) // 오른쪽 여백에 적던 말
 
+  // 사진 한 장 — 명함·간판·약정서처럼 글로 못 적는 것.
+  // 한 장만 받는다. 여러 장을 받으면 어느 게 지금 맞는 것인지 아무도 모른다.
+  photo String @default("") @db.VarChar(300)
+
   active Boolean @default(true) // 거래 종료하면 내린다
 
   createdAt DateTime @default(now())
