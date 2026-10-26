@@ -7,11 +7,12 @@ import {
   MAX_AGE_YEARS,
   MAX_MILEAGE_KM,
   offerEligibility,
+  suggestRepayDate,
   SALE_STAGE_CLASS,
   SALE_STAGE_LABEL,
   saleStage,
 } from '../../lib/stockFinance';
-import { withCommas } from '../../lib/money';
+import { digitsOnly, withCommas } from '../../lib/money';
 import { useStore } from '../../store';
 import type { ManagedVehicle, PurchaseIntake } from '../../types';
 import { api as callApi, ApiError } from '../../lib/api';
@@ -59,10 +60,6 @@ const COLUMNS: Column[] = [
 
 /** 빈 칸은 줄표로 — 비어 있는 것과 안 받아온 것이 같아 보이면 안 된다 */
 const none = <span className="text-slate-300">—</span>;
-
-/** 날짜 한 칸 — 안 적힌 날은 줄표다 */
-const day = (value: string | null | undefined) =>
-  value ? <span className="text-slate-600">{dayjs(value).format('YY.MM.DD')}</span> : none;
 
 /**
  * 제시·재고 쪽만 사무장이 챙긴다. 나머지(상환 예정·출고 예정·매도 차량·현금차량)는
@@ -410,6 +407,46 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
 
   const patch = (v: ManagedVehicle, body: Partial<ManagedVehicle>) => void toggleFlag(v, body);
 
+  /**
+   * 재고금액을 적으면 상환일자까지 채워 재고차량으로 넘긴다.
+   *
+   * 갚는 날은 할부사가 정해 놓은 규칙이라 사람이 셀 일이 아니다 — 우리금융이면
+   * 다섯 달 뒤 8일 하는 식이다. 한 칸 적을 때마다 달력을 뒤지게 두지 않는다.
+   *
+   * 이미 적어둔 상환일자는 안 건드린다. 규칙과 다르게 잡은 건이 있을 수 있고,
+   * 그건 사람이 알고 적은 값이다.
+   * 모르는 할부사면 그냥 둔다 — 넘겨짚어 적어두면 그게 맞는 줄 알고 넘어간다.
+   */
+  const saveStockAmount = (v: ManagedVehicle, stockAmount: number) => {
+    if (stockAmount === v.stockAmount) return;
+    // 이전일자가 있으면 그날부터 센다. 없으면 오늘 잡은 것으로 본다.
+    const repayDate =
+      v.repayDate || !v.stockCapital || stockAmount <= 0
+        ? null
+        : suggestRepayDate(v.stockCapital, v.transferDate || dayjs());
+
+    patch(v, { stockAmount, ...(repayDate ? { repayDate } : {}) });
+  };
+
+  /**
+   * 표에서 바로 치는 날짜 칸.
+   *
+   * 제시·이전·매도·상환은 줄줄이 훑으며 치는 값이다 — 스무 대를 적는데 창을 마흔 번
+   * 여닫게 두지 않는다. 칸을 벗어날 때 저장한다(안 바뀌면 아무 일도 안 한다).
+   */
+  const dateInput = (value: string | null, onSave: (next: string | null) => void, highlight = false) => (
+    <input
+      type="date"
+      defaultValue={value ?? ''}
+      onBlur={e => {
+        if (e.target.value !== (value ?? '')) onSave(e.target.value || null);
+      }}
+      className={`rounded-lg border px-2 py-1 text-[13px] outline-none focus:border-indigo-400 ${
+        highlight ? 'border-amber-400 bg-amber-50' : 'border-slate-200'
+      }`}
+    />
+  );
+
   const handleExport = () => {
     const data = rows.map(({ vehicle: v, eligibility }) => ({
       차량번호: v.vehicleNumber,
@@ -717,21 +754,59 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                         ) : (
                           none
                         ),
-                      offerDate: day(v.offerDate),
-                      transferDate: day(v.transferDate),
-                      soldDate: day(v.soldDate),
-                      stockCapital: v.stockCapital ? <span className="text-slate-600">{v.stockCapital}</span> : none,
-                      stockAmount: v.stockAmount ? (
-                        <span className="font-semibold text-slate-800">{withCommas(v.stockAmount)}</span>
+                      offerDate: dateInput(v.offerDate, next => patch(v, { offerDate: next })),
+                      transferDate: dateInput(v.transferDate, next => patch(v, { transferDate: next })),
+                      /* 매도일자를 적으면 매도 차량으로 넘어간다. 오늘 넘긴 차는 단추 한 번으로 끝낸다 */
+                      soldDate: v.soldDate ? (
+                        dateInput(v.soldDate, next => patch(v, { soldDate: next }))
                       ) : (
-                        none
+                        <span className="flex items-center gap-1.5">
+                          {dateInput(null, next => patch(v, { soldDate: next }))}
+                          <button
+                            onClick={() => patch(v, { soldDate: dayjs().format('YYYY-MM-DD') })}
+                            className="shrink-0 rounded-lg border border-violet-300 bg-violet-50 px-2 py-1 text-[12px] font-semibold text-violet-700 hover:bg-violet-100"
+                            title="오늘 날짜로 매도 처리합니다"
+                          >
+                            매도
+                          </button>
+                        </span>
                       ),
-                      repayDate: day(v.repayDate),
+                      stockCapital: (
+                        <input
+                          defaultValue={v.stockCapital}
+                          onBlur={e => {
+                            const next = e.target.value.trim();
+                            if (next !== v.stockCapital) patch(v, { stockCapital: next });
+                          }}
+                          list="capital-companies"
+                          placeholder="할부사"
+                          className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-[13px] outline-none focus:border-indigo-400"
+                        />
+                      ),
+                      stockAmount: (
+                        <input
+                          defaultValue={v.stockAmount ? withCommas(v.stockAmount) : ''}
+                          onBlur={e => saveStockAmount(v, Number(digitsOnly(e.target.value)) || 0)}
+                          inputMode="numeric"
+                          placeholder="원"
+                          className="w-28 rounded-lg border border-slate-200 px-1.5 py-1 text-right text-[13px] outline-none focus:border-indigo-400"
+                        />
+                      ),
+                      repayDate: dateInput(v.repayDate, next => patch(v, { repayDate: next })),
                       /* 같은 값이 네 곳에 적힌다 — 상담·알선 정산·매입 정산과 같은 숫자다 */
-                      salePrice: v.salePrice ? (
-                        <span className="font-semibold text-emerald-700">{withCommas(v.salePrice)}</span>
-                      ) : (
-                        none
+                      salePrice: (
+                        <input
+                          key={`sale-${v.id}-${v.salePrice}`}
+                          defaultValue={v.salePrice ? withCommas(v.salePrice) : ''}
+                          onBlur={e => {
+                            const next = Number(digitsOnly(e.target.value)) || 0;
+                            if (next > 0 && next !== v.salePrice) patch(v, { salePrice: next });
+                          }}
+                          inputMode="numeric"
+                          placeholder="원"
+                          title="상담 등록·알선 정산·매입 정산의 판매가와 같은 값입니다 — 여기 적으면 그쪽도 같이 바뀝니다"
+                          className="w-28 rounded-lg border border-emerald-200 bg-emerald-50/40 px-1.5 py-1 text-right text-[13px] outline-none focus:border-emerald-400 focus:bg-white"
+                        />
                       ),
                       soldChannel: (() => {
                         const how = soldChannelOf(v.vehicleNumber);
@@ -760,19 +835,32 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
                         />
                       ),
                       /* 안 적혀 있으면 노랗게 — 이 둘이 없으면 제시 가능 여부를 못 가린다 */
-                      modelYear: v.modelYear ? (
-                        <span className="text-slate-600">{v.modelYear}</span>
-                      ) : (
-                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
-                          없음
-                        </span>
+                      modelYear: (
+                        <input
+                          defaultValue={v.modelYear}
+                          onBlur={e => {
+                            const next = e.target.value.trim();
+                            if (next !== v.modelYear) patch(v, { modelYear: next });
+                          }}
+                          placeholder="2016"
+                          className={`w-20 rounded-lg border px-2 py-1 text-[13px] outline-none focus:border-indigo-400 ${
+                            v.modelYear ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
+                          }`}
+                        />
                       ),
-                      mileage: v.mileage ? (
-                        <span className="text-slate-600">{withCommas(v.mileage)}</span>
-                      ) : (
-                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
-                          없음
-                        </span>
+                      mileage: (
+                        <input
+                          defaultValue={v.mileage ? withCommas(v.mileage) : ''}
+                          onBlur={e => {
+                            const next = Number(digitsOnly(e.target.value)) || 0;
+                            if (next !== v.mileage) patch(v, { mileage: next });
+                          }}
+                          inputMode="numeric"
+                          placeholder="km"
+                          className={`w-24 rounded-lg border px-1.5 py-1 text-right text-[13px] outline-none focus:border-indigo-400 ${
+                            v.mileage ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
+                          }`}
+                        />
                       ),
                       eligibility:
                         eligibility.ok === true ? (
