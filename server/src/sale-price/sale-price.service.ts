@@ -188,7 +188,7 @@ export class SalePriceService {
   private async announce(plates: string[], amount: number, from: SalePriceSource): Promise<void> {
     try {
       const card = await this.cardOf(plates, amount, from);
-      if (card) this.telegram.notifySale(saleCardText(card));
+      if (card) this.telegram.notifySale(saleCardText(card), card.vehicleNumber);
     } catch (e) {
       this.logger.warn(`판매가 쪽지를 못 만들었습니다: ${(e as Error).message}`);
     }

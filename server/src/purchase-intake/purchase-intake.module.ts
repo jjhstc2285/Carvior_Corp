@@ -33,6 +33,7 @@ import { isValidPlate, normalizePlate, plateTailOf } from '../vehicles/vehicle.r
 import { inferBodyType } from '../vehicles/body-type';
 import { CarviorModule, CarviorService, type CarviorContract } from '../carvior/carvior.module';
 import { TelegramService } from '../telegram/telegram.module';
+import { purchaseCardText } from './purchase-card';
 
 /** 카비어는 만원, 매입 관리는 원으로 적는다. */
 const WON_PER_MANWON = 10000;
@@ -762,8 +763,79 @@ export class PurchaseIntakeService {
       prepared: dto.prepared,
     });
     await this.alertMileageGap(row);
+    this.announcePurchase(row);
     // 방금 올린 차의 상품화·등록 여부를 같이 담아 준다 — 안 담으면 새로고침해야 보인다
     return this.toView(row, await this.plateState(row.vehicleNumber));
+  }
+
+  /**
+   * 매입방에 쪽지를 띄운다.
+   *
+   * 지금은 사오는 사람이 카톡에 손으로 친다. 열일곱 줄짜리라 한 줄은 꼭 빠지고, 빠진
+   * 줄이 하필 차키 갯수나 고객번호면 나중에 그걸 물어보러 다시 전화를 돈다.
+   *
+   * 공지방이 아니라 매입방으로 간다 — 실매입금액과 구전이 들어서, 전 직원이 보는
+   * 자리에 올릴 값이 아니다.
+   *
+   * 기다리지 않는다. 쪽지가 안 가도 매입은 들어간 뒤다.
+   */
+  private announcePurchase(row: {
+    source: string;
+    date: Date;
+    inspector: string;
+    vehicleName: string;
+    detailModel: string;
+    vehicleNumber: string;
+    modelYear: string;
+    fuel: string;
+    note: string;
+    mileage: number;
+    checkedMileage: number;
+    purchaseAmount: number;
+    brokerFee: number;
+    keyCount: number;
+    customerPhone: string;
+    customerName: string;
+    employee?: { name: string } | null;
+  }): void {
+    this.telegram.notifyPurchase(
+      purchaseCardText({
+        source: row.source,
+        date: row.date,
+        inspector: row.inspector,
+        vehicleName: row.vehicleName,
+        detailModel: row.detailModel,
+        vehicleNumber: row.vehicleNumber,
+        modelYear: row.modelYear,
+        fuel: row.fuel,
+        note: row.note,
+        // 실차를 보고 다시 적은 값이 있으면 그게 맞다
+        mileage: row.checkedMileage || row.mileage,
+        purchaseAmount: row.purchaseAmount,
+        brokerFee: row.brokerFee,
+        keyCount: row.keyCount,
+        customerPhone: row.customerPhone,
+        customerName: row.customerName,
+        employeeName: row.employee?.name ?? '',
+      }),
+      row.vehicleNumber,
+    );
+  }
+
+  /**
+   * 다시 올린다 — 손으로 누르는 자리.
+   *
+   * 등록할 때 올라가는 쪽지에는 빈 줄이 많다. 실차 확인자·특이사항·주행거리는 검차가
+   * 끝나야 채워지는 값이라, 그때 다시 한 번 올려야 방에 제대로 된 쪽지가 남는다.
+   */
+  async repost(id: string): Promise<{ sent: boolean }> {
+    const row = await this.prisma.purchaseIntake.findUnique({
+      where: { id },
+      include: { employee: { select: { name: true } } },
+    });
+    if (!row) throw new NotFoundException('매입 내역을 찾을 수 없습니다.');
+    this.announcePurchase(row);
+    return { sent: true };
   }
 
   async update(id: string, dto: UpdatePurchaseIntakeDto) {
@@ -1404,6 +1476,12 @@ export class PurchaseIntakeController {
   @Get('duplicate')
   duplicate(@Query('plate') plate = '') {
     return this.intake.checkDuplicate(plate);
+  }
+
+  /** 매입방에 다시 올린다 — 검차가 끝나 빈 줄이 채워진 뒤에 누른다 */
+  @Post(':id/repost')
+  repost(@Param('id') id: string) {
+    return this.intake.repost(id);
   }
 
   @Post()

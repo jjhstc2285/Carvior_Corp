@@ -1,6 +1,8 @@
 import { request as httpsRequest } from 'node:https';
 import { resolve4 } from 'node:dns/promises';
-import { Controller, Get, Global, Injectable, Logger, Module, OnModuleInit, Post } from '@nestjs/common';
+import { Controller, Get, Global, Injectable, Logger, Module, OnModuleInit, Param, Post, Query } from '@nestjs/common';
+import { TelegramRoom } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
@@ -29,6 +31,23 @@ const HOST = 'api.telegram.org';
  */
 const FALLBACK_IPS = ['149.154.167.220', '149.154.175.50', '149.154.165.120'];
 
+/** 방 이름 — 로그와 화면이 같은 말을 쓴다 */
+export const ROOM_LABEL: Record<TelegramRoom, string> = {
+  [TelegramRoom.BROADCAST]: '공지방',
+  [TelegramRoom.SALE]: '입금확인방',
+  [TelegramRoom.PURCHASE]: '매입방',
+};
+
+export interface TelegramLogRow {
+  id: string;
+  room: TelegramRoom;
+  text: string;
+  ok: boolean;
+  reason: string;
+  vehicleNumber: string;
+  createdAt: string;
+}
+
 @Injectable()
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
@@ -36,7 +55,10 @@ export class TelegramService implements OnModuleInit {
   /** 지난번에 통한 주소 — 다음부터 먼저 두드린다 */
   private lastGoodIp: string | null = null;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   private get token() {
     return this.config.get<string>('TELEGRAM_BOT_TOKEN', '');
@@ -57,6 +79,15 @@ export class TelegramService implements OnModuleInit {
    */
   private get saleChatId() {
     return this.config.get<string>('TELEGRAM_SALE_CHAT_ID', '');
+  }
+
+  /**
+   * 매입방 — 차를 사오면 쪽지가 간다.
+   *
+   * 여기도 금액이 든다(실매입금액·구전). 공지방과 다른 방이고, 안 적혀 있으면 안 보낸다.
+   */
+  private get purchaseChatId() {
+    return this.config.get<string>('TELEGRAM_PURCHASE_CHAT_ID', '');
   }
 
   get configured() {
@@ -83,6 +114,11 @@ export class TelegramService implements OnModuleInit {
     } else {
       this.logger.warn('입금확인방이 없습니다(.env TELEGRAM_SALE_CHAT_ID). 판매가 알림은 나가지 않습니다.');
     }
+    if (this.token && this.purchaseChatId) {
+      this.logger.log(`매입방 연결됨 — 방 ${this.purchaseChatId}`);
+    } else {
+      this.logger.warn('매입방이 없습니다(.env TELEGRAM_PURCHASE_CHAT_ID). 매입 알림은 나가지 않습니다.');
+    }
   }
 
   /**
@@ -92,19 +128,7 @@ export class TelegramService implements OnModuleInit {
    * 일이 멈추면 안 된다. 실패는 로그에만 남긴다.
    */
   notify(text: string): void {
-    if (!this.configured || !text.trim()) return;
-    void this.send(text, this.chatId).catch((e: Error) => {
-      /*
-        'fetch failed' 만 적으면 왜 못 갔는지 알 수 없다.
-
-        노드는 진짜 이유를 cause 에 숨겨 둔다 — 주소를 못 찾았는지(ENOTFOUND), 길이 없는지
-        (EHOSTUNREACH), 막혔는지(ECONNREFUSED)가 거기 있다. 그게 있어야 네트워크를 볼지
-        열쇠를 볼지 갈린다.
-      */
-      const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
-      const why = cause?.code ?? cause?.message ?? '';
-      this.logger.warn(`공지를 보내지 못했습니다(방 ${this.chatId}): ${e.message}${why ? ` — ${why}` : ''}`);
-    });
+    this.deliver(TelegramRoom.BROADCAST, this.chatId, text);
   }
 
   /**
@@ -113,14 +137,78 @@ export class TelegramService implements OnModuleInit {
    * 방이 안 적혀 있으면 조용히 안 보낸다. 공지방으로 대신 보내지 않는다 — 거기는
    * 전 직원이 보는 자리라, 설정이 빠진 값이 금액을 흘리는 쪽으로 기울면 안 된다.
    */
-  notifySale(text: string): void {
-    const chatId = this.saleChatId;
+  notifySale(text: string, vehicleNumber = ''): void {
+    this.deliver(TelegramRoom.SALE, this.saleChatId, text, vehicleNumber);
+  }
+
+  /** 차를 사오면 — 매입방으로만 간다. 여기도 금액이 든다 */
+  notifyPurchase(text: string, vehicleNumber = ''): void {
+    this.deliver(TelegramRoom.PURCHASE, this.purchaseChatId, text, vehicleNumber);
+  }
+
+  /**
+   * 한 방에 띄우고, 보낸 것을 남긴다.
+   *
+   * 기다리지 않는다 — 부르는 쪽은 차를 고치거나 파는 중이고, 텔레그램이 느리다고 그
+   * 일이 멈추면 안 된다.
+   *
+   * 갔든 못 갔든 남긴다. 지금까지는 서버 로그에만 남아서, PM2 안에 있는 걸 사람이 못
+   * 보고 며칠 지나면 밀려 사라졌다 — "그 차 올라갔나?"를 방을 뒤져서 확인해야 했다.
+   */
+  private deliver(room: TelegramRoom, chatId: string, text: string, vehicleNumber = ''): void {
     if (!this.token || !chatId || !text.trim()) return;
-    void this.send(text, chatId).catch((e: Error) => {
-      const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
-      const why = cause?.code ?? cause?.message ?? '';
-      this.logger.warn(`판매가 알림을 보내지 못했습니다(방 ${chatId}): ${e.message}${why ? ` — ${why}` : ''}`);
+    void this.send(text, chatId)
+      .then(() => this.record(room, chatId, text, vehicleNumber, true, ''))
+      .catch((e: Error) => {
+        /*
+          'fetch failed' 만 적으면 왜 못 갔는지 알 수 없다.
+
+          노드는 진짜 이유를 cause 에 숨겨 둔다 — 주소를 못 찾았는지(ENOTFOUND), 길이
+          없는지(EHOSTUNREACH), 막혔는지(ECONNREFUSED)가 거기 있다. 그게 있어야
+          네트워크를 볼지 열쇠를 볼지 갈린다.
+        */
+        const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
+        const why = cause?.code ?? cause?.message ?? '';
+        const reason = `${e.message}${why ? ` — ${why}` : ''}`;
+        this.logger.warn(`${ROOM_LABEL[room]}에 못 보냈습니다(방 ${chatId}): ${reason}`);
+        this.record(room, chatId, text, vehicleNumber, false, reason);
+      });
+  }
+
+  /** 남기다 실패해도 보내기는 이미 끝났다 — 여기서 더 시끄러울 일이 아니다 */
+  private record(
+    room: TelegramRoom,
+    chatId: string,
+    text: string,
+    vehicleNumber: string,
+    ok: boolean,
+    reason: string,
+  ): void {
+    void this.prisma.telegramLog
+      .create({ data: { room, chatId, text, vehicleNumber, ok, reason: reason.slice(0, 300) } })
+      .catch((e: Error) => this.logger.warn(`보낸 것을 남기지 못했습니다: ${e.message}`));
+  }
+
+  /**
+   * 방마다 내보낸 것 — 화면에서 본다.
+   *
+   * 최근 것부터. 다 내려주면 글이 길어 몇 메가가 되므로 끊어서 준다.
+   */
+  async logs(room: TelegramRoom, limit = 100): Promise<TelegramLogRow[]> {
+    const rows = await this.prisma.telegramLog.findMany({
+      where: { room },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(limit, 1), 300),
     });
+    return rows.map((r) => ({
+      id: r.id,
+      room: r.room,
+      text: r.text,
+      ok: r.ok,
+      reason: r.reason,
+      vehicleNumber: r.vehicleNumber,
+      createdAt: r.createdAt.toISOString(),
+    }));
   }
 
   /**
@@ -346,6 +434,21 @@ export class TelegramController {
   @Get('chats')
   chats() {
     return this.telegram.chats();
+  }
+
+  /**
+   * 방에 내보낸 것 — 관리자만.
+   *
+   * 입금방·매입방은 금액이 든다. 보는 자리를 좁힌다 — 방 자체도 아무나 안 들어간다.
+   */
+  @Roles(Role.ADMIN)
+  @Get('logs/:room')
+  logs(@Param('room') room: string, @Query('limit') limit?: string) {
+    const key = room.toUpperCase() as TelegramRoom;
+    return this.telegram.logs(
+      Object.values(TelegramRoom).includes(key) ? key : TelegramRoom.BROADCAST,
+      Number(limit) || 100,
+    );
   }
 }
 

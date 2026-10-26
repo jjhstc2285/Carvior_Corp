@@ -2238,3 +2238,40 @@ model Notice {
   @@index([createdAt])
   @@index([authorId])
 }
+
+/**
+ * 텔레그램으로 내보낸 것.
+ *
+ * 지금은 보냈는지 안 보냈는지가 서버 로그에만 남는다. 로그는 PM2 안에 있어서 사람이
+ * 못 보고, 며칠 지나면 밀려 사라진다 — "그 차 올라갔나?"를 방을 뒤져서 확인해야 했다.
+ *
+ * 보낸 글을 그대로 남긴다. 못 보낸 것도 남긴다 — 안 간 걸 모르는 게 제일 나쁘다.
+ */
+model TelegramLog {
+  id   String       @id @default(cuid())
+  room TelegramRoom
+
+  /** 보낸 방 번호 — 방을 옮겼을 때 어느 방으로 갔는지가 남아야 한다 */
+  chatId String @default("") @db.VarChar(40)
+
+  /** 보낸 글 그대로 */
+  text String @db.Text
+
+  /** 갔는가. 못 갔으면 까닭을 적는다 */
+  ok     Boolean @default(false)
+  reason String  @default("") @db.VarChar(300)
+
+  /** 어느 차 이야기인가 — 차량번호로 찾아보려고 따로 둔다 */
+  vehicleNumber String @default("") @db.VarChar(30)
+
+  createdAt DateTime @default(now())
+
+  @@index([room, createdAt])
+  @@index([vehicleNumber])
+}
+
+enum TelegramRoom {
+  BROADCAST // 공지방 — 전 직원이 본다. 금액은 안 간다
+  SALE // 입금확인방 — 차량판매가가 바뀌면
+  PURCHASE // 매입방 — 차를 사오면
+}
