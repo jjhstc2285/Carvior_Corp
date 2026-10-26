@@ -10,6 +10,7 @@ import EmployeeAvatar from './EmployeeAvatar';
 import ReferralTitleBadge from './ReferralTitleBadge';
 import AttendanceRankBadge from './AttendanceRankBadge';
 import { attendanceRanking } from '../lib/attendanceRank';
+import { WORK_START } from '../lib/attendance';
 import { Popover } from 'antd';
 
 /**
@@ -147,6 +148,26 @@ export default function StatusBar() {
     [state.employees, state.records, state.attendanceRequests, state.requests],
   );
   const rankOf = useCallback((id: string) => ranking.find(r => r.employeeId === id) ?? null, [ranking]);
+
+  /*
+    지각.
+
+    이번 달에 몇 번 늦었는지를 이름 옆에 계속 단다. 표를 펴 봐야만 알 수 있던 값이라,
+    늦은 사람도 몇 번째인지 모르고 지나갔다.
+
+    오늘 늦은 사람은 알약째 빨개진다. 숫자만 달면 지난 달 이야기처럼 읽혀서, 오늘 늦은
+    것과 전에 늦은 것이 안 갈린다.
+
+    기준은 한 곳에서 온다(lib/attendance 의 WORK_START = 09:30). 소명이 받아들여진 날은
+    지각으로 안 센다 — 세는 규칙은 등수를 매기는 자리와 같다.
+  */
+  const lateToday = useMemo(() => {
+    const today = dayjs().format('YYYY-MM-DD');
+    // 'HH:mm' 은 글자로 견줘도 시각 차례와 같다 — 분으로 바꿀 까닭이 없다
+    return new Set(
+      state.records.filter(r => r.date === today && r.clockIn && r.clockIn > WORK_START).map(r => r.employeeId),
+    );
+  }, [state.records]);
 
   const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
 
@@ -296,15 +317,33 @@ export default function StatusBar() {
                     >
                       <button
                         type="button"
+                        /* 오늘 늦은 사람은 알약째 빨개진다 — 숫자만 달면 지난 일처럼 읽힌다 */
                         className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs ${
-                          e.id === state.currentEmployeeId ? 'border-indigo-300 bg-indigo-50' : group.chip
+                          lateToday.has(e.id)
+                            ? 'border-red-300 bg-red-50'
+                            : e.id === state.currentEmployeeId
+                              ? 'border-indigo-300 bg-indigo-50'
+                              : group.chip
                         } ${openId === e.id ? 'ring-2 ring-indigo-300' : ''}`}
+                        title={lateToday.has(e.id) ? '오늘 늦게 찍었습니다' : undefined}
                       >
                         {/* 열 몇 명이 한 줄로 늘어서 있어 이름만으로는 눈이 안 잡힌다 */}
                         <ReferralTitleBadge title={e.referralTitle} />
                         <EmployeeAvatar name={e.name} size={22} />
                         <AttendanceRankBadge row={rankOf(e.id)} />
                         <span className="font-semibold text-slate-800">{e.name}</span>
+                        {/*
+                          이번 달에 몇 번 늦었나 — 0이면 안 단다.
+                          0을 달면 온 줄에 '지각 0'이 붙어서 정작 늦은 사람이 안 보인다.
+                        */}
+                        {(rankOf(e.id)?.late ?? 0) > 0 && (
+                          <span
+                            className="shrink-0 rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700"
+                            title={`이번 달 ${rankOf(e.id)?.late}번 늦었습니다 (${WORK_START} 기준 · 소명이 받아들여진 날은 뺍니다)`}
+                          >
+                            지각 {rankOf(e.id)?.late}
+                          </span>
+                        )}
                         <span className="text-slate-400">{e.position}</span>
                         {label(e) && (
                           <span className={isStale(e.statusAt) ? 'text-slate-300' : 'text-slate-600'}>
