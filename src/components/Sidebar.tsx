@@ -122,12 +122,13 @@ const NAV_GROUPS: {
       { key: 'dealerFee', label: '상조회비 관리', icon: Building2 },
       { key: 'chat', label: '메시지', icon: MessageSquare },
       /*
-        방에 무엇이 나갔나 — 입금방·매입방·공지방.
+        방에 무엇이 나갔나.
 
-        관리자 대시보드 안에 넣어 뒀더니 아무도 못 찾았다. 그 화면은 근태 메뉴를 눌러야
-        나오는 자리라, 텔레그램을 보려고 '출퇴근 관리'를 누를 사람은 없다.
+        둘을 한 화면에 탭으로 묶어 뒀더니 "어디 있냐"가 됐다. 보는 사람도 보는 때도
+        다르다 — 입금방은 돈을 넣으려고 보고, 매입방은 차가 들어왔나 보려고 본다.
       */
-      { key: 'telegram', label: '텔레그램 기록', icon: Send },
+      { key: 'telegramSale', label: '입금방', icon: Send },
+      { key: 'telegramPurchase', label: '매입방', icon: ShoppingCart },
     ],
   },
 ];
@@ -174,7 +175,8 @@ export default function Sidebar({
       메뉴에서부터 안 보이는 쪽이 먼저다.
     */
     // 입금방·매입방에는 금액이 든다 — 관리자만
-    (key !== 'telegram' || isAdmin) &&
+    (key !== 'telegramSale' || isAdmin) &&
+    (key !== 'telegramPurchase' || isAdmin) &&
     (key !== 'condolence' || isAdmin);
 
   /*

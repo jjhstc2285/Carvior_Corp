@@ -18,5 +18,6 @@ export type ModuleKey =
   | 'cleaning'
   | 'condolence'
   | 'adminSheet'
-  | 'telegram'
+  | 'telegramSale'
+  | 'telegramPurchase'
   | 'chat';
