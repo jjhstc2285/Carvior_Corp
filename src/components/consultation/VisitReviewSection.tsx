@@ -5,7 +5,7 @@ import { useStore } from '../../store';
 import { dealerName } from './VisitAssignPanel';
 import { api, ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
-import { conversionOf } from '../../lib/consultationStats';
+import { isContracted } from '../../lib/consultationStats';
 import ConsultationDetailModal from './ConsultationDetailModal';
 import { CONSULTATION_STATUS_LABEL, type ConsultationRecord, type ConsultationStatus } from '../../types';
 
@@ -132,22 +132,73 @@ export default function VisitReviewSection({
     적고 있어서 알선 상담이 한 건도 없는 달이 있다. 아래 '그냥 간 손님' 목록도 종류를
     안 가리므로, 여기서만 가리면 위아래 숫자가 어긋난다.
   */
-  const scoped = useMemo(
-    () => state.consultations.filter(c => allMonths || c.date.startsWith(month)),
-    [state.consultations, month, allMonths],
-  );
-
-  const stats = useMemo(
-    () =>
-      people
-        .map(emp => ({ emp, ...conversionOf(scoped.filter(c => c.employeeId === emp.id)) }))
-        .filter(s => s.total > 0 || s.closed > 0)
-        .sort((a, b) => b.rate - a.rate || b.total - a.total),
-    [people, scoped],
-  );
-
   /** 그 건을 맡은 사람 — 방문 담당을 정해 뒀으면 그 사람, 아니면 적은 사람 */
   const ownerOf = (c: ConsultationRecord) => c.visitDealerId ?? c.employeeId;
+
+  /*
+    방문으로 센다.
+
+    전에는 그 달 상담을 통째로 모수에 넣고, 거기서 상담종결을 빼고, 계약보류는 계약으로
+    안 세는 식이었다 — 규칙이 셋이나 붙어서 "13건 중 9건"이 어디서 나온 수인지 아무도
+    못 읽었다.
+
+    이 칸이 보려는 건 하나다. 오기로 한 손님이 몇이었고, 몇이 안 왔고, 온 사람 중
+    몇을 계약으로 돌렸나.
+
+      예약 = 방문일을 잡은 건(그날이 지난 것만)
+      취소 = 안 온 건(방문취소)
+      방문 = 예약 − 취소
+      계약 = 계약 + 판매완료
+      전환율 = 계약 ÷ 방문
+
+    빼는 건 없다. 상담종결도 보류도 '왔는데 계약이 안 된 것'이라 그냥 못 돌린 쪽에
+    들어간다 — 빼기 시작하면 정리를 안 하는 사람의 전환율이 올라간다.
+
+    전화만 받고 안 온 건은 아예 안 센다. 방문을 못 돌린 것과 전화가 안 온 것은 다른
+    일이고, 섞으면 둘 다 안 보인다.
+  */
+  const stats = useMemo(() => {
+    /*
+      달은 방문일로 끊는다 — 아래 '그냥 간 손님' 목록과 같은 자다.
+
+      상담일로 끊으면 9월에 전화해서 10월에 온 손님이 9월 칸에 들어가는데, 아래 목록은
+      10월에 띄운다 — 같은 손님이 두 칸에서 다르게 세어진다.
+    */
+    const visits = state.consultations
+      .filter(c => !!c.visitDate && (c.visitDate ?? '') <= today)
+      .filter(c => allMonths || (c.visitDate ?? '').startsWith(month));
+    return people
+      .map(emp => {
+        const mine = visits.filter(c => ownerOf(c) === emp.id);
+        const canceled = mine.filter(c => c.status === 'VISIT_CANCELED').length;
+        const came = mine.length - canceled;
+        const contracted = mine.filter(c => isContracted(c.status)).length;
+        return {
+          emp,
+          booked: mine.length,
+          canceled,
+          came,
+          contracted,
+          rate: came > 0 ? Math.round((contracted / came) * 100) : 0,
+        };
+      })
+      .filter(s => s.booked > 0)
+      .sort((a, b) => b.rate - a.rate || b.came - a.came);
+  }, [people, state.consultations, month, allMonths, today]);
+
+  /** 팀 전체 — 사람별로 나누기 전에 전체가 몇인지 먼저 보인다 */
+  const team = useMemo(() => {
+    const sum = stats.reduce(
+      (a, s) => ({
+        booked: a.booked + s.booked,
+        canceled: a.canceled + s.canceled,
+        came: a.came + s.came,
+        contracted: a.contracted + s.contracted,
+      }),
+      { booked: 0, canceled: 0, came: 0, contracted: 0 },
+    );
+    return { ...sum, rate: sum.came > 0 ? Math.round((sum.contracted / sum.came) * 100) : 0 };
+  }, [stats]);
   const nameOf = (id: string) => dealerName(state.employees, id);
 
   /** 방문했는데 계약이 안 된 건 — 방문일 기준으로 끊는다(온 날이 지난 것만) */
@@ -202,12 +253,12 @@ export default function VisitReviewSection({
       >
         {open ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
         <span className="shrink-0 text-xs font-bold text-slate-600">
-          {seesTeam ? '담당자별' : '내'} 상담 → 계약 전환율
+          {seesTeam ? '담당자별' : '내'} 방문 → 계약 전환율
         </span>
         <span className="text-[11px] text-slate-400">
-          {/* 세는 자리를 적어 둔다 — 위 칸과 모수가 다르면 보는 사람이 먼저 안다 */}
-          {allMonths ? '전체' : dayjs(month).format('M월')} · 상담을 적은 사람 전부 · 계약 = 계약 + 판매완료 · 계약보류는 계약으로
-          안 세고 · 상담종결은 아예 빼고 셉니다
+          {/* 무엇을 무엇으로 나눈 값인지 한 줄로 — 규칙이 여럿이면 아무도 안 읽는다 */}
+          {allMonths ? '전체' : dayjs(month).format('M월')} · 방문하기로 한 손님 중 실제로 온 사람을, 몇 명이나 계약으로
+          돌렸나
         </span>
         {misses.length > 0 && (
           <span className="ml-auto shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">
@@ -218,9 +269,35 @@ export default function VisitReviewSection({
 
       {open && (
         <div className="border-t border-slate-100 px-3.5 pb-3.5 pt-3">
+          {/*
+            팀 전체를 먼저 적는다.
+
+            사람별 카드만 있으면 "그래서 이번 달에 몇 명이 왔고 몇을 돌렸나"를 머리로
+            더해야 한다. 이 칸을 여는 까닭이 바로 그 숫자다.
+          */}
+          {stats.length > 0 && (
+            <p className="mb-2.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <span>
+                오기로 한 손님 <b className="font-bold text-slate-800">{team.booked}명</b>
+              </span>
+              {team.canceled > 0 && (
+                <span className="text-rose-600">
+                  · 안 옴 <b className="font-bold">{team.canceled}명</b>
+                </span>
+              )}
+              <span>
+                · 왔다 <b className="font-bold text-slate-800">{team.came}명</b>
+              </span>
+              <span>
+                · 계약 <b className="font-bold text-indigo-700">{team.contracted}명</b>
+              </span>
+              <span className="ml-auto font-bold text-indigo-700">전환 {team.rate}%</span>
+            </p>
+          )}
+
           {stats.length > 0 && (
             <div className="mb-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              {stats.map(({ emp, total, contracted, onHold, closed, rate }) => (
+              {stats.map(({ emp, booked, canceled, came, contracted, rate }) => (
                 /* 누르면 아래 목록이 그 사람 것만 남는다 */
                 <button
                   key={emp.id}
@@ -238,19 +315,20 @@ export default function VisitReviewSection({
                       %
                     </span>
                   </p>
-                  <p className={`text-[11px] ${picked === emp.id ? 'text-indigo-100' : 'text-slate-400'}`}>
-                    {contracted}/{total}건 계약
+                  {/* 나눗셈을 그대로 적는다 — 퍼센트만 있으면 무엇을 무엇으로 나눈 건지 모른다 */}
+                  <p className={`text-[11px] ${picked === emp.id ? 'text-indigo-100' : 'text-slate-500'}`}>
+                    방문 {came}명 중 {contracted}명 계약
                   </p>
-                  {/* 보류·종결은 왜 숫자가 그런지 설명해 주는 값이라 같이 둔다 */}
-                  {(onHold > 0 || closed > 0) && (
-                    <p className={`mt-0.5 text-[11px] ${picked === emp.id ? 'text-indigo-100' : 'text-slate-400'}`}>
-                      {onHold > 0 && (
-                        <span className={picked === emp.id ? '' : 'text-amber-700'}>계약보류 {onHold}건</span>
-                      )}
-                      {onHold > 0 && closed > 0 && ' · '}
-                      {closed > 0 && <span>상담종결 {closed}건 제외</span>}
-                    </p>
-                  )}
+                  {/* 예약과 취소 — 안 온 사람이 몇인지가 전환율만큼 중요한 값이다 */}
+                  <p className={`mt-0.5 text-[11px] ${picked === emp.id ? 'text-indigo-100' : 'text-slate-400'}`}>
+                    예약 {booked}명
+                    {canceled > 0 && (
+                      <>
+                        {' · '}
+                        <span className={picked === emp.id ? '' : 'text-rose-600'}>안 옴 {canceled}명</span>
+                      </>
+                    )}
+                  </p>
                 </button>
               ))}
             </div>
