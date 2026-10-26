@@ -105,25 +105,24 @@ export default function VisitReviewSection({
   const canRecall = openToAll || role === 'ADMIN';
 
   /*
-    누구를 세는가 — 그 달에 상담을 적은 사람 전부다.
+    누구를 세는가 — 알선팀이다.
 
-    알선팀만 세게 해 뒀었다. 그런데 10월 상담 240건 중 알선팀이 적은 건 49건이고
-    광고팀(TM)이 187건이다 — 전화를 제일 많이 받는 자리가 통째로 빠져 있었다.
-    그래서 위 칸은 '체결 65건'인데 여기는 세 사람 15건만 떠서, 같은 화면의 두 숫자가
-    서로 딴 이야기를 했다.
+    한때 상담을 적은 사람 전부로 넓혔었다. 전환율이 '그 달 상담 전체'를 모수로 쓰던
+    때라, 전화를 제일 많이 받는 광고팀이 빠져 있으면 숫자가 안 맞아 보였다.
 
-    부서로 가리지 않고 실제로 적은 사람으로 센다. 부서가 바뀌거나 비어 있어도 따라온다 —
-    적은 건이 있으면 그 사람 몫이다.
+    지금은 방문으로 센다. 손님을 맞는 건 알선팀이고, 방문 배정도 그 팀에서만 나눈다
+    (VisitAssignPanel) — 그러니 세는 자리도 그 팀이다.
+
+    넓혀 두니 전화만 받고 자리를 뜬 사람이 끼었다. 광고팀 한 사람은 방문 여덟 건에
+    그중 다섯이 안 온 건이었는데, 그게 알선팀 옆에 나란히 서서 견줄 수 없는 둘이
+    견줘졌다.
 
     그 밖의 사람은 자기 것만 본다(seesTeam 이 아닐 때).
   */
   const people = useMemo(() => {
-    const wrote = new Set(
-      state.consultations.filter(c => allMonths || c.date.startsWith(month)).map(c => c.employeeId),
-    );
-    const everyone = state.employees.filter(e => e.active !== false && wrote.has(e.id));
-    return seesTeam ? everyone : everyone.filter(e => e.id === state.currentEmployeeId);
-  }, [state.employees, state.consultations, month, allMonths, seesTeam, state.currentEmployeeId]);
+    const team = state.employees.filter(e => e.active !== false && e.department === VISIT_TEAM);
+    return seesTeam ? team : team.filter(e => e.id === state.currentEmployeeId);
+  }, [state.employees, seesTeam, state.currentEmployeeId]);
 
   /*
     그 달 상담 — 달로 끊어 본다(상담일 기준).
@@ -257,8 +256,8 @@ export default function VisitReviewSection({
         </span>
         <span className="text-[11px] text-slate-400">
           {/* 무엇을 무엇으로 나눈 값인지 한 줄로 — 규칙이 여럿이면 아무도 안 읽는다 */}
-          {allMonths ? '전체' : dayjs(month).format('M월')} · 방문하기로 한 손님 중 실제로 온 사람을, 몇 명이나 계약으로
-          돌렸나
+          {allMonths ? '전체' : dayjs(month).format('M월')} · {VISIT_TEAM} · 방문하기로 한 손님 중 실제로 온 사람을, 몇
+          명이나 계약으로 돌렸나
         </span>
         {misses.length > 0 && (
           <span className="ml-auto shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">
