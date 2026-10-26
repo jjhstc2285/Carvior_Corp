@@ -7,12 +7,11 @@ import {
   MAX_AGE_YEARS,
   MAX_MILEAGE_KM,
   offerEligibility,
-  suggestRepayDate,
   SALE_STAGE_CLASS,
   SALE_STAGE_LABEL,
   saleStage,
 } from '../../lib/stockFinance';
-import { digitsOnly, withCommas } from '../../lib/money';
+import { withCommas } from '../../lib/money';
 import { useStore } from '../../store';
 import type { ManagedVehicle, PurchaseIntake } from '../../types';
 import { api as callApi, ApiError } from '../../lib/api';
@@ -23,10 +22,47 @@ import UnregisteredSoldPanel from './UnregisteredSoldPanel';
 import UnregisteredIntakePanel from './UnregisteredIntakePanel';
 import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import StockSheetImportModal from './StockSheetImportModal';
+import StockFinanceForm from './StockFinanceForm';
+import { useColumnOrder, ColumnResetButton, type Column } from '../table/useColumnOrder';
 import { SOLD_CHANNEL_HINT, SOLD_CHANNEL_LABEL, SOLD_CHANNEL_TONE } from '../../lib/soldChannel';
 import { useSoldChannels, useSoldDealer } from '../../lib/useSoldChannels';
 
 type View = 'candidate' | 'offered' | 'stocked' | 'repay' | 'cash' | 'release' | 'sold';
+
+/**
+ * 표의 칸들.
+ *
+ * 제목과 그리는 방법을 한 벌로 묶어야 차례를 바꿔도 값이 안 엉킨다. 칸이 열다섯이라
+ * 보는 사람마다 먼저 보고 싶은 게 다르다 — 상환일자부터 보는 사람, 매도금액부터 보는 사람.
+ */
+const COLUMNS: Column[] = [
+  // 지우는 건 맨 앞에 둔다 — 뒤에 두면 옆으로 끝까지 밀어야 나온다
+  { key: 'actions', label: '' },
+  { key: 'vehicleNumber', label: '차량번호' },
+  { key: 'vehicleModel', label: '차량명', nowrap: false },
+  { key: 'purchasePrice', label: '매입가', align: 'text-right' },
+  { key: 'offerDate', label: '제시일자' },
+  { key: 'transferDate', label: '이전일자' },
+  { key: 'soldDate', label: '매도일자' },
+  { key: 'stockCapital', label: '할부사' },
+  { key: 'stockAmount', label: '재고금액', align: 'text-right' },
+  { key: 'repayDate', label: '상환일자' },
+  // 같은 값이 네 곳에 적힌다 — 상담·알선 정산·매입 정산과 같은 숫자다
+  { key: 'salePrice', label: '매도금액', align: 'text-right', headClass: 'text-emerald-600' },
+  { key: 'soldChannel', label: '판매 경로', align: 'text-center', title: '정산·상담에 적힌 것으로 가려냅니다 — 따로 적지 않습니다' },
+  { key: 'soldDealer', label: '담당 딜러' },
+  { key: 'cashVehicle', label: '현금', align: 'text-center' },
+  { key: 'modelYear', label: '연식' },
+  { key: 'mileage', label: '주행거리', align: 'text-right' },
+  { key: 'eligibility', label: '제시 가능' },
+];
+
+/** 빈 칸은 줄표로 — 비어 있는 것과 안 받아온 것이 같아 보이면 안 된다 */
+const none = <span className="text-slate-300">—</span>;
+
+/** 날짜 한 칸 — 안 적힌 날은 줄표다 */
+const day = (value: string | null | undefined) =>
+  value ? <span className="text-slate-600">{dayjs(value).format('YY.MM.DD')}</span> : none;
 
 /**
  * 제시·재고 쪽만 사무장이 챙긴다. 나머지(상환 예정·출고 예정·매도 차량·현금차량)는
@@ -337,6 +373,11 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
       .filter(r => r.cars.length > 0);
   }, [query, vehicles, views, view, month]);
 
+  /* 제목줄을 끌어 열 순서를 바꾼다 — 화면마다 같은 방식이다. 칸이 열다섯이라 빽빽하게 */
+  const cols = useColumnOrder('stockFinanceColOrder', COLUMNS, { dense: true });
+  /** 가로로 펴서 고치는 창 — 줄을 누르면 열린다 */
+  const [editing, setEditing] = useState<ManagedVehicle | null>(null);
+
   const stockTotal = rows.reduce((sum, r) => sum + r.vehicle.stockAmount, 0);
   /* 어디로 나갔고 누가 팔았나 — 정산·상담에 적힌 것으로 가려낸다(따로 적는 칸이 아니다) */
   const soldChannelOf = useSoldChannels();
@@ -369,27 +410,6 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
 
   const patch = (v: ManagedVehicle, body: Partial<ManagedVehicle>) => void toggleFlag(v, body);
 
-  /**
-   * 재고금액을 적으면 상환일자까지 채워 재고차량으로 넘긴다.
-   *
-   * 갚는 날은 할부사가 정해 놓은 규칙이라 사람이 셀 일이 아니다 — 우리금융이면
-   * 다섯 달 뒤 8일 하는 식이다. 한 칸 적을 때마다 달력을 뒤지게 두지 않는다.
-   *
-   * 이미 적어둔 상환일자는 안 건드린다. 규칙과 다르게 잡은 건이 있을 수 있고,
-   * 그건 사람이 알고 적은 값이다.
-   * 모르는 할부사면 그냥 둔다 — 넘겨짚어 적어두면 그게 맞는 줄 알고 넘어간다.
-   */
-  const saveStockAmount = (v: ManagedVehicle, stockAmount: number) => {
-    if (stockAmount === v.stockAmount) return;
-    // 이전일자가 있으면 그날부터 센다. 없으면 오늘 잡은 것으로 본다.
-    const repayDate =
-      v.repayDate || !v.stockCapital || stockAmount <= 0
-        ? null
-        : suggestRepayDate(v.stockCapital, v.transferDate || dayjs());
-
-    patch(v, { stockAmount, ...(repayDate ? { repayDate } : {}) });
-  };
-
   const handleExport = () => {
     const data = rows.map(({ vehicle: v, eligibility }) => ({
       차량번호: v.vehicleNumber,
@@ -421,19 +441,6 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
     XLSX.utils.book_append_sheet(wb, ws, '재고 금융');
     XLSX.writeFile(wb, `재고 금융_${view === 'repay' ? month : dayjs().format('YYYYMMDD')}.xlsx`);
   };
-
-  const dateInput = (value: string | null, onSave: (next: string | null) => void, highlight = false) => (
-    <input
-      type="date"
-      defaultValue={value ?? ''}
-      onBlur={e => {
-        if (e.target.value !== (value ?? '')) onSave(e.target.value || null);
-      }}
-      className={`rounded-lg border px-2 py-1.5 text-[13px] outline-none focus:border-indigo-400 ${
-        highlight ? 'border-amber-400 bg-amber-50' : 'border-slate-200'
-      }`}
-    />
-  );
 
   return (
     <>
@@ -554,6 +561,9 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
           </span>
         )}
 
+        {/* 제목줄을 끌어 옮긴 차례를 되돌린다 — 화면마다 같은 자리에 둔다 */}
+        <ColumnResetButton onReset={cols.reset} />
+
         <button
           onClick={handleExport}
           className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -598,44 +608,35 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
         </div>
       )}
 
+      {/*
+        가로로 펴서 고치는 창.
+
+        저장은 한 번에 한다 — 표에서 칸마다 보내던 때는 한 대를 손보는 동안 예닐곱 번이
+        날아갔고, 중간에 끊기면 반만 들어갔다.
+      */}
+      {editing && (
+        <StockFinanceForm
+          vehicle={editing}
+          onSave={body => patch(editing, body)}
+          onOpenIntake={() => {
+            const v = editing;
+            setEditing(null);
+            void openIntake(v);
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full whitespace-nowrap text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
-                <th className="px-3 py-3 font-medium">차량번호</th>
-                <th className="px-3 py-3 font-medium">차량명</th>
-                <th className="px-3 py-3 text-right font-medium">매입가</th>
-                <th className="px-3 py-3 font-medium">제시일자</th>
-                <th className="px-3 py-3 font-medium">이전일자</th>
-                <th className="px-3 py-3 font-medium">매도일자</th>
-                {/*
-                  차가 얼마에 나갔나 — 상담 등록·알선 정산·매입 정산의 판매가와 같은 값이다.
-                  여기 적으면 나머지 셋에도 같이 들어간다(서버 sale-price).
-                */}
-                <th className="px-3 py-3 text-right font-medium text-emerald-600">매도금액</th>
-                {/*
-                  어디로 나갔고 누가 팔았나.
-
-                  따로 적는 칸이 아니다 — 알선·수출 정산과 상담에 이미 적혀 있는 것으로
-                  가려낸다. 칸을 하나 더 만들면 적는 사람이 또 생기고, 두 값이 어긋나면
-                  어느 쪽이 맞는지 알 수 없게 된다.
-                */}
-                <th className="px-3 py-3 text-center font-medium">판매 경로</th>
-                <th className="px-3 py-3 font-medium">담당 딜러</th>
-                <th className="px-3 py-3 font-medium">할부사</th>
-                <th className="px-3 py-3 text-right font-medium">재고금액</th>
-                <th className="px-3 py-3 font-medium">상환일자</th>
-                <th className="px-3 py-3 text-center font-medium">현금</th>
-                <th className="px-3 py-3 font-medium">연식</th>
-                <th className="px-3 py-3 text-right font-medium">주행거리</th>
-                <th className="px-3 py-3 font-medium">제시 가능</th>
-              </tr>
+            <thead className="bg-slate-50 text-left text-xs text-slate-500">
+              <tr className="border-b border-slate-100">{cols.headers()}</tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={16} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={cols.count} className="px-5 py-10 text-center text-sm text-slate-400">
                     해당하는 차량이 없습니다.
                   </td>
                 </tr>
@@ -643,213 +644,156 @@ export default function StockFinanceTab({ api, isOfficeManager }: { api: Vehicle
               {rows.map(({ vehicle: v, eligibility }) => {
                 const stage = saleStage(v);
                 return (
-                <tr key={v.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                  {/* 번호를 누르면 그 차 매입 창이 열린다 — 연식·주행거리를 거기서 채운다 */}
-                  <td className="px-3 py-2.5">
-                    <button
-                      onClick={() => void openIntake(v)}
-                      disabled={intakeBusy === v.vehicleNumber}
-                      title="눌러서 매입 정보를 고칩니다"
-                      className="font-mono font-semibold text-slate-800 hover:text-indigo-600 disabled:opacity-50"
-                    >
-                      {v.vehicleNumber}
-                    </button>
-                    {/* 알선차 — 우리가 사온 차가 아니다. 매도 대수에서 뺀 줄이라고 적어 둔다 */}
-                    {v.brokered && (
-                      <span
-                        className="ml-1.5 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700"
-                        title="알선차입니다 — 우리가 사온 차가 아니라 우리 매도 대수에 안 들어갑니다"
-                      >
-                        알선
-                      </span>
-                    )}
-                  </td>
-                  {/* 차명은 길어도 한 줄만 쓴다 — 넘치면 잘라내고 손대면 전체가 뜬다 */}
-                  <td className="max-w-40 truncate px-3 py-2.5 text-slate-600" title={v.vehicleModel}>
-                    {v.vehicleModel}
-                    {/* 상환 예정·현금차량 목록에서도 팔린 차인지 바로 보이게 붙인다 */}
-                    {stage && (
-                      <span className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${SALE_STAGE_CLASS[stage]}`}>
-                        {SALE_STAGE_LABEL[stage]}
-                      </span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-600">
-                    {purchasePriceOf(v) != null ? (
-                      <>
-                        {withCommas(String(purchasePriceOf(v)))}
-                        <span className="ml-0.5 text-[11px] text-slate-400">만</span>
-                      </>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
+                  /*
+                    줄을 누르면 가로로 펴진 수정 창이 뜬다.
 
-                  <td className="px-3 py-2.5">{dateInput(v.offerDate, next => patch(v, { offerDate: next }))}</td>
-                  <td className="px-3 py-2.5">{dateInput(v.transferDate, next => patch(v, { transferDate: next }))}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5">
-                    {/* 매도일자를 적으면 매도 차량으로 넘어간다. 오늘 넘긴 차는 버튼 한 번으로 끝낸다. */}
-                    {v.soldDate ? (
-                      dateInput(v.soldDate, next => patch(v, { soldDate: next }))
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        {dateInput(null, next => patch(v, { soldDate: next }))}
+                    칸이 열다섯이라 표에서 바로 고치면 옆으로 끝까지 밀어야 끝 칸이 나오고,
+                    밀고 나면 어느 줄을 고치고 있었는지 놓친다.
+
+                    단추 위에서 누른 건 그 자리 일로 둔다 — 차량번호를 눌러 매입 정보를
+                    보려다 다른 창이 뜨면 안 된다.
+                  */
+                  <tr
+                    key={v.id}
+                    onClick={e => {
+                      if ((e.target as HTMLElement).closest('button, input, select, a')) return;
+                      setEditing(v);
+                    }}
+                    title="눌러서 고칩니다"
+                    className="cursor-pointer border-b border-slate-50 last:border-0 hover:bg-indigo-50/40"
+                  >
+                    {cols.cells({
+                      actions: (
                         <button
-                          onClick={() => patch(v, { soldDate: dayjs().format('YYYY-MM-DD') })}
-                          className="rounded-lg border border-violet-300 bg-violet-50 px-2 py-1.5 text-[12px] font-semibold text-violet-700 hover:bg-violet-100"
-                          title="오늘 날짜로 매도 처리합니다"
+                          onClick={() => void dropVehicle(v)}
+                          className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                          aria-label="삭제"
                         >
-                          매도
+                          <Trash2 size={14} />
                         </button>
-                      </div>
-                    )}
-                  </td>
-
-                  {/*
-                    매도금액 — 상담 등록·알선 정산·매입 정산의 판매가와 같은 값이다.
-
-                    여기 적으면 나머지 셋에도 그대로 들어간다. 나중에 적은 사람이 이긴다 —
-                    가장 최근에 그 차를 본 사람이 아는 값이고, 못 고치게 막으면 틀린 채로 남는다.
-
-                    빈칸으로 두면 아무것도 안 바꾼다. 0 을 퍼뜨리면 다른 세 곳에 적어 둔
-                    값이 같이 날아간다.
-                  */}
-                  <td className="px-3 py-2.5 text-right">
-                    <input
-                      key={`sale-${v.id}-${v.salePrice}`}
-                      defaultValue={v.salePrice ? withCommas(v.salePrice) : ''}
-                      onBlur={e => {
-                        const next = Number(digitsOnly(e.target.value)) || 0;
-                        if (next > 0 && next !== v.salePrice) patch(v, { salePrice: next });
-                      }}
-                      inputMode="numeric"
-                      placeholder="원"
-                      title="상담 등록·알선 정산·매입 정산의 판매가와 같은 값입니다 — 여기 적으면 그쪽도 같이 바뀝니다"
-                      className="w-28 rounded-lg border border-emerald-200 bg-emerald-50/40 px-1.5 py-1 text-right text-[13px] outline-none focus:border-emerald-400 focus:bg-white"
-                    />
-                  </td>
-
-                  {/* 수출·알선·타 딜러·우리 딜러 — 정산과 상담에 적힌 것으로 가려낸다 */}
-                  <td className="px-3 py-2.5 text-center">
-                    {(() => {
-                      const how = soldChannelOf(v.vehicleNumber);
-                      return (
-                        <span
-                          className={`inline-block whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold ${SOLD_CHANNEL_TONE[how]}`}
-                          title={SOLD_CHANNEL_HINT[how]}
-                        >
-                          {SOLD_CHANNEL_LABEL[how]}
+                      ),
+                      vehicleNumber: (
+                        <>
+                          {/* 번호를 누르면 그 차 매입 창이 열린다 — 매입가·차명은 거기 값이다 */}
+                          <button
+                            onClick={() => void openIntake(v)}
+                            disabled={intakeBusy === v.vehicleNumber}
+                            title="눌러서 매입 정보를 고칩니다"
+                            className="font-mono font-semibold text-slate-800 hover:text-indigo-600 disabled:opacity-50"
+                          >
+                            {v.vehicleNumber}
+                          </button>
+                          {/* 알선차 — 우리가 사온 차가 아니다. 매도 대수에서 뺀 줄이라고 적어 둔다 */}
+                          {v.brokered && (
+                            <span
+                              className="ml-1.5 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700"
+                              title="알선차입니다 — 우리가 사온 차가 아니라 우리 매도 대수에 안 들어갑니다"
+                            >
+                              알선
+                            </span>
+                          )}
+                        </>
+                      ),
+                      /* 차명은 길어도 한 줄만 쓴다 — 넘치면 잘라내고 손대면 전체가 뜬다 */
+                      vehicleModel: (
+                        <span className="block max-w-40 truncate text-slate-600" title={v.vehicleModel}>
+                          {v.vehicleModel}
+                          {/* 상환 예정·현금차량 목록에서도 팔린 차인지 바로 보이게 붙인다 */}
+                          {stage && (
+                            <span
+                              className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${SALE_STAGE_CLASS[stage]}`}
+                            >
+                              {SALE_STAGE_LABEL[stage]}
+                            </span>
+                          )}
                         </span>
-                      );
-                    })()}
-                  </td>
-
-                  {/* 누가 팔았나 — 상담 담당자다. 타사·기타는 남의 딜러 이름이 들어간다 */}
-                  <td className="px-3 py-2.5 text-[13px] text-slate-600">
-                    {soldDealerOf(v.vehicleNumber) || <span className="text-slate-300">—</span>}
-                  </td>
-
-                  <td className="px-3 py-2.5">
-                    <input
-                      defaultValue={v.stockCapital}
-                      onBlur={e => {
-                        const next = e.target.value.trim();
-                        if (next !== v.stockCapital) patch(v, { stockCapital: next });
-                      }}
-                      list="capital-companies"
-                      placeholder="할부사"
-                      className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-[13px] outline-none focus:border-indigo-400"
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <input
-                      defaultValue={v.stockAmount ? withCommas(v.stockAmount) : ''}
-                      onBlur={e => saveStockAmount(v, Number(digitsOnly(e.target.value)) || 0)}
-                      inputMode="numeric"
-                      placeholder="원"
-                      className="w-28 rounded-lg border border-slate-200 px-1.5 py-1 text-right text-[13px] outline-none focus:border-indigo-400"
-                    />
-                  </td>
-                  <td className="px-3 py-2.5">{dateInput(v.repayDate, next => patch(v, { repayDate: next }))}</td>
-
-                  {/* 재고가 안 되는 차는 여기 체크해 두면 제시 대상에서 빠지고 현금차량으로 모인다 */}
-                  <td className="px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={v.cashVehicle}
-                      onChange={e => patch(v, { cashVehicle: e.target.checked })}
-                      className="size-4.5 accent-indigo-600"
-                      aria-label="현금차량"
-                    />
-                  </td>
-
-                  <td className="px-3 py-2.5">
-                    <input
-                      defaultValue={v.modelYear}
-                      onBlur={e => {
-                        const next = e.target.value.trim();
-                        if (next !== v.modelYear) patch(v, { modelYear: next });
-                      }}
-                      placeholder="2016"
-                      className={`w-20 rounded-lg border px-2 py-1.5 text-[13px] outline-none focus:border-indigo-400 ${
-                        v.modelYear ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
-                      }`}
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <input
-                      defaultValue={v.mileage ? withCommas(v.mileage) : ''}
-                      onBlur={e => {
-                        const next = Number(digitsOnly(e.target.value)) || 0;
-                        if (next !== v.mileage) patch(v, { mileage: next });
-                      }}
-                      inputMode="numeric"
-                      placeholder="km"
-                      className={`w-24 rounded-lg border px-1.5 py-1 text-right text-[13px] outline-none focus:border-indigo-400 ${
-                        v.mileage ? 'border-slate-200' : 'border-amber-300 bg-amber-50/60'
-                      }`}
-                    />
-                  </td>
-
-                  <td className="px-3 py-2.5">
-                    {eligibility.ok === true ? (
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                        가능 · {eligibility.age}년차
-                      </span>
-                    ) : eligibility.ok === false ? (
-                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
-                        불가 · {eligibility.reason}
-                      </span>
-                    ) : eligibility.ok === 'check' ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-                        등록증 확인 · {eligibility.reason}
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                        {eligibility.reason}
-                      </span>
-                    )}
-                    {/*
-                      잘못 적어 생긴 줄을 여기서 치운다.
-
-                      빈 줄에만 보이게 해 뒀었는데, 번호를 잘못 적은 줄에 차명·매입가까지
-                      적혀 있는 일이 있어서 정작 지워야 할 줄에 단추가 없었다. 적힌 게
-                      있는 줄은 무엇이 사라지는지 적어서 한 번 더 묻는다.
-                    */}
-                    {isOfficeManager && (
-                      <button
-                        onClick={() => void dropVehicle(v)}
-                        title={isBlank(v) ? '빈 줄입니다. 목록에서 지웁니다' : '차량 관리에서 이 줄을 지웁니다'}
-                        className={`ml-1.5 rounded p-0.5 align-middle hover:bg-slate-100 hover:text-red-500 ${
-                          isBlank(v) ? 'text-slate-300' : 'text-slate-200'
-                        }`}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </td>
-
-                </tr>
+                      ),
+                      purchasePrice:
+                        purchasePriceOf(v) != null ? (
+                          <span className="text-slate-600">
+                            {withCommas(String(purchasePriceOf(v)))}
+                            <span className="ml-0.5 text-[11px] text-slate-400">만</span>
+                          </span>
+                        ) : (
+                          none
+                        ),
+                      offerDate: day(v.offerDate),
+                      transferDate: day(v.transferDate),
+                      soldDate: day(v.soldDate),
+                      stockCapital: v.stockCapital ? <span className="text-slate-600">{v.stockCapital}</span> : none,
+                      stockAmount: v.stockAmount ? (
+                        <span className="font-semibold text-slate-800">{withCommas(v.stockAmount)}</span>
+                      ) : (
+                        none
+                      ),
+                      repayDate: day(v.repayDate),
+                      /* 같은 값이 네 곳에 적힌다 — 상담·알선 정산·매입 정산과 같은 숫자다 */
+                      salePrice: v.salePrice ? (
+                        <span className="font-semibold text-emerald-700">{withCommas(v.salePrice)}</span>
+                      ) : (
+                        none
+                      ),
+                      soldChannel: (() => {
+                        const how = soldChannelOf(v.vehicleNumber);
+                        return (
+                          <span
+                            className={`inline-block whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold ${SOLD_CHANNEL_TONE[how]}`}
+                            title={SOLD_CHANNEL_HINT[how]}
+                          >
+                            {SOLD_CHANNEL_LABEL[how]}
+                          </span>
+                        );
+                      })(),
+                      soldDealer: soldDealerOf(v.vehicleNumber) ? (
+                        <span className="text-slate-600">{soldDealerOf(v.vehicleNumber)}</span>
+                      ) : (
+                        none
+                      ),
+                      /* 재고를 안 쓰는 차 — 줄줄이 훑으며 끄고 켜는 값이라 표에 남긴다 */
+                      cashVehicle: (
+                        <input
+                          type="checkbox"
+                          checked={v.cashVehicle}
+                          onChange={e => patch(v, { cashVehicle: e.target.checked })}
+                          className="size-4.5 accent-indigo-600"
+                          aria-label="현금차량"
+                        />
+                      ),
+                      /* 안 적혀 있으면 노랗게 — 이 둘이 없으면 제시 가능 여부를 못 가린다 */
+                      modelYear: v.modelYear ? (
+                        <span className="text-slate-600">{v.modelYear}</span>
+                      ) : (
+                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                          없음
+                        </span>
+                      ),
+                      mileage: v.mileage ? (
+                        <span className="text-slate-600">{withCommas(v.mileage)}</span>
+                      ) : (
+                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                          없음
+                        </span>
+                      ),
+                      eligibility:
+                        eligibility.ok === true ? (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                            가능 · {eligibility.age}년차
+                          </span>
+                        ) : eligibility.ok === false ? (
+                          <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                            불가 · {eligibility.reason}
+                          </span>
+                        ) : eligibility.ok === 'check' ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                            등록증 확인 · {eligibility.reason}
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            {eligibility.reason}
+                          </span>
+                        ),
+                    })}
+                  </tr>
                 );
               })}
             </tbody>
