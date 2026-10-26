@@ -297,6 +297,10 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
 
     차장·본부장은 이 표에서 매도정산을 한다 — 계약서 칸이 그들에게는 매도정산 자리고,
     배분(신차 30% / 개인 50%) 칸이 하나 더 붙는다. 계약팀에게는 예전 그대로 계약서다.
+
+    매입팀 김진후 팀장도 그 칸을 본다. 사 온 차가 신차로 갔는지 개인으로 갔는지를
+    봐야 하는데, 그 칸이 이 표에만 있어서 확인할 데가 없었다 — 이름을 lib/permissions
+    한 곳에 모아 둔다(서버도 같은 목록을 다시 본다).
   */
   const seesShare = SETTLEMENT_VIEWERS.includes((me?.name ?? '').trim());
 

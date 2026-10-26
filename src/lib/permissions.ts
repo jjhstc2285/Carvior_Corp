@@ -45,12 +45,15 @@ export function isOfficeManager(user: AuthUser | null): boolean {
  * 이태희 팀장은 광고팀장이 맞다. 부서가 잘못 적힌 게 아니라, 그 사람만 여는 것이다 —
  * 부서로 열면 광고팀이 통째로 열려서 팀원까지 남의 매입가를 보게 된다.
  *
+ * 김진후 팀장은 매입팀이다. 사 온 차가 신차로 갔는지 개인으로 갔는지를 봐야 하는데,
+ * 그 칸이 이 표에만 있어서 표를 못 열면 확인할 데가 없었다.
+ *
  * 사무장은 이름이 아니라 직급으로 연다. 자리가 바뀌어도 사무장이면 봐야 하는 값이고,
  * 사무장이 둘인데 한 사람만 열어 둘 까닭이 없다.
  *
  * 서버에도 같은 이름이 있다(settlements/approvers.ts) — 고칠 땐 양쪽을 같이 본다.
  */
-export const SETTLEMENT_VIEWERS = ['이우주', '안원용', '이태희'];
+export const SETTLEMENT_VIEWERS = ['이우주', '안원용', '이태희', '김진후'];
 
 export function canSeeAllSettlements(
   user: { role: string } | null,
