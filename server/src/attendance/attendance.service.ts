@@ -478,6 +478,86 @@ export class AttendanceService {
   }
 
   /**
+   * 본인이 올린 신청을 고친다.
+   *
+   * 지금은 한 번 보내면 못 고친다. 날짜를 하루 잘못 적거나 연차로 올려 놓고 반차였다는
+   * 걸 알아도, 관리자에게 반려해 달라 부탁하고 다시 올리는 수밖에 없었다 — 그러느라
+   * 승인함에 반려만 쌓이고, 부탁받은 쪽도 그게 무슨 건인지 되묻는다.
+   *
+   * 아직 안 본 건만 고칠 수 있다. 승인·반려가 찍힌 뒤에 내용이 바뀌면 무엇을 보고
+   * 찍었는지가 안 남는다 — 그때는 새로 올린다.
+   *
+   * 남의 신청은 못 고친다. 자리비움도 못 고친다 — 그건 알리는 기록이라 올린 순간
+   * 확정이고, 고칠 일이면 지우고 다시 올린다.
+   */
+  async updateAttendanceRequest(id: string, employeeId: string, dto: CreateAttendanceRequestDto) {
+    const found = await this.prisma.attendanceRequest.findUnique({ where: { id } });
+    if (!found) throw new NotFoundException('신청 내역을 찾을 수 없습니다.');
+    if (found.employeeId !== employeeId) {
+      throw new ForbiddenException('본인이 올린 신청만 고칠 수 있습니다.');
+    }
+    if (found.status !== RequestStatus.PENDING) {
+      throw new BadRequestException('이미 처리된 신청은 고칠 수 없습니다. 새로 신청해 주세요.');
+    }
+
+    const date = toDateOnly(dto.date);
+    /* 날짜나 종류를 옮겼으면 그 자리에 이미 다른 신청이 있는지 다시 본다 */
+    if (dto.kind !== AttendanceRequestKind.AWAY) {
+      const duplicate = await this.prisma.attendanceRequest.findFirst({
+        where: {
+          id: { not: id },
+          employeeId,
+          date,
+          kind: { in: ONE_PER_DAY_KINDS },
+          status: { in: [RequestStatus.PENDING, RequestStatus.APPROVED] },
+        },
+      });
+      if (duplicate) throw new BadRequestException('해당 날짜에 이미 신청한 내역이 있습니다.');
+    }
+
+    const req = await this.prisma.attendanceRequest.update({
+      where: { id },
+      data: { date, kind: dto.kind, reason: dto.reason, photos: (dto.photos ?? '').trim() },
+      include: { employee: { select: { name: true } } },
+    });
+
+    /*
+      고쳤다고 다시 알린다.
+
+      승인함에 이미 올라가 있는 건이라, 보는 쪽은 처음 올라온 내용을 보고 있다 —
+      말 없이 바뀌면 다른 걸 보고 찍게 된다.
+    */
+    await this.notifyAdmins(
+      NotificationType.ATTENDANCE_REQUEST,
+      `${req.employee.name}님이 ${dto.date} ${KIND_LABEL[dto.kind]} 신청을 고쳤습니다.`,
+      employeeId,
+      date,
+    );
+
+    return { ...req, date: formatDateOnly(req.date) };
+  }
+
+  /**
+   * 본인이 올린 신청을 내린다.
+   *
+   * 잘못 올린 건을 되돌릴 자리가 없으면 관리자에게 반려를 부탁하게 된다 — 승인함에
+   * 반려가 쌓이고, 그건 판단한 기록이 아니라 치운 기록이다.
+   *
+   * 아직 안 본 건만 내린다. 처리된 건은 기록이라 남긴다.
+   */
+  async withdrawAttendanceRequest(id: string, employeeId: string) {
+    const found = await this.prisma.attendanceRequest.findUnique({ where: { id } });
+    if (!found) throw new NotFoundException('신청 내역을 찾을 수 없습니다.');
+    if (found.employeeId !== employeeId) {
+      throw new ForbiddenException('본인이 올린 신청만 내릴 수 있습니다.');
+    }
+    if (found.status !== RequestStatus.PENDING) {
+      throw new BadRequestException('이미 처리된 신청은 내릴 수 없습니다.');
+    }
+    await this.prisma.attendanceRequest.delete({ where: { id } });
+  }
+
+  /**
    * 근태 신청 목록.
    *
    * 목록 자체는 전 직원이 본다 — 누가 언제 쉬는지는 같이 알아야 일정을 짠다.

@@ -65,6 +65,13 @@ interface Store {
     reason: string;
     photos?: string;
   }) => Promise<void>;
+  /** 본인이 올린 신청 고치기 — 아직 안 본 건만(서버가 다시 본다) */
+  updateAttendanceRequest: (
+    id: string,
+    input: { date: string; kind: AttendanceRequestKind; reason: string; photos?: string },
+  ) => Promise<void>;
+  /** 본인이 올린 신청 내리기 — 아직 안 본 건만 */
+  withdrawAttendanceRequest: (id: string) => Promise<void>;
   approveAttendanceRequest: (requestId: string, note?: string) => Promise<void>;
   rejectAttendanceRequest: (requestId: string, note: string) => Promise<void>;
 
@@ -317,6 +324,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         run(() => api(`/attendance/corrections/${id}/reject`, { method: 'PATCH', body: { note } })),
 
       submitAttendanceRequest: (input) => run(() => api('/attendance/requests', { method: 'POST', body: input })),
+      updateAttendanceRequest: (id, input) =>
+        run(() => api(`/attendance/requests/${id}`, { method: 'PATCH', body: input })),
+      withdrawAttendanceRequest: (id) =>
+        run(() => api(`/attendance/requests/${id}`, { method: 'DELETE' })),
       approveAttendanceRequest: (id, note) =>
         run(() => api(`/attendance/requests/${id}/approve`, { method: 'PATCH', body: { note } })),
       rejectAttendanceRequest: (id, note) =>

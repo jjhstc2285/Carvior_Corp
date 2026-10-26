@@ -4,21 +4,33 @@ import { X } from 'lucide-react';
 import { useStore } from '../store';
 import ContractPhotos from './settlement/ContractPhotos';
 import { ApiError } from '../lib/api';
-import { ATTENDANCE_REQUEST_KIND_HINT, ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
+import {
+  ATTENDANCE_REQUEST_KIND_HINT,
+  ATTENDANCE_REQUEST_KIND_LABEL,
+  type AttendanceRequest,
+  type AttendanceRequestKind,
+} from '../types';
 import { useEscClose } from '../lib/useEscClose';
 
 interface Props {
-
+  /**
+   * 고칠 신청. 없으면 새로 올린다.
+   *
+   * 한 번 보내면 못 고쳤다. 날짜를 하루 잘못 적거나 연차로 올려 놓고 반차였다는 걸
+   * 알아도, 관리자에게 반려해 달라 부탁하고 다시 올리는 수밖에 없었다 — 그러느라
+   * 승인함에는 판단한 기록이 아니라 치운 기록만 쌓였다.
+   */
+  editing?: AttendanceRequest | null;
   onClose: () => void;
 }
 
-export default function AttendanceRequestModal({ onClose }: Props) {
+export default function AttendanceRequestModal({ editing, onClose }: Props) {
   /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
   useEscClose(onClose);
-  const { submitAttendanceRequest } = useStore();
-  const [kind, setKind] = useState<AttendanceRequestKind>('ANNUAL_LEAVE');
-  const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
-  const [reason, setReason] = useState('');
+  const { submitAttendanceRequest, updateAttendanceRequest } = useStore();
+  const [kind, setKind] = useState<AttendanceRequestKind>(editing?.kind ?? 'ANNUAL_LEAVE');
+  const [date, setDate] = useState(editing?.date ?? dayjs().format('YYYY-MM-DD'));
+  const [reason, setReason] = useState(editing?.reason ?? '');
   /*
     증빙 사진.
 
@@ -28,7 +40,7 @@ export default function AttendanceRequestModal({ onClose }: Props) {
     어느 종류에나 붙일 수 있게 둔다 — 연차에 청첩장을 붙이는 일도 있고, 못 붙이게
     막아 두면 "왜 반차만 되냐"가 된다. 안 붙여도 신청은 간다.
   */
-  const [photos, setPhotos] = useState('');
+  const [photos, setPhotos] = useState(editing?.photos ?? '');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +56,9 @@ export default function AttendanceRequestModal({ onClose }: Props) {
     setSaving(true);
     setError(null);
     try {
-      await submitAttendanceRequest({ date, kind, reason: reason.trim(), photos });
+      const body = { date, kind, reason: reason.trim(), photos };
+      if (editing) await updateAttendanceRequest(editing.id, body);
+      else await submitAttendanceRequest(body);
       onClose();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '보내지 못했습니다. 잠시 후 다시 눌러 주세요.');
@@ -57,7 +71,7 @@ export default function AttendanceRequestModal({ onClose }: Props) {
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">근태 신청</h3>
+          <h3 className="text-base font-bold text-slate-800">{editing ? '근태 신청 고치기' : '근태 신청'}</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
@@ -127,7 +141,7 @@ export default function AttendanceRequestModal({ onClose }: Props) {
             disabled={!canSubmit}
             className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
           >
-            {saving ? '보내는 중…' : '신청하기'}
+            {saving ? '보내는 중…' : editing ? '고쳐서 다시 올리기' : '신청하기'}
           </button>
         </div>
       </div>

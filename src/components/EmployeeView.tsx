@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { CalendarDays, ChevronRight, List, Plus } from 'lucide-react';
 import { useStore } from '../store';
 import { approvedRequestKind, computeStatus, formatMinutes, isWorkday, workedMinutes } from '../lib/attendance';
-import { ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequestKind } from '../types';
+import { ATTENDANCE_REQUEST_KIND_LABEL, type AttendanceRequest, type AttendanceRequestKind } from '../types';
 
 /** 신청 종류별 뱃지 색 — 승인함(AttendanceRequestInbox)과 같은 색을 쓴다. */
 const KIND_COLOR: Record<AttendanceRequestKind, string> = {
@@ -15,6 +15,7 @@ const KIND_COLOR: Record<AttendanceRequestKind, string> = {
 };
 import StatusBadge from './StatusBadge';
 import CorrectionRequestModal from './CorrectionRequestModal';
+import { confirmDanger } from '../lib/alert';
 import AttendanceRequestModal from './AttendanceRequestModal';
 import ClockCard from './ClockCard';
 import StatusBar from './StatusBar';
@@ -34,10 +35,12 @@ const REQUEST_STATUS_COLOR: Record<string, string> = {
 };
 
 export default function EmployeeView() {
-  const { state } = useStore();
+  const { state, withdrawAttendanceRequest } = useStore();
   const [requestDate, setRequestDate] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [attReqOpen, setAttReqOpen] = useState(false);
+  /** 고치려고 연 신청 — 아직 안 본 건만 열린다 */
+  const [editingRequest, setEditingRequest] = useState<AttendanceRequest | null>(null);
   /** 내 근태 신청 칸을 펼쳐 둘지 — 이 브라우저에 기억한다. 기본은 접힘. */
   const [requestsOpen, setRequestsOpen] = useState(() => {
     try {
@@ -255,7 +258,36 @@ export default function EmployeeView() {
                   )}
                   {r.reviewNote && <p className="mt-1 text-xs text-slate-400">관리자 메모: {r.reviewNote}</p>}
                 </div>
-                <span className="shrink-0 text-xs text-slate-400">{dayjs(r.createdAt).format('M/D HH:mm')}</span>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="text-xs text-slate-400">{dayjs(r.createdAt).format('M/D HH:mm')}</span>
+                  {/*
+                    아직 안 본 건만 고치고 내린다.
+
+                    날짜를 하루 잘못 적거나 연차로 올려 놓고 반차였다는 걸 알아도, 전에는
+                    관리자에게 반려해 달라 부탁하고 다시 올려야 했다 — 승인함에 판단한
+                    기록이 아니라 치운 기록만 쌓였다. 승인·반려가 찍힌 건은 기록이라 둔다.
+                  */}
+                  {r.status === 'PENDING' && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setEditingRequest(r)}
+                        className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
+                      >
+                        고치기
+                      </button>
+                      <button
+                        onClick={() =>
+                          void confirmDanger('이 신청을 내릴까요?', '승인함에서도 사라집니다.', '내리기').then(ok => {
+                            if (ok) void withdrawAttendanceRequest(r.id);
+                          })
+                        }
+                        className="rounded-md px-2 py-0.5 text-[11px] font-medium text-slate-400 hover:bg-red-50 hover:text-red-500"
+                      >
+                        내리기
+                      </button>
+                    </div>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -304,8 +336,10 @@ export default function EmployeeView() {
           onClose={() => setRequestDate(null)}
         />
       )}
-      {attReqOpen && (
-        <AttendanceRequestModal onClose={() => setAttReqOpen(false)} />
+      {attReqOpen && <AttendanceRequestModal onClose={() => setAttReqOpen(false)} />}
+      {/* 고치기 — 올린 값을 그대로 띄워 놓고 바꾼 것만 다시 보낸다 */}
+      {editingRequest && (
+        <AttendanceRequestModal editing={editingRequest} onClose={() => setEditingRequest(null)} />
       )}
     </div>
   );

@@ -195,6 +195,27 @@ export class AttendanceController {
     return { urls: files.map((f) => `/uploads/attendance/${f.filename}`) };
   }
 
+  /**
+   * 본인이 올린 신청을 고친다 — 아직 안 본 건만.
+   *
+   * 누가 올린 건지는 서버가 본다. 화면에서 보내는 값으로 가리면 남의 신청도 고쳐진다.
+   */
+  @Patch('requests/:id')
+  updateRequest(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: CreateAttendanceRequestDto,
+  ) {
+    return this.attendance.updateAttendanceRequest(id, user.id, dto);
+  }
+
+  /** 본인이 올린 신청을 내린다 — 아직 안 본 건만 */
+  @Delete('requests/:id')
+  @HttpCode(204)
+  async withdrawRequest(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.attendance.withdrawAttendanceRequest(id, user.id);
+  }
+
   @Roles(Role.ADMIN)
   @Patch('requests/:id/approve')
   approveRequest(@Param('id') id: string, @Body() dto: ReviewDto) {
