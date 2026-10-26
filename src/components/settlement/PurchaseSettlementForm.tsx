@@ -199,7 +199,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const prepTotal = purchasePrepTotal(prepCosts);
   const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal, nums.transferFee, nums.brokerFee, nums.platformFee);
   // 폼에서는 차량비용(주유·배터리)을 모른다 — 표에서는 그것까지 더한 총합계로 낸다.
-  const profit = saleProfit(nums.salePrice, grandTotal, nums.payoutAmount, nums.purchasePrice);
+  const profit = saleProfit(nums.salePrice, grandTotal, nums.payoutAmount, nums.purchasePrice, nums.transferFee);
 
   /* 보내고 나서 닫는다 — 안 기다리고 닫으면 실패해도 저장된 것처럼 보인다 */
   const [saving, setSaving] = useState(false);
@@ -239,7 +239,13 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
 
   return (
     <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-6">
-      <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl">
+      {/*
+        가로로 넓게 편다.
+
+        칸이 스물이 넘어 좁은 창에서는 한 칸씩 내려가며 적게 된다 — 매입가와 상품화
+        비용을 같이 보면서 적어야 하는데 둘이 화면 위아래로 갈라졌다.
+      */}
+      <div className="w-full max-w-5xl rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">{editing ? '매입 정산 수정' : '매입 정산 추가'}</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -249,7 +255,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         <p className="mt-1 text-xs text-slate-400">금액은 <b>원</b>으로 적습니다 — 35000 이면 35,000원입니다.</p>
         <p className="mt-0.5 text-xs text-slate-400">구전은 방식마다 나가는 금액이 다릅니다 — 현금 90 / 3.3% 88 / 13.3% 75 처럼 <b>실제로 나간 금액</b>을 적습니다.</p>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">
           <DateField label="정산일자" value={date} onChange={setDate} />
           <TextField label="차량명" value={vehicleName} onChange={setVehicleName} placeholder="그랜저 GN7" required />
           <TextField label="차량번호" value={vehicleNumber} onChange={setVehicleNumber} placeholder="12가3456" required />
@@ -302,7 +308,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             그 값(<b>실 차량판매가</b> → 없으면 <b>실차주입금 + 차대금업</b> → 없으면 <b>총 진행 판매금액</b>)으로
             덮입니다. 매입 정산 표에서도 바로 적을 수 있습니다.
           </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-8">
             <MoneyField label="차량판매가" value={salePrice} onChange={setSalePrice} />
             {/*
               상사 정산서 맨 아래 숫자.
@@ -342,7 +348,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             label="판매수익"
             formula={
               nums.payoutAmount > 0
-                ? '실제지급액 − (총비용 − 매입가) — 매입가·재고 금융·세금은 상사가 이미 뺀 금액입니다'
+                ? '실제지급액 − (총비용 − 매입가 − 이전비) — 매입가·이전비·재고 금융·세금은 상사가 이미 뺀 금액입니다'
                 : '차량판매가 − 총비용 (주유·배터리 같은 차량비용은 표에서 더합니다 · 세금은 상사 정산에서 이미 떼고 들어옵니다)'
             }
             value={profit}
@@ -350,7 +356,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           />
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">
           <MoneyField
             label="정산금액"
             value={amountManual ? settlementAmount : String(grandTotal)}

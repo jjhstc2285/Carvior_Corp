@@ -1390,6 +1390,8 @@ export class SettlementsService {
       purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee, row.platformFee),
       row.payoutAmount,
       row.purchasePrice,
+      // 이전비는 상사가 먼저 떼는 돈이라 실제지급액에는 이미 빠져 있다
+      transferFee,
     );
     return {
       ...row,

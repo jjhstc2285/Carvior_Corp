@@ -358,7 +358,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
   const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
   // 서버가 계산해 주지만, 목록을 손에서 고치는 동안에는 없을 수 있어 같은 식으로 다시 낸다.
   const profitOf = (s: PurchaseSettlement) =>
-    s.saleProfit ?? saleProfit(s.salePrice, totalWonOf(s), s.payoutAmount ?? 0, s.purchasePrice);
+    s.saleProfit ?? saleProfit(s.salePrice, totalWonOf(s), s.payoutAmount ?? 0, s.purchasePrice, s.transferFee ?? 0);
 
   /*
     담당자 칩.
@@ -1095,12 +1095,28 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                   글자는 그대로 읽혀야 한다 — 얼마짜리 차였는지 다시 볼 일이 있어서
                   지우지 않고 표시만 남기는 것이다. 그래서 진한 색이 아니라 파스텔이다.
                 */
+                /*
+                  줄을 누르면 수정 창이 뜬다.
+
+                  칸이 스물이 넘어 [수정] 단추는 맨 오른쪽 끝에 있다 — 왼쪽 끝 일자를
+                  보고 고치러 가려면 화면을 옆으로 끝까지 밀어야 했다.
+
+                  단추·입력칸 위에서 누른 건 그 자리 일로 둔다. 차량판매가를 치려다,
+                  매도정산을 찍으려다 창이 뜨면 안 된다. 승인이 찍혀 잠긴 줄은 안 연다.
+                */
                 <tr
                   key={s.id}
-                  className={`border-b border-slate-50 last:border-0 ${
+                  onClick={e => {
+                    if ((e.target as HTMLElement).closest('button, input, select, a, label')) return;
+                    if (lockedFor(s)) return;
+                    setEditing(s);
+                    setFormOpen(true);
+                  }}
+                  title={lockedFor(s) ? '승인된 정산은 고칠 수 없습니다' : '눌러서 고칩니다'}
+                  className={`border-b border-slate-50 last:border-0 ${lockedFor(s) ? '' : 'cursor-pointer'} ${
                     s.profitSharePaid
                       ? 'bg-rose-50 text-slate-500 line-through decoration-rose-300 hover:bg-rose-100/70'
-                      : 'hover:bg-slate-50/60'
+                      : 'hover:bg-indigo-50/40'
                   }`}
                 >
                   {cols.cells({
@@ -1268,7 +1284,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                         className="font-semibold text-emerald-700"
                         title={
                           (s.payoutAmount ?? 0) > 0
-                            ? '실제지급액 − (총합계 − 매입가)'
+                            ? '실제지급액 − (총합계 − 매입가 − 이전비) · 매입가와 이전비는 상사가 먼저 뗀 금액이라 또 안 뺍니다'
                             : '차량판매가 − 총합계'
                         }
                       >
