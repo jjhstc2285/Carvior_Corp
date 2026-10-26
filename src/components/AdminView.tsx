@@ -8,7 +8,6 @@ import SettlementApprovalInbox from './settlement/SettlementApprovalInbox';
 import MonthlyDashboard from './MonthlyDashboard';
 import IpWhitelistSettings from './IpWhitelistSettings';
 import TelegramTestCard from './TelegramTestCard';
-import TelegramLogCard from './TelegramLogCard';
 import AttendanceDeviceSettings from './AttendanceDeviceSettings';
 import EmployeeSettings from './EmployeeSettings';
 
@@ -37,14 +36,8 @@ export default function AdminView() {
         <SignupApprovals />
         <ApprovalInbox />
         {/* 공지가 안 오면 여기서 한 줄 보내 본다 — 실패는 로그에만 남아 한참 뒤에야 안다 */}
+        {/* 나간 기록은 왼쪽 메뉴 '텔레그램 기록'에 있다 — 여기서는 연결만 본다 */}
         <TelegramTestCard />
-        {/*
-          방에 무엇이 나갔나 — 입금방·매입방·공지방.
-
-          보냈는지가 서버 로그에만 남아서, 사람이 못 보고 며칠 지나면 밀려 사라졌다.
-          못 간 것까지 같이 남긴다 — 안 간 걸 모르는 게 제일 나쁘다.
-        */}
-        <TelegramLogCard />
         <IpWhitelistSettings />
         <AttendanceDeviceSettings />
         <EmployeeSettings />

@@ -21,6 +21,7 @@ import {
   ReceiptText,
   Search,
   ShoppingCart,
+  Send,
   Sparkles,
   Stamp,
   Table2,
@@ -120,6 +121,13 @@ const NAV_GROUPS: {
       { key: 'notice', label: '사내 게시판', icon: Notice },
       { key: 'dealerFee', label: '상조회비 관리', icon: Building2 },
       { key: 'chat', label: '메시지', icon: MessageSquare },
+      /*
+        방에 무엇이 나갔나 — 입금방·매입방·공지방.
+
+        관리자 대시보드 안에 넣어 뒀더니 아무도 못 찾았다. 그 화면은 근태 메뉴를 눌러야
+        나오는 자리라, 텔레그램을 보려고 '출퇴근 관리'를 누를 사람은 없다.
+      */
+      { key: 'telegram', label: '텔레그램 기록', icon: Send },
     ],
   },
 ];
@@ -165,6 +173,8 @@ export default function Sidebar({
       열어 두면 "저 집엔 얼마 냈더라"가 사내에서 오간다. 번호까지 걸어 두지만,
       메뉴에서부터 안 보이는 쪽이 먼저다.
     */
+    // 입금방·매입방에는 금액이 든다 — 관리자만
+    (key !== 'telegram' || isAdmin) &&
     (key !== 'condolence' || isAdmin);
 
   /*
