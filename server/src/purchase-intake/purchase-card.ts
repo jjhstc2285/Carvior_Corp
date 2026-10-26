@@ -15,6 +15,27 @@
 /** 아직 시스템에 없는 줄 — 비워서 올린다. 채우는 건 방에서 이어 적는다 */
 const BLANK_LINES = ['차량입금', '광택집', '도색판', '탁송업체비용', '성능장', '주차장위치'] as const;
 
+/** 매입 줄에서 쪽지를 만들 때 쓰는 것 — 서비스가 그대로 넘긴다 */
+export interface PurchaseCardRow {
+  source: string;
+  date: Date;
+  inspector: string;
+  vehicleName: string;
+  detailModel: string;
+  vehicleNumber: string;
+  modelYear: string;
+  fuel: string;
+  note: string;
+  mileage: number;
+  checkedMileage: number;
+  purchaseAmount: number;
+  brokerFee: number;
+  keyCount: number;
+  customerPhone: string;
+  customerName: string;
+  employee?: { name: string } | null;
+}
+
 export interface PurchaseCard {
   /** 매입처 — "bmw 인천 김경훈" 처럼 어디서 사왔는지 */
   source: string;

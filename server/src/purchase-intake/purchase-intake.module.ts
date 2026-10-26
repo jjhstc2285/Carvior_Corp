@@ -33,7 +33,7 @@ import { isValidPlate, normalizePlate, plateTailOf } from '../vehicles/vehicle.r
 import { inferBodyType } from '../vehicles/body-type';
 import { CarviorModule, CarviorService, type CarviorContract } from '../carvior/carvior.module';
 import { TelegramService } from '../telegram/telegram.module';
-import { purchaseCardText } from './purchase-card';
+import { purchaseCardText, type PurchaseCardRow } from './purchase-card';
 
 /** 카비어는 만원, 매입 관리는 원으로 적는다. */
 const WON_PER_MANWON = 10000;
@@ -779,47 +779,31 @@ export class PurchaseIntakeService {
    *
    * 기다리지 않는다. 쪽지가 안 가도 매입은 들어간 뒤다.
    */
-  private announcePurchase(row: {
-    source: string;
-    date: Date;
-    inspector: string;
-    vehicleName: string;
-    detailModel: string;
-    vehicleNumber: string;
-    modelYear: string;
-    fuel: string;
-    note: string;
-    mileage: number;
-    checkedMileage: number;
-    purchaseAmount: number;
-    brokerFee: number;
-    keyCount: number;
-    customerPhone: string;
-    customerName: string;
-    employee?: { name: string } | null;
-  }): void {
-    this.telegram.notifyPurchase(
-      purchaseCardText({
-        source: row.source,
-        date: row.date,
-        inspector: row.inspector,
-        vehicleName: row.vehicleName,
-        detailModel: row.detailModel,
-        vehicleNumber: row.vehicleNumber,
-        modelYear: row.modelYear,
-        fuel: row.fuel,
-        note: row.note,
-        // 실차를 보고 다시 적은 값이 있으면 그게 맞다
-        mileage: row.checkedMileage || row.mileage,
-        purchaseAmount: row.purchaseAmount,
-        brokerFee: row.brokerFee,
-        keyCount: row.keyCount,
-        customerPhone: row.customerPhone,
-        customerName: row.customerName,
-        employeeName: row.employee?.name ?? '',
-      }),
-      row.vehicleNumber,
-    );
+  /** 그 줄로 만든 쪽지 글 — 고치기 전후를 견주려고 따로 뺀다 */
+  private purchaseText(row: PurchaseCardRow): string {
+    return purchaseCardText({
+      source: row.source,
+      date: row.date,
+      inspector: row.inspector,
+      vehicleName: row.vehicleName,
+      detailModel: row.detailModel,
+      vehicleNumber: row.vehicleNumber,
+      modelYear: row.modelYear,
+      fuel: row.fuel,
+      note: row.note,
+      // 실차를 보고 다시 적은 값이 있으면 그게 맞다
+      mileage: row.checkedMileage || row.mileage,
+      purchaseAmount: row.purchaseAmount,
+      brokerFee: row.brokerFee,
+      keyCount: row.keyCount,
+      customerPhone: row.customerPhone,
+      customerName: row.customerName,
+      employeeName: row.employee?.name ?? '',
+    });
+  }
+
+  private announcePurchase(row: PurchaseCardRow): void {
+    this.telegram.notifyPurchase(this.purchaseText(row), row.vehicleNumber);
   }
 
   /**
@@ -840,6 +824,12 @@ export class PurchaseIntakeService {
 
   async update(id: string, dto: UpdatePurchaseIntakeDto) {
     await this.assertExists(id);
+    /* 고치기 전 쪽지 — 고친 뒤와 견줘서 달라졌을 때만 다시 올린다 */
+    const beforeRow = await this.prisma.purchaseIntake.findUnique({
+      where: { id },
+      include: { employee: { select: { name: true } } },
+    });
+    const beforeCard = beforeRow ? this.purchaseText(beforeRow) : null;
     const before = await this.prisma.purchaseIntake.findUnique({
       where: { id },
       select: { checkedMileage: true, inspector: true, checkedItems: true, panelCount: true, dentCount: true, wheelCount: true },
@@ -919,6 +909,19 @@ export class PurchaseIntakeService {
     }
 
     this.announceInspected(before, row);
+
+    /*
+      쪽지 내용이 달라졌으면 매입방에 다시 올린다.
+
+      등록할 때 나가는 쪽지에는 빈 줄이 많다 — 실차 확인자·특이사항·주행거리는 검차가
+      끝나야 채워지는 값이라, 그때 다시 올려야 방에 제대로 된 쪽지가 남는다.
+
+      어느 칸을 고쳤는지로 가리지 않는다. 가릴 칸을 손으로 적어 두면 칸이 늘 때마다
+      한 군데는 꼭 빠지고, 빠진 칸을 고친 사람은 "왜 안 올라가냐"가 된다 — 쪽지를
+      만들어 보고 글자가 달라졌을 때만 보낸다. 안 달라지면 조용하다.
+    */
+    if (beforeCard && this.purchaseText(row) !== beforeCard) this.announcePurchase(row);
+
     return this.toView(row, await this.plateState(row.vehicleNumber));
   }
 
