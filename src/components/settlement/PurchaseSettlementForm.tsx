@@ -197,9 +197,17 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     dealerLoanFee: moneyToNumber(dealerLoanFee),
   };
   const prepTotal = purchasePrepTotal(prepCosts);
-  const grandTotal = purchaseGrandTotal(nums.purchasePrice, prepTotal, nums.transferFee, nums.brokerFee, nums.platformFee);
+  /* 실제지급액을 적었으면 이전비는 안 더한다 — 상사가 먼저 뗀 돈이라 거기 이미 빠져 있다 */
+  const grandTotal = purchaseGrandTotal(
+    nums.purchasePrice,
+    prepTotal,
+    nums.transferFee,
+    nums.brokerFee,
+    nums.platformFee,
+    nums.payoutAmount,
+  );
   // 폼에서는 차량비용(주유·배터리)을 모른다 — 표에서는 그것까지 더한 총합계로 낸다.
-  const profit = saleProfit(nums.salePrice, grandTotal, nums.payoutAmount, nums.purchasePrice, nums.transferFee);
+  const profit = saleProfit(nums.salePrice, grandTotal, nums.payoutAmount, nums.purchasePrice);
 
   /* 보내고 나서 닫는다 — 안 기다리고 닫으면 실패해도 저장된 것처럼 보인다 */
   const [saving, setSaving] = useState(false);
@@ -356,7 +364,11 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           {/* 이전비는 적는 칸이 아니라 계산 결과다 — 무엇이 더해졌는지 펼쳐 보여준다 */}
           <CalcRow
             label="이전비 + 추가이전비"
-            formula="상사 이전비 + 추가이전비 — 매입가로 정해집니다"
+            formula={
+              nums.payoutAmount > 0
+                ? '상사 이전비 + 추가이전비 — 실제지급액에 이미 빠져 있어 총비용에는 안 더합니다'
+                : '상사 이전비 + 추가이전비 — 매입가로 정해집니다'
+            }
             value={transferFee}
           />
           <CalcRow
@@ -370,7 +382,17 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
             value={extraTransferFee(nums.purchasePrice)}
           />
           <CalcRow label="상품화총비용" formula="광택·세차 + 판금·덴트 + 성능비 + 탁송비 + 수리비 + 진단비 (이전비·구전 제외)" value={prepTotal} />
-          <CalcRow label="총비용" formula="매입가 + 이전비 + 구전 + 상품화총비용" value={grandTotal} strong />
+          {/* 실제지급액을 적었으면 이전비가 빠진다 — 왜 빠졌는지 식에 그대로 적는다 */}
+          <CalcRow
+            label="총비용"
+            formula={
+              nums.payoutAmount > 0
+                ? '매입가 + 구전 + 상품화총비용 — 이전비는 상사가 먼저 뗀 금액이라 뺍니다'
+                : '매입가 + 이전비 + 구전 + 상품화총비용'
+            }
+            value={grandTotal}
+            strong
+          />
           <CalcRow
             label="판매수익"
             formula={

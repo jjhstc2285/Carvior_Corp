@@ -353,12 +353,21 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
   const prepTotalOf = (s: PurchaseSettlement) => s.prepTotal ?? purchasePrepTotal(s.prepCosts ?? []);
   const breakdownOf = (s: PurchaseSettlement) => s.prepBreakdown ?? prepBreakdown(s.prepCosts ?? []);
   const grandTotalOf = (s: PurchaseSettlement) =>
-    s.grandTotal ?? purchaseGrandTotal(s.purchasePrice, prepTotalOf(s), s.transferFee, s.brokerFee, s.platformFee ?? 0);
+    s.grandTotal ??
+    // 실제지급액을 적었으면 이전비는 안 더한다 — 상사가 먼저 뗀 돈이다
+    purchaseGrandTotal(
+      s.purchasePrice,
+      prepTotalOf(s),
+      s.transferFee,
+      s.brokerFee,
+      s.platformFee ?? 0,
+      s.payoutAmount ?? 0,
+    );
   /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
   const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
   // 서버가 계산해 주지만, 목록을 손에서 고치는 동안에는 없을 수 있어 같은 식으로 다시 낸다.
   const profitOf = (s: PurchaseSettlement) =>
-    s.saleProfit ?? saleProfit(s.salePrice, totalWonOf(s), s.payoutAmount ?? 0, s.purchasePrice, s.transferFee ?? 0);
+    s.saleProfit ?? saleProfit(s.salePrice, totalWonOf(s), s.payoutAmount ?? 0, s.purchasePrice);
 
   /*
     담당자 칩.
@@ -1284,7 +1293,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                         className="font-semibold text-emerald-700"
                         title={
                           (s.payoutAmount ?? 0) > 0
-                            ? '실제지급액 − (총합계 − 매입가 − 이전비) · 매입가와 이전비는 상사가 먼저 뗀 금액이라 또 안 뺍니다'
+                            ? '실제지급액 − (총합계 − 매입가) · 실제지급액을 적으면 이전비는 총비용에서 빠집니다(상사가 먼저 뗀 금액입니다)'
                             : '차량판매가 − 총합계'
                         }
                       >

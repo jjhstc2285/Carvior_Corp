@@ -1387,11 +1387,17 @@ export class SettlementsService {
     const withChief = needsChief(row.employee?.name);
     const profit = saleProfit(
       row.salePrice,
-      purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee, row.platformFee),
+      purchaseGrandTotalWon(
+        row.purchasePrice,
+        prepTotal,
+        vehicleCost,
+        transferFee,
+        row.brokerFee,
+        row.platformFee,
+        row.payoutAmount,
+      ),
       row.payoutAmount,
       row.purchasePrice,
-      // 이전비는 상사가 먼저 떼는 돈이라 실제지급액에는 이미 빠져 있다
-      transferFee,
     );
     return {
       ...row,
@@ -1399,10 +1405,26 @@ export class SettlementsService {
       date: formatDateOnly(row.date),
       prepTotal,
       prepBreakdown: prepBreakdown(row.prepCosts),
-      grandTotal: purchaseGrandTotal(row.purchasePrice, prepTotal, transferFee, row.brokerFee, row.platformFee),
+      // 실제지급액을 적었으면 이전비는 안 더한다 — 상사가 먼저 뗀 돈이다
+      grandTotal: purchaseGrandTotal(
+        row.purchasePrice,
+        prepTotal,
+        transferFee,
+        row.brokerFee,
+        row.platformFee,
+        row.payoutAmount,
+      ),
       // 차량관리에서 자동으로 붙는 값 — 저장하지 않고 조회할 때마다 계산한다.
       vehicleCost,
-      grandTotalWon: purchaseGrandTotalWon(row.purchasePrice, prepTotal, vehicleCost, transferFee, row.brokerFee, row.platformFee),
+      grandTotalWon: purchaseGrandTotalWon(
+        row.purchasePrice,
+        prepTotal,
+        vehicleCost,
+        transferFee,
+        row.brokerFee,
+        row.platformFee,
+        row.payoutAmount,
+      ),
       // 판 값. 아직 안 팔았으면 전부 0이라 판매수익도 0으로 나온다.
       submittedAt: row.submittedAt?.toISOString() ?? null,
       chiefApprovedAt: row.chiefApprovedAt?.toISOString() ?? null,

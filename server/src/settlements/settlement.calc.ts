@@ -189,6 +189,12 @@ export function extraTransferFee(purchasePrice: number): number {
  *
  * 상사 이전비와 추가이전비는 '이전비 + 추가이전비' 칸에 들어간다(transferFeeOf).
  * 여기서 또 더하면 두 번 잡힌다.
+ *
+ * 실제지급액을 적었으면 이전비는 안 더한다.
+ *
+ * 상사는 판매가에서 매입가와 이전비를 먼저 떼고 통장에 넣어 준다 — 그 숫자가
+ * 실제지급액이다. 우리 총비용에 이전비를 또 얹으면 같은 돈을 두 번 세는 꼴이고,
+ * 상사 정산서와 견줄 수도 없게 된다.
  */
 export function purchaseGrandTotal(
   purchasePrice: number,
@@ -197,8 +203,12 @@ export function purchaseGrandTotal(
   brokerFee = 0,
   /** 헤이딜러·엔카 경매장 수수료 — 사오는 데 든 돈이라 총비용에 들어간다 */
   platformFee = 0,
+  /** 상사 정산서 맨 아래 '실제지급액' — 적혀 있으면 이전비는 안 더한다 */
+  payoutAmount = 0,
 ): number {
-  return purchasePrice + transferFee + brokerFee + platformFee + prepTotal;
+  // 상사가 먼저 뗀 돈이라 실제지급액에는 이미 빠져 있다 — 또 얹으면 두 번 센다
+  const transfer = payoutAmount > 0 ? 0 : transferFee;
+  return purchasePrice + transfer + brokerFee + platformFee + prepTotal;
 }
 
 /**
@@ -258,8 +268,6 @@ export function saleProfit(
   /** 상사 정산서 맨 아래 '실제지급액' — 적혀 있으면 이걸 기준으로 낸다 */
   payoutAmount = 0,
   purchasePrice = 0,
-  /** 이전비 + 추가이전비 — 상사가 먼저 떼는 돈이라 실제지급액에는 이미 빠져 있다 */
-  transferFee = 0,
 ): number {
   /*
     실제지급액을 적었으면 그 숫자에서 낸다.
@@ -271,12 +279,12 @@ export function saleProfit(
     매입가와 이전비는 이미 저쪽에서 빠졌으므로 다시 빼지 않는다. 총합계에서 그 둘을
     덜어 내고 뺀다 — 두 번 빼면 그만큼 손해로 보인다.
 
-    이전비를 빼고 있었다. 이전비는 상사가 매입가와 함께 먼저 떼는 돈이라 실제지급액에는
-    이미 빠져 있는데, 여기서 또 빼서 수익이 이전비만큼 적게 나왔다.
+    이전비는 총비용에서 이미 빠져 있다 — 실제지급액을 적으면 purchaseGrandTotal 이
+    안 더한다. 그래서 여기서는 매입가만 덜어 내면 된다.
 
     이렇게 하면 재고 금융 이자도 세금도 우리가 따로 적을 필요가 없다. 이미 빠진 금액이다.
   */
-  if (payoutAmount > 0) return payoutAmount - (grandTotalWon - purchasePrice - transferFee);
+  if (payoutAmount > 0) return payoutAmount - (grandTotalWon - purchasePrice);
   return salePrice - grandTotalWon;
 }
 
@@ -319,8 +327,13 @@ export function purchaseGrandTotalWon(
   transferFee = 0,
   brokerFee = 0,
   platformFee = 0,
+  /** 실제지급액 — 적혀 있으면 이전비는 안 더한다(상사가 먼저 뗀 돈이다) */
+  payoutAmount = 0,
 ): number {
-  return purchaseGrandTotal(purchasePrice, prepTotal, transferFee, brokerFee, platformFee) + vehicleCost.total;
+  return (
+    purchaseGrandTotal(purchasePrice, prepTotal, transferFee, brokerFee, platformFee, payoutAmount) +
+    vehicleCost.total
+  );
 }
 
 /**
