@@ -8,7 +8,8 @@ import IntakeCheckBar from './IntakeCheckBar';
 import PurchaseIntakeForm from './PurchaseIntakeForm';
 import CarviorImportModal from './CarviorImportModal';
 import StockAgePanel from './StockAgePanel';
-import PrepSchedulePanel from './PrepSchedulePanel';
+// 상품화 진행은 화면에서 내렸다 — 되살리려면 이 줄과 아래 <PrepSchedulePanel /> 을 같이 켠다
+// import PrepSchedulePanel from './PrepSchedulePanel';
 import PullFromSettlementPanel from './PullFromSettlementPanel';
 import PurchaseCalendarPanel from './PurchaseCalendarPanel';
 import { goTo } from '../../lib/goto';
@@ -421,14 +422,20 @@ export default function PurchaseIntakeModule() {
       */}
       <PullFromSettlementPanel onDone={() => void api.reload()} />
 
-      {/*
-        상품화 진행 — 들어온 차를 나흘 안에 광고까지 올린다.
-        장기 재고보다 먼저 둔다. 오래 묵은 차를 줄이는 길이 결국 빨리 올리는 것이다.
-      */}
       {/* 어느 날 돈이 얼마나 나가나 — 접어 두고, 펼칠 때 받아온다 */}
       <PurchaseCalendarPanel />
 
-      <PrepSchedulePanel />
+      {/*
+        상품화 진행은 내렸다.
+
+        들어온 차를 나흘 안에 광고까지 올리자고 만든 칸인데, 이 화면에서 실제로 하는
+        일은 매입을 적는 것이다 — 그 위에 진행표가 얹혀 있으니 적으러 들어온 사람이
+        매번 지나쳐 가야 했다.
+
+        자리는 그대로 두고 그리기만 안 한다. 서버(prep-schedule)와 화면은 살아 있어서
+        다시 띄우려면 이 줄만 되살리면 된다. 지우면 되살릴 때 다시 만들어야 한다.
+      */}
+      {/* <PrepSchedulePanel /> */}
 
       <StockAgePanel />
 
