@@ -228,7 +228,8 @@ export default function ParkingLayoutEditor({
 export async function dropLot(lot: ParkingLotConfig, onDone: () => Promise<void>): Promise<void> {
   const ok = await confirmDanger(
     `${lot.label || lot.lot} 를 목록에서 내릴까요?`,
-    '배치도와 등록 창에서 안 보이게 됩니다. 지난 주차·세차 기록은 그대로 남습니다.',
+    '배치도와 등록 창에서 안 보이게 됩니다. 세워 둔 차가 있으면 내려가지 않습니다 — 지난 주차·세차 기록은 그대로 남습니다.',
+    '내리기',
   );
   if (!ok) return;
   try {
@@ -248,6 +249,26 @@ export function LayoutEditButton({ onClick }: { onClick: () => void }) {
       className="rounded-md p-1 text-slate-300 hover:bg-slate-100 hover:text-indigo-600"
     >
       <Pencil size={13} />
+    </button>
+  );
+}
+
+/**
+ * 주차장을 내리는 단추 — 고치는 단추 옆에 붙인다.
+ *
+ * 누르면 한 번 더 묻는다. 주차장 하나가 사라지면 그 안의 자리가 통째로 없어지는데,
+ * 잘못 눌러 놓고 무엇이 사라졌는지 모르면 되돌릴 수도 없다.
+ *
+ * 세워 둔 차가 있으면 서버가 막는다 — 차를 먼저 옮기라고 알려 준다.
+ */
+export function LayoutDropButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="이 주차장을 목록에서 내립니다 — 지난 기록은 남습니다"
+      className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+    >
+      <Trash2 size={13} />
     </button>
   );
 }

@@ -9,7 +9,7 @@ import ParkingGrid from './ParkingGrid';
 import SheetImportModal from './SheetImportModal';
 import MoveSuggestions from './MoveSuggestions';
 import { useParkingLayout } from './useParkingLayout';
-import ParkingLayoutEditor from './ParkingLayoutEditor';
+import ParkingLayoutEditor, { dropLot } from './ParkingLayoutEditor';
 import type { ParkingLotConfig } from '../../lib/parkingLayout';
 import KeyDispatchPanel from './KeyDispatchPanel';
 import { alertError, confirmDanger } from '../../lib/alert';
@@ -309,6 +309,8 @@ export default function ParkingModule({ isAdmin }: { isAdmin: boolean }) {
           lots={layout.lots}
           canEditLayout={canEditLayout}
           onEditLayout={lot => setEditingLot(lot ?? 'new')}
+          // 한 번 더 묻고 내린다 — 세워 둔 차가 있으면 서버가 막는다
+          onDropLayout={lot => void dropLot(lot, layout.reload)}
           showSold={showSold}
           onCellClick={handleCellClick}
           onMoveError={m => void alertError('자리를 옮기지 못했습니다', m)}

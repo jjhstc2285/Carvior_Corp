@@ -15,7 +15,7 @@ import { PARKING_STATUS_LABEL, type ParkingStatus, type ParkingVehicle } from '.
 import { reinspectLabel } from '../../lib/reinspection';
 import { ChevronRight, Move, Search } from 'lucide-react';
 import { PARKING_GROUPS, slotsOf, type ParkingGroup, type ParkingLotConfig, lotLabel } from '../../lib/parkingLayout';
-import { LayoutEditButton } from './ParkingLayoutEditor';
+import { LayoutDropButton, LayoutEditButton } from './ParkingLayoutEditor';
 import { PARKING_STATUS_STYLE } from '../../lib/parkingStatus';
 
 interface Props {
@@ -25,6 +25,8 @@ interface Props {
   canEditLayout?: boolean;
   /** 그 주차장 구조를 고치러 간다. 없으면 새로 만든다 */
   onEditLayout?: (lot: ParkingLotConfig | null) => void;
+  /** 주차장을 목록에서 내린다 — 고치는 사람에게만 뜬다 */
+  onDropLayout?: (lot: ParkingLotConfig) => void;
   /**
    * 매도한 차도 보일지.
    *
@@ -174,6 +176,7 @@ export default function ParkingGrid({
   lots,
   canEditLayout = false,
   onEditLayout,
+  onDropLayout,
 }: Props) {
   const { state, moveParkingVehicle } = useStore();
   const [dragging, setDragging] = useState<ParkingVehicle | null>(null);
@@ -474,10 +477,11 @@ export default function ParkingGrid({
                     <th style={{ backgroundColor: bandColor }} className="w-10 border border-white/40" />
                     <th colSpan={zones.length} style={{ backgroundColor: bandColor }} className="border border-white/40 py-1.5 text-center text-sm font-bold text-slate-900">
                       {lotLabel(lot, lots)}
-                      {/* 줄·구역·이름을 고치는 자리 — 줄을 긋는 사람에게만 보인다 */}
+                      {/* 줄·구역·이름을 고치고, 통째로 내리는 자리 — 줄을 긋는 사람에게만 보인다 */}
                       {canEditLayout && (
                         <span className="ml-1 align-middle">
                           <LayoutEditButton onClick={() => onEditLayout?.(config)} />
+                          <LayoutDropButton onClick={() => onDropLayout?.(config)} />
                         </span>
                       )}
                     </th>
