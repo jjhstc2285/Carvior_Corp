@@ -7,7 +7,6 @@ import {
   ForbiddenException,
   Get,
   NotFoundException,
-  Patch,
   Global,
   Injectable,
   Logger,
@@ -22,7 +21,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
-import { SaleCardDto, saleCardText } from './sale-card';
+import { SaleCardDto, saleCardHtml, saleCardText, type SaleCardMark } from './sale-card';
 import { Role } from '@prisma/client';
 
 /**
@@ -71,8 +70,6 @@ export interface TelegramLogRow {
   /** 손으로 올린 쪽지면 올린 사람 */
   sentBy: string;
   createdAt: string;
-  /** 고친 적이 있으면 그때 */
-  editedAt: string | null;
 }
 
 @Injectable()
@@ -193,7 +190,11 @@ export class TelegramService implements OnModuleInit {
   }
 
   /**
-   * 입금방에 손으로 올린다.
+   * 입금방에 올린다.
+   *
+   * 고칠 때도 여덟 줄을 통째로 다시 올린다. 방에 뜬 줄을 조용히 고치는 길도 있었는데,
+   * 그러면 알림이 안 울려서 그새 읽고 간 사람은 옛 숫자를 들고 있게 된다 — 그 방을
+   * 보고 입금을 넣는 자리라 바뀐 걸 모르는 쪽이 더 나쁘다.
    *
    * 기다린다. 다른 알림은 일하다 곁가지로 나가는 거라 늦어도 그만이지만, 이건 사람이
    * 단추를 누르고 보고 있는 중이다 — 조용히 실패하면 "단추가 안 된다"로 돌아온다.
@@ -205,13 +206,14 @@ export class TelegramService implements OnModuleInit {
     if (!this.token || !chatId) {
       throw new BadRequestException('입금확인방이 서버에 설정되지 않았습니다(.env TELEGRAM_SALE_CHAT_ID).');
     }
-    const text = saleCardText(card);
     const plate = card.vehicleNumber.trim();
+    const mark = await this.markOf(card, plate, sentBy);
+    const text = saleCardText(card, mark);
     try {
-      const messageId = await this.send(text, chatId);
+      await this.send(saleCardHtml(card, mark), chatId);
       return this.toRow(
         await this.prisma.telegramLog.create({
-          data: { room: TelegramRoom.SALE, chatId, text, vehicleNumber: plate, ok: true, messageId, sentBy },
+          data: { room: TelegramRoom.SALE, chatId, text, vehicleNumber: plate, ok: true, sentBy },
         }),
       );
     } catch (e) {
@@ -235,39 +237,19 @@ export class TelegramService implements OnModuleInit {
   }
 
   /**
-   * 올린 쪽지를 고친다.
+   * 고쳐 올리는 것인가 — 그러면 지난 쪽지와 몇 번째인지를 들고 온다.
    *
-   * 방에 뜬 그 줄을 고친다 — 새로 올리지 않는다. 다시 올리면 같은 차가 두 줄이 되고,
-   * 읽는 사람은 어느 쪽이 맞는지를 시각으로 가려야 한다.
-   *
-   * 못 갔던 줄이거나 번호를 모르면 고칠 게 방에 없다 — 그때는 새로 올리고, 줄은 그대로
-   * 하나를 쓴다. 안 간 줄을 남겨 두면 못 보낸 건수가 영영 안 줄어든다.
+   * 몇 번째인지는 그 차로 나간 쪽지를 세서 낸다. 못 간 것도 센다 — 올리려 한 횟수가
+   * 값이 흔들린 횟수다.
    */
-  async editSale(id: string, card: SaleCardDto, sentBy: string): Promise<TelegramLogRow> {
-    const row = await this.prisma.telegramLog.findUnique({ where: { id } });
-    if (!row || row.room !== TelegramRoom.SALE) throw new NotFoundException('그 쪽지를 찾을 수 없습니다.');
-
-    // 방을 옮겼으면 새 방에 올린다. 옮기기 전 번호로 고치려 들면 저쪽에 그 줄이 없다
-    const chatId = this.saleChatId || row.chatId;
-    if (!this.token || !chatId) {
-      throw new BadRequestException('입금확인방이 서버에 설정되지 않았습니다(.env TELEGRAM_SALE_CHAT_ID).');
-    }
-    const text = saleCardText(card);
-    const plate = card.vehicleNumber.trim();
-    const sameRoom = row.ok && !!row.messageId && row.chatId === chatId;
-    try {
-      const messageId = sameRoom ? await this.edit(row.messageId, text, chatId) : await this.send(text, chatId);
-      return this.toRow(
-        await this.prisma.telegramLog.update({
-          where: { id },
-          data: { chatId, text, vehicleNumber: plate, ok: true, reason: '', messageId, sentBy, editedAt: new Date() },
-        }),
-      );
-    } catch (e) {
-      const reason = this.why(e as Error);
-      this.logger.warn(`입금방 쪽지를 못 고쳤습니다(방 ${chatId}): ${reason}`);
-      throw new BadRequestException(`입금방 쪽지를 못 고쳤습니다 — ${reason}`);
-    }
+  private async markOf(card: SaleCardDto, plate: string, sentBy: string): Promise<SaleCardMark | undefined> {
+    if (!card.basedOn) return undefined;
+    const before = await this.prisma.telegramLog.findUnique({ where: { id: card.basedOn } });
+    if (!before || before.room !== TelegramRoom.SALE) throw new NotFoundException('고칠 쪽지를 찾을 수 없습니다.');
+    const sent = await this.prisma.telegramLog.count({
+      where: { room: TelegramRoom.SALE, vehicleNumber: plate },
+    });
+    return { before: before.text, by: sentBy, seq: sent + 1 };
   }
 
   /** 왜 못 갔나 — 텔레그램이 돌려준 말까지 붙인다. 'fetch failed' 만으로는 아무도 못 고친다 */
@@ -315,7 +297,6 @@ export class TelegramService implements OnModuleInit {
     vehicleNumber: string;
     sentBy: string;
     createdAt: Date;
-    editedAt: Date | null;
   }): TelegramLogRow {
     return {
       id: r.id,
@@ -326,7 +307,6 @@ export class TelegramService implements OnModuleInit {
       vehicleNumber: r.vehicleNumber,
       sentBy: r.sentBy,
       createdAt: r.createdAt.toISOString(),
-      editedAt: r.editedAt ? r.editedAt.toISOString() : null,
     };
   }
 
@@ -349,27 +329,6 @@ export class TelegramService implements OnModuleInit {
       // 링크 미리보기가 뜨면 짧은 알림이 화면 반을 차지한다
       disable_web_page_preview: true,
     });
-  }
-
-  /**
-   * 방에 뜬 줄을 고친다.
-   *
-   * 글이 그대로면 텔레그램이 'message is not modified' 로 물린다 — 고칠 게 없었다는
-   * 말이지 못 고쳤다는 말이 아니라서, 그건 된 걸로 친다.
-   */
-  private async edit(messageId: string, text: string, chatId: string): Promise<string> {
-    try {
-      await this.call('editMessageText', {
-        chat_id: chatId,
-        message_id: Number(messageId),
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      });
-    } catch (e) {
-      if (!(e as Error).message.includes('message is not modified')) throw e;
-    }
-    return messageId;
   }
 
   /**
@@ -637,18 +596,15 @@ export class TelegramController {
   /**
    * 입금방에 손으로 올린다.
    *
+   * 고치는 것도 여기로 온다 — basedOn 에 지난 쪽지를 적어 보내면 바뀐 줄을 굵게 적어
+   * 통째로 다시 올린다.
+   *
    * 로그인한 직원이면 올린다. 올린 사람 이름이 줄에 남는다 — 숫자가 틀렸을 때 누구에게
    * 물어볼지가 거기서 갈린다.
    */
   @Post('sale')
   postSale(@CurrentUser() user: AuthUser, @Body() dto: SaleCardDto) {
     return this.telegram.postSale(dto, user.name);
-  }
-
-  /** 올린 쪽지를 고친다 — 방에 뜬 그 줄을 고친다 */
-  @Patch('sale/:id')
-  editSale(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SaleCardDto) {
-    return this.telegram.editSale(id, dto, user.name);
   }
 }
 

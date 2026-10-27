@@ -15,8 +15,12 @@ import { useEscClose } from '../../lib/useEscClose';
  *
  * 적는 대로 아래에 쪽지가 보인다. 올리기 전에 방에 뜰 꼴 그대로를 본다.
  *
- * 고칠 때는 방에 뜬 그 줄을 고친다 — 새로 올리지 않는다. 다시 올리면 같은 차가 두 줄이
- * 되고, 읽는 사람은 어느 쪽이 맞는지를 시각으로 가려야 한다.
+ * 고칠 때도 여덟 줄을 통째로 다시 올린다. 방에 뜬 줄을 조용히 고치는 길도 있었는데,
+ * 그러면 알림이 안 울려서 그새 읽고 간 사람은 옛 숫자를 들고 있게 된다 — 그 방을 보고
+ * 입금을 넣는 자리라, 바뀐 걸 모르는 쪽이 더 나쁘다.
+ *
+ * 바뀐 줄은 방에서 굵게 뜨고 지난 값이 취소선으로 뒤에 붙는다. 텔레그램 봇은 글자에
+ * 색을 못 넣는다 — 쓸 수 있는 건 굵게·기울임·취소선·밑줄뿐이다. 색은 목록에서 칠한다.
  */
 
 /** 서버에 보내는 칸 — DTO 와 이름이 같아야 한다(서버가 모르는 칸은 물린다) */
@@ -32,6 +36,8 @@ export interface SaleCardFields {
   deposit: number;
   platform: string;
   note: string;
+  /** 고쳐 올리는 것이면 지난 쪽지 — 서버가 그것과 견줘 바뀐 줄을 굵게 적는다 */
+  basedOn?: string;
 }
 
 /** 코드가 — 광고가에 늘 이만큼 붙는다(만원) */
@@ -74,8 +80,19 @@ export function cardOf(text: string): SaleCardFields {
     if (m) f[m[1].trim()] = m[2].trim();
   }
   const [bought, broker] = (f['매입가'] ?? '').split('+');
-  // 맨 아래 괄호 한 줄 — 콜론이 없어서 위에서 안 걸린다
-  const note = text.trim().split('\n').pop()?.match(/^\((.+)\)$/)?.[1] ?? '';
+  /*
+    비고 — 맨 아래 괄호 한 줄. 콜론이 없어서 위에서 안 걸린다.
+
+    맨 끝줄만 보면 안 된다. 고쳐 올린 쪽지에는 그 아래 '※ … 수정' 한 줄이 더 붙어서,
+    끝줄만 집으면 그 줄이 비고 칸으로 딸려 들어간다.
+  */
+  const note =
+    text
+      .trim()
+      .split('\n')
+      .reverse()
+      .map(line => line.trim().match(/^\((.+)\)$/)?.[1])
+      .find(Boolean) ?? '';
 
   return {
     dealer: f['담당자'] ?? '',
@@ -141,15 +158,7 @@ export default function SaleCardForm({
   onSaved,
 }: {
   /** 고치는 중이면 그 쪽지 — 없으면 새로 올린다 */
-  editing: {
-    id: string;
-    text: string;
-    ok: boolean;
-    reason: string;
-    sentBy: string;
-    createdAt: string;
-    editedAt: string | null;
-  } | null;
+  editing: { id: string; text: string; ok: boolean; reason: string; sentBy: string; createdAt: string } | null;
   /** 지금까지 쓰인 유입경로 — 고르면 띄어쓰기가 안 엇갈린다 */
   platforms: string[];
   onClose: () => void;
@@ -189,9 +198,9 @@ export default function SaleCardForm({
 
         조용히 실패하면 올린 줄 알고 넘어가고, 그 방을 보는 사람은 안 온 쪽지를 기다린다.
       */
-      await api(editing ? `/telegram/sale/${editing.id}` : '/telegram/sale', {
-        method: editing ? 'PATCH' : 'POST',
-        body: { ...card, vehicleNumber: card.vehicleNumber.trim() },
+      await api('/telegram/sale', {
+        method: 'POST',
+        body: { ...card, vehicleNumber: card.vehicleNumber.trim(), basedOn: editing?.id },
       });
       onSaved();
       onClose();
@@ -206,7 +215,7 @@ export default function SaleCardForm({
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
       <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">{editing ? '쪽지 고치기' : '입금방에 올리기'}</h3>
+          <h3 className="text-base font-bold text-slate-800">{editing ? '고쳐 다시 올리기' : '입금방에 올리기'}</h3>
           <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
@@ -217,22 +226,20 @@ export default function SaleCardForm({
           {editing && (
             <>
               {' '}
-              고치면 <b>방에 뜬 그 줄</b>이 바뀝니다 — 새로 올리지 않습니다.
+              고치면 <b>방에 통째로 다시</b> 올라갑니다 — 바뀐 줄은 굵게, 지난 값은 취소선으로 뒤에 붙습니다.
             </>
           )}
         </p>
         {/* 못 갔던 줄이면 까닭을 먼저 — 고쳐 올리면 이 줄을 다시 쓴다 */}
         {editing && !editing.ok && (
           <p className="mt-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
-            이 쪽지는 방에 못 올라갔습니다{editing.reason ? ` — ${editing.reason}` : ''}. 다시 올리면 방에 새로
-            올라가고, 목록은 이 줄을 그대로 씁니다.
+            이 쪽지는 방에 못 올라갔습니다{editing.reason ? ` — ${editing.reason}` : ''}.
           </p>
         )}
         {editing && (
           <p className="mt-0.5 text-xs text-slate-400">
-            {dayjs(editing.createdAt).format('YYYY-MM-DD HH:mm')} 올림
+            고치는 쪽지 — {dayjs(editing.createdAt).format('YYYY-MM-DD HH:mm')} 올림
             {editing.sentBy && ` · ${editing.sentBy}`}
-            {editing.editedAt && ` · ${dayjs(editing.editedAt).format('M월 D일 HH:mm')} 고침`}
           </p>
         )}
 
@@ -337,7 +344,7 @@ export default function SaleCardForm({
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             <Send size={14} />
-            {busy ? '올리는 중…' : editing ? '고쳐 올리기' : '방에 올리기'}
+            {busy ? '올리는 중…' : editing ? '고쳐 다시 올리기' : '방에 올리기'}
           </button>
         </div>
       </div>

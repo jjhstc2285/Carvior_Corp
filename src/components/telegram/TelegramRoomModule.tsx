@@ -55,8 +55,6 @@ interface LogRow {
   /** 손으로 올렸으면 올린 사람 */
   sentBy: string;
   createdAt: string;
-  /** 고친 적이 있으면 그때 */
-  editedAt: string | null;
 }
 
 /**
@@ -136,6 +134,20 @@ function traceOf(
 
 const SELECT =
   'rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-600 outline-none focus:border-indigo-400';
+
+/*
+  바뀐 값에 입히는 색.
+
+  처음 고친 건 파랑, 그다음부터 빨강이다 — 한 번 고쳐 적는 건 흔한 일이지만, 같은 차를
+  세 번 네 번 고쳐 올리고 있으면 값이 흔들리는 중이라는 뜻이고 그건 눈에 걸려야 한다.
+
+  방에서는 색을 못 쓴다. 텔레그램 봇이 넣을 수 있는 건 굵게·기울임·취소선·밑줄뿐이라,
+  거기서는 굵게 적고 몇 번째인지를 꼬리에 숫자로 적는다.
+*/
+const changeTone = (seq: number) => (seq <= 2 ? 'font-bold text-blue-600' : 'font-bold text-red-600');
+
+const chipTone = (seq: number) =>
+  seq <= 2 ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700';
 
 export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   const [rows, setRows] = useState<LogRow[]>([]);
@@ -345,24 +357,32 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                           </span>
                         </div>
                         {/* 손으로 올린 줄은 누가 올렸는지가 남는다 — 숫자를 물어볼 자리다 */}
-                        {(row.sentBy || row.editedAt) && (
-                          <div className="mt-0.5 pl-[18px] text-[11px] text-slate-400">
-                            {row.sentBy}
-                            {row.editedAt && <span className="ml-1 text-amber-600">고침</span>}
-                          </div>
-                        )}
+                        {row.sentBy && <div className="mt-0.5 pl-[18px] text-[11px] text-slate-400">{row.sentBy}</div>}
                       </td>
-                      {room.columns.map(c => (
-                        <td key={c.field} className={`px-3 py-2.5 ${c.align ?? ''}`}>
-                          {f[c.field] ? (
-                            <span className={c.strong ? 'font-semibold text-slate-800' : 'text-slate-600'}>
-                              {f[c.field]}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300">—</span>
-                          )}
-                        </td>
-                      ))}
+                      {room.columns.map(c => {
+                        /* 지난 쪽지와 달라진 칸 — 몇 번째 고침이냐에 따라 색이 다르다 */
+                        const moved = t?.changes.find(x => x.key === c.field);
+                        return (
+                          <td key={c.field} className={`px-3 py-2.5 ${c.align ?? ''}`}>
+                            {f[c.field] ? (
+                              <span
+                                className={
+                                  moved
+                                    ? changeTone(t?.seq ?? 1)
+                                    : c.strong
+                                      ? 'font-semibold text-slate-800'
+                                      : 'text-slate-600'
+                                }
+                                title={moved ? `${moved.from || '(빈칸)'} → ${moved.to || '(빈칸)'}` : undefined}
+                              >
+                                {f[c.field]}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
                       <td className="whitespace-normal px-3 py-2.5">
                         <div className="flex max-w-md flex-wrap items-center gap-1">
                           {/* 두 번 이상 간 차만 차례를 적는다 — 한 번뿐인 줄에 '1/1'은 잡음이다 */}
@@ -383,7 +403,7 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                           {t?.changes.map(c => (
                             <span
                               key={c.key}
-                              className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800"
+                              className={`rounded-md px-1.5 py-0.5 text-[11px] ${chipTone(t.seq)}`}
                               title={`${c.key} : ${c.from || '(빈칸)'} → ${c.to || '(빈칸)'}`}
                             >
                               <b className="font-bold">{c.key}</b> {c.from || '—'} → {c.to || '—'}
@@ -396,7 +416,7 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                           <button
                             onClick={() => setOpen(row)}
                             className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
-                            title="방에 뜬 그 줄을 고칩니다"
+                            title="고쳐서 방에 통째로 다시 올립니다"
                           >
                             <Pencil size={12} className="inline" /> 고치기
                           </button>
