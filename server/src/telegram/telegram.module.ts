@@ -1,9 +1,13 @@
 import { request as httpsRequest } from 'node:https';
 import { resolve4 } from 'node:dns/promises';
 import {
+  BadRequestException,
+  Body,
   Controller,
   ForbiddenException,
   Get,
+  NotFoundException,
+  Patch,
   Global,
   Injectable,
   Logger,
@@ -18,6 +22,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+import { SaleCardDto, saleCardText } from './sale-card';
 import { Role } from '@prisma/client';
 
 /**
@@ -63,7 +68,11 @@ export interface TelegramLogRow {
   ok: boolean;
   reason: string;
   vehicleNumber: string;
+  /** 손으로 올린 쪽지면 올린 사람 */
+  sentBy: string;
   createdAt: string;
+  /** 고친 적이 있으면 그때 */
+  editedAt: string | null;
 }
 
 @Injectable()
@@ -84,6 +93,19 @@ export class TelegramService implements OnModuleInit {
 
   private get chatId() {
     return this.config.get<string>('TELEGRAM_CHAT_ID', '');
+  }
+
+  /**
+   * 입금확인방 — 손으로 올리는 쪽지가 간다.
+   *
+   * 공지방은 전 직원이 본다. 매입가·판매가가 거기 뜨면 차 한 대에 얼마가 남는지가
+   * 온 회사에 공개된다 — 그래서 공지방에는 금액을 안 보낸다.
+   *
+   * 이 방이 안 적혀 있으면 아무 데도 안 보낸다. 공지방으로 흘려보내지 않는다 —
+   * 설정을 빠뜨린 게 금액이 새는 쪽으로 기울면 안 된다.
+   */
+  private get saleChatId() {
+    return this.config.get<string>('TELEGRAM_SALE_CHAT_ID', '');
   }
 
   /**
@@ -113,6 +135,11 @@ export class TelegramService implements OnModuleInit {
       this.logger.log(`공지방 연결됨 — 방 ${this.chatId}`);
     } else {
       this.logger.warn('공지방이 설정되지 않았습니다(.env TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID). 공지는 나가지 않습니다.');
+    }
+    if (this.token && this.saleChatId) {
+      this.logger.log(`입금확인방 연결됨 — 방 ${this.saleChatId}`);
+    } else {
+      this.logger.warn('입금확인방이 없습니다(.env TELEGRAM_SALE_CHAT_ID). 입금방에 손으로 올릴 수 없습니다.');
     }
     if (this.token && this.purchaseChatId) {
       this.logger.log(`매입방 연결됨 — 방 ${this.purchaseChatId}`);
@@ -165,6 +192,91 @@ export class TelegramService implements OnModuleInit {
       });
   }
 
+  /**
+   * 입금방에 손으로 올린다.
+   *
+   * 기다린다. 다른 알림은 일하다 곁가지로 나가는 거라 늦어도 그만이지만, 이건 사람이
+   * 단추를 누르고 보고 있는 중이다 — 조용히 실패하면 "단추가 안 된다"로 돌아온다.
+   *
+   * 못 가도 남긴다. 안 간 줄이 빨갛게 떠야 다시 올릴 수 있다.
+   */
+  async postSale(card: SaleCardDto, sentBy: string): Promise<TelegramLogRow> {
+    const chatId = this.saleChatId;
+    if (!this.token || !chatId) {
+      throw new BadRequestException('입금확인방이 서버에 설정되지 않았습니다(.env TELEGRAM_SALE_CHAT_ID).');
+    }
+    const text = saleCardText(card);
+    const plate = card.vehicleNumber.trim();
+    try {
+      const messageId = await this.send(text, chatId);
+      return this.toRow(
+        await this.prisma.telegramLog.create({
+          data: { room: TelegramRoom.SALE, chatId, text, vehicleNumber: plate, ok: true, messageId, sentBy },
+        }),
+      );
+    } catch (e) {
+      const reason = this.why(e as Error);
+      this.logger.warn(`입금방에 못 올렸습니다(방 ${chatId}): ${reason}`);
+      await this.prisma.telegramLog
+        .create({
+          data: {
+            room: TelegramRoom.SALE,
+            chatId,
+            text,
+            vehicleNumber: plate,
+            ok: false,
+            reason: reason.slice(0, 300),
+            sentBy,
+          },
+        })
+        .catch(() => undefined);
+      throw new BadRequestException(`입금방에 못 올렸습니다 — ${reason}`);
+    }
+  }
+
+  /**
+   * 올린 쪽지를 고친다.
+   *
+   * 방에 뜬 그 줄을 고친다 — 새로 올리지 않는다. 다시 올리면 같은 차가 두 줄이 되고,
+   * 읽는 사람은 어느 쪽이 맞는지를 시각으로 가려야 한다.
+   *
+   * 못 갔던 줄이거나 번호를 모르면 고칠 게 방에 없다 — 그때는 새로 올리고, 줄은 그대로
+   * 하나를 쓴다. 안 간 줄을 남겨 두면 못 보낸 건수가 영영 안 줄어든다.
+   */
+  async editSale(id: string, card: SaleCardDto, sentBy: string): Promise<TelegramLogRow> {
+    const row = await this.prisma.telegramLog.findUnique({ where: { id } });
+    if (!row || row.room !== TelegramRoom.SALE) throw new NotFoundException('그 쪽지를 찾을 수 없습니다.');
+
+    // 방을 옮겼으면 새 방에 올린다. 옮기기 전 번호로 고치려 들면 저쪽에 그 줄이 없다
+    const chatId = this.saleChatId || row.chatId;
+    if (!this.token || !chatId) {
+      throw new BadRequestException('입금확인방이 서버에 설정되지 않았습니다(.env TELEGRAM_SALE_CHAT_ID).');
+    }
+    const text = saleCardText(card);
+    const plate = card.vehicleNumber.trim();
+    const sameRoom = row.ok && !!row.messageId && row.chatId === chatId;
+    try {
+      const messageId = sameRoom ? await this.edit(row.messageId, text, chatId) : await this.send(text, chatId);
+      return this.toRow(
+        await this.prisma.telegramLog.update({
+          where: { id },
+          data: { chatId, text, vehicleNumber: plate, ok: true, reason: '', messageId, sentBy, editedAt: new Date() },
+        }),
+      );
+    } catch (e) {
+      const reason = this.why(e as Error);
+      this.logger.warn(`입금방 쪽지를 못 고쳤습니다(방 ${chatId}): ${reason}`);
+      throw new BadRequestException(`입금방 쪽지를 못 고쳤습니다 — ${reason}`);
+    }
+  }
+
+  /** 왜 못 갔나 — 텔레그램이 돌려준 말까지 붙인다. 'fetch failed' 만으로는 아무도 못 고친다 */
+  private why(e: Error): string {
+    const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
+    const detail = cause?.code ?? cause?.message ?? '';
+    return `${e.message}${detail ? ` — ${detail}` : ''}`;
+  }
+
   /** 남기다 실패해도 보내기는 이미 끝났다 — 여기서 더 시끄러울 일이 아니다 */
   private record(
     room: TelegramRoom,
@@ -190,15 +302,32 @@ export class TelegramService implements OnModuleInit {
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(limit, 1), 300),
     });
-    return rows.map((r) => ({
+    return rows.map((r) => this.toRow(r));
+  }
+
+  /** 화면이 받는 꼴 — 방 번호와 쪽지 번호는 안 준다. 보는 데 쓸 값이 아니다 */
+  private toRow(r: {
+    id: string;
+    room: TelegramRoom;
+    text: string;
+    ok: boolean;
+    reason: string;
+    vehicleNumber: string;
+    sentBy: string;
+    createdAt: Date;
+    editedAt: Date | null;
+  }): TelegramLogRow {
+    return {
       id: r.id,
       room: r.room,
       text: r.text,
       ok: r.ok,
       reason: r.reason,
       vehicleNumber: r.vehicleNumber,
+      sentBy: r.sentBy,
       createdAt: r.createdAt.toISOString(),
-    }));
+      editedAt: r.editedAt ? r.editedAt.toISOString() : null,
+    };
   }
 
   /**
@@ -212,24 +341,59 @@ export class TelegramService implements OnModuleInit {
    * 잡고 죽을 이유가 없다 — 찾아둔 주소를 차례로 두드려 되는 곳으로 보낸다. 되는 주소는
    * 기억해 두고 다음부터 먼저 쓴다(매번 다 두드리면 공지가 느려진다).
    */
-  private async send(text: string, chatId: string): Promise<void> {
-    const body = JSON.stringify({
+  private send(text: string, chatId: string): Promise<string> {
+    return this.call('sendMessage', {
       chat_id: chatId,
       text,
       parse_mode: 'HTML',
       // 링크 미리보기가 뜨면 짧은 알림이 화면 반을 차지한다
       disable_web_page_preview: true,
     });
+  }
 
+  /**
+   * 방에 뜬 줄을 고친다.
+   *
+   * 글이 그대로면 텔레그램이 'message is not modified' 로 물린다 — 고칠 게 없었다는
+   * 말이지 못 고쳤다는 말이 아니라서, 그건 된 걸로 친다.
+   */
+  private async edit(messageId: string, text: string, chatId: string): Promise<string> {
+    try {
+      await this.call('editMessageText', {
+        chat_id: chatId,
+        message_id: Number(messageId),
+        text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+      });
+    } catch (e) {
+      if (!(e as Error).message.includes('message is not modified')) throw e;
+    }
+    return messageId;
+  }
+
+  /**
+   * 텔레그램에 한 번 말하고, 쪽지 번호를 받아 온다.
+   *
+   * 주소도 우리가 찾는다. 텔레그램은 IP 를 여럿 두는데 그중 하나가 막혀 있으면 그 하나만
+   * 잡고 죽을 이유가 없다 — 찾아둔 주소를 차례로 두드려 되는 곳으로 보낸다. 되는 주소는
+   * 기억해 두고 다음부터 먼저 쓴다(매번 다 두드리면 공지가 느려진다).
+   *
+   * 저쪽이 대답을 했으면 거기서 멈춘다. 'chat not found' 같은 건 주소 탓이 아니라서,
+   * 다음 주소로 넘어가 봐야 같은 말을 듣는다 — 그러다 한 번 간 쪽지가 두 번 갈 수 있다.
+   */
+  private async call(method: string, payload: Record<string, unknown>): Promise<string> {
+    const body = JSON.stringify(payload);
     const ips = await this.addresses();
     let last: Error | null = null;
     for (const ip of ips) {
       try {
-        await this.post(ip, body);
+        const id = await this.post(ip, body, method);
         this.lastGoodIp = ip;
-        return;
+        return id;
       } catch (e) {
         last = e as Error;
+        if ((e as Error & { answered?: boolean }).answered) break;
       }
     }
     throw last ?? new Error('보낼 주소를 찾지 못했습니다');
@@ -249,7 +413,7 @@ export class TelegramService implements OnModuleInit {
    * 주소로 붙되 이름은 텔레그램 것으로 말한다(Host 와 TLS 이름). 안 그러면 저쪽이 어느
    * 집을 찾는지 몰라 끊는다.
    */
-  private post(ip: string, body: string): Promise<void> {
+  private post(ip: string, body: string, method: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const req = httpsRequest(
         {
@@ -257,7 +421,7 @@ export class TelegramService implements OnModuleInit {
           port: 443,
           // TLS 가 볼 이름 — 주소로 붙었으니 이름은 따로 알려줘야 한다
           servername: HOST,
-          path: `/bot${this.token}/sendMessage`,
+          path: `/bot${this.token}/${method}`,
           method: 'POST',
           headers: {
             host: HOST,
@@ -272,11 +436,20 @@ export class TelegramService implements OnModuleInit {
           res.on('data', (c: Buffer) => chunks.push(c));
           res.on('end', () => {
             const status = res.statusCode ?? 0;
+            const raw = Buffer.concat(chunks).toString('utf8');
             if (status >= 200 && status < 300) {
-              resolve();
+              resolve(messageIdOf(raw));
               return;
             }
-            reject(new Error(`${status} ${Buffer.concat(chunks).toString('utf8').slice(0, 200)}`));
+            /*
+              저쪽이 대답은 했다.
+
+              주소가 막힌 것과 다르다 — 'chat not found' 는 다음 주소로 넘어가 봐야 같은
+              말을 듣는다. 넘어가지 말라고 표를 달아 둔다.
+            */
+            const err = new Error(`${status} ${raw.slice(0, 200)}`) as Error & { answered?: boolean };
+            err.answered = true;
+            reject(err);
           });
         },
       );
@@ -389,6 +562,22 @@ export class TelegramService implements OnModuleInit {
   }
 }
 
+/**
+ * 올린 쪽지 번호를 집는다.
+ *
+ * 못 집어도 보낸 건 보낸 거다 — 번호가 없으면 다음에 고칠 때 새로 올린다. 여기서
+ * 던지면 간 쪽지를 '못 갔다'로 남기게 된다.
+ */
+function messageIdOf(raw: string): string {
+  try {
+    const body = JSON.parse(raw) as { result?: { message_id?: number | string } };
+    const id = body.result?.message_id;
+    return id === undefined || id === null ? '' : String(id);
+  } catch {
+    return '';
+  }
+}
+
 /** 텔레그램이 돌려주는 소식 — 우리가 보는 건 방이 붙은 세 가지뿐이다 */
 interface TelegramChat {
   id: number | string;
@@ -443,6 +632,23 @@ export class TelegramController {
       throw new ForbiddenException('관리자만 볼 수 있습니다.');
     }
     return this.telegram.logs(key, Number(limit) || 100);
+  }
+
+  /**
+   * 입금방에 손으로 올린다.
+   *
+   * 로그인한 직원이면 올린다. 올린 사람 이름이 줄에 남는다 — 숫자가 틀렸을 때 누구에게
+   * 물어볼지가 거기서 갈린다.
+   */
+  @Post('sale')
+  postSale(@CurrentUser() user: AuthUser, @Body() dto: SaleCardDto) {
+    return this.telegram.postSale(dto, user.name);
+  }
+
+  /** 올린 쪽지를 고친다 — 방에 뜬 그 줄을 고친다 */
+  @Patch('sale/:id')
+  editSale(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SaleCardDto) {
+    return this.telegram.editSale(id, dto, user.name);
   }
 }
 

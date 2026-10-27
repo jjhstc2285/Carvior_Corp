@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlertTriangle, Check, Copy, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Pencil, Plus, RefreshCw } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from '../settlement/SettlementCalendar';
+import SaleCardForm from './SaleCardForm';
 
 /**
  * 한 방에 무엇이 나갔나.
@@ -30,6 +31,13 @@ export interface RoomSpec {
   /** 그날 펼쳤을 때 뒤에 붙는 값 */
   calSub: string;
   /*
+    손으로 올릴 수 있는 방인가.
+
+    입금방만이다. 공지방·매입방은 일이 벌어지면 저절로 나가는 자리라, 거기에 손으로
+    끼워 넣으면 방에 뜬 줄과 시스템이 아는 것이 어긋난다.
+  */
+  canCompose?: boolean;
+  /*
     서버 .env 에 적는 방 번호 이름 — 안 왔을 때 무엇을 볼지 알려 준다.
 
     관리자만 보는 방에만 적는다. 전 직원이 보는 화면에 '.env 를 보세요'라고 띄우면
@@ -44,7 +52,11 @@ interface LogRow {
   ok: boolean;
   reason: string;
   vehicleNumber: string;
+  /** 손으로 올렸으면 올린 사람 */
+  sentBy: string;
   createdAt: string;
+  /** 고친 적이 있으면 그때 */
+  editedAt: string | null;
 }
 
 /**
@@ -136,6 +148,8 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<LogRow | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  /** 새로 올리는 중 — 고치는 중인 줄은 open 이 들고 있다 */
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -194,6 +208,15 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900">{room.title}</h1>
         <div className="flex items-center gap-2">
+          {/* 손으로 올리는 자리 — 입금방만이다 */}
+          {room.canCompose && (
+            <button
+              onClick={() => setAdding(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-indigo-700"
+            >
+              <Plus size={14} /> 쪽지 올리기
+            </button>
+          )}
           <SettlementViewToggle view={view} onChange={setView} />
           <button
             onClick={() => void load()}
@@ -244,7 +267,9 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
 
       {!busy && rows.length === 0 && !error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center">
-          <p className="text-sm text-slate-500">아직 이 방으로 나간 게 없습니다.</p>
+          <p className="text-sm text-slate-500">
+            {room.canCompose ? '아직 올린 게 없습니다. 위 [쪽지 올리기] 로 올립니다.' : '아직 이 방으로 나간 게 없습니다.'}
+          </p>
           {/* 방이 안 적혀 있으면 아무것도 안 나간다 — 고칠 수 있는 사람에게만 적어 준다 */}
           {room.envKey && (
             <p className="mt-1 text-xs text-slate-400">
@@ -303,7 +328,7 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                         if ((e.target as HTMLElement).closest('button')) return;
                         setOpen(row);
                       }}
-                      title="눌러서 보낸 글을 봅니다"
+                      title={room.canCompose ? '눌러서 고칩니다' : '눌러서 보낸 글을 봅니다'}
                       className={`cursor-pointer border-b border-slate-50 last:border-0 hover:bg-indigo-50/40 ${
                         row.ok ? '' : 'bg-red-50/40'
                       }`}
@@ -319,6 +344,13 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                             {dayjs(row.createdAt).format('YYYY-MM-DD HH:mm')}
                           </span>
                         </div>
+                        {/* 손으로 올린 줄은 누가 올렸는지가 남는다 — 숫자를 물어볼 자리다 */}
+                        {(row.sentBy || row.editedAt) && (
+                          <div className="mt-0.5 pl-[18px] text-[11px] text-slate-400">
+                            {row.sentBy}
+                            {row.editedAt && <span className="ml-1 text-amber-600">고침</span>}
+                          </div>
+                        )}
                       </td>
                       {room.columns.map(c => (
                         <td key={c.field} className={`px-3 py-2.5 ${c.align ?? ''}`}>
@@ -360,9 +392,18 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                         </div>
                       </td>
                       <td className="px-3 py-2.5 text-right">
+                        {room.canCompose && (
+                          <button
+                            onClick={() => setOpen(row)}
+                            className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
+                            title="방에 뜬 그 줄을 고칩니다"
+                          >
+                            <Pencil size={12} className="inline" /> 고치기
+                          </button>
+                        )}
                         <button
                           onClick={() => void navigator.clipboard.writeText(row.text).then(() => setCopied(row.id))}
-                          className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
+                          className="ml-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
                           title="글을 그대로 복사합니다"
                         >
                           <Copy size={12} className="inline" /> {copied === row.id ? '복사됨' : '복사'}
@@ -378,8 +419,22 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
         )
       )}
 
+      {/* 손으로 올리는 방은 줄을 누르면 바로 고친다 — 적는 창에 보낸 글이 그대로 보인다 */}
+      {(adding || (open && room.canCompose)) && (
+        <SaleCardForm
+          editing={adding ? null : open}
+          // 쓰던 유입경로에서 고르게 — '인스타'와 '인스타그램'으로 갈리지 않는다
+          platforms={values}
+          onClose={() => {
+            setAdding(false);
+            setOpen(null);
+          }}
+          onSaved={() => void load()}
+        />
+      )}
+
       {/* 보낸 글 그대로 — 방에 뜬 것과 같은 꼴이어야 견줄 수 있다 */}
-      {open && (
+      {open && !room.canCompose && (
         <div
           className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 px-4"
           onClick={() => setOpen(null)}
