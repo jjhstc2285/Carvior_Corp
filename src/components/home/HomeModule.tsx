@@ -119,17 +119,20 @@ export default function HomeModule() {
           글자는 짙은 남색이다. 바탕이 옅어서 흰 글씨로는 안 읽힌다.
 
           배경은 사진 한 장이다. public/ 에 두고 경로로 부른다 — 번들에 안 섞여서
-          브라우저가 따로 캐시한다. 받은 원본은 2MB가 넘어 홈을 열 때마다 내려받았다.
-          가로 1600px · JPEG 로 줄여 88KB 로 둔다.
+          브라우저가 따로 캐시한다. 파일 이름을 바꿔 가며 갈아 끼운다 — 같은 이름으로
+          덮으면 브라우저가 지난 사진을 그대로 들고 있어서 바뀐 걸 아무도 못 본다.
 
-          차는 오른쪽에 있고 왼쪽은 하늘이다. 그 위에 글을 얹되 흰 막을 왼쪽에서 오른쪽으로
-          옅게 깔아 둔다 — 구름이 밝은 날은 글씨가 하늘에 묻힌다.
+          띠는 가로로 길고 사진은 거의 정사각이라, 가로를 채우고 위아래를 잘라 낸다 —
+          차의 앞모습이 가운데 띠로 남는다.
+
+          글은 왼쪽에 얹는다. 그 자리가 그릴과 본넷이라 어두워서, 흰 막을 왼쪽에서
+          오른쪽으로 깔아 둔다 — 옅게 깔면 짙은 남색 글씨가 차에 묻힌다.
         */}
         <div
-          className="relative flex h-full min-h-[210px] w-full items-center overflow-hidden rounded-2xl bg-sky-100 bg-cover bg-right px-6 py-7 sm:px-8"
-          style={{ backgroundImage: 'url(/home-banner.jpg)' }}
+          className="relative flex h-full min-h-[210px] w-full items-center overflow-hidden rounded-2xl bg-sky-100 bg-cover bg-center px-6 py-7 sm:px-8"
+          style={{ backgroundImage: 'url(/home-cover.jpg)' }}
         >
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/85 via-white/50 to-transparent" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/95 via-white/70 to-transparent" />
 
           <div className="relative">
             <p className="text-2xl font-bold text-slate-800 sm:text-3xl">
