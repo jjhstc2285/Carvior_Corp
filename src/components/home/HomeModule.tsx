@@ -118,21 +118,38 @@ export default function HomeModule() {
 
           글자는 짙은 남색이다. 바탕이 옅어서 흰 글씨로는 안 읽힌다.
 
-          배경은 사진 한 장이다. public/ 에 두고 경로로 부른다 — 번들에 안 섞여서
-          브라우저가 따로 캐시한다. 파일 이름을 바꿔 가며 갈아 끼운다 — 같은 이름으로
-          덮으면 브라우저가 지난 사진을 그대로 들고 있어서 바뀐 걸 아무도 못 본다.
+          사진은 public/ 에 두고 경로로 부른다 — 번들에 안 섞여서 브라우저가 따로
+          캐시한다. 파일 이름을 바꿔 가며 갈아 끼운다 — 같은 이름으로 덮으면 브라우저가
+          지난 사진을 그대로 들고 있어서 바뀐 걸 아무도 못 본다.
 
-          띠는 가로로 길고 사진은 거의 정사각이라, 가로를 채우고 위아래를 잘라 낸다 —
-          차의 앞모습이 가운데 띠로 남는다.
+          바탕에 깔지 않고 오른쪽에 세운다.
 
-          글은 왼쪽에 얹는다. 그 자리가 그릴과 본넷이라 어두워서, 흰 막을 왼쪽에서
-          오른쪽으로 깔아 둔다 — 옅게 깔면 짙은 남색 글씨가 차에 묻힌다.
+          띠는 가로로 길고 사진은 거의 정사각이라, 바탕으로 깔면 가로를 채우느라 위아래가
+          잘리면서 차가 띠를 꽉 메운다 — 인사말이 그릴 위에 얹히고, 차는 차대로 앞뒤가
+          잘려 무슨 차인지도 안 보인다.
+
+          높이에 맞춰 세우면 가로는 저절로 삼분의 일쯤이 된다. 왼쪽은 글 자리로 비고,
+          차는 한 대가 통째로 보인다.
+
+          왼쪽 가장자리는 흐려서 바탕에 녹인다. 안 그러면 사진이 끝나는 자리에 세로줄이
+          그어진다 — 사진 바탕은 연보라에서 하늘빛으로 흐르는데, 띠 바탕을 거기에 딱
+          맞추는 수가 없다.
         */}
-        <div
-          className="relative flex h-full min-h-[210px] w-full items-center overflow-hidden rounded-2xl bg-sky-100 bg-cover bg-center px-6 py-7 sm:px-8"
-          style={{ backgroundImage: 'url(/home-cover.jpg)' }}
-        >
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/95 via-white/70 to-transparent" />
+        <div className="relative flex h-full min-h-[210px] w-full items-center overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100 via-sky-50 to-indigo-50 px-6 py-7 sm:px-8">
+          <img
+            src="/home-cover.jpg"
+            alt=""
+            aria-hidden
+            className="pointer-events-none absolute right-0 top-0 h-full w-auto max-w-none select-none"
+            style={{
+              // 왼쪽 절반까지 길게 흐린다 — 짧게 끊으면 녹는 게 아니라 금이 간 것처럼 보인다
+              maskImage: 'linear-gradient(to right, transparent, #000 45%)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent, #000 45%)',
+            }}
+          />
+
+          {/* 좁은 화면에서는 차가 글 밑까지 들어온다 — 흰 막을 한 겹 더 깐다 */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/75 via-white/25 to-transparent" />
 
           <div className="relative">
             <p className="text-2xl font-bold text-slate-800 sm:text-3xl">
