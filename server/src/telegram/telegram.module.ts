@@ -6,6 +6,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Delete,
   NotFoundException,
   Global,
   Injectable,
@@ -210,10 +211,10 @@ export class TelegramService implements OnModuleInit {
     const mark = await this.markOf(card, plate, sentBy);
     const text = saleCardText(card, mark);
     try {
-      await this.send(saleCardHtml(card, mark), chatId);
+      const messageId = await this.send(saleCardHtml(card, mark), chatId);
       return this.toRow(
         await this.prisma.telegramLog.create({
-          data: { room: TelegramRoom.SALE, chatId, text, vehicleNumber: plate, ok: true, sentBy },
+          data: { room: TelegramRoom.SALE, chatId, text, vehicleNumber: plate, ok: true, messageId, sentBy },
         }),
       );
     } catch (e) {
@@ -250,6 +251,40 @@ export class TelegramService implements OnModuleInit {
       where: { room: TelegramRoom.SALE, vehicleNumber: plate },
     });
     return { before: before.text, by: sentBy, seq: sent + 1 };
+  }
+
+  /**
+   * 올린 쪽지를 지운다 — 방에서도 지운다.
+   *
+   * 목록에서만 지우면 방에는 그 쪽지가 그대로 남는다. 지우는 까닭이 그 방을 보는
+   * 사람이 틀린 숫자로 입금을 넣지 않게 하려는 거라, 방에 남으면 아무 소용이 없다.
+   *
+   * 못 지울 때가 있다. 텔레그램은 봇이 올린 쪽지도 이틀이 지나면 못 지우게 한다 —
+   * 그때는 목록에서는 지우되 "방에서는 직접 지워 주세요"라고 말해 준다. 말없이
+   * 목록만 지우면 방에 틀린 숫자가 남은 줄도 모르고 넘어간다.
+   */
+  async dropSale(id: string): Promise<{ inRoom: boolean; reason: string }> {
+    const row = await this.prisma.telegramLog.findUnique({ where: { id } });
+    if (!row || row.room !== TelegramRoom.SALE) throw new NotFoundException('그 쪽지를 찾을 수 없습니다.');
+
+    let inRoom = true;
+    let reason = '';
+    // 못 간 줄은 방에 없다 — 지울 것도 없이 목록에서만 내린다
+    if (row.ok && row.messageId && this.token && row.chatId) {
+      try {
+        await this.call('deleteMessage', { chat_id: row.chatId, message_id: Number(row.messageId) });
+      } catch (e) {
+        inRoom = false;
+        reason = this.why(e as Error);
+        this.logger.warn(`입금방에서 쪽지를 못 지웠습니다(방 ${row.chatId}): ${reason}`);
+      }
+    } else if (row.ok && !row.messageId) {
+      inRoom = false;
+      reason = '올릴 때 쪽지 번호를 못 받아 뒀습니다.';
+    }
+
+    await this.prisma.telegramLog.delete({ where: { id } });
+    return { inRoom, reason };
   }
 
   /** 왜 못 갔나 — 텔레그램이 돌려준 말까지 붙인다. 'fetch failed' 만으로는 아무도 못 고친다 */
@@ -605,6 +640,12 @@ export class TelegramController {
   @Post('sale')
   postSale(@CurrentUser() user: AuthUser, @Body() dto: SaleCardDto) {
     return this.telegram.postSale(dto, user.name);
+  }
+
+  /** 올린 쪽지를 지운다 — 방에서도 지운다 */
+  @Delete('sale/:id')
+  dropSale(@Param('id') id: string) {
+    return this.telegram.dropSale(id);
   }
 }
 

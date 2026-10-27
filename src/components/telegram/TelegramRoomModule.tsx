@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AlertTriangle, Check, Copy, Pencil, Plus, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import { alertError, confirmDanger } from '../../lib/alert';
 import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from '../settlement/SettlementCalendar';
 import SaleCardForm from './SaleCardForm';
@@ -146,9 +147,6 @@ const SELECT =
 */
 const changeTone = (seq: number) => (seq <= 2 ? 'font-bold text-blue-600' : 'font-bold text-red-600');
 
-const chipTone = (seq: number) =>
-  seq <= 2 ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700';
-
 export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   const [rows, setRows] = useState<LogRow[]>([]);
   const [busy, setBusy] = useState(false);
@@ -162,6 +160,8 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   const [copied, setCopied] = useState<string | null>(null);
   /** 새로 올리는 중 — 고치는 중인 줄은 open 이 들고 있다 */
   const [adding, setAdding] = useState(false);
+  /** '바뀐 것'을 펼쳐 둔 줄 — 한 번에 하나만 펼친다 */
+  const [detail, setDetail] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -179,6 +179,36 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * 한 줄을 지운다 — 방에서도 지운다.
+   *
+   * 목록에서만 지우면 방에는 그 쪽지가 그대로 남는다. 지우는 까닭이 그 방을 보는 사람이
+   * 틀린 숫자로 입금을 넣지 않게 하려는 거라, 방에 남으면 아무 소용이 없다.
+   *
+   * 방에서 못 지우는 때가 있다(텔레그램은 이틀이 지난 쪽지를 봇이 못 지우게 한다).
+   * 그때는 말없이 넘어가지 않고 "방에서 직접 지워 주세요"라고 말해 준다.
+   */
+  const drop = async (row: LogRow) => {
+    const ok = await confirmDanger(
+      `${row.vehicleNumber || '이 쪽지'} 를 지울까요?`,
+      '입금확인방에서도 함께 지웁니다. 올린 지 이틀이 지난 쪽지는 방에서 못 지울 수 있습니다.',
+    );
+    if (!ok) return;
+    try {
+      const done = await api<{ inRoom: boolean; reason: string }>(`/telegram/sale/${row.id}`, { method: 'DELETE' });
+      if (!done.inRoom) {
+        void alertError(
+          '방에서는 못 지웠습니다',
+          '목록에서는 지웠습니다. 텔레그램 입금확인방에서 직접 지워 주세요.',
+          done.reason,
+        );
+      }
+    } catch (e) {
+      void alertError('지우지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+    await load();
+  };
 
   /* 쪽지마다 값을 한 번만 집어 둔다 — 줄마다 다시 읽으면 삼백 줄 × 열여덟 줄이 된다 */
   const parsed = useMemo(
@@ -311,6 +341,8 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
               <table className="w-full whitespace-nowrap text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-[0_1px_0_0_#e2e8f0]">
                   <tr>
+                    {/* 맨 앞에 지우는 칸 — 잘못 올린 줄을 바로 내린다 */}
+                    {room.canCompose && <th className="w-10 px-2 py-3 font-medium">삭제</th>}
                     <th className="px-3 py-3 font-medium">보낸 때</th>
                     {room.columns.map(c => (
                       <th key={c.field} className={`px-3 py-3 font-medium ${c.align ?? ''}`}>
@@ -325,7 +357,10 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                 <tbody>
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={room.columns.length + 3} className="px-5 py-10 text-center text-sm text-slate-400">
+                      <td
+                        colSpan={room.columns.length + (room.canCompose ? 4 : 3)}
+                        className="px-5 py-10 text-center text-sm text-slate-400"
+                      >
                         찾는 건이 없습니다.
                       </td>
                     </tr>
@@ -345,6 +380,17 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                         row.ok ? '' : 'bg-red-50/40'
                       }`}
                     >
+                      {room.canCompose && (
+                        <td className="px-2 py-2.5 align-top">
+                          <button
+                            onClick={() => void drop(row)}
+                            className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"
+                            title="이 쪽지를 지웁니다 — 방에서도 지웁니다"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      )}
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
                           {row.ok ? (
@@ -383,33 +429,66 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                           </td>
                         );
                       })}
-                      <td className="whitespace-normal px-3 py-2.5">
-                        <div className="flex max-w-md flex-wrap items-center gap-1">
-                          {/* 두 번 이상 간 차만 차례를 적는다 — 한 번뿐인 줄에 '1/1'은 잡음이다 */}
-                          {t && t.total > 1 && (
-                            <span
-                              className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600"
-                              title={`이 차로 모두 ${t.total}번 나갔습니다`}
-                            >
-                              {t.seq}/{t.total}번째
-                            </span>
-                          )}
-                          {t && t.seq === 1 && t.total > 1 && (
-                            <span className="text-[11px] text-slate-400">처음</span>
-                          )}
-                          {t && t.seq > 1 && t.changes.length === 0 && (
-                            <span className="text-[11px] text-slate-400">값은 그대로</span>
-                          )}
-                          {t?.changes.map(c => (
-                            <span
-                              key={c.key}
-                              className={`rounded-md px-1.5 py-0.5 text-[11px] ${chipTone(t.seq)}`}
-                              title={`${c.key} : ${c.from || '(빈칸)'} → ${c.to || '(빈칸)'}`}
-                            >
-                              <b className="font-bold">{c.key}</b> {c.from || '—'} → {c.to || '—'}
-                            </span>
-                          ))}
-                        </div>
+                      {/*
+                        바뀐 것 — 한 줄로 접어 둔다.
+
+                        바뀐 칸을 'A → B' 로 다 펼쳐 놓았더니 세 칸만 바뀌어도 줄 높이가
+                        손가락 길이가 됐다. 늘 보는 건 '무엇이 바뀌었나'지 '얼마가
+                        얼마로'가 아니다 — 그건 궁금할 때만 펼친다.
+
+                        칸 너비를 못 박는다. 안 박으면 옆 칸들이 안 줄어드는 통에 여기만
+                        좁아져서, 글자가 한 자씩 세로로 쌓인다.
+                      */}
+                      <td className="w-64 min-w-64 px-3 py-2.5 align-top">
+                        {t && t.total > 1 && (
+                          <>
+                            <div className="flex items-center gap-1">
+                              <span
+                                className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600"
+                                title={`이 차로 모두 ${t.total}번 올라갔습니다`}
+                              >
+                                {t.seq}/{t.total}
+                              </span>
+
+                              {t.seq === 1 ? (
+                                <span className="text-[11px] text-slate-400">처음</span>
+                              ) : t.changes.length === 0 ? (
+                                <span className="text-[11px] text-slate-400">값은 그대로</span>
+                              ) : (
+                                <>
+                                  {/* 이름만 한 줄로 — 넘치면 잘린다. 값은 펼쳐야 보인다 */}
+                                  <span
+                                    className={`min-w-0 flex-1 truncate text-[11px] ${changeTone(t.seq)}`}
+                                    title={t.changes
+                                      .map(c => `${c.key} : ${c.from || '(빈칸)'} → ${c.to || '(빈칸)'}`)
+                                      .join('\n')}
+                                  >
+                                    {t.changes.map(c => c.key).join(' · ')}
+                                  </span>
+                                  <button
+                                    onClick={() => setDetail(detail === row.id ? null : row.id)}
+                                    className="shrink-0 rounded px-1 py-0.5 text-[11px] font-semibold text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                    title={detail === row.id ? '접습니다' : '얼마가 얼마로 바뀌었는지 봅니다'}
+                                  >
+                                    {detail === row.id ? '접기' : '⋯ 더보기'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+
+                            {detail === row.id && (
+                              <div className="mt-1 space-y-0.5 whitespace-normal">
+                                {t.changes.map(c => (
+                                  <div key={c.key} className="break-all text-[11px] leading-snug text-slate-500">
+                                    <b className={`font-bold ${changeTone(t.seq)}`}>{c.key}</b> {c.from || '—'}
+                                    <span className="mx-0.5 text-slate-300">→</span>
+                                    {c.to || '—'}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         {room.canCompose && (

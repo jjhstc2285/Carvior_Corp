@@ -2271,6 +2271,15 @@ model TelegramLog {
   /** 손으로 올린 쪽지는 누가 올렸는지가 남아야 한다 — 숫자를 물어볼 자리다 */
   sentBy String @default("") @db.VarChar(40)
 
+  /**
+   * 방에 뜬 쪽지 번호 — 지울 때 쓴다.
+   *
+   * 목록에서만 지우면 방에는 그 쪽지가 그대로 남는다. 잘못 올린 줄을 지우는 까닭이
+   * 그 방을 보는 사람이 틀린 숫자로 입금을 넣지 않게 하려는 건데, 방에 남으면 아무
+   * 소용이 없다.
+   */
+  messageId String @default("") @db.VarChar(30)
+
   createdAt DateTime @default(now())
 
   @@index([room, createdAt])
