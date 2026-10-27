@@ -6,10 +6,7 @@ import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from '../settlement/SettlementCalendar';
 
 /**
- * 한 방에 무엇이 나갔나 — 입금방, 매입방.
- *
- * 한 화면에 탭으로 묶어 뒀더니 "어디 있냐"가 됐다. 둘은 보는 사람도 보는 때도 다르다 —
- * 입금방은 돈을 넣으려고 보고, 매입방은 차가 들어왔나 보려고 본다. 메뉴를 따로 둔다.
+ * 한 방에 무엇이 나갔나.
  *
  * 리스트와 캘린더를 같이 둔다. 리스트는 '무엇이 갔나', 캘린더는 '언제 몇 건 갔나'다 —
  * 그 달에 몇 대를 샀는지, 어느 날이 비었는지는 줄로 늘어놓으면 안 보인다.
@@ -20,7 +17,7 @@ import SettlementCalendar, { SettlementViewToggle, type SettlementView } from '.
 
 export interface RoomSpec {
   /** 서버가 아는 방 이름 */
-  key: 'SALE' | 'PURCHASE' | 'BROADCAST';
+  key: 'SALE' | 'BROADCAST';
   title: string;
   /** 무엇이 왜 올라오는지 — 처음 보는 사람이 읽을 한 줄 */
   hint: string;
@@ -32,8 +29,13 @@ export interface RoomSpec {
   calLabel: string;
   /** 그날 펼쳤을 때 뒤에 붙는 값 */
   calSub: string;
-  /** 서버 .env 에 적는 방 번호 이름 — 안 왔을 때 무엇을 볼지 알려 준다 */
-  envKey: string;
+  /*
+    서버 .env 에 적는 방 번호 이름 — 안 왔을 때 무엇을 볼지 알려 준다.
+
+    관리자만 보는 방에만 적는다. 전 직원이 보는 화면에 '.env 를 보세요'라고 띄우면
+    고칠 수 없는 사람에게 할 일을 시키는 꼴이다.
+  */
+  envKey?: string;
 }
 
 interface LogRow {
@@ -243,10 +245,12 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
       {!busy && rows.length === 0 && !error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center">
           <p className="text-sm text-slate-500">아직 이 방으로 나간 게 없습니다.</p>
-          {/* 방이 안 적혀 있으면 아무것도 안 나간다 — 그걸 먼저 의심해야 한다 */}
-          <p className="mt-1 text-xs text-slate-400">
-            서버 <code>.env</code> 의 <code>{room.envKey}</code> 에 방 번호가 있는지 확인해 주세요.
-          </p>
+          {/* 방이 안 적혀 있으면 아무것도 안 나간다 — 고칠 수 있는 사람에게만 적어 준다 */}
+          {room.envKey && (
+            <p className="mt-1 text-xs text-slate-400">
+              서버 <code>.env</code> 의 <code>{room.envKey}</code> 에 방 번호가 있는지 확인해 주세요.
+            </p>
+          )}
         </div>
       )}
 

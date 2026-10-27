@@ -121,14 +121,8 @@ const NAV_GROUPS: {
       { key: 'notice', label: '사내 게시판', icon: Notice },
       { key: 'dealerFee', label: '상조회비 관리', icon: Building2 },
       { key: 'chat', label: '메시지', icon: MessageSquare },
-      /*
-        방에 무엇이 나갔나.
-
-        둘을 한 화면에 탭으로 묶어 뒀더니 "어디 있냐"가 됐다. 보는 사람도 보는 때도
-        다르다 — 입금방은 돈을 넣으려고 보고, 매입방은 차가 들어왔나 보려고 본다.
-      */
+      // 입금방에 무엇이 올라갔나 — 전 직원이 본다
       { key: 'telegramSale', label: '입금방', icon: Send },
-      { key: 'telegramPurchase', label: '매입방', icon: ShoppingCart },
     ],
   },
 ];
@@ -174,9 +168,6 @@ export default function Sidebar({
       열어 두면 "저 집엔 얼마 냈더라"가 사내에서 오간다. 번호까지 걸어 두지만,
       메뉴에서부터 안 보이는 쪽이 먼저다.
     */
-    // 입금방·매입방에는 금액이 든다 — 관리자만
-    (key !== 'telegramSale' || isAdmin) &&
-    (key !== 'telegramPurchase' || isAdmin) &&
     (key !== 'condolence' || isAdmin);
 
   /*

@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizePlate } from '../vehicles/vehicle.rules';
-import { TelegramService } from '../telegram/telegram.module';
-import { saleCardText, type SaleCard } from './sale-price-card';
 
 /**
  * 차가 얼마에 나갔나 — 한 값, 네 자리.
@@ -26,18 +24,13 @@ import { saleCardText, type SaleCard } from './sale-price-card';
  *
  * 수수료는 안 건드린다. 실차주입금은 정산 계산에 안 들어가고(settlement.calc 가 안
  * 읽는다) 표에 그대로 보여 주는 값이라, 맞춰 넣어도 받을 돈이 바뀌지 않는다.
+ *
+ * 방에는 안 띄운다. 값을 고칠 때마다 입금확인방으로 쪽지가 나갔는데, 한 대를 두세 번
+ * 고치면 그만큼 줄이 늘어 정작 봐야 할 입금 이야기가 밀렸다 — 맞추는 일만 한다.
  */
 
 /** 어느 화면에서 적었나 — 적은 자리는 다시 안 건드린다 */
 export type SalePriceSource = 'consultation' | 'vehicle' | 'brokerage' | 'purchase';
-
-/** 방에 띄울 때 쓰는 이름 — 'vehicle' 이라고 적으면 아무도 못 알아본다 */
-const SOURCE_LABEL: Record<SalePriceSource, string> = {
-  consultation: '상담 등록',
-  vehicle: '제시 금융',
-  brokerage: '알선·수출 정산',
-  purchase: '매입 정산',
-};
 
 export interface SpreadResult {
   consultation: number;
@@ -52,10 +45,7 @@ const EMPTY: SpreadResult = { consultation: 0, vehicle: 0, brokerage: 0, purchas
 export class SalePriceService {
   private readonly logger = new Logger(SalePriceService.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly telegram: TelegramService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * 적은 값을 나머지 세 곳에 퍼뜨린다.
@@ -66,44 +56,13 @@ export class SalePriceService {
    * 0 은 안 퍼뜨린다. 아직 안 적은 칸을 지우는 일이 되어서, 한 사람이 빈칸으로 저장하면
    * 다른 세 곳에 적어 둔 값이 같이 날아간다.
    */
-  async spread(
-    vehicleNumber: string,
-    amount: number,
-    from: SalePriceSource,
-    opts: {
-      /*
-        방에 띄울 것인가.
-
-        돌면서 빈칸을 채울 때는 안 띄운다. 쌓여 있는 백 대를 한 바퀴에 채우는데 그때마다
-        쪽지가 가면 방이 백 줄로 덮인다 — 사람이 고친 것만 알린다.
-      */
-      announce?: boolean;
-      /*
-        고치기 전 값(원).
-
-        제시 금융에서 적으면 그 차는 이미 저장된 뒤에 여기로 온다 — 그때 차량 관리를
-        읽어 '전 값'으로 삼으면 방금 적은 값이 나와서 "안 바뀌었다"가 된다. 그래서
-        부르는 쪽이 알고 있으면 넘겨 준다.
-      */
-      before?: number;
-    } = {},
-  ): Promise<SpreadResult> {
+  async spread(vehicleNumber: string, amount: number, from: SalePriceSource): Promise<SpreadResult> {
     if (!vehicleNumber || amount <= 0) return EMPTY;
     const plates = this.platesOf(vehicleNumber);
     if (plates.length === 0) return EMPTY;
 
-    const announce = opts.announce !== false;
     const done = { ...EMPTY };
     try {
-      /* 바뀐 게 있을 때만 알린다 — 같은 값을 다시 저장해도 쪽지가 가면 안 된다 */
-      const before =
-        opts.before !== undefined
-          ? { salePrice: opts.before }
-          : await this.prisma.managedVehicle.findFirst({
-              where: { vehicleNumber: { in: plates } },
-              select: { salePrice: true },
-            });
-      const changed = !before || before.salePrice !== amount;
       if (from !== 'vehicle') done.vehicle = await this.writeVehicle(plates, amount);
       if (from !== 'purchase') done.purchase = await this.writePurchase(plates, amount);
       if (from !== 'brokerage') done.brokerage = await this.writeBrokerage(plates, amount);
@@ -113,7 +72,6 @@ export class SalePriceService {
       if (moved > 0) {
         this.logger.log(`${vehicleNumber} 판매가 ${amount.toLocaleString()}원을 ${moved}곳에 맞췄습니다(${from}에서).`);
       }
-      if (announce && changed) await this.announce(plates, amount, from);
     } catch (e) {
       // 못 퍼뜨려도 적은 쪽은 저장된 뒤다 — 다음 바퀴에 다시 해 본다
       this.logger.warn(`${vehicleNumber} 판매가를 못 맞췄습니다: ${(e as Error).message}`);
@@ -167,82 +125,10 @@ export class SalePriceService {
         continue;
       }
       const [[amount, from]] = [...seen];
-      // 백 대를 한 바퀴에 채운다 — 그때마다 쪽지가 가면 방이 덮인다
-      const done = await this.spread(plate, amount, from, { announce: false });
+      const done = await this.spread(plate, amount, from);
       filled += done.vehicle + done.purchase + done.brokerage + done.consultation;
     }
     return { filled, conflicts };
-  }
-
-  /**
-   * 입금확인방에 쪽지를 띄운다.
-   *
-   * 지금은 사람이 손으로 친다. 담당자·차량번호·차량명·매입가·광고가·코드가를 여덟 줄로
-   * 적는데, 값을 고치고 나서 다시 올리는 걸 잊으면 방에 뜬 숫자와 시스템 숫자가 달라진다
-   * — 그 방을 보고 입금을 넣는 자리다.
-   *
-   * 공지방이 아니라 입금확인방으로 간다. 공지방은 전 직원이 보는 자리라 금액을 안 보낸다.
-   *
-   * 못 띄워도 값은 이미 들어갔다 — 알림 때문에 저장이 막히면 안 된다.
-   */
-  private async announce(plates: string[], amount: number, from: SalePriceSource): Promise<void> {
-    try {
-      const card = await this.cardOf(plates, amount, from);
-      if (card) this.telegram.notifySale(saleCardText(card), card.vehicleNumber);
-    } catch (e) {
-      this.logger.warn(`판매가 쪽지를 못 만들었습니다: ${(e as Error).message}`);
-    }
-  }
-
-  /**
-   * 쪽지에 들어갈 것을 모은다.
-   *
-   * 매입가 뒤에 붙는 '+7만원'은 구전이다 — 이전비가 아니다.
-   *
-   * 차명은 차량 관리가 먼저다 — 거기가 트림까지 적힌 이름이다. 없으면 정산·상담 순으로 쓴다.
-   * 담당자와 유입 경로는 상담에서 온다. 판 건(계약·판매완료)이 먼저고, 없으면 가장 최근
-   * 상담이다 — 문의만 하고 만 상담의 담당자를 '판 사람'으로 적으면 안 된다.
-   */
-  private async cardOf(plates: string[], amount: number, from: SalePriceSource): Promise<SaleCard | null> {
-    const [vehicle, purchase, consultations] = await Promise.all([
-      this.prisma.managedVehicle.findFirst({
-        where: { vehicleNumber: { in: plates } },
-        select: { vehicleNumber: true, vehicleModel: true },
-      }),
-      this.prisma.purchaseSettlement.findFirst({
-        where: { vehicleNumber: { in: plates } },
-        orderBy: { date: 'desc' },
-        select: { vehicleName: true, purchasePrice: true, brokerFee: true, employee: { select: { name: true } } },
-      }),
-      this.prisma.consultation.findMany({
-        where: { vehicleNumber: { in: plates } },
-        orderBy: [{ date: 'desc' }, { time: 'desc' }],
-        select: {
-          vehicleName: true,
-          platform: true,
-          status: true,
-          outsideDealer: true,
-          employee: { select: { name: true } },
-        },
-      }),
-    ]);
-
-    const sold = consultations.find((c) => c.status === 'SOLD' || c.status === 'CONTRACTED');
-    const lead = sold ?? consultations[0] ?? null;
-    const plate = vehicle?.vehicleNumber ?? plates[0];
-    if (!plate) return null;
-
-    return {
-      // 타사·기타는 우리 직원이 아니다 — 담당자 자리에 남의 딜러·상사 이름이 적혀 있다
-      dealer: (lead?.outsideDealer ?? '').trim() || lead?.employee?.name || purchase?.employee?.name || '',
-      vehicleNumber: plate,
-      vehicleName: vehicle?.vehicleModel || purchase?.vehicleName || lead?.vehicleName || '',
-      purchasePrice: purchase?.purchasePrice ?? 0,
-      brokerFee: purchase?.brokerFee ?? 0,
-      salePrice: amount,
-      platform: (lead?.platform ?? '').trim(),
-      from: SOURCE_LABEL[from],
-    };
   }
 
   /**

@@ -47,7 +47,7 @@ import { canSeeAdminSheet } from './lib/permissions';
 import TopBar from './components/TopBar';
 import EmployeeView from './components/EmployeeView';
 import AdminView from './components/AdminView';
-import { TelegramPurchaseModule, TelegramSaleModule } from './components/telegram/rooms';
+import { TelegramSaleModule } from './components/telegram/rooms';
 import SettlementModule from './components/settlement/SettlementModule';
 import ConsultationHub from './components/consultation/ConsultationHub';
 import ParkingModule from './components/parking/ParkingModule';
@@ -91,7 +91,6 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   condolence: '경조사비 관리',
   chat: '메시지',
   telegramSale: '입금방',
-  telegramPurchase: '매입방',
 };
 
 function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
@@ -132,7 +131,6 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'ad') return <AdModule role={role} />;
   if (module === 'adminSheet') return <AdminSheetModule />;
   if (module === 'telegramSale') return <TelegramSaleModule />;
-  if (module === 'telegramPurchase') return <TelegramPurchaseModule />;
   return <ParkingModule isAdmin={role === 'ADMIN'} />;
 }
 
@@ -220,9 +218,7 @@ function AuthedApp({ role }: { role: Role }) {
     (module === 'payroll' && !canSeePayroll) ||
     (module === 'adminSheet' && !canSeeSheet) ||
     // 경조사비는 관리자만 — 메뉴만 감추면 주소로 들어온다
-    (module === 'condolence' && (role !== 'ADMIN' || asEmployee)) ||
-    // 입금방·매입방에는 금액이 든다. 메뉴만 감추면 주소로 들어온다(서버도 다시 본다)
-    ((module === 'telegramSale' || module === 'telegramPurchase') && (role !== 'ADMIN' || asEmployee));
+    (module === 'condolence' && (role !== 'ADMIN' || asEmployee));
   const shownModule: ModuleKey = blocked ? 'home' : module;
 
   return (

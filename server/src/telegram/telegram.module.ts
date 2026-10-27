@@ -1,10 +1,23 @@
 import { request as httpsRequest } from 'node:https';
 import { resolve4 } from 'node:dns/promises';
-import { Controller, Get, Global, Injectable, Logger, Module, OnModuleInit, Param, Post, Query } from '@nestjs/common';
+import {
+  Controller,
+  ForbiddenException,
+  Get,
+  Global,
+  Injectable,
+  Logger,
+  Module,
+  OnModuleInit,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { TelegramRoom } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Role } from '@prisma/client';
 
 /**
@@ -31,7 +44,12 @@ const HOST = 'api.telegram.org';
  */
 const FALLBACK_IPS = ['149.154.167.220', '149.154.175.50', '149.154.165.120'];
 
-/** 방 이름 — 로그와 화면이 같은 말을 쓴다 */
+/*
+  방 이름 — 로그와 화면이 같은 말을 쓴다.
+
+  입금확인방으로는 이제 안 보낸다(판매가 알림을 뗐다). 이름은 남겨 둔다 — 그때까지
+  나간 기록이 그 이름으로 쌓여 있어서, 지우면 지난 줄이 이름 없는 방이 된다.
+*/
 export const ROOM_LABEL: Record<TelegramRoom, string> = {
   [TelegramRoom.BROADCAST]: '공지방',
   [TelegramRoom.SALE]: '입금확인방',
@@ -69,19 +87,6 @@ export class TelegramService implements OnModuleInit {
   }
 
   /**
-   * 금액이 오가는 방 — 공지방과 다른 방이다.
-   *
-   * 공지방은 전 직원이 본다. 매입가·판매가가 거기 뜨면 차 한 대에 얼마가 남는지가
-   * 온 회사에 공개된다 — 그래서 공지방에는 금액을 안 보낸다.
-   *
-   * 이 방이 안 적혀 있으면 아무 데도 안 보낸다. 공지방으로 흘려보내지 않는다 —
-   * 설정을 빠뜨린 게 금액이 새는 쪽으로 기울면 안 된다.
-   */
-  private get saleChatId() {
-    return this.config.get<string>('TELEGRAM_SALE_CHAT_ID', '');
-  }
-
-  /**
    * 매입방 — 차를 사오면 쪽지가 간다.
    *
    * 여기도 금액이 든다(실매입금액·구전). 공지방과 다른 방이고, 안 적혀 있으면 안 보낸다.
@@ -109,11 +114,6 @@ export class TelegramService implements OnModuleInit {
     } else {
       this.logger.warn('공지방이 설정되지 않았습니다(.env TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID). 공지는 나가지 않습니다.');
     }
-    if (this.token && this.saleChatId) {
-      this.logger.log(`입금확인방 연결됨 — 방 ${this.saleChatId}`);
-    } else {
-      this.logger.warn('입금확인방이 없습니다(.env TELEGRAM_SALE_CHAT_ID). 판매가 알림은 나가지 않습니다.');
-    }
     if (this.token && this.purchaseChatId) {
       this.logger.log(`매입방 연결됨 — 방 ${this.purchaseChatId}`);
     } else {
@@ -129,16 +129,6 @@ export class TelegramService implements OnModuleInit {
    */
   notify(text: string): void {
     this.deliver(TelegramRoom.BROADCAST, this.chatId, text);
-  }
-
-  /**
-   * 금액이 든 알림 — 입금확인방으로만 간다.
-   *
-   * 방이 안 적혀 있으면 조용히 안 보낸다. 공지방으로 대신 보내지 않는다 — 거기는
-   * 전 직원이 보는 자리라, 설정이 빠진 값이 금액을 흘리는 쪽으로 기울면 안 된다.
-   */
-  notifySale(text: string, vehicleNumber = ''): void {
-    this.deliver(TelegramRoom.SALE, this.saleChatId, text, vehicleNumber);
   }
 
   /** 차를 사오면 — 매입방으로만 간다. 여기도 금액이 든다 */
@@ -437,18 +427,22 @@ export class TelegramController {
   }
 
   /**
-   * 방에 내보낸 것 — 관리자만.
+   * 방에 내보낸 것.
    *
-   * 입금방·매입방은 금액이 든다. 보는 자리를 좁힌다 — 방 자체도 아무나 안 들어간다.
+   * 입금방은 전 직원이 본다 — 어느 차가 얼마로 올라갔는지는 상담·광고·계약이 다
+   * 같이 보고 움직이는 값이라, 아는 사람만 아는 자리에 둘 값이 아니다.
+   *
+   * 나머지 방은 관리자만이다. 매입방에는 실매입금액과 구전이 든다 — 차 한 대에
+   * 얼마가 남는지가 그대로 드러난다.
    */
-  @Roles(Role.ADMIN)
   @Get('logs/:room')
-  logs(@Param('room') room: string, @Query('limit') limit?: string) {
-    const key = room.toUpperCase() as TelegramRoom;
-    return this.telegram.logs(
-      Object.values(TelegramRoom).includes(key) ? key : TelegramRoom.BROADCAST,
-      Number(limit) || 100,
-    );
+  logs(@CurrentUser() user: AuthUser, @Param('room') room: string, @Query('limit') limit?: string) {
+    const asked = room.toUpperCase() as TelegramRoom;
+    const key = Object.values(TelegramRoom).includes(asked) ? asked : TelegramRoom.BROADCAST;
+    if (key !== TelegramRoom.SALE && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('관리자만 볼 수 있습니다.');
+    }
+    return this.telegram.logs(key, Number(limit) || 100);
   }
 }
 

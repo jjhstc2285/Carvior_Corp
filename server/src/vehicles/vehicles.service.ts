@@ -590,16 +590,7 @@ export class VehiclesService {
           못 넣어도 이 차는 저장된 뒤다(sale-price 안에서 삼킨다).
         */
         if ((dto.salePrice ?? 0) > 0) {
-          /*
-            고치기 전 값을 같이 넘긴다.
-
-            이 차는 이미 저장된 뒤다 — 안 넘기면 sale-price 가 차량 관리를 읽어서 방금
-            적은 값을 '전 값'으로 보고 "안 바뀌었다"로 친다. 그래서 제시 금융에서 적을
-            때만 입금확인방에 쪽지가 안 갔다.
-          */
-          void (await this.salePrice.spread(row.vehicleNumber, row.salePrice, 'vehicle', {
-            before: current.salePrice,
-          }));
+          void (await this.salePrice.spread(row.vehicleNumber, row.salePrice, 'vehicle'));
         }
         return this.toView(row);
       });
