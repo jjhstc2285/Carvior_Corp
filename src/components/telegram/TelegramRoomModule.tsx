@@ -5,6 +5,7 @@ import { api, ApiError } from '../../lib/api';
 import { alertError, confirmDanger } from '../../lib/alert';
 import { PLATE_SEARCH_CLASS } from '../../lib/searchBox';
 import SettlementCalendar, { SettlementViewToggle, type SettlementView } from '../settlement/SettlementCalendar';
+import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 import SaleCardForm from './SaleCardForm';
 
 /**
@@ -163,6 +164,26 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   /** '바뀐 것'을 펼쳐 둔 줄 — 한 번에 하나만 펼친다 */
   const [detail, setDetail] = useState<string | null>(null);
 
+  /*
+    표에 세울 칸.
+
+    쪽지에서 집는 칸(방마다 다르다)에 어느 방에나 있는 칸을 앞뒤로 붙인다.
+
+    차례는 사람마다 다르게 둔다. 돈 넣는 사람은 광고가부터 보고, 올린 걸 훑는 사람은
+    보낸 때부터 본다 — 끌어 옮긴 차례는 그 브라우저에만 남는다.
+  */
+  const COLUMNS: Column[] = useMemo(
+    () => [
+      ...(room.canCompose ? [{ key: 'drop', label: '삭제' }] : []),
+      { key: 'sentAt', label: '보낸 때' },
+      ...room.columns.map(c => ({ key: c.field, label: c.label, align: c.align })),
+      { key: 'changes', label: '바뀐 것', title: '같은 차로 몇 번째이고, 지난 쪽지와 무엇이 달라졌나' },
+      { key: 'actions', label: '쪽지', align: 'text-right' },
+    ],
+    [room],
+  );
+  const cols = useColumnOrder(`telegram-room-${room.key}`, COLUMNS);
+
   const load = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -245,8 +266,9 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
     [filtered, trace],
   );
 
+  // 칸이 열한 개다 — 가로를 안 묶는다. 묶어 두면 '바뀐 것'이 늘 화면 밖에 있다
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 sm:py-8">
+    <div className="px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900">{room.title}</h1>
         <div className="flex items-center gap-2">
@@ -260,6 +282,7 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
             </button>
           )}
           <SettlementViewToggle view={view} onChange={setView} />
+          {view === 'list' && <ColumnResetButton onReset={cols.reset} />}
           <button
             onClick={() => void load()}
             disabled={busy}
@@ -340,27 +363,12 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
             <div className="max-h-[72vh] overflow-auto">
               <table className="w-full whitespace-nowrap text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-500 shadow-[0_1px_0_0_#e2e8f0]">
-                  <tr>
-                    {/* 맨 앞에 지우는 칸 — 잘못 올린 줄을 바로 내린다 */}
-                    {room.canCompose && <th className="w-10 px-2 py-3 font-medium">삭제</th>}
-                    <th className="px-3 py-3 font-medium">보낸 때</th>
-                    {room.columns.map(c => (
-                      <th key={c.field} className={`px-3 py-3 font-medium ${c.align ?? ''}`}>
-                        {c.label}
-                      </th>
-                    ))}
-                    {/* 같은 차에 몇 번째이고 무엇이 달라졌나 — 중복처럼 보이는 줄의 까닭이다 */}
-                    <th className="px-3 py-3 font-medium">바뀐 것</th>
-                    <th className="px-3 py-3 text-right font-medium">쪽지</th>
-                  </tr>
+                  <tr>{cols.headers()}</tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
                     <tr>
-                      <td
-                        colSpan={room.columns.length + (room.canCompose ? 4 : 3)}
-                        className="px-5 py-10 text-center text-sm text-slate-400"
-                      >
+                      <td colSpan={cols.count} className="px-5 py-10 text-center text-sm text-slate-400">
                         찾는 건이 없습니다.
                       </td>
                     </tr>
@@ -368,147 +376,159 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                   {filtered.map(({ row, f }) => {
                     const t = trace.get(row.id);
                     return (
-                    /* 줄을 누르면 보낸 글이 그대로 뜬다 — 방에 뜬 것과 견줘 보는 자리다 */
-                    <tr
-                      key={row.id}
-                      onClick={e => {
-                        if ((e.target as HTMLElement).closest('button')) return;
-                        setOpen(row);
-                      }}
-                      title={room.canCompose ? '눌러서 고칩니다' : '눌러서 보낸 글을 봅니다'}
-                      className={`cursor-pointer border-b border-slate-50 last:border-0 hover:bg-indigo-50/40 ${
-                        row.ok ? '' : 'bg-red-50/40'
-                      }`}
-                    >
-                      {room.canCompose && (
-                        <td className="px-2 py-2.5 align-top">
-                          <button
-                            onClick={() => void drop(row)}
-                            className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"
-                            title="이 쪽지를 지웁니다 — 방에서도 지웁니다"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      )}
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-1.5">
-                          {row.ok ? (
-                            <Check size={12} className="shrink-0 text-emerald-500" />
-                          ) : (
-                            <AlertTriangle size={12} className="shrink-0 text-red-500" />
-                          )}
-                          <span className="tabular-nums text-slate-500">
-                            {dayjs(row.createdAt).format('YYYY-MM-DD HH:mm')}
-                          </span>
-                        </div>
-                        {/* 손으로 올린 줄은 누가 올렸는지가 남는다 — 숫자를 물어볼 자리다 */}
-                        {row.sentBy && <div className="mt-0.5 pl-[18px] text-[11px] text-slate-400">{row.sentBy}</div>}
-                      </td>
-                      {room.columns.map(c => {
-                        /* 지난 쪽지와 달라진 칸 — 몇 번째 고침이냐에 따라 색이 다르다 */
-                        const moved = t?.changes.find(x => x.key === c.field);
-                        return (
-                          <td key={c.field} className={`px-3 py-2.5 ${c.align ?? ''}`}>
-                            {f[c.field] ? (
-                              <span
-                                className={
-                                  moved
-                                    ? changeTone(t?.seq ?? 1)
-                                    : c.strong
-                                      ? 'font-semibold text-slate-800'
-                                      : 'text-slate-600'
-                                }
-                                title={moved ? `${moved.from || '(빈칸)'} → ${moved.to || '(빈칸)'}` : undefined}
+                      /* 줄을 누르면 고치는 창이 뜬다 — 적는 창에 보낸 글이 그대로 보인다 */
+                      <tr
+                        key={row.id}
+                        onClick={e => {
+                          if ((e.target as HTMLElement).closest('button')) return;
+                          setOpen(row);
+                        }}
+                        title={room.canCompose ? '눌러서 고칩니다' : '눌러서 보낸 글을 봅니다'}
+                        className={`cursor-pointer border-b border-slate-50 last:border-0 hover:bg-indigo-50/40 ${
+                          row.ok ? '' : 'bg-red-50/40'
+                        }`}
+                      >
+                        {cols.cells(
+                          {
+                            // 맨 앞에 지우는 칸 — 잘못 올린 줄을 바로 내린다
+                            drop: (
+                              <button
+                                onClick={() => void drop(row)}
+                                className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"
+                                title="이 쪽지를 지웁니다 — 방에서도 지웁니다"
                               >
-                                {f[c.field]}
-                              </span>
-                            ) : (
-                              <span className="text-slate-300">—</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                      {/*
-                        바뀐 것 — 한 줄로 접어 둔다.
+                                <Trash2 size={14} />
+                              </button>
+                            ),
 
-                        바뀐 칸을 'A → B' 로 다 펼쳐 놓았더니 세 칸만 바뀌어도 줄 높이가
-                        손가락 길이가 됐다. 늘 보는 건 '무엇이 바뀌었나'지 '얼마가
-                        얼마로'가 아니다 — 그건 궁금할 때만 펼친다.
-
-                        칸 너비를 못 박는다. 안 박으면 옆 칸들이 안 줄어드는 통에 여기만
-                        좁아져서, 글자가 한 자씩 세로로 쌓인다.
-                      */}
-                      <td className="w-64 min-w-64 px-3 py-2.5 align-top">
-                        {t && t.total > 1 && (
-                          <>
-                            <div className="flex items-center gap-1">
-                              <span
-                                className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600"
-                                title={`이 차로 모두 ${t.total}번 올라갔습니다`}
-                              >
-                                {t.seq}/{t.total}
-                              </span>
-
-                              {t.seq === 1 ? (
-                                <span className="text-[11px] text-slate-400">처음</span>
-                              ) : t.changes.length === 0 ? (
-                                <span className="text-[11px] text-slate-400">값은 그대로</span>
-                              ) : (
-                                <>
-                                  {/* 이름만 한 줄로 — 넘치면 잘린다. 값은 펼쳐야 보인다 */}
-                                  <span
-                                    className={`min-w-0 flex-1 truncate text-[11px] ${changeTone(t.seq)}`}
-                                    title={t.changes
-                                      .map(c => `${c.key} : ${c.from || '(빈칸)'} → ${c.to || '(빈칸)'}`)
-                                      .join('\n')}
-                                  >
-                                    {t.changes.map(c => c.key).join(' · ')}
+                            sentAt: (
+                              <>
+                                <div className="flex items-center gap-1.5">
+                                  {row.ok ? (
+                                    <Check size={12} className="shrink-0 text-emerald-500" />
+                                  ) : (
+                                    <AlertTriangle size={12} className="shrink-0 text-red-500" />
+                                  )}
+                                  <span className="tabular-nums text-slate-500">
+                                    {dayjs(row.createdAt).format('YYYY-MM-DD HH:mm')}
                                   </span>
-                                  <button
-                                    onClick={() => setDetail(detail === row.id ? null : row.id)}
-                                    className="shrink-0 rounded px-1 py-0.5 text-[11px] font-semibold text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                                    title={detail === row.id ? '접습니다' : '얼마가 얼마로 바뀌었는지 봅니다'}
-                                  >
-                                    {detail === row.id ? '접기' : '⋯ 더보기'}
-                                  </button>
-                                </>
-                              )}
-                            </div>
+                                </div>
+                                {/* 손으로 올린 줄은 누가 올렸는지가 남는다 — 숫자를 물어볼 자리다 */}
+                                {row.sentBy && <div className="mt-0.5 pl-[18px] text-[11px] text-slate-400">{row.sentBy}</div>}
+                              </>
+                            ),
 
-                            {detail === row.id && (
-                              <div className="mt-1 space-y-0.5 whitespace-normal">
-                                {t.changes.map(c => (
-                                  <div key={c.key} className="break-all text-[11px] leading-snug text-slate-500">
-                                    <b className={`font-bold ${changeTone(t.seq)}`}>{c.key}</b> {c.from || '—'}
-                                    <span className="mx-0.5 text-slate-300">→</span>
-                                    {c.to || '—'}
+                            /* 쪽지에서 집는 칸 — 지난 쪽지와 달라진 값은 색으로 칠한다 */
+                            ...Object.fromEntries(
+                              room.columns.map(c => {
+                                const moved = t?.changes.find(x => x.key === c.field);
+                                return [
+                                  c.field,
+                                  f[c.field] ? (
+                                    <span
+                                      className={
+                                        moved
+                                          ? changeTone(t?.seq ?? 1)
+                                          : c.strong
+                                            ? 'font-semibold text-slate-800'
+                                            : 'text-slate-600'
+                                      }
+                                      title={moved ? `${moved.from || '(빈칸)'} → ${moved.to || '(빈칸)'}` : undefined}
+                                    >
+                                      {f[c.field]}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-300">—</span>
+                                  ),
+                                ];
+                              }),
+                            ),
+
+                            /*
+                              바뀐 것 — 한 줄로 접어 둔다.
+
+                              'A → B' 로 다 펼쳐 놓았더니 세 칸만 바뀌어도 줄 높이가
+                              손가락 길이가 됐다. 늘 보는 건 '무엇이 바뀌었나'지 '얼마가
+                              얼마로'가 아니다 — 그건 궁금할 때만 펼친다.
+
+                              안쪽에 너비를 못 박은 칸을 하나 둔다. 표는 글이 길면 칸을
+                              늘려 버려서, 칸에 너비를 적어 두는 것만으로는 안 잘린다.
+                            */
+                            changes: t && t.total > 1 && (
+                              <div className="w-56">
+                                <div className="flex items-center gap-1">
+                                  <span
+                                    className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600"
+                                    title={`이 차로 모두 ${t.total}번 올라갔습니다`}
+                                  >
+                                    {t.seq}/{t.total}
+                                  </span>
+
+                                  {t.seq === 1 ? (
+                                    <span className="text-[11px] text-slate-400">처음</span>
+                                  ) : t.changes.length === 0 ? (
+                                    <span className="text-[11px] text-slate-400">값은 그대로</span>
+                                  ) : (
+                                    <>
+                                      {/* 이름만 한 줄로 — 넘치면 잘린다. 값은 펼쳐야 보인다 */}
+                                      <span
+                                        className={`min-w-0 flex-1 truncate text-[11px] ${changeTone(t.seq)}`}
+                                        title={t.changes
+                                          .map(c => `${c.key} : ${c.from || '(빈칸)'} → ${c.to || '(빈칸)'}`)
+                                          .join('\n')}
+                                      >
+                                        {t.changes.map(c => c.key).join(' · ')}
+                                      </span>
+                                      <button
+                                        onClick={() => setDetail(detail === row.id ? null : row.id)}
+                                        className="shrink-0 rounded px-1 py-0.5 text-[11px] font-semibold text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                        title={detail === row.id ? '접습니다' : '얼마가 얼마로 바뀌었는지 봅니다'}
+                                      >
+                                        {detail === row.id ? '접기' : '⋯ 더보기'}
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+
+                                {detail === row.id && (
+                                  <div className="mt-1 space-y-0.5 whitespace-normal">
+                                    {t.changes.map(c => (
+                                      <div key={c.key} className="break-all text-[11px] leading-snug text-slate-500">
+                                        <b className={`font-bold ${changeTone(t.seq)}`}>{c.key}</b> {c.from || '—'}
+                                        <span className="mx-0.5 text-slate-300">→</span>
+                                        {c.to || '—'}
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
+                                )}
                               </div>
-                            )}
-                          </>
+                            ),
+
+                            actions: (
+                              <>
+                                {room.canCompose && (
+                                  <button
+                                    onClick={() => setOpen(row)}
+                                    className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
+                                    title="고쳐서 방에 통째로 다시 올립니다"
+                                  >
+                                    <Pencil size={12} className="inline" /> 고치기
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => void navigator.clipboard.writeText(row.text).then(() => setCopied(row.id))}
+                                  className="ml-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
+                                  title="글을 그대로 복사합니다"
+                                >
+                                  <Copy size={12} className="inline" /> {copied === row.id ? '복사됨' : '복사'}
+                                </button>
+                              </>
+                            ),
+                          },
+                          // 보낸 때와 바뀐 것은 두 줄이 될 수 있다 — 줄마다 위로 맞춘다
+                          'align-top',
                         )}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        {room.canCompose && (
-                          <button
-                            onClick={() => setOpen(row)}
-                            className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
-                            title="고쳐서 방에 통째로 다시 올립니다"
-                          >
-                            <Pencil size={12} className="inline" /> 고치기
-                          </button>
-                        )}
-                        <button
-                          onClick={() => void navigator.clipboard.writeText(row.text).then(() => setCopied(row.id))}
-                          className="ml-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
-                          title="글을 그대로 복사합니다"
-                        >
-                          <Copy size={12} className="inline" /> {copied === row.id ? '복사됨' : '복사'}
-                        </button>
-                      </td>
-                    </tr>
+                      </tr>
                     );
                   })}
                 </tbody>
