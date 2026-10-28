@@ -152,6 +152,9 @@ const COLUMNS: Column[] = [
  */
 const CHIEF_SALARY = { name: '안원용', amount: 2_000_000 };
 
+/** 건당정산을 받는 자리 — 이 팀만 줄마다 적은 '정산금액'이 받을 돈이 된다 */
+const CONTRACT_TEAM = '계약팀';
+
 const PURCHASE_BONUS_MIN = 20;
 const PURCHASE_BONUS_PER_CASE = 10_000;
 
@@ -384,27 +387,39 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
   */
   const owners = useMemo(() => {
     const month = filtered;
-    const counted = new Map<string, { count: number; done: number; profit: number; sold: number }>();
+    const counted = new Map<string, { count: number; done: number; profit: number; sold: number; fee: number }>();
     for (const s of month) {
-      const prev = counted.get(s.employeeId) ?? { count: 0, done: 0, profit: 0, sold: 0 };
+      const prev = counted.get(s.employeeId) ?? { count: 0, done: 0, profit: 0, sold: 0, fee: 0 };
       counted.set(s.employeeId, {
         count: prev.count + 1,
         done: prev.done + (s.stage === 'DONE' ? 1 : 0),
         // 아직 안 판 차는 빼고 센다 — 판매가가 0이면 총비용만큼 적자로 잡힌다
         profit: prev.profit + (s.salePrice > 0 ? profitOf(s) : 0),
         sold: prev.sold + (s.salePrice > 0 ? 1 : 0),
+        fee: prev.fee + (s.settlementAmount ?? 0),
       });
     }
     return state.employees
-      .filter(e => e.active !== false && (e.department === '계약팀' || counted.has(e.id)))
+      .filter(e => e.active !== false && (e.department === CONTRACT_TEAM || counted.has(e.id)))
       .map(e => {
-        const c = counted.get(e.id) ?? { count: 0, done: 0, profit: 0, sold: 0 };
+        const c = counted.get(e.id) ?? { count: 0, done: 0, profit: 0, sold: 0, fee: 0 };
         return {
           employee: e,
           ...c,
           /** 승인 스무 건을 넘기면 건당 2만 원 */
           /** 스무 건을 넘는 만큼만 센다 */
           bonus: Math.max(0, c.done - PURCHASE_BONUS_MIN) * PURCHASE_BONUS_PER_CASE,
+          /*
+            계약팀 건당정산.
+
+            계약팀은 차 한 대를 맡을 때마다 정해진 돈을 받는다 — 줄마다 '정산금액' 칸에
+            그 돈을 적어 둔다(박예나 15,000 · 이금미 10,000). 적어는 두는데 어디에도
+            안 더해져서 '정산받을 금액'이 0원으로 떴다.
+
+            계약팀 것만 센다. 다른 자리에서는 이 칸이 그 차 총비용으로 채워진다 —
+            같이 더하면 차 값이 사람이 받아 갈 돈으로 둔갑한다.
+          */
+          fee: e.department === CONTRACT_TEAM ? c.fee : 0,
         };
       })
       .sort((a, b) => b.done - a.done || b.count - a.count || a.employee.name.localeCompare(b.employee.name));
@@ -554,17 +569,19 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
    * 매달 다시 묻게 된다.
    */
   const payout = useMemo(() => {
-    const bonus = owners
-      .filter(o => employeeFilter === 'all' || o.employee.id === employeeFilter)
-      .reduce((sum, o) => sum + o.bonus, 0);
+    const mine = owners.filter(o => employeeFilter === 'all' || o.employee.id === employeeFilter);
+    const bonus = mine.reduce((sum, o) => sum + o.bonus, 0);
+    // 계약팀이 줄마다 적어 둔 건당 정산 — owners 가 계약팀 것만 모아 둔다
+    const fee = mine.reduce((sum, o) => sum + o.fee, 0);
 
     const parts: string[] = [];
     if (shareTotal > 0) parts.push(`매도정산 ${MAN(shareTotal)}`);
     if (mealTotal > 0) parts.push(`식대 ${MAN(mealTotal)}`);
     if (salaryTotal > 0) parts.push(`월급 ${MAN(salaryTotal)}`);
+    if (fee > 0) parts.push(`건당정산 ${MAN(fee)}`);
     if (bonus > 0) parts.push(`인센티브 ${MAN(bonus)}`);
 
-    return { total: shareTotal + mealTotal + salaryTotal + bonus, parts };
+    return { total: shareTotal + mealTotal + salaryTotal + bonus + fee, parts };
   }, [owners, employeeFilter, shareTotal, mealTotal, salaryTotal]);
 
 
@@ -827,8 +844,9 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
           값이라, 계약팀을 골라 놓고 천팔백만원이 떠 있었다 — 받을 돈이 아니라 차에 들어간
           돈이다. 사람을 고르고 보는 자리이므로 그 사람이 받아 갈 돈으로 바꾼다.
 
-          받는 길이 자리마다 다르다. 계약팀은 결재를 끝낸 건수로 인센티브를 받고, 차장·
-          본부장은 매도정산과 식대(그리고 월급)를 받는다. 무엇이 더해졌는지 아래에 적는다 —
+          받는 길이 자리마다 다르다. 계약팀은 차 한 대를 맡을 때마다 줄에 적어 둔 건당
+          정산을 받고(결재를 스무 건 넘게 끝내면 인센티브가 더 붙는다), 차장·본부장은
+          매도정산과 식대(그리고 월급)를 받는다. 무엇이 더해졌는지 아래에 적는다 —
           숫자만 보면 아무도 못 맞춰 본다.
         */}
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
@@ -948,7 +966,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
           >
             전체 <span className="ml-0.5 font-bold">{scoped.filter(s => allMonths || s.date.startsWith(month)).length}</span>
           </button>
-          {owners.map(({ employee, count, done, bonus, profit, sold }) => (
+          {owners.map(({ employee, count, done, bonus, fee, profit, sold }) => (
             <button
               key={employee.id}
               onClick={() => setEmployeeFilter(v => (v === employee.id ? 'all' : employee.id))}
@@ -958,7 +976,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                 bonus > 0
                   ? ` · 인센티브 ${NUM(bonus)}원 (${PURCHASE_BONUS_MIN}건 넘는 ${done - PURCHASE_BONUS_MIN}건치)`
                   : ` · 결재완료 ${PURCHASE_BONUS_MIN}건을 넘으면 넘는 만큼 건당 ${NUM(PURCHASE_BONUS_PER_CASE)}원`
-              }`}
+              }${fee > 0 ? ` · 건당정산 ${NUM(fee)}원 (줄마다 적어 둔 정산금액 합계)` : ''}`}
               className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs transition-colors ${
                 employeeFilter === employee.id
                   ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
@@ -979,6 +997,12 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                 ) : (
                   <span className="text-[11px] text-slate-400">판매 {sold}</span>
                 ))}
+              {/* 계약팀이 줄마다 적어 둔 건당 정산 — 그 달에 받아 갈 돈이다 */}
+              {fee > 0 && (
+                <span className="rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">
+                  +{NUM(fee)}
+                </span>
+              )}
               {bonus > 0 && (
                 <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
                   +{NUM(bonus)}
