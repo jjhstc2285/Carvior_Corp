@@ -1808,7 +1808,7 @@ model WashSettlement {
   // 청구 대수 — 비워 두면 그 달 방문 기록에서 센다
   carCount Int @default(0)
   // 한 대당 값. 바뀔 수 있어서 그 달에 적용한 값을 같이 남긴다
-  unitPrice Int @default(10000)
+  unitPrice Int @default(1250)
 
   paid   Boolean   @default(false)
   paidOn DateTime? @db.Date
