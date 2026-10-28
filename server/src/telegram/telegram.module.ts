@@ -76,6 +76,13 @@ export interface SaleCardFill {
   platform: string;
   /** 매입일 — 같은 차가 여럿일 때 어느 건인지 가리는 값이다 */
   intakeOn: string;
+  /*
+    상담이 붙었는가.
+
+    안 올린 차 오백 대 중 어느 것이 실제로 손님이 붙은 차인지가 여기서 갈린다 —
+    상담이 없는 차는 아직 광고도 안 나간 차라, 입금 이야기가 나올 자리가 아니다.
+  */
+  hasLead: boolean;
 }
 
 export interface TelegramLogRow {
@@ -377,13 +384,15 @@ export class TelegramService implements OnModuleInit {
         문의만 하고 만 상담의 담당자를 '판 사람'으로 적으면 안 된다 — 그 방은 누가 판
         차인지 보고 입금을 넣는 자리다.
 
-        상담이 아예 없으면 비워 둔다. 매입을 적은 사람을 넣어 봤더니 아직 안 팔린 차에
-        매입팀 이름이 '판 사람'으로 박혔다 — 비어 있는 칸은 적으면 되지만, 틀린 이름은
-        방에 올라간 뒤에야 안다.
+        상담이 아예 없으면 매입을 적은 사람으로 둔다. 그 차를 아는 사람이 그 사람뿐이라,
+        비워 두는 것보다 낫다 — 올리기 전에 창에서 보고 고치면 된다.
+
+        상담이 붙었는지는 따로 알려 준다(hasLead). 안 올린 차 오백 대 중 어느 것이
+        실제로 손님이 붙은 차인지가 거기서 갈린다.
       */
       const lead = mine.find((c) => c.status === 'SOLD' || c.status === 'CONTRACTED') ?? mine[0] ?? null;
       // 타사·기타는 우리 직원이 아니다 — 담당자 자리에 남의 딜러·상사 이름이 적혀 있다
-      const dealer = (lead?.outsideDealer ?? '').trim() || lead?.employee?.name || '';
+      const dealer = (lead?.outsideDealer ?? '').trim() || lead?.employee?.name || r.employee?.name || '';
       return {
         vehicleNumber: r.vehicleNumber,
         vehicleName: r.vehicleName,
@@ -392,6 +401,7 @@ export class TelegramService implements OnModuleInit {
         brokerFee: man(r.brokerFee),
         platform: (lead?.platform ?? '').trim(),
         intakeOn: r.date.toISOString().slice(0, 10),
+        hasLead: !!lead,
       };
     });
   }

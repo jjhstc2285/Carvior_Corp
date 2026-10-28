@@ -66,6 +66,13 @@ interface LogRow {
     보낸 적이 없으니 보낸 때도, 지울 쪽지도 없다. 매입일을 대신 적는다.
   */
   pending?: boolean;
+  /*
+    상담이 붙은 차인가 — 안 올린 줄에만 쓴다.
+
+    오백 대 중 어느 것이 실제로 손님이 붙은 차인지가 여기서 갈린다. 상담이 없는 차는
+    아직 광고도 안 나간 차라, 입금 이야기가 나올 자리가 아니다.
+  */
+  lead?: boolean;
 }
 
 /** 매입 관리에서 불러온 칸 — 금액은 만원이다. 광고가·코드가는 그날 정하는 값이라 안 온다 */
@@ -77,6 +84,7 @@ interface Fill {
   brokerFee: number;
   platform: string;
   intakeOn: string;
+  hasLead: boolean;
 }
 
 /**
@@ -109,6 +117,7 @@ function pendingRow(f: Fill): LogRow {
     sentBy: '',
     createdAt: `${f.intakeOn}T00:00:00.000Z`,
     pending: true,
+    lead: f.hasLead,
   };
 }
 
@@ -210,7 +219,7 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   const [monthPick, setMonthPick] = useState('all');
   const [valuePick, setValuePick] = useState('all');
   /** 올린 것만·안 올린 것만 — 남은 게 몇 대인지가 제일 잦은 물음이다 */
-  const [sentPick, setSentPick] = useState<'all' | 'sent' | 'pending'>('all');
+  const [sentPick, setSentPick] = useState<'all' | 'sent' | 'pending' | 'lead'>('all');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<LogRow | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -336,7 +345,13 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   const filtered = useMemo(() => {
     const q = query.trim();
     return parsed
-      .filter(p => sentPick === 'all' || (sentPick === 'pending' ? !!p.row.pending : !p.row.pending))
+      .filter(p => {
+        if (sentPick === 'all') return true;
+        if (sentPick === 'sent') return !p.row.pending;
+        if (sentPick === 'pending') return !!p.row.pending;
+        // 상담이 붙은 차만 — 아직 광고도 안 나간 차는 입금 이야기가 나올 자리가 아니다
+        return !!p.row.pending && !!p.row.lead;
+      })
       .filter(p => monthPick === 'all' || p.day.startsWith(monthPick))
       .filter(p => valuePick === 'all' || p.f[room.filterField.field] === valuePick)
       // 차량번호가 제일 잦은 검색이라 쪽지 전체에서 찾는다 — 차명·고객이름으로도 걸린다
@@ -394,12 +409,13 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
         {room.canCompose && (
           <select
             value={sentPick}
-            onChange={e => setSentPick(e.target.value as 'all' | 'sent' | 'pending')}
+            onChange={e => setSentPick(e.target.value as 'all' | 'sent' | 'pending' | 'lead')}
             className={SELECT}
           >
             <option value="all">올린 것 + 안 올린 차</option>
             <option value="sent">올린 것만</option>
             <option value="pending">안 올린 차만</option>
+            <option value="lead">안 올린 차 · 상담 붙은 것만</option>
           </select>
         )}
         <select value={monthPick} onChange={e => setMonthPick(e.target.value)} className={SELECT}>
@@ -516,6 +532,15 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                                 <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
                                   안 올림
                                 </span>
+                                {/* 상담이 붙은 차 — 손님이 붙었다는 뜻이라 먼저 올릴 자리다 */}
+                                {row.lead && (
+                                  <span
+                                    className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700"
+                                    title="상담이 붙은 차입니다"
+                                  >
+                                    상담
+                                  </span>
+                                )}
                                 <span className="tabular-nums text-slate-400">
                                   {dayjs(row.createdAt).format('YYYY-MM-DD')} 매입
                                 </span>
