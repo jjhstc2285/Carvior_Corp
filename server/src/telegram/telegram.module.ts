@@ -23,6 +23,7 @@ import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { SaleCardDto, saleCardHtml, saleCardText, type SaleCardMark } from './sale-card';
+import { normalizePlate } from '../vehicles/vehicle.rules';
 import { Role } from '@prisma/client';
 
 /**
@@ -60,6 +61,17 @@ export const ROOM_LABEL: Record<TelegramRoom, string> = {
   [TelegramRoom.SALE]: '입금확인방',
   [TelegramRoom.PURCHASE]: '매입방',
 };
+
+/** 차량번호로 불러온 쪽지 칸 — 금액은 만원이다 */
+export interface SaleCardFill {
+  vehicleNumber: string;
+  vehicleName: string;
+  dealer: string;
+  purchasePrice: number;
+  brokerFee: number;
+  adPrice: number;
+  platform: string;
+}
 
 export interface TelegramLogRow {
   id: string;
@@ -251,6 +263,104 @@ export class TelegramService implements OnModuleInit {
       where: { room: TelegramRoom.SALE, vehicleNumber: plate },
     });
     return { before: before.text, by: sentBy, seq: sent + 1 };
+  }
+
+  /**
+   * 차량번호로 쪽지 칸을 채워 온다.
+   *
+   * 여덟 줄 중 여섯 줄은 이미 어딘가에 적혀 있다. 차명은 차량 관리에, 매입가와 구전은
+   * 매입 정산에, 담당자와 유입경로는 상담에 있다 — 그걸 다시 손으로 치게 하면 한 자씩
+   * 틀리고, 틀린 채로 방에 올라가면 그 숫자로 입금이 들어간다.
+   *
+   * 차량번호 몇 자만 치면 맞는 차를 몇 대 보여 주고, 고르면 칸이 다 찬다. 사람이 보고
+   * 적을 것은 광고가뿐이다.
+   *
+   * 만원으로 돌려준다 — 방에 뜨는 꼴이 만원이고, 적는 사람이 보는 숫자도 만원이다.
+   */
+  async saleCards(q: string): Promise<SaleCardFill[]> {
+    const key = normalizePlate(q ?? '').trim();
+    if (key.length < 2) return [];
+
+    const vehicles = await this.prisma.managedVehicle.findMany({
+      where: { vehicleNumber: { contains: key } },
+      orderBy: [{ offerDate: 'desc' }, { createdAt: 'desc' }],
+      take: 8,
+      select: { vehicleNumber: true, vehicleModel: true, salePrice: true },
+    });
+
+    /*
+      차량 관리에 없으면 매입 정산에서 찾는다.
+
+      타사·수출 차는 우리 차고에 안 들어와서 차량 관리에 줄이 없는 건이 있다 — 그래도
+      매입 정산에는 적혀 있다. 없다고 돌려보내면 그 차는 손으로 다 쳐야 한다.
+    */
+    const plates =
+      vehicles.length > 0
+        ? vehicles.map((v) => v.vehicleNumber)
+        : (
+            await this.prisma.purchaseSettlement.findMany({
+              where: { vehicleNumber: { contains: key } },
+              orderBy: { date: 'desc' },
+              take: 8,
+              select: { vehicleNumber: true },
+              distinct: ['vehicleNumber'],
+            })
+          ).map((r) => r.vehicleNumber);
+    if (plates.length === 0) return [];
+
+    const [purchases, consultations] = await Promise.all([
+      this.prisma.purchaseSettlement.findMany({
+        where: { vehicleNumber: { in: plates } },
+        orderBy: { date: 'desc' },
+        select: {
+          vehicleNumber: true,
+          vehicleName: true,
+          purchasePrice: true,
+          brokerFee: true,
+          salePrice: true,
+          employee: { select: { name: true } },
+        },
+      }),
+      this.prisma.consultation.findMany({
+        where: { vehicleNumber: { in: plates } },
+        orderBy: [{ date: 'desc' }, { time: 'desc' }],
+        select: {
+          vehicleNumber: true,
+          vehicleName: true,
+          platform: true,
+          status: true,
+          salePrice: true,
+          outsideDealer: true,
+          employee: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    const man = (won: number) => Math.round((won || 0) / 10_000);
+    return plates.map((plate) => {
+      const vehicle = vehicles.find((v) => v.vehicleNumber === plate);
+      const purchase = purchases.find((r) => r.vehicleNumber === plate);
+      const rows = consultations.filter((c) => c.vehicleNumber === plate);
+      /*
+        판 건이 먼저다.
+
+        문의만 하고 만 상담의 담당자를 '판 사람'으로 적으면 안 된다 — 그 방은 누가 판
+        차인지 보고 입금을 넣는 자리다.
+      */
+      const lead = rows.find((c) => c.status === 'SOLD' || c.status === 'CONTRACTED') ?? rows[0] ?? null;
+      // 타사·기타는 우리 직원이 아니다 — 담당자 자리에 남의 딜러·상사 이름이 적혀 있다
+      const dealer = (lead?.outsideDealer ?? '').trim() || lead?.employee?.name || purchase?.employee?.name || '';
+      const ad = vehicle?.salePrice || purchase?.salePrice || lead?.salePrice || 0;
+      return {
+        vehicleNumber: plate,
+        vehicleName: vehicle?.vehicleModel || purchase?.vehicleName || lead?.vehicleName || '',
+        dealer,
+        purchasePrice: man(purchase?.purchasePrice ?? 0),
+        brokerFee: man(purchase?.brokerFee ?? 0),
+        adPrice: man(ad),
+        platform: (lead?.platform ?? '').trim(),
+      };
+    });
   }
 
   /**
@@ -640,6 +750,16 @@ export class TelegramController {
   @Post('sale')
   postSale(@CurrentUser() user: AuthUser, @Body() dto: SaleCardDto) {
     return this.telegram.postSale(dto, user.name);
+  }
+
+  /**
+   * 차량번호로 쪽지 칸을 채워 온다 — 광고가 말고는 다 어딘가에 적혀 있다.
+   *
+   * ':id' 보다 먼저 둔다. 뒤에 두면 'cards' 를 쪽지 번호로 읽는다.
+   */
+  @Get('sale/cards')
+  saleCards(@Query('q') q?: string) {
+    return this.telegram.saleCards(q ?? '');
   }
 
   /** 올린 쪽지를 지운다 — 방에서도 지운다 */

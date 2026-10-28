@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import { Send, X } from 'lucide-react';
+import { Search, Send, X } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useEscClose } from '../../lib/useEscClose';
 
@@ -12,6 +12,10 @@ import { useEscClose } from '../../lib/useEscClose';
  *
  * 칸으로 받고 양식은 서버가 짠다. 코드가는 광고가+90, 입금은 -90 이 늘 맞아서 저절로
  * 채운다 — 받아 적게만 해 두면 백 건에 한 건은 틀린다. 그래도 고칠 수는 있게 둔다.
+ *
+ * 여덟 줄 중 여섯 줄은 이미 어딘가에 적혀 있다. 차명은 차량 관리에, 매입가와 구전은
+ * 매입 정산에, 담당자와 유입경로는 상담에 있다 — 차량번호 몇 자만 치면 그걸 다 끌어온다.
+ * 다시 손으로 치게 하면 한 자씩 틀리고, 틀린 채로 올라가면 그 숫자로 입금이 들어간다.
  *
  * 적는 대로 아래에 쪽지가 보인다. 올리기 전에 방에 뜰 꼴 그대로를 본다.
  *
@@ -129,6 +133,17 @@ function preview(c: SaleCardFields): string {
 
 const BOX = 'w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400';
 
+/** 차량번호로 끌어온 칸 — 서버가 만원으로 내려준다 */
+interface Fill {
+  vehicleNumber: string;
+  vehicleName: string;
+  dealer: string;
+  purchasePrice: number;
+  brokerFee: number;
+  adPrice: number;
+  platform: string;
+}
+
 function Field({
   label,
   hint,
@@ -167,6 +182,56 @@ export default function SaleCardForm({
   const [card, setCard] = useState<SaleCardFields>(() => (editing ? cardOf(editing.text) : EMPTY_CARD));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+    차량번호를 치면 맞는 차를 찾아 둔다.
+
+    한 글자 칠 때마다 서버에 묻지 않는다 — 번호는 예닐곱 자라 그만큼 묻게 되고, 늦게
+    온 답이 먼저 온 답을 덮어써서 엉뚱한 차가 뜬다. 손이 멈추면 그때 한 번 묻는다.
+  */
+  const [found, setFound] = useState<Fill[]>([]);
+  const [picking, setPicking] = useState(false);
+  /** 끌어온 차 — 어디서 왔는지 한 줄로 적어 준다 */
+  const [pulled, setPulled] = useState<string | null>(null);
+  const plate = card.vehicleNumber;
+
+  useEffect(() => {
+    const key = plate.replace(/\s+/g, '').trim();
+    if (!picking || key.length < 2) {
+      setFound([]);
+      return;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      void api<Fill[]>(`/telegram/sale/cards?q=${encodeURIComponent(key)}`)
+        .then(rows => live && setFound(rows))
+        .catch(() => live && setFound([]));
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [plate, picking]);
+
+  /** 고른 차로 칸을 채운다 — 적는 사람이 보고 적을 것은 광고가뿐이다 */
+  const pick = (f: Fill) => {
+    setCard(prev => ({
+      ...prev,
+      vehicleNumber: f.vehicleNumber,
+      vehicleName: f.vehicleName || prev.vehicleName,
+      dealer: f.dealer || prev.dealer,
+      purchasePrice: f.purchasePrice || prev.purchasePrice,
+      brokerFee: f.brokerFee || prev.brokerFee,
+      // 광고가는 시스템에 적힌 차량판매가다 — 비어 있으면 손으로 적는다
+      adPrice: f.adPrice || prev.adPrice,
+      platform: f.platform || prev.platform,
+    }));
+    setPulled(f.vehicleNumber);
+    setPicking(false);
+    setFound([]);
+  };
+
+  const box = useRef<HTMLDivElement>(null);
 
   useEscClose(onClose, !busy);
 
@@ -243,6 +308,13 @@ export default function SaleCardForm({
           </p>
         )}
 
+        {/* 무엇이 저절로 채워졌는지 한 줄로 — 안 적으면 손으로 친 값과 구분이 안 된다 */}
+        {pulled && (
+          <p className="mt-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs text-indigo-700">
+            <b>{pulled}</b> 의 차명 · 담당자 · 매입가 · 구전 · 유입경로를 불러왔습니다. 광고가와 코드가만 보고 적으세요.
+          </p>
+        )}
+
         <div className="-mr-2 mt-3 min-h-0 flex-1 overflow-y-auto pr-2">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="담당자" hint="타사면 딜러·상사 이름">
@@ -253,13 +325,46 @@ export default function SaleCardForm({
                 placeholder="윤재영/JSBC"
               />
             </Field>
-            <Field label="차량번호">
-              <input
-                value={card.vehicleNumber}
-                onChange={e => set('vehicleNumber', e.target.value)}
-                className={BOX}
-                placeholder="82무6564"
-              />
+            <Field label="차량번호" hint="치면 차명 · 담당자 · 매입가를 끌어옵니다">
+              <div ref={box} className="relative">
+                <input
+                  value={card.vehicleNumber}
+                  onChange={e => {
+                    set('vehicleNumber', e.target.value);
+                    setPicking(true);
+                    setPulled(null);
+                  }}
+                  onFocus={() => setPicking(true)}
+                  /* 고르기 전에 닫히면 안 된다 — 누르는 동안 흐림이 먼저 온다 */
+                  onBlur={() => setTimeout(() => setPicking(false), 150)}
+                  className={BOX}
+                  placeholder="82무6564"
+                />
+                <Search size={13} className="pointer-events-none absolute right-2.5 top-2.5 text-slate-300" />
+
+                {picking && found.length > 0 && (
+                  <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                    {found.map(f => (
+                      <li key={f.vehicleNumber}>
+                        <button
+                          type="button"
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => pick(f)}
+                          className="block w-full px-3 py-1.5 text-left hover:bg-indigo-50"
+                        >
+                          <span className="text-sm font-bold text-slate-800">{f.vehicleNumber}</span>
+                          <span className="ml-1.5 text-xs text-slate-500">{f.vehicleName || '(차명 없음)'}</span>
+                          <span className="block text-[11px] text-slate-400">
+                            {f.dealer || '담당자 없음'}
+                            {f.purchasePrice > 0 && ` · 매입 ${f.purchasePrice.toLocaleString()}만`}
+                            {f.adPrice > 0 && ` · 광고 ${f.adPrice.toLocaleString()}`}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </Field>
             <Field label="차량명" wide>
               <input
