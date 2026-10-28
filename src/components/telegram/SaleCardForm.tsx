@@ -191,6 +191,13 @@ export default function SaleCardForm({
   */
   const [found, setFound] = useState<Fill[]>([]);
   const [picking, setPicking] = useState(false);
+  /*
+    찾아본 결과 — 못 찾았는지, 못 물어봤는지.
+
+    아무 말도 안 띄워 두었더니 "쳐도 아무것도 안 뜬다"가 됐다. 없는 번호를 친 건지
+    서버가 아직 새 코드가 아닌 건지 화면에서 가릴 길이 없었다.
+  */
+  const [lookup, setLookup] = useState<'idle' | 'busy' | 'none' | 'fail'>('idle');
   /** 끌어온 차 — 어디서 왔는지 한 줄로 적어 준다 */
   const [pulled, setPulled] = useState<string | null>(null);
   const plate = card.vehicleNumber;
@@ -199,13 +206,23 @@ export default function SaleCardForm({
     const key = plate.replace(/\s+/g, '').trim();
     if (!picking || key.length < 2) {
       setFound([]);
+      setLookup('idle');
       return;
     }
     let live = true;
+    setLookup('busy');
     const timer = setTimeout(() => {
       void api<Fill[]>(`/telegram/sale/cards?q=${encodeURIComponent(key)}`)
-        .then(rows => live && setFound(rows))
-        .catch(() => live && setFound([]));
+        .then(rows => {
+          if (!live) return;
+          setFound(rows);
+          setLookup(rows.length > 0 ? 'idle' : 'none');
+        })
+        .catch(() => {
+          if (!live) return;
+          setFound([]);
+          setLookup('fail');
+        });
     }, 250);
     return () => {
       live = false;
@@ -229,6 +246,7 @@ export default function SaleCardForm({
     setPulled(f.vehicleNumber);
     setPicking(false);
     setFound([]);
+    setLookup('idle');
   };
 
   const box = useRef<HTMLDivElement>(null);
@@ -341,6 +359,16 @@ export default function SaleCardForm({
                   placeholder="82무6564"
                 />
                 <Search size={13} className="pointer-events-none absolute right-2.5 top-2.5 text-slate-300" />
+
+                {/* 왜 아무것도 안 뜨는지 적어 준다 — 안 적으면 '안 된다'로만 돌아온다 */}
+                {picking && lookup === 'none' && (
+                  <p className="mt-1 text-[11px] text-slate-400">그 번호로 찾은 차가 없습니다 — 손으로 적으셔도 됩니다.</p>
+                )}
+                {picking && lookup === 'fail' && (
+                  <p className="mt-1 text-[11px] text-amber-600">
+                    불러오지 못했습니다 — 서버가 아직 새 것이 아닐 수 있습니다(배포 뒤에 됩니다). 손으로 적으셔도 됩니다.
+                  </p>
+                )}
 
                 {picking && found.length > 0 && (
                   <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
