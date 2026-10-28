@@ -17,7 +17,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { TelegramRoom } from '@prisma/client';
+import { Prisma, TelegramRoom } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
@@ -62,15 +62,20 @@ export const ROOM_LABEL: Record<TelegramRoom, string> = {
   [TelegramRoom.PURCHASE]: '매입방',
 };
 
-/** 차량번호로 불러온 쪽지 칸 — 금액은 만원이다 */
+/**
+ * 매입 관리에서 불러온 쪽지 칸 — 금액은 만원이다.
+ *
+ * 광고가와 코드가는 없다. 그 둘은 그날 정하는 값이라 끌어오면 안 된다.
+ */
 export interface SaleCardFill {
   vehicleNumber: string;
   vehicleName: string;
   dealer: string;
   purchasePrice: number;
   brokerFee: number;
-  adPrice: number;
   platform: string;
+  /** 매입일 — 같은 차가 여럿일 때 어느 건인지 가리는 값이다 */
+  intakeOn: string;
 }
 
 export interface TelegramLogRow {
@@ -266,99 +271,127 @@ export class TelegramService implements OnModuleInit {
   }
 
   /**
-   * 차량번호로 쪽지 칸을 채워 온다.
+   * 매입 관리에 있는 차를 불러온다.
    *
-   * 여덟 줄 중 여섯 줄은 이미 어딘가에 적혀 있다. 차명은 차량 관리에, 매입가와 구전은
-   * 매입 정산에, 담당자와 유입경로는 상담에 있다 — 그걸 다시 손으로 치게 하면 한 자씩
-   * 틀리고, 틀린 채로 방에 올라가면 그 숫자로 입금이 들어간다.
+   * 여덟 줄 중 여섯 줄은 이미 어딘가에 적혀 있다. 차명·매입가·구전은 매입 관리에,
+   * 담당자와 유입경로는 상담에 있다 — 그걸 다시 손으로 치게 하면 한 자씩 틀리고,
+   * 틀린 채로 방에 올라가면 그 숫자로 입금이 들어간다.
    *
-   * 차량번호 몇 자만 치면 맞는 차를 몇 대 보여 주고, 고르면 칸이 다 찬다. 사람이 보고
-   * 적을 것은 광고가뿐이다.
+   * 광고가와 코드가는 비워서 준다. 그 둘은 그날 정하는 값이라 어디에 적힌 걸 끌어오면
+   * 안 된다 — 지난 값이 그대로 올라가면 틀린 금액으로 입금이 들어간다.
    *
-   * 만원으로 돌려준다 — 방에 뜨는 꼴이 만원이고, 적는 사람이 보는 숫자도 만원이다.
+   * 번호를 안 치면 최근 매입부터 보여 준다. 방금 사온 차를 올리는 일이 제일 잦다.
    */
   async saleCards(q: string): Promise<SaleCardFill[]> {
     const key = normalizePlate(q ?? '').trim();
-    if (key.length < 2) return [];
+    const intakes = await this.intakes(key.length >= 2 ? { vehicleNumber: { contains: key } } : {}, 20);
+    return this.fillCards(intakes.slice(0, 8));
+  }
 
-    const vehicles = await this.prisma.managedVehicle.findMany({
-      where: { vehicleNumber: { contains: key } },
-      orderBy: [{ offerDate: 'desc' }, { createdAt: 'desc' }],
-      take: 8,
-      select: { vehicleNumber: true, vehicleModel: true, salePrice: true },
+  /**
+   * 아직 한 번도 안 올린 차.
+   *
+   * 매입 관리에는 있는데 입금방에 쪽지가 간 적이 없는 차다. 목록에 같이 띄워 두면
+   * 무엇이 남았는지가 보인다 — 지금까지는 올린 것만 쌓여서, 안 올린 차는 매입 관리와
+   * 입금방을 번갈아 보며 사람이 맞춰 봐야 했다.
+   *
+   * 방으로 보내지는 않는다. 사오자마자 보내면 광고가가 정해지기 전이라 틀린 금액이
+   * 올라가고, 오백 대가 한꺼번에 가면 방이 그 줄로 덮인다 — 광고가를 적어 올릴 때 간다.
+   */
+  async salePending(): Promise<SaleCardFill[]> {
+    const logs = await this.prisma.telegramLog.findMany({
+      where: { room: TelegramRoom.SALE },
+      select: { vehicleNumber: true },
     });
+    const sent = new Set(logs.map((r) => normalizePlate(r.vehicleNumber)).filter(Boolean));
+    const rows = (await this.intakes({}, 1200)).filter((r) => !sent.has(normalizePlate(r.vehicleNumber)));
+    return this.fillCards(rows.slice(0, 500));
+  }
 
-    /*
-      차량 관리에 없으면 매입 정산에서 찾는다.
+  /**
+   * 매입 줄 — 최근 것부터, 한 차에 한 줄.
+   *
+   * 같은 차를 두 사람이 각자 적어 둔 줄이 있다. 고르는 자리에 같은 번호가 두 줄 뜨면
+   * 어느 쪽인지 모른다 — 최근 줄 하나만 남긴다.
+   */
+  private async intakes(where: Prisma.PurchaseIntakeWhereInput, take: number) {
+    const rows = await this.prisma.purchaseIntake.findMany({
+      where,
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      take,
+      select: {
+        vehicleNumber: true,
+        vehicleName: true,
+        purchaseAmount: true,
+        brokerFee: true,
+        date: true,
+        employee: { select: { name: true } },
+      },
+    });
+    const first = new Map<string, (typeof rows)[number]>();
+    for (const r of rows) {
+      const key = normalizePlate(r.vehicleNumber);
+      if (!first.has(key)) first.set(key, r);
+    }
+    return [...first.values()];
+  }
 
-      타사·수출 차는 우리 차고에 안 들어와서 차량 관리에 줄이 없는 건이 있다 — 그래도
-      매입 정산에는 적혀 있다. 없다고 돌려보내면 그 차는 손으로 다 쳐야 한다.
-    */
-    const plates =
-      vehicles.length > 0
-        ? vehicles.map((v) => v.vehicleNumber)
-        : (
-            await this.prisma.purchaseSettlement.findMany({
-              where: { vehicleNumber: { contains: key } },
-              orderBy: { date: 'desc' },
-              take: 8,
-              select: { vehicleNumber: true },
-              distinct: ['vehicleNumber'],
-            })
-          ).map((r) => r.vehicleNumber);
-    if (plates.length === 0) return [];
-
-    const [purchases, consultations] = await Promise.all([
-      this.prisma.purchaseSettlement.findMany({
-        where: { vehicleNumber: { in: plates } },
-        orderBy: { date: 'desc' },
-        select: {
-          vehicleNumber: true,
-          vehicleName: true,
-          purchasePrice: true,
-          brokerFee: true,
-          salePrice: true,
-          employee: { select: { name: true } },
-        },
-      }),
-      this.prisma.consultation.findMany({
-        where: { vehicleNumber: { in: plates } },
-        orderBy: [{ date: 'desc' }, { time: 'desc' }],
-        select: {
-          vehicleNumber: true,
-          vehicleName: true,
-          platform: true,
-          status: true,
-          salePrice: true,
-          outsideDealer: true,
-          employee: { select: { name: true } },
-        },
-      }),
-    ]);
+  /** 매입 줄에 담당자와 유입경로를 붙인다 — 그 둘은 상담에 적혀 있다 */
+  private async fillCards(
+    rows: {
+      vehicleNumber: string;
+      vehicleName: string;
+      purchaseAmount: number;
+      brokerFee: number;
+      date: Date;
+      employee: { name: string } | null;
+    }[],
+  ): Promise<SaleCardFill[]> {
+    if (rows.length === 0) return [];
+    const plates = rows.map((r) => r.vehicleNumber);
+    const consultations = await this.prisma.consultation.findMany({
+      where: { vehicleNumber: { in: plates } },
+      orderBy: [{ date: 'desc' }, { time: 'desc' }],
+      select: {
+        vehicleNumber: true,
+        platform: true,
+        status: true,
+        outsideDealer: true,
+        employee: { select: { name: true } },
+      },
+    });
+    const byPlate = new Map<string, (typeof consultations)[number][]>();
+    for (const c of consultations) {
+      const key = normalizePlate(c.vehicleNumber);
+      const list = byPlate.get(key);
+      if (list) list.push(c);
+      else byPlate.set(key, [c]);
+    }
 
     const man = (won: number) => Math.round((won || 0) / 10_000);
-    return plates.map((plate) => {
-      const vehicle = vehicles.find((v) => v.vehicleNumber === plate);
-      const purchase = purchases.find((r) => r.vehicleNumber === plate);
-      const rows = consultations.filter((c) => c.vehicleNumber === plate);
+    return rows.map((r) => {
+      const mine = byPlate.get(normalizePlate(r.vehicleNumber)) ?? [];
       /*
         판 건이 먼저다.
 
         문의만 하고 만 상담의 담당자를 '판 사람'으로 적으면 안 된다 — 그 방은 누가 판
         차인지 보고 입금을 넣는 자리다.
+
+        상담이 아예 없으면 비워 둔다. 매입을 적은 사람을 넣어 봤더니 아직 안 팔린 차에
+        매입팀 이름이 '판 사람'으로 박혔다 — 비어 있는 칸은 적으면 되지만, 틀린 이름은
+        방에 올라간 뒤에야 안다.
       */
-      const lead = rows.find((c) => c.status === 'SOLD' || c.status === 'CONTRACTED') ?? rows[0] ?? null;
+      const lead = mine.find((c) => c.status === 'SOLD' || c.status === 'CONTRACTED') ?? mine[0] ?? null;
       // 타사·기타는 우리 직원이 아니다 — 담당자 자리에 남의 딜러·상사 이름이 적혀 있다
-      const dealer = (lead?.outsideDealer ?? '').trim() || lead?.employee?.name || purchase?.employee?.name || '';
-      const ad = vehicle?.salePrice || purchase?.salePrice || lead?.salePrice || 0;
+      const dealer = (lead?.outsideDealer ?? '').trim() || lead?.employee?.name || '';
       return {
-        vehicleNumber: plate,
-        vehicleName: vehicle?.vehicleModel || purchase?.vehicleName || lead?.vehicleName || '',
+        vehicleNumber: r.vehicleNumber,
+        vehicleName: r.vehicleName,
         dealer,
-        purchasePrice: man(purchase?.purchasePrice ?? 0),
-        brokerFee: man(purchase?.brokerFee ?? 0),
-        adPrice: man(ad),
+        purchasePrice: man(r.purchaseAmount),
+        brokerFee: man(r.brokerFee),
         platform: (lead?.platform ?? '').trim(),
+        intakeOn: r.date.toISOString().slice(0, 10),
       };
     });
   }
@@ -753,13 +786,19 @@ export class TelegramController {
   }
 
   /**
-   * 차량번호로 쪽지 칸을 채워 온다 — 광고가 말고는 다 어딘가에 적혀 있다.
+   * 매입 관리에 있는 차를 불러온다 — 광고가·코드가 말고는 다 어딘가에 적혀 있다.
    *
    * ':id' 보다 먼저 둔다. 뒤에 두면 'cards' 를 쪽지 번호로 읽는다.
    */
   @Get('sale/cards')
   saleCards(@Query('q') q?: string) {
     return this.telegram.saleCards(q ?? '');
+  }
+
+  /** 매입 관리에 있는데 아직 한 번도 안 올린 차 — 목록에 같이 띄운다 */
+  @Get('sale/pending')
+  salePending() {
+    return this.telegram.salePending();
   }
 
   /** 올린 쪽지를 지운다 — 방에서도 지운다 */

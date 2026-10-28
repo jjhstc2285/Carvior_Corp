@@ -57,6 +57,59 @@ interface LogRow {
   /** 손으로 올렸으면 올린 사람 */
   sentBy: string;
   createdAt: string;
+  /*
+    아직 안 올린 차인가.
+
+    매입 관리에 있는데 방에 쪽지가 간 적이 없는 차다. 올린 줄과 같은 표에 섞어 둔다 —
+    따로 두면 무엇이 남았는지 보려고 두 화면을 번갈아 봐야 한다.
+
+    보낸 적이 없으니 보낸 때도, 지울 쪽지도 없다. 매입일을 대신 적는다.
+  */
+  pending?: boolean;
+}
+
+/** 매입 관리에서 불러온 칸 — 금액은 만원이다. 광고가·코드가는 그날 정하는 값이라 안 온다 */
+interface Fill {
+  vehicleNumber: string;
+  vehicleName: string;
+  dealer: string;
+  purchasePrice: number;
+  brokerFee: number;
+  platform: string;
+  intakeOn: string;
+}
+
+/**
+ * 아직 안 올린 차를 쪽지 꼴로 세운다.
+ *
+ * 표는 쪽지 글에서 칸을 집는다(fieldsOf). 그러니 이 줄도 같은 꼴이면 표가 그대로 읽는다 —
+ * 칸마다 따로 길을 내면 양식이 바뀔 때 두 군데를 고쳐야 한다.
+ *
+ * 광고가·코드가는 비워 둔다. 적어 넣을 자리라는 게 표에서 '—'로 보여야 한다.
+ */
+function pendingRow(f: Fill): LogRow {
+  const man = (n: number) => n.toLocaleString();
+  const bought = f.purchasePrice > 0 ? `${man(f.purchasePrice)}만원${f.brokerFee > 0 ? `+${man(f.brokerFee)}만원` : ''}` : '';
+  const text = [
+    `담당자 : ${f.dealer}`,
+    `차량번호 : ${f.vehicleNumber}`,
+    `차량명 : ${f.vehicleName}`,
+    `매입가 : ${bought}`,
+    '광고가 : ',
+    '코드가 : ',
+    '입금 : -90',
+    `유입경로 : ${f.platform}`,
+  ].join('\n');
+  return {
+    id: `pending:${f.vehicleNumber}`,
+    text,
+    ok: true,
+    reason: '',
+    vehicleNumber: f.vehicleNumber,
+    sentBy: '',
+    createdAt: `${f.intakeOn}T00:00:00.000Z`,
+    pending: true,
+  };
 }
 
 /**
@@ -156,11 +209,18 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   const [month, setMonth] = useState(() => dayjs().startOf('month'));
   const [monthPick, setMonthPick] = useState('all');
   const [valuePick, setValuePick] = useState('all');
+  /** 올린 것만·안 올린 것만 — 남은 게 몇 대인지가 제일 잦은 물음이다 */
+  const [sentPick, setSentPick] = useState<'all' | 'sent' | 'pending'>('all');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<LogRow | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  /** 새로 올리는 중 — 고치는 중인 줄은 open 이 들고 있다 */
-  const [adding, setAdding] = useState(false);
+  /*
+    새로 올리는 중.
+
+    null 이면 안 열려 있다. '' 는 빈 칸으로 새로, 글이 들어 있으면 그 값으로 채워서
+    새로 올린다(아직 안 올린 차를 눌렀을 때다) — 고치는 줄은 open 이 들고 있다.
+  */
+  const [adding, setAdding] = useState<string | null>(null);
   /** '바뀐 것'을 펼쳐 둔 줄 — 한 번에 하나만 펼친다 */
   const [detail, setDetail] = useState<string | null>(null);
 
@@ -184,6 +244,9 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   );
   const cols = useColumnOrder(`telegram-room-${room.key}`, COLUMNS);
 
+  /** 아직 안 올린 차 — 올린 줄과 같은 표에 섞는다 */
+  const [pending, setPending] = useState<LogRow[]>([]);
+
   const load = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -195,7 +258,19 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
     } finally {
       setBusy(false);
     }
-  }, [room.key]);
+    /*
+      안 올린 차는 따로 받아 온다.
+
+      못 받아와도 올린 줄은 보여야 한다 — 매입 관리가 비었든 서버가 아직 새 것이
+      아니든, 그것 때문에 화면이 통째로 비면 안 된다.
+    */
+    if (!room.canCompose) return;
+    try {
+      setPending((await api<Fill[]>('/telegram/sale/pending')).map(pendingRow));
+    } catch {
+      setPending([]);
+    }
+  }, [room.key, room.canCompose]);
 
   useEffect(() => {
     void load();
@@ -231,10 +306,21 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
     await load();
   };
 
+  /*
+    올린 줄과 안 올린 차를 한 줄 세운다 — 최근 것이 위다.
+
+    올린 줄은 보낸 때로, 안 올린 차는 매입일로 센다. 둘 다 '그 차 이야기가 생긴 날'이라
+    같은 자로 놓고 봐도 된다.
+  */
+  const all = useMemo(
+    () => [...rows, ...pending].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [rows, pending],
+  );
+
   /* 쪽지마다 값을 한 번만 집어 둔다 — 줄마다 다시 읽으면 삼백 줄 × 열여덟 줄이 된다 */
   const parsed = useMemo(
-    () => rows.map(r => ({ row: r, f: fieldsOf(r.text), day: dayjs(r.createdAt).format('YYYY-MM-DD') })),
-    [rows],
+    () => all.map(r => ({ row: r, f: fieldsOf(r.text), day: dayjs(r.createdAt).format('YYYY-MM-DD') })),
+    [all],
   );
 
   /** 고를 수 있는 값 — 쌓인 것에서 뽑는다. 미리 적어 두면 새 값이 생길 때마다 고쳐야 한다 */
@@ -250,16 +336,18 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
   const filtered = useMemo(() => {
     const q = query.trim();
     return parsed
+      .filter(p => sentPick === 'all' || (sentPick === 'pending' ? !!p.row.pending : !p.row.pending))
       .filter(p => monthPick === 'all' || p.day.startsWith(monthPick))
       .filter(p => valuePick === 'all' || p.f[room.filterField.field] === valuePick)
       // 차량번호가 제일 잦은 검색이라 쪽지 전체에서 찾는다 — 차명·고객이름으로도 걸린다
       .filter(p => !q || p.row.text.includes(q) || p.row.vehicleNumber.includes(q));
-  }, [parsed, monthPick, valuePick, query, room.filterField.field]);
+  }, [parsed, monthPick, valuePick, query, sentPick, room.filterField.field]);
 
   /* 추적은 추리기 전 전체로 센다 — 걸러 놓고 세면 '2번째'가 '1번째'로 보인다 */
-  const trace = useMemo(() => traceOf(parsed), [parsed]);
+  const trace = useMemo(() => traceOf(parsed.filter(p => !p.row.pending)), [parsed]);
 
-  const failed = filtered.filter(p => !p.row.ok).length;
+  const failed = filtered.filter(p => !p.row.ok && !p.row.pending).length;
+  const waiting = filtered.filter(p => p.row.pending).length;
   /** 두 번 넘게 간 차 — 그만큼 값이 흔들렸다는 뜻이다 */
   const repeated = useMemo(
     () => new Set(filtered.filter(p => (trace.get(p.row.id)?.total ?? 1) > 1).map(p => p.row.vehicleNumber)).size,
@@ -275,7 +363,7 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
           {/* 손으로 올리는 자리 — 입금방만이다 */}
           {room.canCompose && (
             <button
-              onClick={() => setAdding(true)}
+              onClick={() => setAdding('')}
               className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-indigo-700"
             >
               <Plus size={14} /> 쪽지 올리기
@@ -303,6 +391,17 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
             </option>
           ))}
         </select>
+        {room.canCompose && (
+          <select
+            value={sentPick}
+            onChange={e => setSentPick(e.target.value as 'all' | 'sent' | 'pending')}
+            className={SELECT}
+          >
+            <option value="all">올린 것 + 안 올린 차</option>
+            <option value="sent">올린 것만</option>
+            <option value="pending">안 올린 차만</option>
+          </select>
+        )}
         <select value={monthPick} onChange={e => setMonthPick(e.target.value)} className={SELECT}>
           <option value="all">달 전체</option>
           {months.map(m => (
@@ -322,6 +421,8 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
           {/* 같은 차에 여러 번 간 게 몇 대인지 — 값이 흔들린 차가 몇 대냐는 말이다 */}
           {repeated > 0 && <span className="ml-1.5 text-slate-400">· 두 번 넘게 간 차 {repeated}대</span>}
           {/* 못 간 게 있으면 먼저 말한다 — 안 간 걸 모르는 게 제일 나쁘다 */}
+          {/* 남은 게 몇 대인지 — 이 화면에서 제일 잦은 물음이다 */}
+          {waiting > 0 && <b className="ml-1.5 font-bold text-amber-600">· 안 올린 차 {waiting}대</b>}
           {failed > 0 && <b className="ml-1.5 font-bold text-red-600">· 못 보냄 {failed}건</b>}
         </span>
       </div>
@@ -381,17 +482,25 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                         key={row.id}
                         onClick={e => {
                           if ((e.target as HTMLElement).closest('button')) return;
-                          setOpen(row);
+                          // 안 올린 차는 고칠 쪽지가 없다 — 그 값으로 새로 올린다
+                          if (row.pending) setAdding(row.text);
+                          else setOpen(row);
                         }}
-                        title={room.canCompose ? '눌러서 고칩니다' : '눌러서 보낸 글을 봅니다'}
+                        title={
+                          row.pending
+                            ? '눌러서 광고가를 적고 올립니다'
+                            : room.canCompose
+                              ? '눌러서 고칩니다'
+                              : '눌러서 보낸 글을 봅니다'
+                        }
                         className={`cursor-pointer border-b border-slate-50 last:border-0 hover:bg-indigo-50/40 ${
-                          row.ok ? '' : 'bg-red-50/40'
+                          row.pending ? 'bg-amber-50/30' : row.ok ? '' : 'bg-red-50/40'
                         }`}
                       >
                         {cols.cells(
                           {
                             // 맨 앞에 지우는 칸 — 잘못 올린 줄을 바로 내린다
-                            drop: (
+                            drop: row.pending ? null : (
                               <button
                                 onClick={() => void drop(row)}
                                 className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"
@@ -401,7 +510,17 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                               </button>
                             ),
 
-                            sentAt: (
+                            sentAt: row.pending ? (
+                              /* 보낸 적이 없다 — 매입일을 대신 적는다 */
+                              <div className="flex items-center gap-1.5">
+                                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                                  안 올림
+                                </span>
+                                <span className="tabular-nums text-slate-400">
+                                  {dayjs(row.createdAt).format('YYYY-MM-DD')} 매입
+                                </span>
+                              </div>
+                            ) : (
                               <>
                                 <div className="flex items-center gap-1.5">
                                   {row.ok ? (
@@ -504,7 +623,15 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
                               </div>
                             ),
 
-                            actions: (
+                            actions: row.pending ? (
+                              <button
+                                onClick={() => setAdding(row.text)}
+                                className="rounded bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100"
+                                title="광고가를 적고 방에 올립니다"
+                              >
+                                올리기
+                              </button>
+                            ) : (
                               <>
                                 {room.canCompose && (
                                   <button
@@ -539,13 +666,14 @@ export default function TelegramRoomModule({ room }: { room: RoomSpec }) {
       )}
 
       {/* 손으로 올리는 방은 줄을 누르면 바로 고친다 — 적는 창에 보낸 글이 그대로 보인다 */}
-      {(adding || (open && room.canCompose)) && (
+      {(adding !== null || (open && room.canCompose)) && (
         <SaleCardForm
-          editing={adding ? null : open}
+          editing={adding !== null ? null : open}
+          draft={adding || undefined}
           // 쓰던 유입경로에서 고르게 — '인스타'와 '인스타그램'으로 갈리지 않는다
           platforms={values}
           onClose={() => {
-            setAdding(false);
+            setAdding(null);
             setOpen(null);
           }}
           onSaved={() => void load()}

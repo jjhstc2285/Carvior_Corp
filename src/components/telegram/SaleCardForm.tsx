@@ -168,18 +168,27 @@ function Field({
 
 export default function SaleCardForm({
   editing,
+  draft,
   platforms,
   onClose,
   onSaved,
 }: {
   /** 고치는 중이면 그 쪽지 — 없으면 새로 올린다 */
   editing: { id: string; text: string; ok: boolean; reason: string; sentBy: string; createdAt: string } | null;
+  /*
+    새로 올리는데 칸은 미리 채워 둔다 — 아직 안 올린 차를 눌렀을 때다.
+
+    고치는 것과 다르다. 지난 쪽지가 없으니 견줄 것도 없고, 바뀐 줄을 굵게 적을 것도 없다.
+  */
+  draft?: string;
   /** 지금까지 쓰인 유입경로 — 고르면 띄어쓰기가 안 엇갈린다 */
   platforms: string[];
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [card, setCard] = useState<SaleCardFields>(() => (editing ? cardOf(editing.text) : EMPTY_CARD));
+  const [card, setCard] = useState<SaleCardFields>(() =>
+    editing ? cardOf(editing.text) : draft ? cardOf(draft) : EMPTY_CARD,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
