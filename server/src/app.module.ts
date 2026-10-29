@@ -31,6 +31,7 @@ import { ApprovalsModule } from './approvals/approvals.module';
 import { AdsModule } from './ads/ads.module';
 import { ParkBoardModule } from './parkboard/parkboard.module';
 import { PayrollModule } from './payroll/payroll.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 import { PrepScheduleModule } from './prep-schedule/prep-schedule.module';
 import { ParkingLayoutModule } from './parking-layout/parking-layout.module';
 import { StockAgeModule } from './stock-age/stock-age.module';
@@ -80,6 +81,7 @@ import { RolesGuard } from './auth/roles.guard';
     AdsModule,
     ParkBoardModule,
     PayrollModule,
+    MonitoringModule,
     ReferralModule,
     PrepScheduleModule,
     ParkingLayoutModule,

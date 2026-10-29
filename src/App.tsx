@@ -48,6 +48,7 @@ import TopBar from './components/TopBar';
 import EmployeeView from './components/EmployeeView';
 import AdminView from './components/AdminView';
 import { TelegramSaleModule } from './components/telegram/rooms';
+import MonitoringModule from './components/monitoring/MonitoringModule';
 import SettlementModule from './components/settlement/SettlementModule';
 import ConsultationHub from './components/consultation/ConsultationHub';
 import ParkingModule from './components/parking/ParkingModule';
@@ -91,6 +92,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   condolence: '경조사비 관리',
   chat: '메시지',
   telegramSale: '입금방',
+  monitoring: '애니원모터스 모니터링',
 };
 
 function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
@@ -131,6 +133,13 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'ad') return <AdModule role={role} />;
   if (module === 'adminSheet') return <AdminSheetModule />;
   if (module === 'telegramSale') return <TelegramSaleModule />;
+  /*
+    모니터링은 화면 안에서 번호를 받는다.
+
+    상사 전체 수지가 한 줄로 보이는 자리라, 로그인만으로는 안 연다. 번호는 인건비와
+    같은 값이고 통행증도 같이 쓴다 — 여기 나가는 돈의 절반이 인건비다.
+  */
+  if (module === 'monitoring') return <MonitoringModule />;
   return <ParkingModule isAdmin={role === 'ADMIN'} />;
 }
 
@@ -162,6 +171,13 @@ function AuthedApp({ role }: { role: Role }) {
   const seeLedger = canSeeLedger(user) && !asEmployee;
   const isCeo = usePropertyAccess() && !asEmployee;
   const canSeePayroll = usePayrollAccess() && !asEmployee;
+  /*
+    대표 한 분만.
+
+    isCeo 는 부동산을 볼 수 있는 사람이라 사무장도 든다. 모니터링은 상사 전체 수지가
+    한 줄로 보이는 자리라 거기까지 열면 안 된다 — 서버도 같은 자로 다시 본다.
+  */
+  const isOwner = `${user?.name ?? ''} ${user?.position ?? ''}`.includes('대표') && !asEmployee;
   const [module, setModule] = useState<ModuleKey>('home');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const chatUnread = useChatUnread();
@@ -218,7 +234,9 @@ function AuthedApp({ role }: { role: Role }) {
     (module === 'payroll' && !canSeePayroll) ||
     (module === 'adminSheet' && !canSeeSheet) ||
     // 경조사비는 관리자만 — 메뉴만 감추면 주소로 들어온다
-    (module === 'condolence' && (role !== 'ADMIN' || asEmployee));
+    (module === 'condolence' && (role !== 'ADMIN' || asEmployee)) ||
+    // 모니터링은 대표만 — 메뉴만 감추면 주소로 들어온다(서버도 다시 본다)
+    (module === 'monitoring' && !isOwner);
   const shownModule: ModuleKey = blocked ? 'home' : module;
 
   return (
@@ -244,6 +262,7 @@ function AuthedApp({ role }: { role: Role }) {
         canSeeLedger={seeLedger}
         isCeo={isCeo}
         canSeePayroll={canSeePayroll}
+        isOwner={isOwner}
         canSeeSheet={canSeeSheet}
         isAdmin={role === 'ADMIN' && !asEmployee}
       />

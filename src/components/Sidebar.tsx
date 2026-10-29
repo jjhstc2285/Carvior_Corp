@@ -20,6 +20,7 @@ import {
   ParkingSquare,
   ReceiptText,
   Search,
+  Activity,
   ShoppingCart,
   Send,
   Sparkles,
@@ -40,8 +41,10 @@ interface Props {
   chatUnread?: number;
   /** 이 사람이 볼 수 없는 메뉴는 아예 안 그린다 */
   canSeeLedger: boolean;
-  /** 대표인가 — 부동산 메뉴를 가린다 */
+  /** 대표인가 — 부동산 메뉴를 가린다. 사무장 한 분도 여기 든다 */
   isCeo?: boolean;
+  /** 대표 한 분만 — 모니터링은 상사 전체 수지가 한 줄로 보인다 */
+  isOwner?: boolean;
   /** 인건비를 볼 수 있는 계정인가 — 서버가 정해 준 값 */
   canSeePayroll?: boolean;
   /** 관리 시트를 볼 수 있는가 — 대표와 관리팀 */
@@ -123,6 +126,8 @@ const NAV_GROUPS: {
       { key: 'chat', label: '메시지', icon: MessageSquare },
       // 입금방에 무엇이 올라갔나 — 전 직원이 본다
       { key: 'telegramSale', label: '입금방', icon: Send },
+      // 상사에 달마다 얼마가 들어오고 나가는가 — 대표만 본다
+      { key: 'monitoring', label: '애니원모터스 모니터링', icon: Activity },
     ],
   },
 ];
@@ -138,6 +143,7 @@ export default function Sidebar({
   canSeePayroll = false,
   canSeeSheet = false,
   isAdmin = false,
+  isOwner = false,
 }: Props) {
   const [query, setQuery] = useState('');
 
@@ -168,7 +174,9 @@ export default function Sidebar({
       열어 두면 "저 집엔 얼마 냈더라"가 사내에서 오간다. 번호까지 걸어 두지만,
       메뉴에서부터 안 보이는 쪽이 먼저다.
     */
-    (key !== 'condolence' || isAdmin);
+    (key !== 'condolence' || isAdmin) &&
+    // 상사 전체 수지가 한 줄로 보인다 — 대표만
+    (key !== 'monitoring' || isOwner);
 
   /*
     이름으로 찾는다.

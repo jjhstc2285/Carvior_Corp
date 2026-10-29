@@ -228,7 +228,8 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     const pass = getDealerFeePass();
     if (pass) headers['X-Property-Pass'] = pass;
   }
-  if (path.startsWith('/payroll')) {
+  // 모니터링도 인건비와 같은 번호로 잠근다 — 거기 나가는 돈의 절반이 인건비다
+  if (path.startsWith('/payroll') || path.startsWith('/monitoring')) {
     const pass = getPayrollPass();
     if (pass) headers['X-Payroll-Pass'] = pass;
   }

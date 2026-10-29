@@ -80,6 +80,11 @@ function makePass(user: AuthUser): string {
   return `${exp}.${sign}`;
 }
 
+/** 모니터링도 같은 번호로 잠근다 — 거기도 인건비가 한 줄로 들어간다 */
+export function verifyPayrollPass(user: AuthUser, pass?: string): boolean {
+  return verifyPass(user, pass);
+}
+
 function verifyPass(user: AuthUser, pass?: string): boolean {
   const [expText, sign] = (pass ?? '').split('.');
   const exp = Number(expText);
@@ -298,5 +303,7 @@ export class PayrollController {
 @Module({
   controllers: [PayrollController],
   providers: [PayrollService],
+  // 모니터링이 그 달 식대를 같은 자로 센다 — 두 군데서 따로 세면 숫자가 갈린다
+  exports: [PayrollService],
 })
 export class PayrollModule {}
