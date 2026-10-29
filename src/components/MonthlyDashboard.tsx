@@ -171,8 +171,9 @@ export default function MonthlyDashboard() {
             <span className="text-xs font-bold text-amber-800">{dayjs(month).format('M월')} 출퇴근</span>
             <span className="text-[11px] text-amber-700/80">
               평일만 보고 20일로 환산합니다 · 9:30 보다 일찍 온 만큼 쌓고 18시 전에 간 만큼
-              깎습니다(18시 넘겨 퇴근하면 0점) · 안 찍은 날은 하루치, 한쪽만 찍었거나
-              정정한 날은 30분 · 연차·반차·외근과 휴일·주말은 세지 않습니다
+              깎습니다 · 18:30 을 넘겨 퇴근하면 넘긴 만큼 쌓습니다(하루 2시간까지, 18:00~18:30 은 0점)
+              · 안 찍은 날은 하루치, 한쪽만 찍었거나 정정한 날은 30분 · 연차·반차·외근과
+              휴일·주말은 세지 않습니다
             </span>
           </div>
           <ul className="flex flex-wrap gap-1.5 p-2.5">
