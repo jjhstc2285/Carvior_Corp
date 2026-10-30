@@ -116,7 +116,7 @@ export class MonitoringController {
           settlementAmount: true,
         },
       }),
-      this.prisma.payrollEntry.findMany({ where: { active: true }, select: { monthlyPay: true } }),
+      this.prisma.payrollEntry.findMany({ where: { active: true }, select: { monthlyPay: true, incentive: true } }),
       this.prisma.property.findMany({ where: { active: true }, select: { side: true, monthlyRent: true } }),
       this.prisma.propertyCost.findMany({
         where: { active: true },
@@ -154,7 +154,8 @@ export class MonitoringController {
       인건비·월세·부대비용은 '지금 적혀 있는 값'이라 달 칸이 없다. 달마다 따로 셈할
       수가 없어서 같은 값을 모든 달에 놓는다 — 화면에 그렇게 적어 둔다.
     */
-    const payrollTotal = payroll.reduce((sum, r) => sum + r.monthlyPay, 0);
+    // 인센티브도 나가는 돈이다 — 급여와 따로 적지만 통장에서는 같이 빠진다
+    const payrollTotal = payroll.reduce((sum, r) => sum + r.monthlyPay + r.incentive, 0);
     const rentOut = properties.filter((p) => p.side !== '임대').reduce((sum, p) => sum + p.monthlyRent, 0);
     const rentIn = properties.filter((p) => p.side === '임대').reduce((sum, p) => sum + p.monthlyRent, 0);
     // 대당 단가와 대수를 적어 둔 줄은 곱해서 쓴다 — 주차 임대료처럼 대수가 오르내린다

@@ -24,11 +24,23 @@ import type { PayrollEntry } from '../../types';
 const INPUT =
   'rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-400 disabled:opacity-50';
 
+/** 돈 칸에 쓰는 너비 — 천만 단위까지 쉼표를 넣어도 안 잘린다 */
+const MONEY_W = 'w-28';
+
+/*
+  숫자 칸의 오른끝을 맞춘다.
+
+  제목과 셈한 값은 칸 끝에 붙는데 적는 칸은 테두리와 안쪽 여백만큼 안으로 들어와 있다 —
+  그래서 급여·공제는 한 줄로 안 서고 식대·실 이체만 바깥으로 튀어나와 보였다.
+  적는 칸 안쪽 여백(px-2 8px)에 테두리 1px 을 더한 만큼 제목과 셈한 값을 안으로 민다.
+*/
+const NUM_PAD = 'pr-[9px]';
+
 /** 공제를 누가 지는가 — 종이에 적혀 있던 말 그대로 */
 const BURDENS = ['본인all', '세금 all 회사부담', '공제없음'];
 
 /**
- * 실 이체 = 급여 − 회사공제 − 본인공제 ± 식대
+ * 실 이체 = 급여 + 인센티브 − 회사공제 − 본인공제 ± 식대
  *
  * 식대는 따로 챙겨 주는 돈이다 — 급여에 더한다.
  *
@@ -40,7 +52,8 @@ const BURDENS = ['본인all', '세금 all 회사부담', '공제없음'];
  * 방식으로 바뀔 수 있다 — 화면 위에서 고르고, 고른 것은 그 브라우저에 남는다.
  */
 function netOf(r: PayrollEntry, meal: number, offset: boolean): number {
-  return r.monthlyPay - r.companyDeduction - r.selfDeduction + (offset ? -meal : meal);
+  // 인센티브는 급여와 따로 적지만 통장에서는 같이 나간다
+  return r.monthlyPay + r.incentive - r.companyDeduction - r.selfDeduction + (offset ? -meal : meal);
 }
 
 /** 식대를 상계(차감)할지 — 켜 두면 급여에서 뺀다. 기본은 더하기다 */
@@ -200,6 +213,7 @@ export default function PayrollModule() {
     return {
       count: live.length,
       pay: live.reduce((s, r) => s + r.monthlyPay, 0),
+      incentive: live.reduce((s, r) => s + r.incentive, 0),
       company: live.reduce((s, r) => s + r.companyDeduction, 0),
       self: live.reduce((s, r) => s + r.selfDeduction, 0),
       meal: live.reduce((s, r) => s + mealOf(r.name).amount, 0),
@@ -317,6 +331,10 @@ export default function PayrollModule() {
         <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
           <p className="text-xs font-medium text-slate-400">급여 합계</p>
           <p className="mt-1 text-2xl font-bold text-slate-800">{totals.pay.toLocaleString()}</p>
+          {/* 인센티브는 달마다 바뀌는 값이라 급여와 갈라 적는다 */}
+          <p className="text-[11px] text-slate-400">
+            {totals.incentive > 0 ? `인센티브 ${totals.incentive.toLocaleString()} 따로` : '인센티브 없음'}
+          </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
           <p className="text-xs font-medium text-slate-400">공제 합계</p>
@@ -354,18 +372,20 @@ export default function PayrollModule() {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-sm">
+          <table className="w-full min-w-[1260px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-500">
                 <th className="px-2.5 py-2.5" />
                 <th className="px-2.5 py-2.5 font-medium">이름</th>
                 <th className="px-2.5 py-2.5 font-medium">직책</th>
-                <th className="px-2.5 py-2.5 text-right font-medium">급여</th>
-                <th className="px-2.5 py-2.5 text-right font-medium">회사공제</th>
-                <th className="px-2.5 py-2.5 text-right font-medium">본인공제</th>
+                <th className={`px-2.5 py-2.5 text-right font-medium ${NUM_PAD}`}>급여</th>
+                {/* 급여 옆에 둔다 — 둘을 더한 값이 그 달에 나가는 돈이다 */}
+                <th className={`px-2.5 py-2.5 text-right font-medium ${NUM_PAD}`}>인센티브</th>
+                <th className={`px-2.5 py-2.5 text-right font-medium ${NUM_PAD}`}>회사공제</th>
+                <th className={`px-2.5 py-2.5 text-right font-medium ${NUM_PAD}`}>본인공제</th>
                 <th className="px-2.5 py-2.5 font-medium">부담</th>
-                <th className="px-2.5 py-2.5 text-right font-medium">식대{mealOffset && <span className="ml-0.5 text-red-500">(−)</span>}</th>
-                <th className="px-2.5 py-2.5 text-right font-medium">실 이체</th>
+                <th className={`px-2.5 py-2.5 text-right font-medium ${NUM_PAD}`}>식대{mealOffset && <span className="ml-0.5 text-red-500">(−)</span>}</th>
+                <th className={`px-2.5 py-2.5 text-right font-medium ${NUM_PAD}`}>실 이체</th>
                 <th className="px-2.5 py-2.5 font-medium">메모</th>
                 <th className="px-2.5 py-2.5 text-center font-medium">지급중</th>
               </tr>
@@ -373,7 +393,7 @@ export default function PayrollModule() {
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-5 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={12} className="px-5 py-8 text-center text-sm text-slate-400">
                     {loading ? '불러오는 중…' : '적어둔 인건비가 없습니다. [직원 추가]로 시작하세요.'}
                   </td>
                 </tr>
@@ -411,8 +431,8 @@ export default function PayrollModule() {
                     />
                   </td>
 
-                  {(['monthlyPay', 'companyDeduction', 'selfDeduction'] as const).map(field => (
-                    <td key={field} className="px-2.5 py-1.5">
+                  {(['monthlyPay', 'incentive', 'companyDeduction', 'selfDeduction'] as const).map(field => (
+                    <td key={field} className="px-2.5 py-1.5 text-right">
                       <input
                         defaultValue={withCommas(String(r[field] || ''))}
                         onBlur={e => {
@@ -422,7 +442,7 @@ export default function PayrollModule() {
                         disabled={busyId === r.id}
                         inputMode="numeric"
                         placeholder="0"
-                        className={`${INPUT} w-28 text-right`}
+                        className={`${INPUT} ${MONEY_W} text-right`}
                       />
                     </td>
                   ))}
@@ -445,7 +465,7 @@ export default function PayrollModule() {
                     9시 30분까지 찍고 6시를 넘겨 찍은 날만 하루 9,000원이다. 며칠치인지
                     같이 띄운다: 금액만 보면 왜 저 값인지 물어볼 데가 없다.
                   */}
-                  <td className="whitespace-nowrap px-2.5 py-1.5 text-right">
+                  <td className={`whitespace-nowrap px-2.5 py-1.5 text-right ${NUM_PAD}`}>
                     <span className={`text-sm font-semibold ${mealOf(r.name).amount ? 'text-slate-800' : 'text-slate-300'}`}>
                       {mealOf(r.name).amount.toLocaleString()}
                     </span>
@@ -459,7 +479,7 @@ export default function PayrollModule() {
                   </td>
 
                   {/* 실 이체는 적는 칸이 아니다 — 위 숫자를 고치면 따라온다 */}
-                  <td className="whitespace-nowrap px-2.5 py-1.5 text-right font-bold text-indigo-700">
+                  <td className={`whitespace-nowrap px-2.5 py-1.5 text-right font-bold text-indigo-700 ${NUM_PAD}`}>
                     {netOf(r, mealOf(r.name).amount, mealOffset).toLocaleString()}
                   </td>
 
@@ -496,8 +516,9 @@ export default function PayrollModule() {
       </datalist>
 
       <p className="mt-2 text-[11px] text-slate-400">
-        칸을 고치고 <b>칸 밖을 누르면 바로 저장</b>됩니다. <b>실 이체 = 급여 − 회사공제 − 본인공제 + 식대</b> 로
-        자동 계산되니 그 칸은 적지 않습니다.
+        칸을 고치고 <b>칸 밖을 누르면 바로 저장</b>됩니다. <b>실 이체 = 급여 + 인센티브 − 회사공제 − 본인공제 +
+        식대</b> 로 자동 계산되니 그 칸은 적지 않습니다. 인센티브는 급여와 갈라 적습니다 — 섞어 두면 다음 달에
+        어디까지가 기본급이었는지 되짚을 수가 없습니다.
         <br />
         <b>식대</b>도 적는 칸이 아닙니다 — 근태에서 냅니다. {meal?.inBy ?? '09:30'}까지 찍고 {meal?.outFrom ?? '18:00'}을
         넘겨 찍은 날만 하루 {(meal?.perDay ?? 9000).toLocaleString()}원으로 세고, 한쪽만 찍힌 날은 세지 않습니다.

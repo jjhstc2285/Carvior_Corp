@@ -1164,6 +1164,8 @@ export interface PayrollEntry {
   name: string;
   position: string;
   monthlyPay: number; // 급여(원)
+  /** 인센티브(원) — 급여와 따로 둔다. 섞어 적으면 기본급이 얼마였는지 못 되짚는다 */
+  incentive: number;
   companyDeduction: number; // 회사공제(원)
   selfDeduction: number; // 본인공제(원)
   mealAllowance: number; // 식대(원)

@@ -111,6 +111,8 @@ export class UpsertPayrollDto {
   @IsString() @IsNotEmpty({ message: '이름을 입력해 주세요.' }) @MaxLength(30) name!: string;
   @IsOptional() @IsString() @MaxLength(20) position?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) monthlyPay?: number;
+  /** 인센티브 — 급여와 따로 둔다. 섞어 적으면 기본급이 얼마였는지 못 되짚는다 */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) incentive?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) companyDeduction?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) selfDeduction?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) mealAllowance?: number;
@@ -195,6 +197,7 @@ export class PayrollService {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
       ...(dto.position !== undefined ? { position: dto.position.trim() } : {}),
       ...(dto.monthlyPay !== undefined ? { monthlyPay: dto.monthlyPay } : {}),
+      ...(dto.incentive !== undefined ? { incentive: dto.incentive } : {}),
       ...(dto.companyDeduction !== undefined ? { companyDeduction: dto.companyDeduction } : {}),
       ...(dto.selfDeduction !== undefined ? { selfDeduction: dto.selfDeduction } : {}),
       ...(dto.mealAllowance !== undefined ? { mealAllowance: dto.mealAllowance } : {}),

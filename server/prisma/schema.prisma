@@ -1154,6 +1154,15 @@ model PayrollEntry {
   position String @default("") @db.VarChar(20)
 
   monthlyPay       Int @default(0) // 급여(원)
+
+  /**
+   * 인센티브(원) — 달마다 얹히는 돈.
+   *
+   * 급여에 섞어 적으면 그 사람 기본급이 얼마인지 알 수 없게 된다. 급여는 정해진 값이고
+   * 인센티브는 달마다 바뀌는 값이라, 섞어 두면 다음 달에 어디까지가 기본급이었는지
+   * 되짚을 수가 없다.
+   */
+  incentive        Int @default(0)
   companyDeduction Int @default(0) // 회사공제(원)
   selfDeduction    Int @default(0) // 본인공제(원)
   mealAllowance    Int @default(0) // 식대(원)
