@@ -401,15 +401,24 @@ export class AttendanceService {
       });
 
       if (approve) {
+        /*
+          적어 보낸 칸만 고친다.
+
+          전에는 둘을 통째로 덮었다. 그런데 신청 창이 두 칸을 09:30 · 18:00 으로 미리
+          채워 두어서, 퇴근만 빠진 날을 고치려 한 사람도 출근 시각이 09:30 으로 덮였고
+          — 아예 안 찍은 퇴근이 18:00 으로 생겼다. "안 찍고 퇴근했는데 찍혀 있다"가
+          여기서 나왔다.
+
+          비워 보낸 칸은 건드리지 않는다. 고치라고 한 적 없는 값을 고치면 안 된다.
+        */
+        const patch = {
+          ...(req.requestedClockIn ? { clockIn: req.requestedClockIn } : {}),
+          ...(req.requestedClockOut ? { clockOut: req.requestedClockOut } : {}),
+        };
         await tx.attendanceRecord.upsert({
           where: { employeeId_date: { employeeId: req.employeeId, date: req.date } },
-          create: {
-            employeeId: req.employeeId,
-            date: req.date,
-            clockIn: req.requestedClockIn,
-            clockOut: req.requestedClockOut,
-          },
-          update: { clockIn: req.requestedClockIn, clockOut: req.requestedClockOut },
+          create: { employeeId: req.employeeId, date: req.date, ...patch },
+          update: patch,
         });
       }
 

@@ -10,6 +10,21 @@ import { DEFAULT_RULES, computeIncentive, type IncentiveRules } from './incentiv
 import { formatDateOnly, toDateOnly } from '../common/date.util';
 
 const MONTH = /^\d{4}-\d{2}$/;
+
+/*
+  인센티브 표를 보는 사람.
+
+  자리로는 대표·사무장·본부장이고, 거기에 이름으로 몇을 더 연다 — 알선 실적을 같이
+  챙기는 자리인데 직급이 그 셋에 안 드는 사람이 있다.
+
+  회사 순수익은 여기 들지 않는다. 그건 관리자(ADMIN)에게만 간다.
+*/
+const INCENTIVE_VIEWERS = ['김진후'];
+
+function assertIncentiveViewer(user: AuthUser): void {
+  if (INCENTIVE_VIEWERS.includes(user.name.trim())) return;
+  assertOfficeManager(user);
+}
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** 관리자가 창에서 보내 오는 규칙 한 벌 */
@@ -320,11 +335,11 @@ export class ReferralController {
    * 그 달 인센티브 정산.
    *
    * 남의 실수령액이 다 보이는 자리라 돈 장부와 같은 자리까지만 연다 —
-   * 대표·사무장·본부장, 그리고 테스트 계정.
+   * 대표·사무장·본부장, 테스트 계정, 그리고 이름으로 따로 연 사람(INCENTIVE_VIEWERS).
    */
   @Get('incentive')
   month(@CurrentUser() user: AuthUser, @Query('month') month = '') {
-    assertOfficeManager(user);
+    assertIncentiveViewer(user);
     if (!MONTH.test(month.trim())) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
     return this.referral.month(month.trim(), user.role === Role.ADMIN);
   }
@@ -343,7 +358,7 @@ export class ReferralController {
       memo?: string;
     },
   ) {
-    assertOfficeManager(user);
+    assertIncentiveViewer(user);
     const month = (dto.month ?? '').trim();
     if (!MONTH.test(month)) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
     if (!dto.employeeId) throw new BadRequestException('누구 줄인지 없습니다.');
@@ -358,7 +373,7 @@ export class ReferralController {
    */
   @Get('incentive-rules')
   rules(@CurrentUser() user: AuthUser) {
-    assertOfficeManager(user);
+    assertIncentiveViewer(user);
     return this.referral.rules();
   }
 

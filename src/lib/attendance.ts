@@ -22,6 +22,15 @@ export const WORK_START = '09:30';
 */
 export const WORK_END = '18:00';
 
+/*
+  구내식당 체크가 처음에 켜져 있는 기준.
+
+  서버가 식대를 셀 때 쓰는 것과 같은 시각이다. 출퇴근 화면과 홈이 따로 들고 있으면
+  한쪽만 고치는 날이 오고, 같은 날이 화면마다 다르게 보인다.
+*/
+export const MEAL_IN_BY = '09:30';
+export const MEAL_OUT_FROM = '18:00';
+
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;

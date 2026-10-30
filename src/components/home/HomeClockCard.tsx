@@ -5,6 +5,9 @@ import { useStore } from '../../store';
 import { useCurrentIp } from '../../lib/useCurrentIp';
 import { ipAllowed } from '../../lib/ipMatch';
 import { punch } from '../../lib/punch';
+import { ApiError } from '../../lib/api';
+import { alertError } from '../../lib/alert';
+import { MEAL_IN_BY, MEAL_OUT_FROM } from '../../lib/attendance';
 
 /**
  * 홈의 출퇴근 — 누르는 일만 남긴다.
@@ -14,13 +17,17 @@ import { punch } from '../../lib/punch';
  *
  * 그래서 여기서는 지금 상태와 단추 두 개만 둔다. 자세한 건 출퇴근 화면이 보여 준다.
  *
+ * 구내식당 체크만 같이 둔다. 그건 그날 안에 눌러야 하는 값인데, 출퇴근 화면까지 들어가야
+ * 보이니 아무도 안 눌렀다 — 밖에서 먹은 날이 그대로 식대에 올라갔다.
+ *
  * 막히는 규칙(등록 안 된 PC·사무실 밖 네트워크)은 lib/punch 에 모아 두고 양쪽이 같이
  * 쓴다 — 각자 들고 있으면 한쪽만 고치는 날이 오고, 같은 상황에서 다른 말이 뜬다.
  */
 export default function HomeClockCard() {
-  const { state, clockIn, clockOut } = useStore();
+  const { state, clockIn, clockOut, setMeal } = useStore();
   const { ip, loading: ipLoading } = useCurrentIp();
   const [busy, setBusy] = useState(false);
+  const [mealBusy, setMealBusy] = useState(false);
 
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
   if (!me) return null;
@@ -44,6 +51,30 @@ export default function HomeClockCard() {
       await punch(action);
     } finally {
       setBusy(false);
+    }
+  };
+
+  /*
+    구내식당을 먹은 날인가.
+
+    손으로 켜거나 끈 날은 그 값이고, 안 건드린 날은 출퇴근 시각으로 본다 — 출퇴근
+    화면과 같은 자를 쓴다. 평소에는 아무도 안 눌러도 맞게 켜져 있고, 밖에서 먹은
+    날만 끄면 된다.
+  */
+  const mealAuto =
+    !!record?.clockIn && !!record.clockOut && record.clockIn <= MEAL_IN_BY && record.clockOut >= MEAL_OUT_FROM;
+  const mealOn = record?.mealUsed ?? mealAuto;
+  const mealSet = record?.mealUsed !== null && record?.mealUsed !== undefined;
+
+  /* 누르면 바로 적는다. 기다렸다 받아야 한다 — 안 기다리면 실패해도 체크된 채로 남는다 */
+  const toggleMeal = async (next: boolean) => {
+    setMealBusy(true);
+    try {
+      await setMeal(next);
+    } catch (e) {
+      await alertError('구내식당 체크를 바꾸지 못했습니다', e instanceof ApiError ? e.message : '잠시 후 다시 눌러 주세요.');
+    } finally {
+      setMealBusy(false);
     }
   };
 
@@ -89,6 +120,35 @@ export default function HomeClockCard() {
           <LogOut size={17} /> 퇴근하기
         </button>
       </div>
+
+      {/* 그날 안에 눌러야 하는 값이라 홈에 둔다 — 출퇴근 화면까지 들어가면 아무도 안 누른다 */}
+      <label
+        className={`mt-2.5 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${
+          clockedIn ? 'cursor-pointer border-slate-200 bg-slate-50' : 'border-slate-100 bg-slate-50/60'
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={mealOn}
+          disabled={!clockedIn || mealBusy}
+          onChange={e => void toggleMeal(e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-indigo-600 disabled:cursor-not-allowed"
+        />
+        <span className="leading-snug">
+          <span className="font-semibold text-slate-700">구내식당</span>
+          <span className="ml-1 text-slate-400">
+            {!clockedIn
+              ? '출근을 찍은 뒤 체크할 수 있습니다.'
+              : mealBusy
+                ? '적는 중…'
+                : mealSet
+                  ? mealOn
+                    ? '먹은 날로 적혀 있습니다.'
+                    : '안 먹은 날로 적혀 있습니다.'
+                  : '출퇴근 시각으로 자동 판정 중입니다. 밖에서 먹은 날은 체크를 끄세요.'}
+          </span>
+        </span>
+      </label>
 
       {/* 왜 못 누르는지 — 안 적으면 "버튼이 안 눌린다"로 돌아온다 */}
       {!clockedIn && !canIn && !ipLoading && (

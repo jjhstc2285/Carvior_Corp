@@ -7,6 +7,7 @@ import { ApiError } from '../lib/api';
 import { alertError } from '../lib/alert';
 // 막히는 규칙은 홈의 출퇴근과 같이 쓴다 — 각자 들고 있으면 한쪽만 고치는 날이 온다
 import { punch } from '../lib/punch';
+import { MEAL_IN_BY, MEAL_OUT_FROM } from '../lib/attendance';
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 const FULL_WORK_MINUTES = 8 * 60;
@@ -19,8 +20,7 @@ const FULL_WORK_MINUTES = 8 * 60;
 
   평소에는 아무도 안 눌러도 맞게 켜져 있고, 밖에서 먹은 날만 끄면 된다.
 */
-const MEAL_IN_BY = '09:30';
-const MEAL_OUT_FROM = '18:00';
+
 
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);

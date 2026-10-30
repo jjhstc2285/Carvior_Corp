@@ -3,7 +3,6 @@ import dayjs from 'dayjs';
 import { X } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../lib/api';
-import { WORK_START, WORK_END } from '../lib/attendance';
 import { useEscClose } from '../lib/useEscClose';
 
 interface Props {
@@ -15,15 +14,26 @@ interface Props {
 export default function CorrectionRequestModal({ date, onClose }: Props) {
   /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
   useEscClose(onClose);
-  const { submitCorrectionRequest } = useStore();
+  const { state, submitCorrectionRequest } = useStore();
+  /*
+    미리 채우지 않는다.
+
+    두 칸을 09:30 · 18:00 으로 깔아 두었더니, 퇴근만 빠진 날을 고치려 한 사람도 출근이
+    09:30 으로 같이 넘어갔다 — 9시 12분에 온 사람이 9시 30분으로 바뀌었다. 반대로
+    아예 안 찍은 퇴근이 18:00 으로 생기기도 했다.
+
+    이미 찍힌 값이 있으면 그걸 보여 주고, 없으면 비워 둔다. 비운 칸은 안 고친다.
+  */
+  const mine = state.records.find(r => r.employeeId === state.currentEmployeeId && r.date === date);
   const [reason, setReason] = useState('');
-  const [clockIn, setClockIn] = useState(WORK_START);
-  const [clockOut, setClockOut] = useState(WORK_END);
+  const [clockIn, setClockIn] = useState(mine?.clockIn ?? '');
+  const [clockOut, setClockOut] = useState(mine?.clockOut ?? '');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = reason.trim().length >= 5 && !saving;
+  /* 한 칸도 안 적었으면 고칠 게 없다 — 사유만 보내 봐야 받는 사람이 할 일이 없다 */
+  const canSubmit = reason.trim().length >= 5 && (!!clockIn || !!clockOut) && !saving;
 
   /*
     보내고 결과를 기다린다.
@@ -39,8 +49,9 @@ export default function CorrectionRequestModal({ date, onClose }: Props) {
       await submitCorrectionRequest({
         date,
         reason: reason.trim(),
-        requestedClockIn: clockIn,
-        requestedClockOut: clockOut,
+        // 비운 칸은 안 보낸다 — 고치라고 한 적 없는 값을 고치면 안 된다
+        requestedClockIn: clockIn || null,
+        requestedClockOut: clockOut || null,
       });
       onClose();
     } catch (e) {
@@ -60,6 +71,10 @@ export default function CorrectionRequestModal({ date, onClose }: Props) {
           </button>
         </div>
         <p className="mt-1 text-sm text-slate-500">{dayjs(date).format('YYYY년 M월 D일 (ddd)')} 기록을 정정 요청합니다.</p>
+        {/* 비운 칸은 안 건드린다는 걸 적어 둔다 — 안 적으면 둘 다 채워 보내게 된다 */}
+        <p className="mt-0.5 text-xs text-slate-400">
+          고칠 칸만 적으세요. <b>비워 둔 칸은 그대로</b> 둡니다 — 퇴근만 빠졌으면 퇴근시각만 적으면 됩니다.
+        </p>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div>
