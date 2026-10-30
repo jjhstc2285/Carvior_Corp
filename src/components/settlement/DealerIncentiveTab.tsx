@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
@@ -25,6 +25,8 @@ interface Row {
   sales: number;
   /** 알선 정산에서 더한 값 — 손으로 고쳤을 때 원래 값이 무엇이었는지 */
   autoSales: number;
+  /** 그 달 판매대수 — 알선 정산에 올라온 차 수(같은 차는 한 번만) */
+  cars: number;
   edited: boolean;
   years: number;
   baseSalaryOverride: number;
@@ -49,7 +51,7 @@ interface Sheet {
   /** 회사에 남는 돈을 받아 왔는가 — 관리자가 아니면 false 이고 값도 안 온다 */
   withProfit: boolean;
   rows: Row[];
-  totals: { sales: number; payout: number; companyProfit?: number };
+  totals: { sales: number; cars: number; payout: number; companyProfit?: number };
   rules: {
     effectiveFrom: string;
     baseSalaryDefault: number;
@@ -102,16 +104,30 @@ export default function DealerIncentiveTab() {
     void load();
   }, [load]);
 
-  /** 한 칸 고치면 서버가 그 달 전체를 다시 내준다 — 팀장 수당이 팀원 매출을 따라 움직인다 */
+  /*
+    한 칸 고치면 서버가 그 달 전체를 다시 내준다 — 팀장 수당이 팀원 매출을 따라 움직인다.
+
+    그동안 칸을 잠가 두었더니 줄을 훑으며 고칠 때마다 한 번씩 멈췄다. 저장은 뒤에서
+    돌리고 손은 계속 쓰게 둔다 — 틀리면 그때 빨갛게 뜬다.
+
+    늦게 온 답이 먼저 온 답을 덮지 않게 차례를 센다. 여러 줄을 빠르게 고치면 답이
+    뒤섞여 오고, 그러면 방금 고친 줄이 옛 값으로 되돌아간 것처럼 보인다.
+  */
+  const turn = useRef(0);
   const save = async (employeeId: string, patch: Record<string, unknown>) => {
+    const mine = ++turn.current;
     setBusy(true);
     setError(null);
     try {
-      setSheet(await api<Sheet>('/referral/incentive', { method: 'POST', body: { month: ym, employeeId, ...patch } }));
+      const next = await api<Sheet>('/referral/incentive', {
+        method: 'POST',
+        body: { month: ym, employeeId, ...patch },
+      });
+      if (mine === turn.current) setSheet(next);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '저장하지 못했습니다.');
     } finally {
-      setBusy(false);
+      if (mine === turn.current) setBusy(false);
     }
   };
 
@@ -135,9 +151,11 @@ export default function DealerIncentiveTab() {
         >
           요율표 {showRules ? '접기' : '보기'}
         </button>
+        {/* 저장은 뒤에서 돈다 — 칸을 잠그는 대신 여기 한 줄로 알린다 */}
+        {busy && <span className="text-xs font-semibold text-indigo-500">저장 중…</span>}
         {sheet && (
           <span className="ml-auto text-xs text-slate-400">
-            {sheet.rules.effectiveFrom}부터 적용 · 알선팀 {rows.length}명
+            {sheet.rules.effectiveFrom}부터 적용 · 알선팀 {rows.length}명 · 판매 {sheet.totals.cars}대
           </span>
         )}
       </div>
@@ -221,6 +239,10 @@ export default function DealerIncentiveTab() {
             <tr>
               <th className="px-3 py-2.5 font-medium">딜러</th>
               <th className="px-3 py-2.5 text-right font-medium">월 알선 총액</th>
+              {/* 같은 금액이어도 한 대로 번 달과 열 대로 번 달은 다르다 */}
+              <th className="px-3 py-2.5 text-right font-medium" title="알선 정산에 올라온 차 수 — 같은 차는 한 번만 셉니다">
+                판매대수
+              </th>
               <th className="px-3 py-2.5 text-center font-medium">근속</th>
               <th className="px-3 py-2.5 text-right font-medium">기본급</th>
               <th className="px-3 py-2.5 text-center font-medium">구간</th>
@@ -233,7 +255,7 @@ export default function DealerIncentiveTab() {
           <tbody className="divide-y divide-slate-50">
             {rows.length === 0 && (
               <tr>
-                <td colSpan={sheet?.withProfit ? 9 : 8} className="px-3 py-12 text-center text-sm text-slate-400">
+                <td colSpan={sheet?.withProfit ? 10 : 9} className="px-3 py-12 text-center text-sm text-slate-400">
                   알선팀이 없습니다. 직원 설정에서 <b>알선 타이틀</b>을 달아 주세요.
                 </td>
               </tr>
@@ -251,7 +273,7 @@ export default function DealerIncentiveTab() {
                 {/* 알선 정산에서 더해 채우고, 안 올라온 건이 있어 손으로 고친다 */}
                 <td className="px-3 py-2 text-right">
                   <input
-                    key={`sales-${ym}-${r.employeeId}-${r.sales}`}
+                    key={`sales-${ym}-${r.employeeId}`}
                     type="number"
                     min={0}
                     defaultValue={r.sales || ''}
@@ -259,7 +281,6 @@ export default function DealerIncentiveTab() {
                       const next = Number(e.target.value) || 0;
                       if (next !== r.sales) void save(r.employeeId, { sales: next });
                     }}
-                    disabled={busy}
                     placeholder={String(r.autoSales)}
                     className="w-32 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-indigo-400 disabled:opacity-50"
                   />
@@ -270,9 +291,25 @@ export default function DealerIncentiveTab() {
                   )}
                 </td>
 
+                {/* 판매대수 — 적는 칸이 아니다. 알선 정산에 올라온 차를 센다 */}
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {r.cars > 0 ? (
+                    <>
+                      <span className="font-semibold text-slate-700">{r.cars}</span>
+                      <span className="ml-0.5 text-[11px] text-slate-400">대</span>
+                      {/* 대당 얼마였나 — 구간이 같은 두 사람을 견주는 자리다 */}
+                      <p className="text-[10px] text-slate-400">
+                        대당 {MAN(Math.round(r.sales / r.cars))}
+                      </p>
+                    </>
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
+                </td>
+
                 <td className="px-3 py-2 text-center">
                   <input
-                    key={`years-${ym}-${r.employeeId}-${r.years}`}
+                    key={`years-${ym}-${r.employeeId}`}
                     type="number"
                     min={0}
                     max={50}
@@ -281,7 +318,6 @@ export default function DealerIncentiveTab() {
                       const next = Number(e.target.value) || 0;
                       if (next !== r.years) void save(r.employeeId, { years: next });
                     }}
-                    disabled={busy}
                     className="w-14 rounded-lg border border-slate-200 px-1.5 py-1 text-center text-sm outline-none focus:border-indigo-400 disabled:opacity-50"
                   />
                   <span className="ml-0.5 text-[11px] text-slate-400">년</span>
@@ -290,7 +326,7 @@ export default function DealerIncentiveTab() {
                 {/* 따로 정한 기본급이 있으면 그 값. 비우면 근속표대로 */}
                 <td className="px-3 py-2 text-right">
                   <input
-                    key={`base-${ym}-${r.employeeId}-${r.baseSalaryOverride}`}
+                    key={`base-${ym}-${r.employeeId}`}
                     type="number"
                     min={0}
                     defaultValue={r.baseSalaryOverride || ''}
@@ -298,7 +334,6 @@ export default function DealerIncentiveTab() {
                       const next = Number(e.target.value) || 0;
                       if (next !== r.baseSalaryOverride) void save(r.employeeId, { baseSalary: next });
                     }}
-                    disabled={busy}
                     placeholder={String(r.baseSalary)}
                     className="w-28 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-indigo-400 disabled:opacity-50"
                   />
@@ -345,8 +380,7 @@ export default function DealerIncentiveTab() {
                           type="checkbox"
                           checked={r.targetAchieved}
                           onChange={e => void save(r.employeeId, { targetAchieved: e.target.checked })}
-                          disabled={busy}
-                        />
+                              />
                         목표 달성
                       </label>
                     </>

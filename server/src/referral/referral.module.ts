@@ -164,6 +164,7 @@ export class ReferralService {
         where: { kind: ConsultationKind.BROKERAGE, date: range },
         select: {
           employeeId: true,
+          vehicleNumber: true,
           cashCommission: true,
           installmentFee: true,
           insuranceFee: true,
@@ -182,8 +183,22 @@ export class ReferralService {
       수익금 = 현금 수수료 + 할부 피 + 보험 피 + 차대금업(알선 정산과 같은 식이다).
     */
     const autoSales = new Map<string, number>();
+    /*
+      몇 대를 팔았나 — 금액 옆에 같이 둔다.
+
+      같은 금액이어도 한 대로 번 것과 열 대로 번 것은 다른 달이다. 금액만 보면 그게
+      안 보여서, 구간이 같은 두 사람을 견줄 수가 없었다.
+
+      차량번호로 센다 — 한 차에 정산이 두 줄 올라간 건이 있어서 줄로 세면 부풀어 보인다.
+    */
+    const cars = new Map<string, Set<string>>();
     for (const s of settlements) {
       autoSales.set(s.employeeId, (autoSales.get(s.employeeId) ?? 0) + brokerageProfit(s));
+      const plate = (s.vehicleNumber ?? '').replace(/\s+/g, '').trim();
+      if (!plate) continue;
+      const seen = cars.get(s.employeeId);
+      if (seen) seen.add(plate);
+      else cars.set(s.employeeId, new Set([plate]));
     }
 
     const extraIds = [...autoSales.keys()].filter((id) => !titled.some((t) => t.id === id));
@@ -234,6 +249,8 @@ export class ReferralService {
         sales,
         /** 정산에서 더한 값 — 손으로 고쳤을 때 원래 값이 무엇이었는지 보여준다 */
         autoSales: autoSales.get(p.id) ?? 0,
+        /** 그 달 판매대수 — 알선 정산에 올라온 차 수(같은 차는 한 번만) */
+        cars: cars.get(p.id)?.size ?? 0,
         edited: !!row && row.sales > 0,
         years: row?.years ?? 0,
         baseSalaryOverride: row?.baseSalary ?? 0,
@@ -255,6 +272,7 @@ export class ReferralService {
       rows,
       totals: {
         sales: rows.reduce((s, r) => s + r.sales, 0),
+        cars: rows.reduce((s, r) => s + r.cars, 0),
         payout: rows.reduce((s, r) => s + r.payout, 0),
         ...(withProfit
           ? { companyProfit: rows.reduce((s, r) => s + (r.companyProfit ?? 0), 0) }
