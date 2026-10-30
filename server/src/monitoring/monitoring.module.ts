@@ -2,6 +2,9 @@ import { Controller, ForbiddenException, Get, Headers, Module, Query } from '@ne
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { PayrollModule, PayrollService, verifyPayrollPass } from '../payroll/payroll.module';
+import { SettlementsModule } from '../settlements/settlements.module';
+import { SettlementsService } from '../settlements/settlements.service';
+import { brokerageProfit } from '../settlements/settlement.calc';
 import { normalizePlate } from '../vehicles/vehicle.rules';
 
 /**
@@ -37,8 +40,28 @@ export interface MonitoringMonth {
   month: string;
   /** 그 달 매도 대수 — 우리 차 출고 + 알선 + 수출, 같은 차는 한 번만 */
   cars: { own: number; brokerage: number; export: number; total: number };
-  income: { saleFee: number; rent: number; total: number };
-  outgo: { payroll: number; meal: number; rent: number; etc: number; total: number };
+  income: {
+    saleFee: number;
+    /** 차 팔아서 남은 돈 — 매입 정산의 판매수익. 그 차가 나간 달로 센다 */
+    margin: number;
+    /** 알선·수출 수익금 — 현금 수수료 + 할부 피 + 보험 피 + 차대금업 */
+    brokerage: number;
+    rent: number;
+    total: number;
+  };
+  outgo: {
+    payroll: number;
+    meal: number;
+    rent: number;
+    etc: number;
+    /** 광고비 — 엔카 약정(대당 × 그 달 올린 대수) + 달마다 적는 채널 */
+    ad: number;
+    /** 헤이딜러·경매장·카비어처럼 차를 사 오는 데 든 플랫폼 수수료 */
+    platform: number;
+    /** 알선 수익금 중 담당자에게 돌아가는 몫 */
+    share: number;
+    total: number;
+  };
   net: number;
 }
 
@@ -47,6 +70,7 @@ export class MonitoringController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly payroll: PayrollService,
+    private readonly settlements: SettlementsService,
   ) {}
 
   @Get()
@@ -73,14 +97,24 @@ export class MonitoringController {
     }
     const from = new Date(`${keys[keys.length - 1]}-01T00:00:00.000Z`);
 
-    const [sold, brokerage, payroll, properties, costs] = await Promise.all([
+    const [sold, brokerage, payroll, properties, costs, adSpend, adPostings, platformFees, purchases] =
+      await Promise.all([
       this.prisma.managedVehicle.findMany({
         where: { soldDate: { gte: from } },
         select: { vehicleNumber: true, soldDate: true },
       }),
       this.prisma.brokerageSettlement.findMany({
         where: { date: { gte: from } },
-        select: { vehicleNumber: true, date: true, kind: true },
+        select: {
+          vehicleNumber: true,
+          date: true,
+          kind: true,
+          cashCommission: true,
+          installmentFee: true,
+          insuranceFee: true,
+          etcCost: true,
+          settlementAmount: true,
+        },
       }),
       this.prisma.payrollEntry.findMany({ where: { active: true }, select: { monthlyPay: true } }),
       this.prisma.property.findMany({ where: { active: true }, select: { side: true, monthlyRent: true } }),
@@ -88,6 +122,30 @@ export class MonitoringController {
         where: { active: true },
         select: { amount: true, unitPrice: true, units: true },
       }),
+      // 달마다 적어 두는 광고 — 구글 애즈 · 114 · 알바천국처럼 대수와 상관없는 것들
+      this.prisma.adSpend.findMany({ select: { month: true, amount: true } }),
+      /*
+        엔카·차차차 약정은 '대당 얼마'다.
+
+        달마다 정액으로 나가는 게 아니라 그 달에 올린 대수만큼 나간다 — 22만원 상품에
+        서른 대를 올렸으면 660만원이다.
+      */
+      this.prisma.adPosting.findMany({
+        where: { postedOn: { gte: from } },
+        select: { postedOn: true, contract: { select: { unitFee: true } } },
+      }),
+      // 헤이딜러·경매장·카비어 — 차를 사 오는 데 든 돈이라 매입 정산에 붙어 있다
+      this.prisma.purchaseSettlement.findMany({
+        where: { platformFee: { gt: 0 }, date: { gte: from } },
+        select: { date: true, platformFee: true },
+      }),
+      /*
+        차 한 대에서 남은 돈.
+
+        판매수익은 매입가·이전비·구전·상품화·차량비용을 다 뺀 값이라 여기서 다시 세지
+        않고 매입 정산이 내주는 값을 쓴다 — 두 군데서 따로 세면 화면마다 숫자가 갈린다.
+      */
+      this.settlements.findPurchase({}),
     ]);
 
     /*
@@ -103,6 +161,22 @@ export class MonitoringController {
     const etc = costs.reduce((sum, c) => sum + (c.unitPrice > 0 && c.units > 0 ? c.unitPrice * c.units : c.amount), 0);
 
     /* 식대는 그 달 근태를 세어 나온다 — 인건비 화면과 같은 자를 쓴다 */
+    /*
+      판매수익은 그 차가 나간 달로 센다.
+
+      정산에 적힌 날은 사온 날이다 — 8월에 사서 10월에 판 차를 8월에 얹으면 '그 달에
+      들어온 돈'이 아니게 된다. 차량 관리의 출고일로 옮기고, 그게 없으면 정산 날로 둔다.
+    */
+    const soldMonth = new Map(
+      sold.filter((v) => v.soldDate).map((v) => [normalizePlate(v.vehicleNumber), v.soldDate!.toISOString().slice(0, 7)]),
+    );
+    const marginByMonth = new Map<string, number>();
+    for (const r of purchases as { vehicleNumber: string; date: string; salePrice: number; saleProfit: number }[]) {
+      if (!r.salePrice || r.salePrice <= 0) continue;
+      const key = soldMonth.get(normalizePlate(r.vehicleNumber)) ?? r.date.slice(0, 7);
+      marginByMonth.set(key, (marginByMonth.get(key) ?? 0) + (r.saleProfit ?? 0));
+    }
+
     const meals = await Promise.all(
       keys.map((m) =>
         this.payroll
@@ -129,14 +203,38 @@ export class MonitoringController {
 
       const mealTotal = meals[i];
       const saleFee = all.size * SALE_FEE_PER_CAR;
-      const income = saleFee + rentIn;
-      const outgo = payrollTotal + mealTotal + rentOut + etc;
+      const margin = marginByMonth.get(month) ?? 0;
+
+      /* 알선 수익금과 담당자 몫 — 번 돈이 들어오고 그중 일부가 나간다 */
+      const broProfit = mine.reduce((sum, b) => sum + brokerageProfit(b), 0);
+      const broShare = mine.reduce((sum, b) => sum + b.settlementAmount, 0);
+
+      const ad =
+        adSpend.filter((a) => a.month === month).reduce((sum, a) => sum + a.amount, 0) +
+        adPostings
+          .filter((a) => a.postedOn.toISOString().slice(0, 7) === month)
+          .reduce((sum, a) => sum + (a.contract?.unitFee ?? 0), 0);
+      const platform = platformFees
+        .filter((r) => r.date.toISOString().slice(0, 7) === month)
+        .reduce((sum, r) => sum + r.platformFee, 0);
+
+      const income = saleFee + margin + broProfit + rentIn;
+      const outgo = payrollTotal + mealTotal + rentOut + etc + ad + platform + broShare;
 
       return {
         month,
         cars: { own: own.size, brokerage: bro.size, export: exp.size, total: all.size },
-        income: { saleFee, rent: rentIn, total: income },
-        outgo: { payroll: payrollTotal, meal: mealTotal, rent: rentOut, etc, total: outgo },
+        income: { saleFee, margin, brokerage: broProfit, rent: rentIn, total: income },
+        outgo: {
+          payroll: payrollTotal,
+          meal: mealTotal,
+          rent: rentOut,
+          etc,
+          ad,
+          platform,
+          share: broShare,
+          total: outgo,
+        },
         net: income - outgo,
       };
     });
@@ -145,5 +243,5 @@ export class MonitoringController {
   }
 }
 
-@Module({ imports: [PayrollModule], controllers: [MonitoringController] })
+@Module({ imports: [PayrollModule, SettlementsModule], controllers: [MonitoringController] })
 export class MonitoringModule {}

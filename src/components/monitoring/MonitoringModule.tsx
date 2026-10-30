@@ -22,8 +22,17 @@ import { api, ApiError, getPayrollPass, setPayrollPass } from '../../lib/api';
 interface Month {
   month: string;
   cars: { own: number; brokerage: number; export: number; total: number };
-  income: { saleFee: number; rent: number; total: number };
-  outgo: { payroll: number; meal: number; rent: number; etc: number; total: number };
+  income: { saleFee: number; margin: number; brokerage: number; rent: number; total: number };
+  outgo: {
+    payroll: number;
+    meal: number;
+    rent: number;
+    etc: number;
+    ad: number;
+    platform: number;
+    share: number;
+    total: number;
+  };
   net: number;
 }
 
@@ -176,7 +185,8 @@ export default function MonitoringModule() {
             </p>
             <p className="mt-1 text-2xl font-bold text-emerald-700">{NUM(now.income.total)}</p>
             <p className="mt-0.5 text-[11px] text-emerald-700/70">
-              매도비 {MAN(now.income.saleFee)} ({now.cars.total}대) · 임대 {MAN(now.income.rent)}
+              매도비 {MAN(now.income.saleFee)} ({now.cars.total}대) · 판매마진 {MAN(now.income.margin)} · 알선수익금{' '}
+              {MAN(now.income.brokerage)} · 임대 {MAN(now.income.rent)}
             </p>
           </div>
           <div className="rounded-2xl border border-rose-200 bg-rose-50/50 px-4 py-3.5">
@@ -185,7 +195,9 @@ export default function MonitoringModule() {
             </p>
             <p className="mt-1 text-2xl font-bold text-rose-700">{NUM(now.outgo.total)}</p>
             <p className="mt-0.5 text-[11px] text-rose-700/70">
-              인건비 {MAN(now.outgo.payroll + now.outgo.meal)} · 월세 {MAN(now.outgo.rent)} · 부대 {MAN(now.outgo.etc)}
+              인건비 {MAN(now.outgo.payroll + now.outgo.meal)} · 월세 {MAN(now.outgo.rent)} · 광고비{' '}
+              {MAN(now.outgo.ad)} · 부대 {MAN(now.outgo.etc)} · 매입플랫폼 {MAN(now.outgo.platform)} · 알선정산{' '}
+              {MAN(now.outgo.share)}
             </p>
           </div>
           <div
@@ -215,12 +227,27 @@ export default function MonitoringModule() {
                 <th className="px-3 py-3 font-medium">달</th>
                 <th className="px-3 py-3 text-right font-medium">매도 대수</th>
                 <th className="px-3 py-3 text-right font-medium">매도비</th>
+                <th className="px-3 py-3 text-right font-medium" title="매입 정산의 판매수익 — 그 차가 나간 달로 셉니다">
+                  판매마진
+                </th>
+                <th className="px-3 py-3 text-right font-medium" title="현금 수수료 + 할부 피 + 보험 피 + 차대금업">
+                  알선수익금
+                </th>
                 <th className="px-3 py-3 text-right font-medium">임대 수입</th>
                 <th className="px-3 py-3 text-right font-semibold text-emerald-700">들어온 돈</th>
                 <th className="px-3 py-3 text-right font-medium">인건비</th>
                 <th className="px-3 py-3 text-right font-medium">식대</th>
                 <th className="px-3 py-3 text-right font-medium">월세</th>
                 <th className="px-3 py-3 text-right font-medium">부대비용</th>
+                <th className="px-3 py-3 text-right font-medium" title="엔카 약정(대당 × 그 달 올린 대수) + 달마다 적는 채널">
+                  광고비
+                </th>
+                <th className="px-3 py-3 text-right font-medium" title="헤이딜러 · 경매장 · 카비어처럼 차를 사 오는 데 든 수수료">
+                  매입플랫폼
+                </th>
+                <th className="px-3 py-3 text-right font-medium" title="알선 수익금 중 담당자에게 돌아가는 몫">
+                  알선정산
+                </th>
                 <th className="px-3 py-3 text-right font-semibold text-rose-700">나간 돈</th>
                 <th className="px-3 py-3 text-right font-bold text-slate-700">남은 돈</th>
               </tr>
@@ -228,7 +255,7 @@ export default function MonitoringModule() {
             <tbody>
               {rows.length === 0 && !busy && (
                 <tr>
-                  <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={16} className="px-5 py-10 text-center text-sm text-slate-400">
                     볼 달이 없습니다.
                   </td>
                 </tr>
@@ -244,12 +271,17 @@ export default function MonitoringModule() {
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.income.saleFee)}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.income.margin)}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.income.brokerage)}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.income.rent)}</td>
                   <td className="px-3 py-2.5 text-right font-bold text-emerald-700">{NUM(m.income.total)}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.payroll)}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.meal)}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.rent)}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.etc)}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.ad)}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.platform)}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.share)}</td>
                   <td className="px-3 py-2.5 text-right font-bold text-rose-700">{NUM(m.outgo.total)}</td>
                   <td
                     className={`px-3 py-2.5 text-right font-bold ${m.net >= 0 ? 'text-indigo-700' : 'text-red-600'}`}
@@ -280,8 +312,20 @@ export default function MonitoringModule() {
           움직입니다. 인건비 화면과 부동산 화면에서 고치면 여기도 바뀝니다.
         </p>
         <p className="mt-0.5">
-          <b className="text-slate-700">식대</b>만 달마다 다릅니다 — 그 달 근태를 세어 냅니다(인건비 화면과 같은 자).
-          공제는 급여 안에서 떼는 돈이라 따로 더하지 않습니다.
+          <b className="text-slate-700">식대 · 광고비 · 매입플랫폼 · 판매마진 · 알선수익금</b>은 달마다 다릅니다.
+          식대는 그 달 근태를 세어 내고(인건비 화면과 같은 자), 광고비는 엔카 약정(대당 × 그 달 올린 대수)에 달마다
+          적는 채널(구글 애즈 · 114 · 알바천국 …)을 더합니다. 매입플랫폼은 헤이딜러 · 경매장 · 카비어처럼 차를 사 오는
+          데 든 수수료입니다.
+        </p>
+        <p className="mt-0.5">
+          <b className="text-slate-700">판매마진</b>은 매입 정산의 판매수익입니다 — 매입가 · 이전비 · 구전 · 상품화 ·
+          차량비용을 다 뺀 값이라 여기서 다시 세지 않습니다. <b className="text-slate-700">그 차가 나간 달</b>로
+          셉니다(정산에 적힌 날은 사온 날이라 8월에 사서 10월에 판 차가 8월에 얹히면 안 됩니다).
+        </p>
+        <p className="mt-0.5">
+          <b className="text-slate-700">알선수익금</b>은 현금 수수료 + 할부 피 + 보험 피 + 차대금업이고, 그중 담당자
+          몫(정산받을금액)은 나간 돈의 <b className="text-slate-700">알선정산</b>에 들어갑니다 — 번 돈이 들어오고
+          그중 일부가 나갑니다.
         </p>
       </div>
     </div>
