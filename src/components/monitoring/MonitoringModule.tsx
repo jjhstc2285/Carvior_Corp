@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { Lock, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react';
 import { api, ApiError, getPayrollPass, setPayrollPass } from '../../lib/api';
+import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
 
 /**
  * 애니원모터스 모니터링 — 상사에 달마다 얼마가 들어오고 얼마가 나가는가.
@@ -41,6 +42,34 @@ const NUM = (n: number) => n.toLocaleString();
 /** 원 → 만원. 억대 숫자는 원으로 늘어놓으면 자릿수를 세게 된다 */
 const MAN = (n: number) => `${Math.round(n / 10_000).toLocaleString()}만`;
 
+/*
+  칸 하나하나를 다 세운다.
+
+  카드에 '들어온 돈 1억 8천'만 띄우면 그게 어디서 나온 돈인지 알 수가 없다. 더해지는
+  것들을 칸으로 벌려 두면 달끼리 견줘 보면서 '9월에 광고비가 왜 세 배였나'가 바로 보인다.
+
+  차례는 끌어서 바꾼다. 보는 사람마다 먼저 보고 싶은 칸이 다르다 — 광고비부터 보는 날도
+  있고 마진부터 보는 날도 있다.
+*/
+const COLUMNS: Column[] = [
+  { key: 'month', label: '달' },
+  { key: 'cars', label: '매도 대수', align: 'text-right', title: '그 달 출고한 우리 차 + 알선 + 수출. 같은 차는 한 번만' },
+  { key: 'saleFee', label: '매도비', align: 'text-right', title: '매도 대수 × 대당 매도비' },
+  { key: 'margin', label: '판매마진', align: 'text-right', title: '매입 정산의 판매수익 — 그 차가 나간 달로 셉니다' },
+  { key: 'broIn', label: '알선수익금', align: 'text-right', title: '현금 수수료 + 할부 피 + 보험 피 + 차대금업' },
+  { key: 'rentIn', label: '임대 수입', align: 'text-right', title: '우리가 빌려준 자리에서 들어오는 월세' },
+  { key: 'income', label: '들어온 돈', align: 'text-right', headClass: 'text-emerald-700' },
+  { key: 'payroll', label: '인건비', align: 'text-right', title: '지금 적혀 있는 급여 합계' },
+  { key: 'meal', label: '식대', align: 'text-right', title: '그 달 근태를 세어 냅니다' },
+  { key: 'rentOut', label: '월세', align: 'text-right', title: '우리가 빌려 쓰는 자리의 월세 합계' },
+  { key: 'etc', label: '부대비용', align: 'text-right', title: '인터넷·정수기·주차 임대료처럼 자리에 매이지 않는 돈' },
+  { key: 'ad', label: '광고비', align: 'text-right', title: '엔카 약정(대당 × 그 달 올린 대수) + 달마다 적는 채널' },
+  { key: 'platform', label: '매입플랫폼', align: 'text-right', title: '헤이딜러 · 경매장 · 카비어처럼 차를 사 오는 데 든 수수료' },
+  { key: 'share', label: '알선정산', align: 'text-right', title: '알선 수익금 중 담당자에게 돌아가는 몫' },
+  { key: 'outgo', label: '나간 돈', align: 'text-right', headClass: 'text-rose-700' },
+  { key: 'net', label: '남은 돈', align: 'text-right', headClass: 'text-slate-700' },
+];
+
 export default function MonitoringModule() {
   const [locked, setLocked] = useState(!getPayrollPass());
   const [denied, setDenied] = useState(false);
@@ -53,6 +82,7 @@ export default function MonitoringModule() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [span, setSpan] = useState(6);
+  const cols = useColumnOrder('monitoring-months', COLUMNS);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -164,6 +194,7 @@ export default function MonitoringModule() {
               </button>
             ))}
           </div>
+          <ColumnResetButton onReset={cols.reset} />
           <button
             onClick={() => void load()}
             disabled={busy}
@@ -223,71 +254,48 @@ export default function MonitoringModule() {
         <div className="overflow-auto">
           <table className="w-full whitespace-nowrap text-sm">
             <thead className="bg-slate-50 text-left text-xs text-slate-500 shadow-[0_1px_0_0_#e2e8f0]">
-              <tr>
-                <th className="px-3 py-3 font-medium">달</th>
-                <th className="px-3 py-3 text-right font-medium">매도 대수</th>
-                <th className="px-3 py-3 text-right font-medium">매도비</th>
-                <th className="px-3 py-3 text-right font-medium" title="매입 정산의 판매수익 — 그 차가 나간 달로 셉니다">
-                  판매마진
-                </th>
-                <th className="px-3 py-3 text-right font-medium" title="현금 수수료 + 할부 피 + 보험 피 + 차대금업">
-                  알선수익금
-                </th>
-                <th className="px-3 py-3 text-right font-medium">임대 수입</th>
-                <th className="px-3 py-3 text-right font-semibold text-emerald-700">들어온 돈</th>
-                <th className="px-3 py-3 text-right font-medium">인건비</th>
-                <th className="px-3 py-3 text-right font-medium">식대</th>
-                <th className="px-3 py-3 text-right font-medium">월세</th>
-                <th className="px-3 py-3 text-right font-medium">부대비용</th>
-                <th className="px-3 py-3 text-right font-medium" title="엔카 약정(대당 × 그 달 올린 대수) + 달마다 적는 채널">
-                  광고비
-                </th>
-                <th className="px-3 py-3 text-right font-medium" title="헤이딜러 · 경매장 · 카비어처럼 차를 사 오는 데 든 수수료">
-                  매입플랫폼
-                </th>
-                <th className="px-3 py-3 text-right font-medium" title="알선 수익금 중 담당자에게 돌아가는 몫">
-                  알선정산
-                </th>
-                <th className="px-3 py-3 text-right font-semibold text-rose-700">나간 돈</th>
-                <th className="px-3 py-3 text-right font-bold text-slate-700">남은 돈</th>
-              </tr>
+              <tr>{cols.headers()}</tr>
             </thead>
             <tbody>
               {rows.length === 0 && !busy && (
                 <tr>
-                  <td colSpan={16} className="px-5 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={cols.count} className="px-5 py-10 text-center text-sm text-slate-400">
                     볼 달이 없습니다.
                   </td>
                 </tr>
               )}
               {rows.map(m => (
                 <tr key={m.month} className="border-b border-slate-50 tabular-nums last:border-0 hover:bg-slate-50/60">
-                  <td className="px-3 py-2.5 font-bold text-slate-800">{dayjs(m.month).format('YYYY년 M월')}</td>
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="font-semibold text-slate-700">{m.cars.total}</span>
-                    {/* 어디서 나온 대수인지 — 출고·알선·수출을 한 줄로 */}
-                    <span className="ml-1 text-[11px] text-slate-400">
-                      출고 {m.cars.own} · 알선 {m.cars.brokerage} · 수출 {m.cars.export}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.income.saleFee)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.income.margin)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.income.brokerage)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.income.rent)}</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-emerald-700">{NUM(m.income.total)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.payroll)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.meal)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.rent)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.etc)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.ad)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.platform)}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{NUM(m.outgo.share)}</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-rose-700">{NUM(m.outgo.total)}</td>
-                  <td
-                    className={`px-3 py-2.5 text-right font-bold ${m.net >= 0 ? 'text-indigo-700' : 'text-red-600'}`}
-                  >
-                    {NUM(m.net)}
-                  </td>
+                  {cols.cells({
+                    month: <span className="font-bold text-slate-800">{dayjs(m.month).format('YYYY년 M월')}</span>,
+                    cars: (
+                      <>
+                        <span className="font-semibold text-slate-700">{m.cars.total}</span>
+                        {/* 어디서 나온 대수인지 — 출고·알선·수출을 한 줄로 */}
+                        <span className="ml-1 text-[11px] text-slate-400">
+                          출고 {m.cars.own} · 알선 {m.cars.brokerage} · 수출 {m.cars.export}
+                        </span>
+                      </>
+                    ),
+                    saleFee: <span className="text-slate-600">{NUM(m.income.saleFee)}</span>,
+                    margin: <span className="text-slate-600">{NUM(m.income.margin)}</span>,
+                    broIn: <span className="text-slate-600">{NUM(m.income.brokerage)}</span>,
+                    rentIn: <span className="text-slate-600">{NUM(m.income.rent)}</span>,
+                    income: <span className="font-bold text-emerald-700">{NUM(m.income.total)}</span>,
+                    payroll: <span className="text-slate-600">{NUM(m.outgo.payroll)}</span>,
+                    meal: <span className="text-slate-600">{NUM(m.outgo.meal)}</span>,
+                    rentOut: <span className="text-slate-600">{NUM(m.outgo.rent)}</span>,
+                    etc: <span className="text-slate-600">{NUM(m.outgo.etc)}</span>,
+                    ad: <span className="text-slate-600">{NUM(m.outgo.ad)}</span>,
+                    platform: <span className="text-slate-600">{NUM(m.outgo.platform)}</span>,
+                    share: <span className="text-slate-600">{NUM(m.outgo.share)}</span>,
+                    outgo: <span className="font-bold text-rose-700">{NUM(m.outgo.total)}</span>,
+                    net: (
+                      <span className={`font-bold ${m.net >= 0 ? 'text-indigo-700' : 'text-red-600'}`}>
+                        {NUM(m.net)}
+                      </span>
+                    ),
+                  })}
                 </tr>
               ))}
             </tbody>
