@@ -9,7 +9,23 @@
  *
  * 셈을 여기 한 곳에만 둔다. 화면에서도 같은 식을 쓰면 요율표를 고쳤을 때 둘이 어긋나고,
  * 어긋난 쪽이 급여라 사람이 먼저 알게 된다.
+ *
+ * 표 자체는 관리자가 고친다(IncentiveRule). 아래 값들은 아직 아무것도 안 적어 뒀을 때
+ * 쓰는 처음 값이다 — 장사 사정으로 요율이 바뀔 때마다 배포를 하게 두지 않는다.
  */
+
+/** 한 시점에 살아 있는 규칙 한 벌 */
+export interface IncentiveRules {
+  /** 아무것도 안 정했을 때의 기본급(원) */
+  baseSalaryDefault: number;
+  /** 이 아래는 인센티브가 없다(원) */
+  floor: number;
+  /** 달성 구간 — 어느 차례로 들어와도 큰 쪽부터 보고 고른다 */
+  tiers: { tier: string; from: number; rate: number }[];
+  /** 근속 연차별 기본급(원) — 0년부터. 마지막 값에서 멈춘다 */
+  tenure: number[];
+  leader: { baseSalary: number; defaultRate: number; targetRate: number; minPersonalSales: number };
+}
 
 /** 정한 날 — 표가 바뀌면 이 값도 같이 바꾼다 */
 export const INCENTIVE_EFFECTIVE_FROM = '2026-10-01';
@@ -73,18 +89,34 @@ export const TEAM_LEADER = {
 export const REFERRAL_TITLES = ['LEADER', 'PRO', 'JUNIOR'] as const;
 export type ReferralTitle = (typeof REFERRAL_TITLES)[number];
 
-export function tierOf(sales: number): { tier: string; rate: number } {
-  // 200만에 못 닿은 달은 구간 자체가 없다
-  if (sales < INCENTIVE_FLOOR) return { tier: '미달', rate: 0 };
-  const hit = INCENTIVE_TIERS.find((t) => sales >= t.from);
-  return hit ?? { tier: '미달', rate: 0 };
+/** 아무것도 안 적어 뒀을 때 쓰는 처음 값 한 벌 */
+export const DEFAULT_RULES: IncentiveRules = {
+  baseSalaryDefault: BASE_SALARY_DEFAULT,
+  floor: INCENTIVE_FLOOR,
+  tiers: INCENTIVE_TIERS,
+  tenure: TENURE_BASE_SALARY,
+  leader: TEAM_LEADER,
+};
+
+export function tierOf(sales: number, rules: IncentiveRules = DEFAULT_RULES): { tier: string; rate: number } {
+  // 기준선에 못 닿은 달은 구간 자체가 없다
+  if (sales < rules.floor) return { tier: '미달', rate: 0 };
+  /*
+    큰 구간부터 내려보며 찾는다.
+
+    적어 넣는 차례를 사람에게 맡기지 않는다 — 화면에서 줄을 끼워 넣다 보면 뒤죽박죽이
+    되는데, 그때 작은 구간이 먼저 걸리면 1,500만을 한 사람이 20%를 받는다.
+  */
+  const hit = [...rules.tiers].sort((a, b) => b.from - a.from).find((t) => sales >= t.from);
+  return hit ? { tier: hit.tier, rate: hit.rate } : { tier: '미달', rate: 0 };
 }
 
-/** 근속 연차로 기본급을 낸다. 5년을 넘으면 5년 값에서 멈춘다 */
-export function baseSalaryOf(years: number, title: string): number {
-  if (title === 'LEADER') return TEAM_LEADER.baseSalary;
-  const clamped = Math.min(Math.max(Math.trunc(years), 0), TENURE_BASE_SALARY.length - 1);
-  return TENURE_BASE_SALARY[clamped];
+/** 근속 연차로 기본급을 낸다. 표 끝을 넘으면 마지막 값에서 멈춘다 */
+export function baseSalaryOf(years: number, title: string, rules: IncentiveRules = DEFAULT_RULES): number {
+  if (title === 'LEADER') return rules.leader.baseSalary;
+  const table = rules.tenure.length > 0 ? rules.tenure : TENURE_BASE_SALARY;
+  const clamped = Math.min(Math.max(Math.trunc(years), 0), table.length - 1);
+  return table[clamped];
 }
 
 export interface IncentiveInput {
@@ -124,9 +156,9 @@ export interface IncentiveResult {
   companyProfit: number;
 }
 
-export function computeIncentive(input: IncentiveInput): IncentiveResult {
+export function computeIncentive(input: IncentiveInput, rules: IncentiveRules = DEFAULT_RULES): IncentiveResult {
   const sales = Math.max(0, Math.round(input.sales));
-  const baseSalary = input.baseSalary > 0 ? input.baseSalary : baseSalaryOf(input.years, input.title);
+  const baseSalary = input.baseSalary > 0 ? input.baseSalary : baseSalaryOf(input.years, input.title, rules);
 
   /*
     기본급을 못 넘은 달은 인센티브가 없다.
@@ -135,7 +167,7 @@ export function computeIncentive(input: IncentiveInput): IncentiveResult {
   */
   const excess = Math.max(0, sales - baseSalary);
   // 구간은 총액으로 고르고, 요율은 초과분에 먹인다 — 안내표가 그 식이다
-  const { tier, rate } = tierOf(sales);
+  const { tier, rate } = tierOf(sales, rules);
   const incentive = Math.round(excess * rate);
 
   /*
@@ -146,9 +178,13 @@ export function computeIncentive(input: IncentiveInput): IncentiveResult {
     생기면 그건 관리 수당이 아니라 그냥 자리값이 된다.
   */
   const isLeader = input.title === 'LEADER';
-  const overridingBlocked = isLeader && sales < TEAM_LEADER.minPersonalSales;
+  const overridingBlocked = isLeader && sales < rules.leader.minPersonalSales;
   const overridingRate =
-    isLeader && !overridingBlocked ? (input.targetAchieved ? TEAM_LEADER.targetRate : TEAM_LEADER.defaultRate) : 0;
+    isLeader && !overridingBlocked
+      ? input.targetAchieved
+        ? rules.leader.targetRate
+        : rules.leader.defaultRate
+      : 0;
   const overriding = Math.round(Math.max(0, input.teamSales) * overridingRate);
 
   const payout = baseSalary + incentive + overriding;

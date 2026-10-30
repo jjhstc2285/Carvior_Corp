@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { withCommas } from '../../lib/money';
 import ReferralTitleBadge from '../ReferralTitleBadge';
+import IncentiveRulesForm from './IncentiveRulesForm';
 
 /**
  * 알선 딜러 인센티브.
@@ -52,6 +53,8 @@ interface Sheet {
   rules: {
     effectiveFrom: string;
     baseSalaryDefault: number;
+    /** 이 아래는 인센티브가 없다 — 기본급만 간다 */
+    floor: number;
     tiers: { tier: string; from: number; rate: number }[];
     tenure: number[];
     leader: { baseSalary: number; defaultRate: number; targetRate: number; minPersonalSales: number };
@@ -77,6 +80,8 @@ function tierRange(tiers: { tier: string; from: number }[], tier: string): strin
 export default function DealerIncentiveTab() {
   const [month, setMonth] = useState(() => dayjs().startOf('month'));
   const [sheet, setSheet] = useState<Sheet | null>(null);
+  /** 요율표를 고치는 창 — 관리자만 연다(회사 순수익을 받는 사람이 관리자다) */
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showRules, setShowRules] = useState(false);
@@ -142,7 +147,24 @@ export default function DealerIncentiveTab() {
       {/* 요율표 — 무엇을 보고 낸 값인지 같은 화면에서 확인한다 */}
       {showRules && sheet && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
-          <p className="font-bold text-slate-700">달성 구간 (월 알선 총액 기준)</p>
+          <div className="flex items-center justify-between">
+            <p className="font-bold text-slate-700">달성 구간 (월 알선 총액 기준)</p>
+            {/*
+              요율표는 관리자만 고친다.
+
+              급여가 걸린 표다. 보는 자리(사무장·본부장)는 정산을 돌리는 사람이지 요율을
+              정하는 사람이 아니다 — 회사 순수익을 받아 보는 계정으로 가린다.
+            */}
+            {sheet.withProfit && (
+              <button
+                onClick={() => setRulesOpen(true)}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                title="구간 · 요율 · 근속 기본급 · 팀장 규칙을 고칩니다"
+              >
+                요율표 고치기
+              </button>
+            )}
+          </div>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {[...sheet.rules.tiers].reverse().map(t => (
               <li key={t.tier} className="rounded-lg bg-slate-50 px-2 py-1 text-slate-600 ring-1 ring-inset ring-slate-200">
@@ -362,6 +384,15 @@ export default function DealerIncentiveTab() {
           어긋납니다.
         </span>
       </p>
+
+      {/* 요율표 고치기 — 저장하면 그 달 표를 다시 받아 온다 */}
+      {rulesOpen && sheet && (
+        <IncentiveRulesForm
+          current={{ ...sheet.rules, tiers: [...sheet.rules.tiers] }}
+          onClose={() => setRulesOpen(false)}
+          onSaved={() => void load()}
+        />
+      )}
     </div>
   );
 }

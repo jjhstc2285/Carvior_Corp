@@ -1823,6 +1823,46 @@ model WashVisit {
 //
 // 매달 30일에 한 번에 낸다. 얼마를 냈고 냈는지 안 냈는지만 남긴다 —
 // 대수와 단가는 방문 기록에서 나오지만, 실제로 치른 값은 흥정이 붙어 다를 수 있다.
+/**
+ * 알선 딜러 인센티브 규칙 — 관리자가 고친다.
+ *
+ * 요율과 구간은 장사 사정에 따라 바뀐다. 코드에 박아 두면 바꿀 때마다 배포를 해야 하고,
+ * 그 사이에는 종이에 적힌 표와 화면이 다른 말을 한다.
+ *
+ * 적용 시작일로 갈라 쌓는다. 한 줄만 두고 고치면 지난 달 급여가 새 요율로 다시 계산된다 —
+ * 이미 나간 돈이 화면에서 달라지면 어느 쪽이 맞는지 따질 근거가 사라진다. 그 달에는
+ * 그 달에 살아 있던 규칙을 쓴다.
+ */
+model IncentiveRule {
+  id String @id @default(cuid())
+
+  /** 이 날부터 적용한다 — 달마다 자기보다 앞선 것 중 가장 늦은 줄을 쓴다 */
+  effectiveFrom DateTime @unique @db.Date
+
+  /** 아무것도 안 정했을 때의 기본급(원) */
+  baseSalaryDefault Int @default(2000000)
+
+  /** 이 아래는 인센티브가 없다 — 기본급만 간다(원) */
+  floor Int @default(2000000)
+
+  /** 달성 구간 — [{"tier":"1구간","from":2000000,"rate":0.2}, …] */
+  tiers Json
+
+  /** 근속 연차별 기본급(원) — 0년부터 차례로. 마지막 값에서 멈춘다 */
+  tenure Json
+
+  leaderBaseSalary       Int   @default(2200000)
+  leaderDefaultRate      Float @default(0.03)
+  leaderTargetRate       Float @default(0.05)
+  leaderMinPersonalSales Int   @default(3000000)
+
+  /** 누가 고쳤나 — 급여가 걸린 표라 바꾼 사람이 남아야 한다 */
+  updatedBy String @default("") @db.VarChar(30)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model WashSettlement {
   id    String @id @default(cuid())
   month String @unique @db.VarChar(7) // YYYY-MM
