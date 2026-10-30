@@ -7,6 +7,7 @@ import {
   brokerageSettlementAmount,
   brokerageSettlementRate,
   CONSULTATION_KIND_LABEL,
+  CONSULTATION_PLATFORMS_BY_KIND,
   type BrokerageSettlement,
   type ConsultationKind,
   type SettlementStatus,
@@ -74,6 +75,21 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
     비워 두면 0으로 간다. 그때는 표가 실차주입금 + 차대금업으로 대신 보여 준다.
   */
   const [realSalePrice, setRealSalePrice] = useState(editing?.realSalePrice?.toString() ?? '0');
+  /*
+    유입경로.
+
+    상담에도 같은 칸이 있지만 상담 없이 정산만 올라오는 건이 많다 — 그러면 '어느 길로
+    들어온 돈인지'가 통째로 빈다. 광고비를 어디에 쓸지 가리는 값이다.
+
+    고르게도 하고 적게도 한다. 새 플랫폼이 생길 때마다 목록을 고치게 하면 적는 사람이
+    그냥 '기타'로 넘긴다 — 쓰던 값은 목록에 같이 올려 둔다(띄어쓰기가 안 엇갈린다).
+  */
+  const [platform, setPlatform] = useState(editing?.platform ?? '');
+  const platformNames = useMemo(() => {
+    const names = new Set<string>(CONSULTATION_PLATFORMS_BY_KIND[editing?.kind ?? kind] ?? []);
+    for (const r of state.brokerageSettlements) if (r.platform?.trim()) names.add(r.platform.trim());
+    return [...names];
+  }, [state.brokerageSettlements, editing?.kind, kind]);
   const [settlementAmount, setSettlementAmount] = useState(editing?.settlementAmount?.toString() ?? '');
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? preset?.employeeId ?? defaultEmployeeId);
   const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
@@ -115,6 +131,7 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
         date,
         vehicleNumber: vehicleNumber.trim(),
         vehicleName: vehicleName.trim(),
+        platform: platform.trim(),
         ...nums,
         // 비워두면 구간 비율로 낸 값이 들어간다
         settlementAmount: settlementAmount === '' ? suggested : Number(settlementAmount) || 0,
@@ -149,6 +166,22 @@ export default function BrokerageSettlementForm({ kind, editing, defaultEmployee
           <TextField label="차량번호" value={vehicleNumber} onChange={setVehicleNumber} placeholder="12가3456" required />
           <TextField label="차량명" value={vehicleName} onChange={setVehicleName} placeholder="그랜저 GN7" required />
           <EmployeeField label="담당자" value={employeeId} onChange={setEmployeeId} employees={state.employees} />
+          {/* 담당자 옆에 둔다 — 둘 다 '이 건이 어디서 누구를 거쳐 왔나'를 적는 칸이다 */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">유입경로</label>
+            <input
+              value={platform}
+              onChange={e => setPlatform(e.target.value)}
+              list="brokerage-platforms"
+              placeholder="엔카 · 차차차 · 지인소개"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+            />
+            <datalist id="brokerage-platforms">
+              {platformNames.map(n => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          </div>
 
           <MoneyField label="총 진행 판매금액" value={totalSaleAmount} onChange={setTotalSaleAmount} required />
           {/* 비워두면 총 진행 판매금액이 매입 정산의 차량판매가로 넘어간다 */}

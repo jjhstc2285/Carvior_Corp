@@ -54,6 +54,8 @@ export class CreateBrokerageDto {
   @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
   @IsString() @IsNotEmpty({ message: '차량번호를 입력해 주세요.' }) @MaxLength(30) vehicleNumber!: string;
   @IsString() @IsNotEmpty({ message: '차량명을 입력해 주세요.' }) @MaxLength(60) vehicleName!: string;
+  /** 어디서 들어온 건인가 — 엔카 · 차차차 · 자사몰 · 지인소개 … 목록에 없는 것도 적는다 */
+  @IsOptional() @IsString() @MaxLength(40) platform?: string;
   @IsOptional() @Money() totalSaleAmount?: number;
   @IsOptional() @Money() ownerDeposit?: number;
   @IsOptional() @Money() transferFee?: number;
@@ -80,6 +82,8 @@ export class UpdateBrokerageDto {
   @IsOptional() @IsEnum(ConsultationKind) kind?: ConsultationKind;
   @IsOptional() @IsString() @MaxLength(30) vehicleNumber?: string;
   @IsOptional() @IsString() @MaxLength(60) vehicleName?: string;
+  /** 어디서 들어온 건인가 — 엔카 · 차차차 · 자사몰 · 지인소개 … 목록에 없는 것도 적는다 */
+  @IsOptional() @IsString() @MaxLength(40) platform?: string;
   @IsOptional() @Money() totalSaleAmount?: number;
   @IsOptional() @Money() ownerDeposit?: number;
   @IsOptional() @Money() transferFee?: number;

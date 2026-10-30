@@ -389,6 +389,7 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
 
       정산받을금액: s.settlementAmount,
       담당자: employeeOf(s.employeeId)?.name ?? '',
+      유입경로: (s.platform ?? '').trim() || platformOf(s.vehicleNumber).from || '',
       결재: SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT'],
       상태: SETTLEMENT_STATUS_LABEL[s.status],
       메모: s.memo,
@@ -657,7 +658,16 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
                     })(),
                       vehicleName: <span className="text-slate-700">{s.vehicleName}</span>,
                       platform: (() => {
-                        const { from, hasConsultation } = platformOf(s.vehicleNumber);
+                        /*
+                          정산에 적어 둔 값이 먼저다.
+
+                          상담 없이 정산만 올라오는 건이 많아서 상담에서만 끌어오면 그런
+                          건은 영영 빈칸이었다. 이제 정산 창에서 직접 적을 수 있고, 적힌
+                          값이 있으면 그걸 쓴다 — 적은 사람이 그 건을 아는 사람이다.
+                        */
+                        const own = (s.platform ?? '').trim();
+                        const { from: fromConsult, hasConsultation } = platformOf(s.vehicleNumber);
+                        const from = own || fromConsult;
                         if (from) {
                           // 빛깔은 유입 경로 그래프와 같은 데서 온다 — 다르면 색이 뜻을 잃는다
                           return (

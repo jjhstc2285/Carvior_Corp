@@ -596,6 +596,7 @@ export class SettlementsService {
         // 찾을 때마다 맞추면 한 군데만 빠뜨려도 다른 화면과 어긋난다.
         vehicleNumber: normalizePlate(dto.vehicleNumber),
         vehicleName: dto.vehicleName,
+        platform: (dto.platform ?? '').trim(),
         ...nums,
         // 비워서 보내면 판매 수익을 그대로 정산받을금액으로 잡는다(프론트 폼과 동일한 규칙).
         // 안 적어 보내면 구간 비율로 낸다. 적어 보내면 그 값이 우선이다 — 예외가 있다.

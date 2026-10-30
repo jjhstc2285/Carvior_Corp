@@ -451,6 +451,8 @@ export interface BrokerageSettlement {
   insuranceFee: number; // 보험 피
   etcCost: number; // 차대금업 (DB 칸 이름은 그대로 둔다 — 지난 자료가 들어 있다)
   realSalePrice: number; // 실 차량판매가 — 0이면 아직 안 적은 것이다
+  /** 어디서 들어온 건인가 — 엔카 · 차차차 · 자사몰 · 지인소개 … 목록에 없는 것도 적는다 */
+  platform: string;
   settlementAmount: number; // 정산받을금액
   employeeId: string;
   status: SettlementStatus;
