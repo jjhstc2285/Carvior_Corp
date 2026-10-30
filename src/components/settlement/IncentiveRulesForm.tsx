@@ -198,7 +198,7 @@ export default function IncentiveRulesForm({
                 className={`${BOX} w-full`}
               />
             </Field>
-            <Field label="인센티브 기준선" hint="만원 · 이 아래는 기본급만">
+            <Field label="인센티브 기준선" hint="만원 · 초과분이 이 아래면 기본급만">
               <input
                 value={toMan(draft.floor)}
                 onChange={e => setDraft(prev => ({ ...prev, floor: fromMan(e.target.value) }))}
@@ -219,7 +219,7 @@ export default function IncentiveRulesForm({
           {/* 달성 구간 */}
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-xs font-bold text-slate-700">달성 구간 (월 알선 총액 기준)</p>
+              <p className="text-xs font-bold text-slate-700">달성 구간 (기본급을 넘은 금액 기준)</p>
               <button
                 onClick={() =>
                   setDraft(prev => ({
@@ -295,8 +295,9 @@ export default function IncentiveRulesForm({
               </table>
             </div>
             <p className="mt-1 text-[11px] text-slate-400">
-              적힌 달성액에 <b>닿으면</b> 그 요율이 되고, 다음 달성액 전까지 그대로입니다 — 800만에 45%면 944만도
-              45%이고, 1,000만에 닿아야 50%가 됩니다. 요율은 초과분(총액 − 기본급)에 곱합니다.
+              재는 값은 <b>총액에서 기본급을 뺀 금액</b>입니다 — 기본급 200만인 사람이 631만을 했으면 431만으로 봐서
+              2구간입니다. 적힌 금액에 <b>닿으면</b> 그 요율이 되고 다음 금액 전까지 그대로이며, 요율은 그 같은 금액에
+              곱합니다.
             </p>
           </div>
 

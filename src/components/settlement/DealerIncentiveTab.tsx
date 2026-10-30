@@ -10,8 +10,10 @@ import IncentiveRulesForm from './IncentiveRulesForm';
  * 알선 딜러 인센티브.
  *
  * 기본급을 깔고, 월 알선 총액이 기본급을 넘은 만큼에 구간 요율을 곱해 인센티브를 낸다.
- * 요율은 초과분이 아니라 월 알선 총액이 어느 구간인지로 고른다 — 800만을 한 사람과
- * 1,000만을 한 사람은 같은 초과분에도 다른 요율을 받는다.
+ *
+ * 구간은 '기본급을 넘은 금액'으로 고른다. 재는 자와 곱하는 자가 같아야 한다 — 한때
+ * 총액으로 골랐더니 631만을 한 사람이 4구간 35%를 받는데 정작 요율을 먹이는 금액은
+ * 431만(2구간 25%)이었다.
  *
  * 셈은 서버에서만 한다. 화면에서도 같은 식을 쓰면 요율표를 고쳤을 때 둘이 어긋나고,
  * 어긋난 쪽이 급여라 사람이 먼저 안다. 그래서 고칠 때마다 서버가 다시 낸 값을 받아온다.
@@ -68,8 +70,8 @@ const MAN = (won: number) => `${Math.round(won / 10_000).toLocaleString()}만`;
 /**
  * 그 구간이 어디부터 어디까지인가.
  *
- * 안내표에 적힌 달성액에 닿으면 그 요율이 되고, 다음 달성액 전까지 그대로다 —
- * 800만을 하면 45%이고 944만을 해도 45%다. 1,000만에 닿아야 50%가 된다.
+ * 재는 값은 기본급을 넘은 금액이다. 적힌 금액에 닿으면 그 요율이 되고, 다음 금액
+ * 전까지 그대로다 — 800만을 넘겼으면 45%이고 944만을 넘겼어도 45%다.
  */
 function tierRange(tiers: { tier: string; from: number }[], tier: string): string {
   const sorted = [...tiers].sort((a, b) => a.from - b.from);
@@ -166,7 +168,7 @@ export default function DealerIncentiveTab() {
       {showRules && sheet && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
           <div className="flex items-center justify-between">
-            <p className="font-bold text-slate-700">달성 구간 (월 알선 총액 기준)</p>
+            <p className="font-bold text-slate-700">달성 구간 (기본급을 넘은 금액 기준)</p>
             {/*
               요율표는 관리자만 고친다.
 
@@ -191,6 +193,11 @@ export default function DealerIncentiveTab() {
               </li>
             ))}
           </ul>
+          {/* 재는 값이 무엇인지 한 줄 — 안 적으면 총액으로 읽는다 */}
+          <p className="mt-1 text-[11px] text-slate-400">
+            월 알선 총액이 아니라 <b>총액에서 기본급을 뺀 금액</b>으로 구간을 고릅니다 — 기본급 200만인 사람이 631만을
+            했으면 431만으로 봐서 2구간 25%입니다.
+          </p>
           <p className="mt-3 font-bold text-slate-700">근속 기본급</p>
           <p className="mt-1 text-slate-500">
             {sheet.rules.tenure.map((v, i) => `${i}년 ${MAN(v)}`).join(' · ')} (5년부터는 그대로)
