@@ -50,6 +50,18 @@ interface ListParams {
   month?: string;
 }
 
+interface BrokerageListParams extends ListParams {
+  /*
+    남의 '작성 중'은 가린다 — 여기 적힌 사람 것만 빼고.
+
+    아직 안 올린 줄은 적다 만 숫자다. 그게 윗사람 화면에 같이 뜨면 "이건 뭐냐"를
+    물어보게 되고, 적던 사람은 다 적기 전에 설명부터 해야 한다 — 확인할 거리만 는다.
+
+    비워 두면 다 보인다(개발 계정).
+  */
+  mineOnlyDraft?: string;
+}
+
 const EMPLOYEE_SELECT = { employee: { select: { id: true, name: true, position: true } } };
 
 /** 승인 차례를 가리려면 담당자 이름이 있어야 한다 — 이름에 따라 본부장을 건너뛴다. */
@@ -561,11 +573,20 @@ export class SettlementsService {
     return out;
   }
 
-  async findBrokerage(params: ListParams) {
+  async findBrokerage(params: BrokerageListParams) {
     const where: Prisma.BrokerageSettlementWhereInput = {
       ...this.baseWhere(params),
       ...(params.q
         ? { OR: [{ vehicleNumber: { contains: params.q } }, { vehicleName: { contains: params.q } }] }
+        : {}),
+      /*
+        올리지 않은 줄은 적은 사람만 본다.
+
+        '작성 중'은 결재를 올리기 전이다(submittedAt 이 비어 있다). 올린 뒤에는
+        누구 차례든 다 보인다 — 봐야 결재를 한다.
+      */
+      ...(params.mineOnlyDraft
+        ? { NOT: { AND: [{ submittedAt: null }, { employeeId: { not: params.mineOnlyDraft } }] } }
         : {}),
     };
     const rows = await this.prisma.brokerageSettlement.findMany({

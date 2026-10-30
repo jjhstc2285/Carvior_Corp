@@ -107,6 +107,32 @@ export class SettlementsController {
     return user.role === Role.ADMIN ? employeeId : user.id;
   }
 
+  /**
+   * 개발 계정인가 — 이름이나 직책에 '테스트'가 들어가면.
+   *
+   * 화면이 왜 그렇게 보이는지 손볼 사람은 다 보여야 한다. 직책이 '대표'로 적힌
+   * 테스트 계정이 있어서 직책만 보면 안 된다.
+   */
+  private isTestAccount(user: AuthUser): boolean {
+    return `${user.name} ${user.position}`.includes('테스트');
+  }
+
+  /**
+   * 올리지 않은 줄은 적은 사람만 본다.
+   *
+   * 아직 '작성 중'인 줄은 적다 만 숫자다. 그게 윗사람 화면에 같이 뜨면 "이건 뭐냐"를
+   * 물어보게 되고, 적던 사람은 다 적기 전에 설명부터 해야 한다 — 확인할 거리만 는다.
+   *
+   * 올린 뒤에는 누구 차례든 다 보인다. 봐야 결재를 한다.
+   *
+   * 본인 것만 보는 사람(ADMIN 아닌 쪽)은 이미 남의 줄이 안 내려가므로 따로 가릴 게
+   * 없다. 개발 계정은 다 본다 — 화면이 왜 그렇게 보이는지 손볼 사람이다.
+   */
+  private draftScope(user: AuthUser): string | undefined {
+    if (this.isTestAccount(user)) return undefined;
+    return user.id;
+  }
+
   // ── 간편 정산 ──
 
   @Get('basic')
@@ -146,7 +172,13 @@ export class SettlementsController {
     @Query('month') month?: string,
     @Query('employeeId') employeeId?: string,
   ) {
-    return this.settlements.findBrokerage({ q, status, month, employeeId: this.ownScope(user, employeeId) });
+    return this.settlements.findBrokerage({
+      q,
+      status,
+      month,
+      employeeId: this.ownScope(user, employeeId),
+      mineOnlyDraft: this.draftScope(user),
+    });
   }
 
   /** 현금 수수료를 받았는지 대표가 찍는다 — 찍은 때가 같이 남는다. */
