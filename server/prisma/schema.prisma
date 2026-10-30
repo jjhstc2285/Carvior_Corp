@@ -1176,6 +1176,32 @@ model PayrollEntry {
   updatedAt DateTime @updatedAt
 }
 
+/**
+ * 그 달 그 사람 식대 — 손으로 고친 값.
+ *
+ * 식대는 근태에서 낸다(9:30까지 찍고 18시 넘겨 찍은 날 × 하루치). 그런데 찍고 나가서
+ * 손님과 밖에서 먹은 날, 찍는 걸 잊은 날처럼 찍힌 것과 먹은 것이 안 맞는 달이 있다.
+ *
+ * 고친 값이 있으면 그걸 쓰고, 없으면 근태로 낸 값을 그대로 쓴다. 달마다 따로 둔다 —
+ * 한 값만 두고 고치면 지난 달 급여가 같이 움직인다.
+ *
+ * 사람은 이름으로 묶는다. 인건비 줄 자체가 이름으로 적는 표다(직원 계정과 따로 돈다).
+ */
+model PayrollMeal {
+  id     String @id @default(cuid())
+  month  String @db.VarChar(7) // YYYY-MM
+  name   String @db.VarChar(30)
+  amount Int    @default(0)
+
+  /** 누가 고쳤나 — 급여가 걸린 값이라 바꾼 사람이 남아야 한다 */
+  updatedBy String @default("") @db.VarChar(30)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([month, name])
+}
+
 model Vendor {
   id       String  @id @default(cuid())
   category String  @db.VarChar(20) // 광택·세차 / 판금·덴트 / 성능 / 탁송 / 공업사 / 배터리 / 할부사 …

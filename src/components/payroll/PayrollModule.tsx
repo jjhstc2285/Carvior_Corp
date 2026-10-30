@@ -64,6 +64,11 @@ interface MealRow {
   name: string;
   days: number;
   amount: number;
+  /** 근태로 낸 값 — 손으로 고친 줄에서 원래 얼마였는지 */
+  autoAmount?: number;
+  /** 손으로 고친 줄인가 */
+  edited?: boolean;
+  editedBy?: string;
 }
 interface Meal {
   month: string;
@@ -201,10 +206,33 @@ export default function PayrollModule() {
   const mealOf = useCallback(
     (name: string): MealRow => {
       const hit = meal?.rows.find(x => x.name === name.trim());
-      return hit ?? { name, days: 0, amount: 0 };
+      return hit ?? { name, days: 0, amount: 0, autoAmount: 0, edited: false };
     },
     [meal],
   );
+
+  /**
+   * 그 달 식대를 고친다.
+   *
+   * 근태로 내는 값이지만, 찍고 나가서 밖에서 먹은 날이나 찍는 걸 잊은 날처럼 찍힌 것과
+   * 먹은 것이 안 맞는 달이 있다.
+   *
+   * 칸을 비우면 다시 근태로 낸 값으로 돌아간다 — 따로 되돌리기 단추를 내는 것보다
+   * 한 칸을 비우는 쪽이 적는 사람에게 자연스럽다.
+   */
+  const saveMeal = async (name: string, text: string) => {
+    const blank = text.trim() === '';
+    try {
+      setMeal(
+        await api<Meal>('/payroll/meal', {
+          method: 'POST',
+          body: { month, name, amount: blank ? -1 : Number(digitsOnly(text)) || 0 },
+        }),
+      );
+    } catch (e) {
+      void alertError('식대를 저장하지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
 
   const shown = rows.filter(r => showInactive || r.active);
 
@@ -460,22 +488,37 @@ export default function PayrollModule() {
                   </td>
 
                   {/*
-                    식대는 적는 칸이 아니다 — 근태에서 나온다.
+                    식대는 근태에서 낸다 — 9:30까지 찍고 18시를 넘겨 찍은 날만 하루치다.
 
-                    9시 30분까지 찍고 6시를 넘겨 찍은 날만 하루 9,000원이다. 며칠치인지
-                    같이 띄운다: 금액만 보면 왜 저 값인지 물어볼 데가 없다.
+                    그래도 고칠 수 있게 둔다. 찍고 나가서 손님과 밖에서 먹은 날이나 찍는
+                    걸 잊은 날처럼 찍힌 것과 먹은 것이 안 맞는 달이 있다.
+
+                    며칠치인지 같이 띄운다 — 금액만 보면 왜 저 값인지 물어볼 데가 없다.
                   */}
-                  <td className={`whitespace-nowrap px-2.5 py-1.5 text-right ${NUM_PAD}`}>
-                    <span className={`text-sm font-semibold ${mealOf(r.name).amount ? 'text-slate-800' : 'text-slate-300'}`}>
-                      {mealOf(r.name).amount.toLocaleString()}
-                    </span>
-                    <span className="ml-1 text-[11px] text-slate-400">{mealOf(r.name).days}일</span>
-                    {/* 전에 손으로 적어둔 값이 다르면 같이 보여준다 — 말없이 바뀌면 안 된다 */}
-                    {r.mealAllowance > 0 && r.mealAllowance !== mealOf(r.name).amount && (
-                      <p className="text-[10px] text-slate-300" title="예전에 손으로 적어둔 식대입니다. 이제 근태로 냅니다">
-                        적어둔 값 {r.mealAllowance.toLocaleString()}
-                      </p>
-                    )}
+                  <td className="whitespace-nowrap px-2.5 py-1.5 text-right">
+                    <input
+                      key={`meal-${month}-${r.id}`}
+                      defaultValue={withCommas(String(mealOf(r.name).amount || ''))}
+                      onBlur={e => {
+                        const next = e.target.value.trim() === '' ? -1 : Number(digitsOnly(e.target.value)) || 0;
+                        if (next !== mealOf(r.name).amount) void saveMeal(r.name, e.target.value);
+                      }}
+                      inputMode="numeric"
+                      placeholder={String(mealOf(r.name).autoAmount ?? 0)}
+                      title="비우면 근태로 낸 값으로 돌아갑니다"
+                      className={`${INPUT} ${MONEY_W} text-right ${
+                        mealOf(r.name).edited ? 'border-amber-300 bg-amber-50/60 font-semibold text-amber-800' : ''
+                      }`}
+                    />
+                    <p className="text-[10px] text-slate-400">
+                      근태 {mealOf(r.name).days}일
+                      {/* 손으로 고친 줄은 원래 얼마였는지 같이 — 말없이 바뀌면 안 된다 */}
+                      {mealOf(r.name).edited && (
+                        <span className="ml-1 text-amber-600">
+                          · 고침(근태 {(mealOf(r.name).autoAmount ?? 0).toLocaleString()})
+                        </span>
+                      )}
+                    </p>
                   </td>
 
                   {/* 실 이체는 적는 칸이 아니다 — 위 숫자를 고치면 따라온다 */}
@@ -519,6 +562,9 @@ export default function PayrollModule() {
         칸을 고치고 <b>칸 밖을 누르면 바로 저장</b>됩니다. <b>실 이체 = 급여 + 인센티브 − 회사공제 − 본인공제 +
         식대</b> 로 자동 계산되니 그 칸은 적지 않습니다. 인센티브는 급여와 갈라 적습니다 — 섞어 두면 다음 달에
         어디까지가 기본급이었는지 되짚을 수가 없습니다.
+        <br />
+        <b>식대</b>는 근태에서 저절로 나오지만 고칠 수 있습니다 — 고친 줄은 노랗게 뜨고, <b>칸을 비우면</b> 다시
+        근태로 낸 값으로 돌아갑니다. 달마다 따로 남으니 지난 달 값은 안 움직입니다.
         <br />
         <b>식대</b>도 적는 칸이 아닙니다 — 근태에서 냅니다. {meal?.inBy ?? '09:30'}까지 찍고 {meal?.outFrom ?? '18:00'}을
         넘겨 찍은 날만 하루 {(meal?.perDay ?? 9000).toLocaleString()}원으로 세고, 한쪽만 찍힌 날은 세지 않습니다.

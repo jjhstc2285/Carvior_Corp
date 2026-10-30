@@ -50,8 +50,20 @@ function isTestAccount(user: AuthUser): boolean {
   return `${user.name} ${user.position}`.includes('테스트');
 }
 
+/*
+  사무장도 본다.
+
+  급여를 적고 이체를 넣는 사람이 사무장이다 — 볼 수 없으면 숫자를 종이로 받아 옮겨
+  적게 되고, 그 과정에서 틀린다. 이름이 아니라 직책으로 가린다: 사람이 바뀌어도 자리를
+  물려받은 사람이 그대로 보고, 이름으로 박아 두면 바뀔 때 코드를 고쳐야 하는데 그
+  사실을 아무도 기억하지 못한다.
+
+  본부장은 안 넣는다 — 여는 자리를 넓히는 건 한 번에 한 자리씩 한다.
+*/
 function canOpenPayroll(user: AuthUser): boolean {
-  return viewerNames().includes(user.name.trim()) || isTestAccount(user);
+  if (viewerNames().includes(user.name.trim())) return true;
+  if ((user.position ?? '').includes('사무장')) return true;
+  return isTestAccount(user);
 }
 
 /*
@@ -175,14 +187,30 @@ export class PayrollService {
       days.set(name, (days.get(name) ?? 0) + 1);
     }
 
-    const entries = await this.prisma.payrollEntry.findMany({ select: { name: true } });
+    const [entries, fixed] = await Promise.all([
+      this.prisma.payrollEntry.findMany({ select: { name: true } }),
+      this.prisma.payrollMeal.findMany({ where: { month } }),
+    ]);
     const rows = entries.map((e) => {
       const name = e.name.trim();
       const count = days.get(name) ?? 0;
+      const auto = count * MEAL_PER_DAY;
+      /*
+        손으로 고친 값이 있으면 그걸 쓴다.
+
+        찍고 나가서 밖에서 먹은 날, 찍는 걸 잊은 날처럼 찍힌 것과 먹은 것이 안 맞는
+        달이 있다. 근태로 낸 값도 같이 보낸다 — 무엇에서 얼마나 달라졌는지 보여야
+        고친 사람이 맞게 고쳤는지 알 수 있다.
+      */
+      const own = fixed.find((f) => f.name === name);
       return {
         name,
         days: count,
-        amount: count * MEAL_PER_DAY,
+        amount: own ? own.amount : auto,
+        /** 근태로 낸 값 — 고친 줄에서 원래 얼마였는지 */
+        autoAmount: auto,
+        edited: !!own,
+        editedBy: own?.updatedBy ?? '',
         matched: days.has(name),
         /** 그 사람이 구내식당 체크를 손으로 건드린 날 수 */
         marked: marked.get(name) ?? 0,
@@ -190,6 +218,28 @@ export class PayrollService {
     });
 
     return { month, perDay: MEAL_PER_DAY, inBy: MEAL_IN_BY, outFrom: MEAL_OUT_FROM, rows };
+  }
+
+  /**
+   * 그 달 그 사람 식대를 고쳐 둔다.
+   *
+   * 음수를 보내면 고친 값을 내린다 — 다시 근태로 낸 값으로 돌아간다. 따로 '되돌리기'
+   * 길을 내는 것보다 한 칸을 비우는 쪽이 적는 사람에게 자연스럽다.
+   */
+  async saveMeal(month: string, name: string, amount: number, by: string) {
+    const key = name.trim();
+    if (!key) throw new BadRequestException('누구 식대인지 없습니다.');
+    if (amount < 0) {
+      await this.prisma.payrollMeal.deleteMany({ where: { month, name: key } });
+      return this.mealAllowances(month);
+    }
+    const data = { amount: Math.max(0, Math.round(amount)), updatedBy: by.slice(0, 30) };
+    await this.prisma.payrollMeal.upsert({
+      where: { month_name: { month, name: key } },
+      create: { month, name: key, ...data },
+      update: data,
+    });
+    return this.mealAllowances(month);
   }
 
   private dataOf(dto: UpsertPayrollDto, _creating: boolean) {
@@ -268,6 +318,24 @@ export class PayrollController {
       throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
     }
     return this.payroll.mealAllowances(want);
+  }
+
+  /**
+   * 그 달 식대를 고친다.
+   *
+   * 근태로 내는 값이지만 찍힌 것과 먹은 것이 안 맞는 달이 있다. 비워 보내면(-1) 다시
+   * 근태로 낸 값으로 돌아간다.
+   */
+  @Post('meal')
+  saveMeal(
+    @CurrentUser() user: AuthUser,
+    @Headers('x-payroll-pass') pass: string,
+    @Body() dto: { month?: string; name?: string; amount?: number },
+  ) {
+    assertOpen(user, pass);
+    const month = (dto.month ?? '').trim();
+    if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
+    return this.payroll.saveMeal(month, dto.name ?? '', dto.amount ?? 0, user.name);
   }
 
   @Post()
