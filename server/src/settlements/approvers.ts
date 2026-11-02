@@ -31,13 +31,25 @@ export function needsChief(ownerName: string | null | undefined): boolean {
 }
 
 /**
- * 현금 수수료 확인을 찍을 수 있는가 — 대표, 그리고 테스트 계정.
+ * 알선팀을 챙기는 사람 — 팀원이 올린 정산을 다 보고, 현금도 찍는다.
+ *
+ * 이름으로 못 박는다. 직급으로 가리면 팀장이 하나 더 생겼을 때 그 사람도 남의 돈을
+ * 보게 된다 — 알선 정산은 받아온 사람이 곧 정산받을 사람이라 아무에게나 열 값이 아니다.
+ */
+export const REFERRAL_LEADERS = ['김진후'];
+
+export function isReferralLeader(user: { name: string }): boolean {
+  return REFERRAL_LEADERS.includes(user.name.trim());
+}
+
+/**
+ * 현금 수수료 확인을 찍을 수 있는가 — 대표, 알선팀장, 그리고 테스트 계정.
  *
  * 테스트 계정을 넣는 이유는 대표가 자리를 비웠을 때 흐름이 멈추면 안 되기 때문이다.
  * 받은 사람이 스스로 찍는 것만 막으면 된다.
  */
 export function canConfirmCash(user: { name: string; position: string }): boolean {
-  return user.name.trim() === CEO_APPROVER || user.position.includes('테스트');
+  return user.name.trim() === CEO_APPROVER || isReferralLeader(user) || user.position.includes('테스트');
 }
 
 export type ApprovalRole = 'CHIEF' | 'CEO';

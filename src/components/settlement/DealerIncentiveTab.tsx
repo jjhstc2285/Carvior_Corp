@@ -115,6 +115,27 @@ export default function DealerIncentiveTab() {
     늦게 온 답이 먼저 온 답을 덮지 않게 차례를 센다. 여러 줄을 빠르게 고치면 답이
     뒤섞여 오고, 그러면 방금 고친 줄이 옛 값으로 되돌아간 것처럼 보인다.
   */
+  /*
+    적는 중인 글자를 따로 들고 있는다.
+
+    칸을 defaultValue 로만 두었더니, 달을 바꿨을 때 적혀 있던 숫자가 그대로 남았다 —
+    칸은 11월 값을 보여 주는데 셈은 10월 값으로 돌았고, 그 상태에서 칸을 떠나면 11월
+    숫자가 10월에 저장됐다.
+
+    적는 동안에는 여기 글자를 보여 주고, 안 적는 칸은 서버 값을 그대로 보여 준다.
+    달을 바꾸면 적던 것을 버린다 — 다른 달에 적던 숫자를 이 달에 들고 올 까닭이 없다.
+  */
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  useEffect(() => setDraft({}), [ym]);
+  const shownValue = (key: string, saved: number | string) => draft[key] ?? String(saved);
+  const type = (key: string, text: string) => setDraft(prev => ({ ...prev, [key]: text }));
+  const done = (key: string) =>
+    setDraft(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+
   const turn = useRef(0);
   const save = async (employeeId: string, patch: Record<string, unknown>) => {
     const mine = ++turn.current;
@@ -280,12 +301,13 @@ export default function DealerIncentiveTab() {
                 {/* 알선 정산에서 더해 채우고, 안 올라온 건이 있어 손으로 고친다 */}
                 <td className="px-3 py-2 text-right">
                   <input
-                    key={`sales-${ym}-${r.employeeId}`}
                     type="number"
                     min={0}
-                    defaultValue={r.sales || ''}
+                    value={shownValue(`sales-${r.employeeId}`, r.sales || '')}
+                    onChange={e => type(`sales-${r.employeeId}`, e.target.value)}
                     onBlur={e => {
                       const next = Number(e.target.value) || 0;
+                      done(`sales-${r.employeeId}`);
                       if (next !== r.sales) void save(r.employeeId, { sales: next });
                     }}
                     placeholder={String(r.autoSales)}
@@ -316,13 +338,14 @@ export default function DealerIncentiveTab() {
 
                 <td className="px-3 py-2 text-center">
                   <input
-                    key={`years-${ym}-${r.employeeId}`}
                     type="number"
                     min={0}
                     max={50}
-                    defaultValue={r.years}
+                    value={shownValue(`years-${r.employeeId}`, r.years)}
+                    onChange={e => type(`years-${r.employeeId}`, e.target.value)}
                     onBlur={e => {
                       const next = Number(e.target.value) || 0;
+                      done(`years-${r.employeeId}`);
                       if (next !== r.years) void save(r.employeeId, { years: next });
                     }}
                     className="w-14 rounded-lg border border-slate-200 px-1.5 py-1 text-center text-sm outline-none focus:border-indigo-400 disabled:opacity-50"
@@ -333,12 +356,13 @@ export default function DealerIncentiveTab() {
                 {/* 따로 정한 기본급이 있으면 그 값. 비우면 근속표대로 */}
                 <td className="px-3 py-2 text-right">
                   <input
-                    key={`base-${ym}-${r.employeeId}`}
                     type="number"
                     min={0}
-                    defaultValue={r.baseSalaryOverride || ''}
+                    value={shownValue(`base-${r.employeeId}`, r.baseSalaryOverride || '')}
+                    onChange={e => type(`base-${r.employeeId}`, e.target.value)}
                     onBlur={e => {
                       const next = Number(e.target.value) || 0;
+                      done(`base-${r.employeeId}`);
                       if (next !== r.baseSalaryOverride) void save(r.employeeId, { baseSalary: next });
                     }}
                     placeholder={String(r.baseSalary)}

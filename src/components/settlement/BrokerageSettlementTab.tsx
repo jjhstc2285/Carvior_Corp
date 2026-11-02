@@ -16,6 +16,7 @@ import {
   type ConsultationKind,
   type SettlementStatus,
 } from '../../types';
+import { REFERRAL_LEADERS } from '../../lib/permissions';
 import { ContractPhotoThumb } from './ContractPhotos';
 import BrokerageSettlementForm from './BrokerageSettlementForm';
 import PendingSettlementVehicles from './PendingSettlementVehicles';
@@ -136,8 +137,16 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
    * 이름으로 가린다 — 서버(settlements/approvers.ts)와 같은 기준이고, 서버가 다시 본다.
    */
   const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
-  // 대표가 자리를 비웠을 때 흐름이 멈추면 안 돼서 테스트 계정도 찍을 수 있다.
-  const isCeo = me?.name === '유진욱' || (me?.position ?? '').includes('테스트');
+  /*
+    현금 수수료를 찍을 수 있는 사람 — 대표, 알선팀장, 테스트 계정.
+
+    대표가 자리를 비웠을 때 흐름이 멈추면 안 돼서 테스트 계정도 찍는다. 알선팀장은
+    팀원 실적으로 관리 수당을 받는 자리라 그 돈이 들어왔는지도 챙긴다.
+
+    받은 사람이 스스로 찍는 것만 막으면 된다 — 서버가 같은 자로 다시 본다.
+  */
+  const isCeo =
+    me?.name === '유진욱' || REFERRAL_LEADERS.includes(me?.name ?? '') || (me?.position ?? '').includes('테스트');
   /**
    * 결재할 수 있는 사람인지.
    *

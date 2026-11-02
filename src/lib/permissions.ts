@@ -11,6 +11,14 @@ import type { AuthUser } from './auth';
  */
 export const LEDGER_POSITIONS = ['대표', '사무장', '본부장', '테스트'] as const;
 
+/*
+  알선팀을 챙기는 사람 — 팀원 정산을 다 보고 현금도 찍는다.
+
+  서버의 approvers.ts REFERRAL_LEADERS 와 같은 값이어야 한다. 한쪽만 고치면 화면에는
+  단추가 뜨는데 눌러도 안 되거나, 그 반대가 된다.
+*/
+export const REFERRAL_LEADERS = ['김진후'];
+
 export function canSeeLedger(user: AuthUser | null): boolean {
   if (!user) return false;
   return LEDGER_POSITIONS.some(p => user.position.includes(p));

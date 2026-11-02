@@ -59,7 +59,7 @@ const CONTRACT_TEAM = '계약팀';
 /** 계약 목표를 적는 팀 — 그 달 숫자를 맞춰 가는 사람들이다 */
 const BROKER_TEAM = '알선팀';
 import { assertOfficeManager } from '../auth/office-manager';
-import { canEditPanelInvoice, canSeePurchaseSettlements } from './approvers';
+import { canEditPanelInvoice, canSeePurchaseSettlements, isReferralLeader } from './approvers';
 import type { PrepCostKind } from '@prisma/client';
 
 /** 상품화 비용 항목 — 청구서가 어느 칸으로 들어갈지 가른다(스키마의 PrepCostKind와 같다) */
@@ -102,9 +102,13 @@ export class SettlementsController {
    *
    * 알선은 받아온 사람이 곧 정산받을 사람이라 남의 몫이 보일 이유가 없다.
    * 매입 정산과 달리 남이 채워줄 빈칸도 없다.
+   *
+   * 알선팀장은 팀원 것까지 본다 — 팀원 실적으로 관리 수당을 받는 자리라, 무엇이
+   * 올라왔는지 못 보면 자기 수당이 어디서 나왔는지도 모른다.
    */
   private ownScope(user: AuthUser, employeeId?: string) {
-    return user.role === Role.ADMIN ? employeeId : user.id;
+    if (user.role === Role.ADMIN || isReferralLeader(user)) return employeeId;
+    return user.id;
   }
 
   /**
