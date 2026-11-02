@@ -131,9 +131,12 @@ export class SettlementsController {
    *
    * 본인 것만 보는 사람(ADMIN 아닌 쪽)은 이미 남의 줄이 안 내려가므로 따로 가릴 게
    * 없다. 개발 계정은 다 본다 — 화면이 왜 그렇게 보이는지 손볼 사람이다.
+   *
+   * 알선팀장도 다 본다. 팀원이 적는 중인 것까지 보고 챙기는 자리라, 올린 줄만 보이면
+   * '아직 안 올렸다'를 물어보려고 따로 연락해야 한다.
    */
   private draftScope(user: AuthUser): string | undefined {
-    if (this.isTestAccount(user)) return undefined;
+    if (this.isTestAccount(user) || isReferralLeader(user)) return undefined;
     return user.id;
   }
 
