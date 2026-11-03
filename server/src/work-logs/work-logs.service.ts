@@ -1,8 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { ConsultationKind, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDateOnly, toDateOnly } from '../common/date.util';
 import type { CreateWorkLogDto, UpdateWorkLogDto } from './dto/work-log.dto';
+import { isReferralLeader } from '../settlements/approvers';
 
 interface AuthUser {
   id: string;
@@ -47,16 +48,42 @@ export class WorkLogsService {
     return { employeeId: teamIds.includes(params.employeeId!) ? params.employeeId! : user.id };
   }
 
-  /** 같은 팀 사람들(본인 포함). 팀이 없으면 본인뿐이다. */
+  /**
+   * 같은 팀 사람들(본인 포함). 팀이 없으면 본인뿐이다.
+   *
+   * 알선팀장은 알선을 뛰는 사람까지 본다. 그 사람들이 부서로는 흩어져 있어서다 —
+   * 이규동은 차량관리팀, 안원용은 매입팀인데 둘 다 알선 정산을 올린다. 부서만 보면
+   * 팀장이 자기 팀원 셋만 보고 나머지는 못 본다.
+   *
+   * 타이틀만으로도 모자란다. 타이틀은 알선팀 사람에게만 달려 있고, 저 둘은 안 달려
+   * 있다 — 알선 정산을 올린 적이 있는 사람으로 묶는다. 딜러 인센티브 표가 그 달에
+   * 뛴 사람을 세는 것과 같은 자다.
+   *
+   * 부서를 바꾸지 않는다. 그 사람들 자리는 거기가 맞고, 부서를 옮기면 출퇴근·정산·
+   * 결재까지 같이 움직인다.
+   */
   private async teamMemberIds(employeeId: string): Promise<string[]> {
     const me = await this.prisma.employee.findUnique({
       where: { id: employeeId },
-      select: { department: true },
+      select: { name: true, department: true },
     });
-    if (!me?.department) return [employeeId];
+    if (!me) return [employeeId];
+
+    const where: Prisma.EmployeeWhereInput[] = [];
+    if (me.department) where.push({ department: me.department });
+    if (isReferralLeader(me)) {
+      where.push({ NOT: { referralTitle: '' } });
+      const ran = await this.prisma.brokerageSettlement.findMany({
+        where: { kind: ConsultationKind.BROKERAGE },
+        select: { employeeId: true },
+        distinct: ['employeeId'],
+      });
+      if (ran.length > 0) where.push({ id: { in: ran.map((r) => r.employeeId) } });
+    }
+    if (where.length === 0) return [employeeId];
 
     const team = await this.prisma.employee.findMany({
-      where: { department: me.department, active: true },
+      where: { active: true, OR: where },
       select: { id: true },
     });
     // 본인이 빠지는 일이 없게 넣어둔다(비활성 처리 중일 수도 있다).

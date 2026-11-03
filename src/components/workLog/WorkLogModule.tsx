@@ -9,6 +9,7 @@ import WorkLogDayCard from './WorkLogDayCard';
 import MonthlyReportModal from './MonthlyReportModal';
 import { exportWorkLogs } from './exportWorkLogs';
 import { api } from '../../lib/api';
+import { REFERRAL_LEADERS } from '../../lib/permissions';
 
 interface Props {
   role: Role;
@@ -122,10 +123,30 @@ export default function WorkLogModule({ role }: Props) {
   const employeeName = (id: string) => state.employees.find(e => e.id === id)?.name ?? '알 수 없음';
   const ownerLabel = isAllView ? employeeName : undefined;
 
-  // 직원은 같은 팀 사람만 고를 수 있다.
-  const myTeam = state.employees.find(e => e.id === state.currentEmployeeId)?.department;
+  /*
+    직원은 같은 팀 사람만 고를 수 있다.
+
+    알선팀장은 알선을 뛰는 사람까지 고른다. 그 사람들이 부서로는 흩어져 있어서다 —
+    이규동은 차량관리팀, 안원용은 매입팀인데 둘 다 알선 정산을 올린다. 타이틀만으로도
+    모자라서(저 둘은 안 달려 있다) 알선 정산을 올린 적이 있는 사람까지 묶는다.
+
+    서버도 같은 자로 본다(work-logs.service teamMemberIds) — 화면에서만 고를 수 있고
+    서버가 막으면 눌러보고 거절당한다.
+  */
+  const me = state.employees.find(e => e.id === state.currentEmployeeId);
+  const myTeam = me?.department;
+  const leadsReferral = REFERRAL_LEADERS.includes(me?.name ?? '');
+  const ranReferral = useMemo(
+    () => new Set(state.brokerageSettlements.filter(b => (b.kind ?? 'BROKERAGE') === 'BROKERAGE').map(b => b.employeeId)),
+    [state.brokerageSettlements],
+  );
   const pickable = state.employees.filter(
-    e => e.active && e.id !== state.currentEmployeeId && (isAdmin || (myTeam != null && e.department === myTeam)),
+    e =>
+      e.active &&
+      e.id !== state.currentEmployeeId &&
+      (isAdmin ||
+        (myTeam != null && e.department === myTeam) ||
+        (leadsReferral && (!!e.referralTitle || ranReferral.has(e.id)))),
   );
 
   // 캘린더 칸에 뿌릴 칩 — 완료된 건 초록, 남은 건 인디고.
