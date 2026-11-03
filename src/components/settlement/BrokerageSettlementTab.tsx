@@ -122,13 +122,18 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
   const [editing, setEditing] = useState<BrokerageSettlement | null>(null);
   const [preset, setPreset] = useState<{ vehicleNumber: string; vehicleName: string; totalSaleAmount: number; employeeId: string } | undefined>();
 
+  const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
+
   /**
    * 알선 정산은 본인 것만 본다 — 계약팀도 마찬가지다.
    *
    * 알선은 받아온 사람이 곧 정산받을 사람이라 남의 몫이 보일 이유가 없다.
    * 매입 정산과 달리 남이 채워줄 빈칸도 없다.
+   *
+   * 알선팀장은 팀원 것까지 본다. 서버는 이미 내려주고 있었는데 화면이 한 번 더 걸러서,
+   * 권한을 열어도 아무것도 안 보였다 — 같은 기준을 두 군데 두면 늘 한쪽이 뒤처진다.
    */
-  const seesAll = role !== 'EMPLOYEE';
+  const seesAll = role !== 'EMPLOYEE' || REFERRAL_LEADERS.includes(me?.name ?? '');
 
   /**
    * 현금 수수료를 받았는지는 대표만 찍는다.
@@ -136,7 +141,6 @@ export default function BrokerageSettlementTab({ role, kind }: Props) {
    * 받은 사람이 스스로 '받았다'고 찍으면 확인하는 뜻이 없다.
    * 이름으로 가린다 — 서버(settlements/approvers.ts)와 같은 기준이고, 서버가 다시 본다.
    */
-  const me = state.employees.find(e => e.id === state.currentEmployeeId) ?? null;
   /*
     현금 수수료를 찍을 수 있는 사람 — 대표, 알선팀장, 테스트 계정.
 
