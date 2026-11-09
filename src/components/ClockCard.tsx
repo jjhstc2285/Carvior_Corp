@@ -7,6 +7,7 @@ import { ApiError } from '../lib/api';
 import { alertError } from '../lib/alert';
 // 막히는 규칙은 홈의 출퇴근과 같이 쓴다 — 각자 들고 있으면 한쪽만 고치는 날이 온다
 import { punch } from '../lib/punch';
+import { askMealThen } from '../lib/askMeal';
 import { MEAL_IN_BY, MEAL_OUT_FROM } from '../lib/attendance';
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
@@ -168,7 +169,7 @@ export default function ClockCard() {
               출근
             </button>
             <button
-              onClick={() => void punch(clockOut)}
+              onClick={() => void punch(() => askMealThen(record?.mealUsed, setMeal, clockOut))}
               disabled={!canClockOut}
               className="rounded-lg bg-slate-800 px-5 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
             >
@@ -205,7 +206,9 @@ export default function ClockCard() {
                       ? mealOn
                         ? '먹은 날로 적혀 있습니다.'
                         : '안 먹은 날로 적혀 있습니다.'
-                      : '출퇴근 시각으로 자동 판정 중입니다. 밖에서 먹은 날은 체크를 끄세요.'}
+                      : mealOn
+                        ? '아직 안 정했습니다 — 지금 체크는 출퇴근 시각으로 어림한 값입니다. 퇴근할 때 여쭤봅니다.'
+                        : '아직 안 정했습니다 — 퇴근할 때 여쭤봅니다. 먼저 체크해 두셔도 됩니다.'}
               </span>
             </span>
           </label>

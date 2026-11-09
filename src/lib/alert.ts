@@ -42,6 +42,29 @@ export function alertError(title: string, text?: string, hint?: string) {
   });
 }
 
+/**
+ * 예/아니요를 묻는다 — 어느 쪽도 위험하지 않을 때.
+ *
+ * confirmDanger 와 다르다. 저건 '지울까요'처럼 되돌리기 어려운 일을 묻는 자리라 빨간
+ * 단추가 뜨는데, 그냥 사실을 묻는 자리에까지 빨강을 쓰면 무서운 일처럼 보인다.
+ *
+ * 닫아 버리면 null 이다 — '예'도 '아니요'도 아니다. 안 고르고 넘어간 걸 아니요로
+ * 읽으면, 창을 잘못 닫은 사람이 먹은 날을 안 먹은 날로 받게 된다.
+ */
+export async function askYesNo(title: string, text: string, yes = '예', no = '아니요'): Promise<boolean | null> {
+  const result = await base.fire({
+    icon: 'question',
+    title,
+    text,
+    showCancelButton: true,
+    confirmButtonText: yes,
+    cancelButtonText: no,
+  });
+  if (result.isConfirmed) return true;
+  if (result.dismiss === Swal.DismissReason.cancel) return false;
+  return null;
+}
+
 /** 되돌리기 어려운 동작을 묻는다. 확인을 누르면 true. */
 export async function confirmDanger(title: string, text?: string, confirmText = '삭제') {
   const result = await base.fire({

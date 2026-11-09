@@ -5,6 +5,7 @@ import { useStore } from '../../store';
 import { useCurrentIp } from '../../lib/useCurrentIp';
 import { ipAllowed } from '../../lib/ipMatch';
 import { punch } from '../../lib/punch';
+import { askMealThen } from '../../lib/askMeal';
 import { ApiError } from '../../lib/api';
 import { alertError } from '../../lib/alert';
 import { MEAL_IN_BY, MEAL_OUT_FROM } from '../../lib/attendance';
@@ -113,7 +114,7 @@ export default function HomeClockCard() {
           <LogIn size={17} /> 출근하기
         </button>
         <button
-          onClick={() => void hit(clockOut)}
+          onClick={() => void hit(() => askMealThen(record?.mealUsed, setMeal, clockOut))}
           disabled={!canOut || busy}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-100 py-3.5 text-base font-bold text-slate-600 transition hover:bg-slate-200 disabled:bg-slate-50 disabled:text-slate-300"
         >
@@ -124,7 +125,12 @@ export default function HomeClockCard() {
       {/* 그날 안에 눌러야 하는 값이라 홈에 둔다 — 출퇴근 화면까지 들어가면 아무도 안 누른다 */}
       <label
         className={`mt-2.5 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${
-          clockedIn ? 'cursor-pointer border-slate-200 bg-slate-50' : 'border-slate-100 bg-slate-50/60'
+          !clockedIn
+            ? 'border-slate-100 bg-slate-50/60'
+            : /* 아직 안 정한 값은 점선으로 — 확정된 값이 아니라는 게 눈에 보여야 한다 */
+              mealSet
+              ? 'cursor-pointer border-slate-200 bg-slate-50'
+              : 'cursor-pointer border-dashed border-amber-300 bg-amber-50/40'
         }`}
       >
         <input
@@ -145,7 +151,9 @@ export default function HomeClockCard() {
                   ? mealOn
                     ? '먹은 날로 적혀 있습니다.'
                     : '안 먹은 날로 적혀 있습니다.'
-                  : '출퇴근 시각으로 자동 판정 중입니다. 밖에서 먹은 날은 체크를 끄세요.'}
+                  : mealOn
+                ? '아직 안 정했습니다 — 지금 체크는 출퇴근 시각으로 어림한 값입니다. 퇴근할 때 여쭤봅니다.'
+                : '아직 안 정했습니다 — 퇴근할 때 여쭤봅니다. 먼저 체크해 두셔도 됩니다.'}
           </span>
         </span>
       </label>
