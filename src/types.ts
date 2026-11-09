@@ -637,6 +637,19 @@ export interface PurchaseSettlement {
    * 적혀 있으면 판매수익을 이 금액으로 낸다(매입가·재고 금융·세금은 이미 빠져 있다).
    */
   payoutAmount?: number;
+  /*
+    카비어 수수료를 무는가.
+
+    null 이면 '검차 리포트 따라감'이다 — 리포트가 붙은 차만 문다. true/false 면
+    사람이 손으로 켜거나 끈 것이고, 그 값이 이긴다.
+  */
+  carvior?: boolean | null;
+  /** 이 차에 검차 리포트가 붙어 있나 — 서버가 매입 관리에서 붙여 준다 */
+  hasReport?: boolean;
+  /** 셈한 결과 — 실제로 무는가 */
+  carviorOn?: boolean;
+  /** 무는 금액(원). 안 물면 0 */
+  carviorFee?: number;
   /** 매도정산 배분 — NEW(신차 30%) / PERSON(개인 50%). 빈 글자면 아직 안 정한 것 */
   profitShare?: string;
   /** 매도정산을 이미 받았는가 — 받은 건은 이번 달 받을 돈에서 뺀다 */
@@ -813,10 +826,34 @@ export function purchaseGrandTotal(
   platformFee = 0,
   /** 상사 정산서 맨 아래 '실제지급액' — 적혀 있으면 추가이전비는 안 더한다 */
   payoutAmount = 0,
+  /** 카비어 수수료 — 무는 건만 붙는다. carviorFeeOf 가 낸다 */
+  carviorFee = 0,
 ): number {
   // 추가이전비는 상사가 먼저 뗀 돈이라 실제지급액에 이미 빠져 있다 — 또 얹으면 두 번 센다
   const transfer = payoutAmount > 0 ? Math.max(transferFee - extraTransferFee(purchasePrice), 0) : transferFee;
-  return purchasePrice + transfer + brokerFee + platformFee + prepTotal;
+  return purchasePrice + transfer + brokerFee + platformFee + carviorFee + prepTotal;
+}
+
+/**
+ * 카비어 수수료 — 검차 리포트 한 건당 무는 값(원).
+ *
+ * 한 값이라 적어 둘 칸을 만들지 않았다. 바뀌면 이 줄만 고친다 — 이미 저장된 정산은
+ * 켜고 끈 것만 들고 있으므로, 값을 고치면 지난 건도 새 값으로 셈한다.
+ */
+export const CARVIOR_FEE = 100_000;
+
+/**
+ * 이 건에 카비어 수수료를 무는가.
+ *
+ * 안 적어 둔 건(null)은 검차 리포트가 있으면 문다 — 리포트는 카비어가 달아 주는
+ * 거라 그게 있으면 쓴 것이다. 손으로 켜고 끈 건은 그 값이 이긴다.
+ */
+export function carviorOn(carvior: boolean | null | undefined, hasReport: boolean): boolean {
+  return carvior ?? hasReport;
+}
+
+export function carviorFeeOf(carvior: boolean | null | undefined, hasReport: boolean): number {
+  return carviorOn(carvior, hasReport) ? CARVIOR_FEE : 0;
 }
 
 /**

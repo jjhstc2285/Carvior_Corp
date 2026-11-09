@@ -11,6 +11,9 @@ import {
   dealerTransferFee,
   extraTransferFee,
   purchaseGrandTotal,
+  carviorFeeOf,
+  carviorOn,
+  CARVIOR_FEE,
   purchasePrepTotal,
   saleProfit,
   transferFeeOf,
@@ -52,6 +55,15 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
   const [brokerFee, setBrokerFee] = useState(editing ? String(editing.brokerFee) : '0');
   /** 헤이딜러·엔카 경매장에서 사왔으면 그쪽에 낸 수수료 — 직접 사온 차는 0이다 */
   const [platformFee, setPlatformFee] = useState(editing ? String(editing.platformFee ?? 0) : '0');
+  /*
+    카비어 수수료를 무는가.
+
+    새 줄은 '검차 리포트 따라감'으로 시작한다(null) — 리포트가 붙은 차만 저절로 문다.
+    여기서 켜고 끄면 그 값이 이긴다.
+  */
+  const hasReport = editing?.hasReport ?? false;
+  const [carvior, setCarvior] = useState<boolean | null>(editing?.carvior ?? null);
+  const carviorFee = carviorFeeOf(carvior, hasReport);
   const [brokerFeePayout, setBrokerFeePayout] = useState<BrokerFeePayout>(editing?.brokerFeePayout ?? 'CASH');
   // 판 값 — 상담이 판매완료로 끝나면 채운다. 아직 안 팔았으면 비워둔다.
   const [salePrice, setSalePrice] = useState(editing ? String(editing.salePrice) : '');
@@ -205,6 +217,7 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
     nums.brokerFee,
     nums.platformFee,
     nums.payoutAmount,
+    carviorFee,
   );
   // 폼에서는 차량비용(주유·배터리)을 모른다 — 표에서는 그것까지 더한 총합계로 낸다.
   const profit = saleProfit(nums.salePrice, grandTotal, nums.payoutAmount, nums.purchasePrice);
@@ -229,6 +242,8 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
         brokerFeePayout,
         payoutAmount: moneyToNumber(payoutAmount),
         platformFee: nums.platformFee,
+        // 리포트와 같은 쪽이면 '따라감'으로 되돌린다 — 손으로 건드린 표를 안 남긴다
+        carvior: carviorOn(carvior, hasReport) === hasReport ? null : carviorOn(carvior, hasReport),
         contractPhotos,
         prepCosts,
           // 손으로 잡지 않았으면 총비용이 그대로 정산금액이다
@@ -305,6 +320,24 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, onC
           <MoneyField label="구전" value={brokerFee} onChange={setBrokerFee} />
           {/* 헤이딜러·엔카 경매장에서 사오면 그쪽에 수수료를 낸다 — 직접 사온 차는 비워둔다 */}
           <MoneyField label="플랫폼 수수료" value={platformFee} onChange={setPlatformFee} />
+          {/* 검차 리포트 한 건당 무는 값 — 리포트가 붙은 차는 저절로 켜진다 */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">카비어 수수료</label>
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm">
+              <input
+                type="checkbox"
+                checked={carviorOn(carvior, hasReport)}
+                onChange={e => setCarvior(e.target.checked)}
+                className="size-4 accent-indigo-600"
+              />
+              <span className={carviorOn(carvior, hasReport) ? 'font-semibold text-indigo-700' : 'text-slate-400'}>
+                {carviorOn(carvior, hasReport) ? `${CARVIOR_FEE.toLocaleString()}원` : '안 뭄'}
+              </span>
+            </label>
+            <p className="mt-1 text-[11px] text-slate-400">
+              {hasReport ? '검차 리포트가 붙은 차입니다 — 기본으로 뭅니다.' : '검차 리포트가 없는 차입니다 — 체크하면 뭅니다.'}
+            </p>
+          </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">구전 지급방식</label>
             <select

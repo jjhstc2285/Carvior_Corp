@@ -23,6 +23,8 @@ import {
   SETTLEMENT_STAGE_CLASS,
   SETTLEMENT_STAGE_LABEL,
   purchaseGrandTotal,
+  carviorFeeOf,
+  CARVIOR_FEE,
   purchasePrepTotal,
   SETTLEMENT_STATUS_LABEL,
   type PrepCostKind,
@@ -89,6 +91,8 @@ const COLUMNS: Column[] = [
   { key: 'prepTotal', label: '상품화총비용', align: 'text-right' },
   { key: 'brokerFee', label: '구전', align: 'text-right' },
   { key: 'platformFee', label: '플랫폼 수수료', align: 'text-right' },
+  // 검차 리포트 한 건당 무는 값 — 리포트가 붙은 차는 저절로 켜지고, 손으로 끌 수 있다
+  { key: 'carvior', label: '카비어 수수료', align: 'text-center' },
   { key: 'grandTotal', label: '총비용', align: 'text-right' },
   { key: 'vehicleCost', label: '차량비용(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'totalWon', label: '총합계(원)', align: 'text-right', headClass: 'text-sky-600' },
@@ -369,6 +373,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
       s.brokerFee,
       s.platformFee ?? 0,
       s.payoutAmount ?? 0,
+      carviorFeeOf(s.carvior, s.hasReport ?? false),
     );
   /** 최종 합계(원). 서버 값이 없으면 화면에서 같은 식으로 계산한다. */
   const totalWonOf = (s: PurchaseSettlement) => s.grandTotalWon ?? grandTotalOf(s) + costOf(s).total;
@@ -495,6 +500,22 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
       await refresh();
     } catch (e) {
       void alertError('차량판매가를 적지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
+  /**
+   * 카비어 수수료를 켜고 끈다.
+   *
+   * 리포트와 같은 쪽으로 맞추면 '리포트 따라감'(null)으로 되돌린다 — 손으로 건드린
+   * 표를 남겨 두면, 나중에 리포트가 붙어도 꺼진 채로 남는다.
+   */
+  const toggleCarvior = async (row: PurchaseSettlement, on: boolean) => {
+    const back = on === (row.hasReport ?? false);
+    try {
+      await api(`/settlements/purchase/${row.id}`, { method: 'PATCH', body: { carvior: back ? null : on } });
+      await refresh();
+    } catch (e) {
+      void alertError('카비어 수수료를 바꾸지 못했습니다', e instanceof ApiError ? e.message : '');
     }
   };
 
@@ -686,6 +707,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
       ...Object.fromEntries(PREP_COST_KINDS.map(k => [`${PREP_COST_LABEL[k]}(원)`, breakdownOf(s)[k]])),
       '구전(원)': s.brokerFee,
       '플랫폼 수수료(원)': s.platformFee ?? 0,
+      '카비어 수수료(원)': carviorFeeOf(s.carvior, s.hasReport ?? false),
       '상품화총비용(원)': prepTotalOf(s),
       '상품화 명세': (s.prepCosts ?? [])
         .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount.toLocaleString()}`)
@@ -1217,6 +1239,37 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                       <span className={(s.platformFee ?? 0) > 0 ? 'font-semibold text-violet-700' : 'text-slate-300'}>
                         {(s.platformFee ?? 0) > 0 ? MAN(s.platformFee) : '—'}
                       </span>
+                    ),
+                    /*
+                      카비어 수수료 — 여기서 바로 켜고 끈다.
+
+                      줄을 눌러 창을 열지 않아도 되게 표에 체크를 둔다. 한 달에 수십
+                      건을 훑으며 켜고 끄는 자리라, 창을 열었다 닫는 품이 쌓인다.
+
+                      리포트가 붙은 차는 저절로 켜져 있다(점). 손으로 건드린 건은
+                      그 값이 이긴다 — 되돌리려면 체크를 리포트와 같은 쪽으로 맞춘다.
+                    */
+                    carvior: (
+                      <label
+                        className="inline-flex cursor-pointer items-center gap-1"
+                        title={
+                          s.hasReport
+                            ? '검차 리포트가 붙은 차입니다 — 기본으로 뭅니다'
+                            : '검차 리포트가 없는 차입니다 — 체크하면 뭅니다'
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={s.carviorOn ?? false}
+                          onChange={e => void toggleCarvior(s, e.target.checked)}
+                          className="size-3.5 accent-indigo-600"
+                        />
+                        <span className={s.carviorOn ? 'font-semibold text-indigo-700' : 'text-slate-300'}>
+                          {s.carviorOn ? MAN(s.carviorFee ?? CARVIOR_FEE) : '—'}
+                        </span>
+                        {/* 리포트가 붙은 차라는 표 — 왜 저절로 켜졌는지가 보여야 한다 */}
+                        {s.hasReport && <span className="text-[10px] text-slate-400">리포트</span>}
+                      </label>
                     ),
                     grandTotal: <span className="font-semibold text-indigo-600">{MAN(grandTotalOf(s))}</span>,
                     settlementAmount: <span className="font-semibold text-slate-800">{MAN(s.settlementAmount)}</span>,

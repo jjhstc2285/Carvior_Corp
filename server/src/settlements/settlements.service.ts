@@ -11,6 +11,8 @@ import {
   profitShareAmount,
   purchaseGrandTotal,
   purchaseGrandTotalWon,
+  carviorFeeOf,
+  carviorOn,
   transferFeeOf,
   saleProfit,
   type SaleFields,
@@ -62,6 +64,12 @@ interface BrokerageListParams extends ListParams {
   mineOnlyDraft?: string;
 }
 
+/** 매입 관리에서 붙여 오는 것 — 차가 들어온 날과, 검차 리포트가 달렸나 */
+interface IntakeFacts {
+  day: string | null;
+  hasReport: boolean;
+}
+
 const EMPLOYEE_SELECT = { employee: { select: { id: true, name: true, position: true } } };
 
 /** 승인 차례를 가리려면 담당자 이름이 있어야 한다 — 이름에 따라 본부장을 건너뛴다. */
@@ -88,6 +96,8 @@ interface PurchaseRow extends SaleFields {
   profitSharePaid: boolean;
   /** 상사 정산서의 실제지급액 — 0이면 안 적은 것이다 */
   payoutAmount: number;
+  /** 카비어 수수료를 무는가 — null 이면 검차 리포트가 있는 건만 문다 */
+  carvior: boolean | null;
   prepCosts: { kind: PrepCostKind; amount: number }[];
 }
 
@@ -964,9 +974,9 @@ export class SettlementsService {
    *
    * 못 붙여도 목록은 그대로 나와야 한다 — 날짜 하나 때문에 정산이 안 보이면 그게 더 큰 일이다.
    */
-  private async intakeDatesOf(vehicleNumbers: string[]): Promise<Map<string, string | null>> {
+  private async intakeDatesOf(vehicleNumbers: string[]): Promise<Map<string, IntakeFacts>> {
     const wanted = new Set(vehicleNumbers.map(normalizePlate).filter(Boolean));
-    const out = new Map<string, string | null>();
+    const out = new Map<string, IntakeFacts>();
     if (wanted.size === 0) return out;
 
     try {
@@ -981,7 +991,8 @@ export class SettlementsService {
       */
       const [intakes, vehicles] = await Promise.all([
         this.prisma.purchaseIntake.findMany({
-          select: { vehicleNumber: true, date: true },
+          // 검차 리포트 주소는 카비어가 달아 준다 — 그게 있으면 카비어를 쓴 건이다
+          select: { vehicleNumber: true, date: true, reportUrl: true },
           // 오래된 것부터 넣어 최근 것이 덮어쓰게 한다(되사온 차는 최근 매입일이 맞다)
           orderBy: { date: 'asc' },
         }),
@@ -991,12 +1002,20 @@ export class SettlementsService {
       for (const v of vehicles) {
         const plate = normalizePlate(v.vehicleNumber);
         const day = formatDateOnlyOrNull(v.offerDate);
-        if (day && wanted.has(plate)) out.set(plate, day);
+        if (day && wanted.has(plate)) out.set(plate, { day, hasReport: false });
       }
       // 매입일이 있으면 그게 맞다 — 제시일자를 덮어쓴다
       for (const r of intakes) {
         const plate = normalizePlate(r.vehicleNumber);
-        if (wanted.has(plate)) out.set(plate, formatDateOnly(r.date));
+        if (!wanted.has(plate)) continue;
+        /*
+          리포트는 어느 매입 줄에든 붙어 있으면 있는 것으로 본다.
+
+          같은 차를 두 번 사 온 건이 있는데, 날짜는 최근 것이 맞지만 리포트는 둘 중
+          하나에만 붙어 있어도 카비어를 쓴 것이다.
+        */
+        const had = out.get(plate)?.hasReport ?? false;
+        out.set(plate, { day: formatDateOnly(r.date), hasReport: had || !!r.reportUrl?.trim() });
       }
     } catch (e) {
       this.logger.warn(`입고일자를 붙이지 못했습니다: ${(e as Error).message}`);
@@ -1392,9 +1411,10 @@ export class SettlementsService {
     row: T,
     cost: VehicleCostSummary | undefined,
     /** 차가 들어온 날(입고일) — 매입 관리에서 붙인다. 없으면 null */
-    intakeDate?: string | null,
+    intake?: IntakeFacts,
   ) {
     const vehicleCost = cost ?? EMPTY_VEHICLE_COST;
+    const carviorFee = carviorFeeOf(row.carvior, intake?.hasReport ?? false);
     // 상품화총비용과 항목별 합계는 명세를 더해서 낸다 — 저장하지 않는다.
     const prepTotal = purchasePrepTotal(row.prepCosts);
     /*
@@ -1417,6 +1437,7 @@ export class SettlementsService {
         row.brokerFee,
         row.platformFee,
         row.payoutAmount,
+        carviorFee,
       ),
       row.payoutAmount,
       row.purchasePrice,
@@ -1435,6 +1456,7 @@ export class SettlementsService {
         row.brokerFee,
         row.platformFee,
         row.payoutAmount,
+        carviorFee,
       ),
       // 차량관리에서 자동으로 붙는 값 — 저장하지 않고 조회할 때마다 계산한다.
       vehicleCost,
@@ -1446,6 +1468,7 @@ export class SettlementsService {
         row.brokerFee,
         row.platformFee,
         row.payoutAmount,
+        carviorFee,
       ),
       // 판 값. 아직 안 팔았으면 전부 0이라 판매수익도 0으로 나온다.
       submittedAt: row.submittedAt?.toISOString() ?? null,
@@ -1462,7 +1485,19 @@ export class SettlementsService {
        * 매입 관리의 매입일을 차량번호로 붙인다(없으면 재고 금융의 제시일자). 정산에 따로
        * 적지 않는다 — 두 군데 적으면 어긋나고, 어느 쪽이 맞는지 아무도 모른다.
        */
-      intakeDate: intakeDate ?? null,
+      intakeDate: intake?.day ?? null,
+      /*
+        카비어 수수료.
+
+        검차 리포트가 붙은 차는 저절로 문다 — 리포트를 카비어가 달아 주기 때문이다.
+        손으로 켜고 끈 건은 그 값이 이긴다(carvior 가 null 이 아니면 그쪽).
+
+        무는지(carviorOn)와 얼마인지(carviorFee)를 둘 다 보낸다. 화면이 체크를 그리고
+        금액을 적어야 하는데, 금액만 보내면 0원인 건이 '안 뭄'인지 '0원'인지 모른다.
+      */
+      hasReport: intake?.hasReport ?? false,
+      carviorOn: carviorOn(row.carvior, intake?.hasReport ?? false),
+      carviorFee,
       /** 그 사람이 가져가는 몫 — 안 정한 건은 0이다 */
       shareAmount: profitShareAmount(profit, row.profitShare),
     };
@@ -1496,6 +1531,8 @@ export class SettlementsService {
         profitShare: dto.profitShare ?? '',
         profitSharePaid: dto.profitSharePaid ?? false,
         payoutAmount: dto.payoutAmount ?? 0,
+        // 안 보내면 null 로 둔다 — 검차 리포트가 있는 차만 저절로 문다
+        carvior: dto.carvior ?? null,
         contractPhotos: dto.contractPhotos ?? '',
         salePrice: dto.salePrice ?? 0,
         cashCommission: dto.cashCommission ?? 0,

@@ -207,10 +207,34 @@ export function purchaseGrandTotal(
   platformFee = 0,
   /** 상사 정산서 맨 아래 '실제지급액' — 적혀 있으면 추가이전비는 안 더한다 */
   payoutAmount = 0,
+  /** 카비어 수수료 — 무는 건만 붙는다. carviorFeeOf 가 낸다 */
+  carviorFee = 0,
 ): number {
   // 추가이전비는 상사가 먼저 뗀 돈이라 실제지급액에 이미 빠져 있다 — 또 얹으면 두 번 센다
   const transfer = payoutAmount > 0 ? Math.max(transferFee - extraTransferFee(purchasePrice), 0) : transferFee;
-  return purchasePrice + transfer + brokerFee + platformFee + prepTotal;
+  return purchasePrice + transfer + brokerFee + platformFee + carviorFee + prepTotal;
+}
+
+/**
+ * 카비어 수수료 — 검차 리포트 한 건당 무는 값(원).
+ *
+ * 한 값이라 적어 둘 칸을 만들지 않았다. 바뀌면 이 줄만 고친다 — 이미 저장된 정산은
+ * 켜고 끈 것만 들고 있으므로, 값을 고치면 지난 건도 새 값으로 셈한다.
+ */
+export const CARVIOR_FEE = 100_000;
+
+/**
+ * 이 건에 카비어 수수료를 무는가.
+ *
+ * 안 적어 둔 건(null)은 검차 리포트가 있으면 문다 — 리포트는 카비어가 달아 주는
+ * 거라 그게 있으면 쓴 것이다. 손으로 켜고 끈 건은 그 값이 이긴다.
+ */
+export function carviorOn(carvior: boolean | null | undefined, hasReport: boolean): boolean {
+  return carvior ?? hasReport;
+}
+
+export function carviorFeeOf(carvior: boolean | null | undefined, hasReport: boolean): number {
+  return carviorOn(carvior, hasReport) ? CARVIOR_FEE : 0;
 }
 
 /**
@@ -331,9 +355,11 @@ export function purchaseGrandTotalWon(
   platformFee = 0,
   /** 실제지급액 — 적혀 있으면 이전비는 안 더한다(상사가 먼저 뗀 돈이다) */
   payoutAmount = 0,
+  /** 카비어 수수료 — 무는 건만 붙는다 */
+  carviorFee = 0,
 ): number {
   return (
-    purchaseGrandTotal(purchasePrice, prepTotal, transferFee, brokerFee, platformFee, payoutAmount) +
+    purchaseGrandTotal(purchasePrice, prepTotal, transferFee, brokerFee, platformFee, payoutAmount, carviorFee) +
     vehicleCost.total
   );
 }
