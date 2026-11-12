@@ -93,6 +93,8 @@ const COLUMNS: Column[] = [
   { key: 'platformFee', label: '플랫폼 수수료', align: 'text-right' },
   // 검차 리포트 한 건당 무는 값 — 리포트가 붙은 차는 저절로 켜지고, 손으로 끌 수 있다
   { key: 'carvior', label: '카비어 수수료', align: 'text-center' },
+  // 담당자와 다르다 — 차를 보러 가서 값을 매긴 사람이다
+  { key: 'appraiser', label: '견적 본 사람' },
   { key: 'grandTotal', label: '총비용', align: 'text-right' },
   { key: 'vehicleCost', label: '차량비용(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'totalWon', label: '총합계(원)', align: 'text-right', headClass: 'text-sky-600' },
@@ -708,6 +710,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
       '구전(원)': s.brokerFee,
       '플랫폼 수수료(원)': s.platformFee ?? 0,
       '카비어 수수료(원)': carviorFeeOf(s.carvior, s.hasReport ?? false),
+      '견적 본 사람': s.appraiser ?? '',
       '상품화총비용(원)': prepTotalOf(s),
       '상품화 명세': (s.prepCosts ?? [])
         .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount.toLocaleString()}`)
@@ -1124,7 +1127,7 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
             label: s.vehicleName || s.vehicleNumber,
             sublabel: `${SETTLEMENT_STAGE_LABEL[s.stage ?? 'DRAFT']} · 합계 ${NUM(totalWonOf(s))}원`,
             tone: s.locked ? 'locked' : s.status === 'COMPLETED' ? 'done' : 'progress',
-            onSelect: lockedFor(s) ? undefined : () => { setEditing(s); setFormOpen(true); },
+            onSelect: () => { setEditing(s); setFormOpen(true); },
           }))}
         />
       ) : (
@@ -1165,14 +1168,19 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                 */
                 <tr
                   key={s.id}
+                  /*
+                    승인이 찍힌 줄도 연다 — 다만 보기만 한다.
+
+                    전에는 아예 안 열렸다. 그래서 무엇이 적혀 있는지 보려고 엑셀을
+                    내려받거나 결재 화면을 뒤져야 했다 — 상품화 명세는 표에 다 안 나온다.
+                  */
                   onClick={e => {
                     if ((e.target as HTMLElement).closest('button, input, select, a, label')) return;
-                    if (lockedFor(s)) return;
                     setEditing(s);
                     setFormOpen(true);
                   }}
-                  title={lockedFor(s) ? '승인된 정산은 고칠 수 없습니다' : '눌러서 고칩니다'}
-                  className={`border-b border-slate-50 last:border-0 ${lockedFor(s) ? '' : 'cursor-pointer'} ${
+                  title={lockedFor(s) ? '승인된 정산입니다 — 눌러서 봅니다(고칠 수는 없습니다)' : '눌러서 고칩니다'}
+                  className={`cursor-pointer border-b border-slate-50 last:border-0 ${
                     s.profitSharePaid
                       ? 'bg-rose-50 text-slate-500 line-through decoration-rose-300 hover:bg-rose-100/70'
                       : 'hover:bg-indigo-50/40'
@@ -1270,6 +1278,11 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                         {/* 리포트가 붙은 차라는 표 — 왜 저절로 켜졌는지가 보여야 한다 */}
                         {s.hasReport && <span className="text-[10px] text-slate-400">리포트</span>}
                       </label>
+                    ),
+                    appraiser: s.appraiser ? (
+                      <span className="text-slate-600">{s.appraiser}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
                     ),
                     grandTotal: <span className="font-semibold text-indigo-600">{MAN(grandTotalOf(s))}</span>,
                     settlementAmount: <span className="font-semibold text-slate-800">{MAN(s.settlementAmount)}</span>,
@@ -1529,7 +1542,13 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
       )}
 
       {formOpen && (
-        <PurchaseSettlementForm editing={editing} defaultEmployeeId={state.currentEmployeeId} onClose={() => setFormOpen(false)} />
+        <PurchaseSettlementForm
+          editing={editing}
+          defaultEmployeeId={state.currentEmployeeId}
+          // 승인이 찍힌 줄은 보기만 — 창 안을 통째로 잠그고 저장 단추를 안 띄운다
+          readOnly={!!editing && lockedFor(editing)}
+          onClose={() => setFormOpen(false)}
+        />
       )}
     </>
   );

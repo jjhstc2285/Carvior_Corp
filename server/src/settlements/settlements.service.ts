@@ -64,10 +64,11 @@ interface BrokerageListParams extends ListParams {
   mineOnlyDraft?: string;
 }
 
-/** 매입 관리에서 붙여 오는 것 — 차가 들어온 날과, 검차 리포트가 달렸나 */
+/** 매입 관리에서 붙여 오는 것 — 들어온 날, 검차 리포트, 실차 확인자 */
 interface IntakeFacts {
   day: string | null;
   hasReport: boolean;
+  inspector: string;
 }
 
 const EMPLOYEE_SELECT = { employee: { select: { id: true, name: true, position: true } } };
@@ -96,6 +97,8 @@ interface PurchaseRow extends SaleFields {
   profitSharePaid: boolean;
   /** 상사 정산서의 실제지급액 — 0이면 안 적은 것이다 */
   payoutAmount: number;
+  /** 견적 본 사람 — 비어 있으면 매입 관리의 실차 확인자를 대신 쓴다 */
+  appraiser: string;
   /** 카비어 수수료를 무는가 — null 이면 검차 리포트가 있는 건만 문다 */
   carvior: boolean | null;
   prepCosts: { kind: PrepCostKind; amount: number }[];
@@ -992,7 +995,7 @@ export class SettlementsService {
       const [intakes, vehicles] = await Promise.all([
         this.prisma.purchaseIntake.findMany({
           // 검차 리포트 주소는 카비어가 달아 준다 — 그게 있으면 카비어를 쓴 건이다
-          select: { vehicleNumber: true, date: true, reportUrl: true },
+          select: { vehicleNumber: true, date: true, reportUrl: true, inspector: true },
           // 오래된 것부터 넣어 최근 것이 덮어쓰게 한다(되사온 차는 최근 매입일이 맞다)
           orderBy: { date: 'asc' },
         }),
@@ -1002,7 +1005,7 @@ export class SettlementsService {
       for (const v of vehicles) {
         const plate = normalizePlate(v.vehicleNumber);
         const day = formatDateOnlyOrNull(v.offerDate);
-        if (day && wanted.has(plate)) out.set(plate, { day, hasReport: false });
+        if (day && wanted.has(plate)) out.set(plate, { day, hasReport: false, inspector: '' });
       }
       // 매입일이 있으면 그게 맞다 — 제시일자를 덮어쓴다
       for (const r of intakes) {
@@ -1015,7 +1018,13 @@ export class SettlementsService {
           하나에만 붙어 있어도 카비어를 쓴 것이다.
         */
         const had = out.get(plate)?.hasReport ?? false;
-        out.set(plate, { day: formatDateOnly(r.date), hasReport: had || !!r.reportUrl?.trim() });
+        // 실차 확인자는 적힌 줄이 이긴다 — 빈 줄로 덮으면 적어 둔 이름이 사라진다
+        const who = r.inspector?.trim() || out.get(plate)?.inspector || '';
+        out.set(plate, {
+          day: formatDateOnly(r.date),
+          hasReport: had || !!r.reportUrl?.trim(),
+          inspector: who,
+        });
       }
     } catch (e) {
       this.logger.warn(`입고일자를 붙이지 못했습니다: ${(e as Error).message}`);
@@ -1496,6 +1505,15 @@ export class SettlementsService {
         금액을 적어야 하는데, 금액만 보내면 0원인 건이 '안 뭄'인지 '0원'인지 모른다.
       */
       hasReport: intake?.hasReport ?? false,
+      /*
+        견적 본 사람.
+
+        정산에 적어 둔 이름이 먼저다. 안 적었으면 매입 관리의 실차 확인자를 보여 준다 —
+        거기 적어 둔 건이 이미 있어서, 안 쓰면 그 이름이 어디에도 안 보인다.
+      */
+      appraiser: row.appraiser?.trim() || intake?.inspector || '',
+      /** 매입 관리에 적힌 실차 확인자 — 정산 칸이 비었을 때 어디서 온 이름인지 보여 준다 */
+      inspector: intake?.inspector ?? '',
       carviorOn: carviorOn(row.carvior, intake?.hasReport ?? false),
       carviorFee,
       /** 그 사람이 가져가는 몫 — 안 정한 건은 0이다 */
@@ -1531,6 +1549,7 @@ export class SettlementsService {
         profitShare: dto.profitShare ?? '',
         profitSharePaid: dto.profitSharePaid ?? false,
         payoutAmount: dto.payoutAmount ?? 0,
+        appraiser: (dto.appraiser ?? '').trim(),
         // 안 보내면 null 로 둔다 — 검차 리포트가 있는 차만 저절로 문다
         carvior: dto.carvior ?? null,
         contractPhotos: dto.contractPhotos ?? '',

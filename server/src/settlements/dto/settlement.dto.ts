@@ -143,6 +143,8 @@ export class CreatePurchaseDto {
     안 보내면 그대로 두고, null 을 보내면 '검차 리포트 따라감'으로 되돌린다 —
     켜고 끈 것을 지우는 길이 있어야 한다.
   */
+  /** 견적 본 사람 — 직원 이름이거나 검차업체 이름이다 */
+  @IsOptional() @IsString() @MaxLength(30) appraiser?: string;
   @IsOptional() @IsBoolean() carvior?: boolean | null;
 
   /** 계약서 사진 경로 — 줄바꿈으로 이어 담는다 */
@@ -190,6 +192,8 @@ export class UpdatePurchaseDto {
     안 보내면 그대로 두고, null 을 보내면 '검차 리포트 따라감'으로 되돌린다 —
     켜고 끈 것을 지우는 길이 있어야 한다.
   */
+  /** 견적 본 사람 — 직원 이름이거나 검차업체 이름이다 */
+  @IsOptional() @IsString() @MaxLength(30) appraiser?: string;
   @IsOptional() @IsBoolean() carvior?: boolean | null;
 
   @IsOptional() @Money() salePrice?: number;
