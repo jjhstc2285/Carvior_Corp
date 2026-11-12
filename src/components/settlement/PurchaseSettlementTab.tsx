@@ -93,8 +93,6 @@ const COLUMNS: Column[] = [
   { key: 'platformFee', label: '플랫폼 수수료', align: 'text-right' },
   // 검차 리포트 한 건당 무는 값 — 리포트가 붙은 차는 저절로 켜지고, 손으로 끌 수 있다
   { key: 'carvior', label: '카비어 수수료', align: 'text-center' },
-  // 담당자와 다르다 — 차를 보러 가서 값을 매긴 사람이다
-  { key: 'appraiser', label: '견적 본 사람' },
   { key: 'grandTotal', label: '총비용', align: 'text-right' },
   { key: 'vehicleCost', label: '차량비용(원)', align: 'text-right', headClass: 'text-sky-600' },
   { key: 'totalWon', label: '총합계(원)', align: 'text-right', headClass: 'text-sky-600' },
@@ -521,6 +519,42 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
     }
   };
 
+  /*
+    담당자로 고를 수 있는 사람.
+
+    담당자 칩(owners)으로 두면 안 된다. 그건 그 달에 줄이 있는 사람만 모은 목록이라,
+    정작 넘겨주고 싶은 사람이 거기 없으면 못 고른다.
+
+    계약팀을 앞 묶음에, 나머지를 뒤 묶음에 둔다 — 정산 창과 같은 꼴이다. 지금 적힌
+    담당자가 그만둔 사람이어도 목록에 남긴다(빠지면 고르지도 않았는데 이름이 바뀐다).
+  */
+  const pickOwners = useMemo(() => {
+    const live = state.employees.filter(e => e.active !== false);
+    const held = new Set(filtered.map(s => s.employeeId));
+    const keep = state.employees.filter(e => e.active === false && held.has(e.id));
+    const all = [...live, ...keep];
+    return {
+      contract: all.filter(e => e.department === '계약팀'),
+      others: all.filter(e => e.department !== '계약팀'),
+    };
+  }, [state.employees, filtered]);
+
+  /**
+   * 담당자를 바꾼다 — 표에서 바로.
+   *
+   * 자기 건으로 돌려놓는 데 창을 열 일이 없게 한다. 창을 열어야만 바꿀 수 있으면
+   * 그러느니 새로 적게 되고, 그래서 같은 차가 두 줄이 됐다.
+   */
+  const saveOwner = async (row: PurchaseSettlement, employeeId: string) => {
+    if (!employeeId || employeeId === row.employeeId) return;
+    try {
+      await api(`/settlements/purchase/${row.id}`, { method: 'PATCH', body: { employeeId } });
+      await refresh();
+    } catch (e) {
+      void alertError('담당자를 바꾸지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
   /** 중복으로 잡힌 줄을 남겨 둔다 — 되사온 차는 두 줄이 맞다 */
   const keepRow = async (row: PurchaseSettlement) => {
     try {
@@ -720,7 +754,6 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
       '구전(원)': s.brokerFee,
       '플랫폼 수수료(원)': s.platformFee ?? 0,
       '카비어 수수료(원)': carviorFeeOf(s.carvior, s.hasReport ?? false),
-      '견적 본 사람': s.appraiser ?? '',
       '상품화총비용(원)': prepTotalOf(s),
       '상품화 명세': (s.prepCosts ?? [])
         .map(c => `${PREP_COST_LABEL[c.kind]}·${c.vendor || '미지정'} ${c.amount.toLocaleString()}`)
@@ -1298,11 +1331,6 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                         {s.hasReport && <span className="text-[10px] text-slate-400">리포트</span>}
                       </label>
                     ),
-                    appraiser: s.appraiser ? (
-                      <span className="text-slate-600">{s.appraiser}</span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    ),
                     grandTotal: <span className="font-semibold text-indigo-600">{MAN(grandTotalOf(s))}</span>,
                     settlementAmount: <span className="font-semibold text-slate-800">{MAN(s.settlementAmount)}</span>,
                     vehicleCost: (
@@ -1424,7 +1452,44 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                         </span>
                       );
                     })(),
-                    owner: <span className="text-slate-500">{employeeOf(s.employeeId)?.name}</span>,
+                    /*
+                      담당자를 표에서 바로 바꾼다.
+
+                      계약팀은 이전계약서를 쓸 즈음에, 매입 뛴 사람은 팔린 뒤에 손을
+                      댄다 — 한 줄을 서로 다른 때에 만지는 자리다. 창을 열어야만
+                      바꿀 수 있으면 자기 건으로 돌려놓는 데 품이 들고, 그러느니
+                      새로 적어서 같은 차가 두 줄이 된다.
+
+                      승인이 찍힌 줄은 못 바꾼다 — 결재한 뒤에 담당자가 바뀌면
+                      누구 걸 보고 찍었는지가 남지 않는다.
+                    */
+                    owner: lockedFor(s) ? (
+                      <span className="text-slate-500">{employeeOf(s.employeeId)?.name}</span>
+                    ) : (
+                      <select
+                        value={s.employeeId}
+                        onChange={e => void saveOwner(s, e.target.value)}
+                        title="담당자를 바꿉니다"
+                        className="w-24 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-600 outline-none focus:border-indigo-400"
+                      >
+                        {/* 고를 사람을 owners 로 두면 안 된다 — 그 달에 줄이 없는 사람은 목록에 없다 */}
+                        <optgroup label="계약팀">
+                          {pickOwners.contract.map(e => (
+                            <option key={e.id} value={e.id}>
+                              {e.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="그 밖">
+                          {pickOwners.others.map(e => (
+                            <option key={e.id} value={e.id}>
+                              {e.name}
+                              {e.position ? ` (${e.position})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    ),
                     // 눌러서 크게 본다 — 결재하는 쪽이 표에서 바로 확인한다
                     contract: s.contractPhotos ? (
                       <ContractPhotoThumb value={s.contractPhotos} size={32} />

@@ -97,8 +97,6 @@ interface PurchaseRow extends SaleFields {
   profitSharePaid: boolean;
   /** 상사 정산서의 실제지급액 — 0이면 안 적은 것이다 */
   payoutAmount: number;
-  /** 견적 본 사람 — 비어 있으면 매입 관리의 실차 확인자를 대신 쓴다 */
-  appraiser: string;
   /** 중복으로 잡혀 지울 때가 찍힌 줄 — 그때까지 줄을 그어 보여 준다 */
   deleteAt: Date | null;
   /** 카비어 수수료를 무는가 — null 이면 검차 리포트가 있는 건만 문다 */
@@ -1507,14 +1505,7 @@ export class SettlementsService {
         금액을 적어야 하는데, 금액만 보내면 0원인 건이 '안 뭄'인지 '0원'인지 모른다.
       */
       hasReport: intake?.hasReport ?? false,
-      /*
-        견적 본 사람.
-
-        정산에 적어 둔 이름이 먼저다. 안 적었으면 매입 관리의 실차 확인자를 보여 준다 —
-        거기 적어 둔 건이 이미 있어서, 안 쓰면 그 이름이 어디에도 안 보인다.
-      */
-      appraiser: row.appraiser?.trim() || intake?.inspector || '',
-      /** 매입 관리에 적힌 실차 확인자 — 정산 칸이 비었을 때 어디서 온 이름인지 보여 준다 */
+      /** 매입 관리에 적힌 실차 확인자 — 누가 보고 온 차인지는 거기 적힌 이름으로 본다 */
       inspector: intake?.inspector ?? '',
       /* 중복으로 잡힌 줄 — 화면이 줄을 긋고 언제 지워지는지 적는다 */
       deleteAt: row.deleteAt ? row.deleteAt.toISOString() : null,
@@ -1553,7 +1544,6 @@ export class SettlementsService {
         profitShare: dto.profitShare ?? '',
         profitSharePaid: dto.profitSharePaid ?? false,
         payoutAmount: dto.payoutAmount ?? 0,
-        appraiser: (dto.appraiser ?? '').trim(),
         // 안 보내면 null 로 둔다 — 검차 리포트가 있는 차만 저절로 문다
         carvior: dto.carvior ?? null,
         contractPhotos: dto.contractPhotos ?? '',

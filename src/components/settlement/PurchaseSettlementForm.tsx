@@ -112,22 +112,6 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, rea
   );
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? defaultEmployeeId);
 
-  /*
-    견적 본 사람.
-
-    담당자와 다르다. 담당자는 이 정산을 적는 계약팀이고, 견적은 이우주·김진후·안원용
-    처럼 매입을 뛰는 사람이 본다.
-
-    고르게도 하고 적게도 한다 — 검차업체처럼 직원이 아닌 이름이 들어가는 자리다.
-  */
-  const [appraiser, setAppraiser] = useState(editing?.appraiser ?? '');
-  const appraiserNames = useMemo(() => {
-    const names = new Set<string>();
-    for (const e of state.employees) if (e.active !== false && e.name.trim()) names.add(e.name.trim());
-    // 지금까지 적어 둔 이름도 올려 둔다 — 검차업체는 직원 목록에 없다
-    for (const r of state.purchaseSettlements) if (r.appraiser?.trim()) names.add(r.appraiser.trim());
-    return [...names].sort((a, b) => a.localeCompare(b));
-  }, [state.employees, state.purchaseSettlements]);
 
   /** 계약팀 — 지금 적힌 담당자가 계약팀이 아니어도 그 사람은 남긴다 */
   /*
@@ -286,7 +270,6 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, rea
         brokerFeePayout,
         payoutAmount: moneyToNumber(payoutAmount),
         platformFee: nums.platformFee,
-        appraiser: appraiser.trim(),
         // 리포트와 같은 쪽이면 '따라감'으로 되돌린다 — 손으로 건드린 표를 안 남긴다
         carvior: carviorOn(carvior, hasReport) === hasReport ? null : carviorOn(carvior, hasReport),
         contractPhotos,
@@ -379,28 +362,6 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, rea
             others={otherStaff}
           />
 
-          {/* 견적 본 사람 — 담당자와 다르다. 매입을 뛴 사람이 여기 들어간다 */}
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">견적 본 사람</label>
-            <input
-              value={appraiser}
-              onChange={e => setAppraiser(e.target.value)}
-              list="purchase-appraisers"
-              placeholder={editing?.inspector || '이우주'}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
-            />
-            <datalist id="purchase-appraisers">
-              {appraiserNames.map(n => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
-            {/* 매입 관리에 적어 둔 이름이 있으면 그걸 쓴다는 걸 알려 준다 */}
-            {!appraiser.trim() && editing?.inspector && (
-              <p className="mt-1 text-[11px] text-slate-400">
-                비워 두면 매입 관리의 실차 확인자(<b>{editing.inspector}</b>)로 봅니다.
-              </p>
-            )}
-          </div>
 
           <MoneyField label="매입가" value={purchasePrice} onChange={setPurchasePrice} required />
           <MoneyField label="구전" value={brokerFee} onChange={setBrokerFee} />
