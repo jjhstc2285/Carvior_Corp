@@ -84,18 +84,43 @@ export function CalcRow({ label, formula, value, strong }: {
   );
 }
 
-export function EmployeeField({ label, value, onChange, employees, className }: {
+/**
+ * 담당자 고르기.
+ *
+ * 늘 고르는 사람을 앞에 두고 나머지를 뒤에 묶는다. 스무 명을 한 줄로 늘어놓으면 네 명을
+ * 찾느라 눈이 가고, 반대로 네 명만 두면 나머지 사람은 자기 이름을 아예 못 고른다 —
+ * 그러면 적어 놓고도 자기 것으로 안 잡혀서 같은 걸 또 적게 된다.
+ */
+export function EmployeeField({ label, value, onChange, employees, others, className }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   employees: { id: string; name: string }[];
+  /** 뒤에 묶어 둘 나머지 사람들 — 없으면 묶음 없이 한 줄로 그린다 */
+  others?: { id: string; name: string; position?: string }[];
   className?: string;
 }) {
   return (
     <div className={className}>
       <label className="mb-1 block text-xs font-semibold text-slate-500">{label}</label>
       <select value={value} onChange={e => onChange(e.target.value)} className={INPUT_CLASS}>
-        {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+        {others && others.length > 0 ? (
+          <>
+            <optgroup label="계약팀">
+              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </optgroup>
+            <optgroup label="그 밖">
+              {others.map(e => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                  {e.position ? ` (${e.position})` : ''}
+                </option>
+              ))}
+            </optgroup>
+          </>
+        ) : (
+          employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)
+        )}
       </select>
     </div>
   );

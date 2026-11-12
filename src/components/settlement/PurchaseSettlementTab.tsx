@@ -521,6 +521,16 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
     }
   };
 
+  /** 중복으로 잡힌 줄을 남겨 둔다 — 되사온 차는 두 줄이 맞다 */
+  const keepRow = async (row: PurchaseSettlement) => {
+    try {
+      await api(`/settlements/purchase/${row.id}/keep`, { method: 'POST' });
+      await refresh();
+    } catch (e) {
+      void alertError('남겨 두지 못했습니다', e instanceof ApiError ? e.message : '');
+    }
+  };
+
   const saveMeal = async (employeeId: string, amount: number) => {
     try {
       setMeals(await api<MealRow[]>('/settlements/purchase/meal', {
@@ -1179,8 +1189,17 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                     setEditing(s);
                     setFormOpen(true);
                   }}
-                  title={lockedFor(s) ? '승인된 정산입니다 — 눌러서 봅니다(고칠 수는 없습니다)' : '눌러서 고칩니다'}
+                  title={
+                    s.deleteAt
+                      ? '같은 차가 두 줄이라 지울 때가 잡혔습니다 — 되사온 차면 [남겨두기]를 눌러 주세요'
+                      : lockedFor(s)
+                        ? '승인된 정산입니다 — 눌러서 봅니다(고칠 수는 없습니다)'
+                        : '눌러서 고칩니다'
+                  }
                   className={`cursor-pointer border-b border-slate-50 last:border-0 ${
+                    /* 지울 때가 잡힌 줄 — 줄을 긋고 바탕을 빨갛게 둔다 */
+                    s.deleteAt ? 'bg-red-50/70 text-slate-400 line-through decoration-red-300' : ''
+                  } ${
                     s.profitSharePaid
                       ? 'bg-rose-50 text-slate-500 line-through decoration-rose-300 hover:bg-rose-100/70'
                       : 'hover:bg-indigo-50/40'
@@ -1441,6 +1460,21 @@ export default function PurchaseSettlementTab({ role, focus }: Props) {
                     ),
                     actions: (
                       <div className="flex justify-end gap-1">
+                        {/*
+                          중복으로 잡힌 줄 — 언제 지워지는지 적고 되돌릴 길을 같이 둔다.
+
+                          되사온 차는 같은 번호로 두 줄이 맞다. 누르면 줄 긋기가 걷히고
+                          다음 청소에서도 다시 안 집는다.
+                        */}
+                        {s.deleteAt && (
+                          <button
+                            onClick={() => void keepRow(s)}
+                            className="flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-xs font-bold text-white no-underline hover:bg-red-700"
+                            title={`${dayjs(s.deleteAt).format('M월 D일 HH:mm')}에 지워집니다 — 누르면 남겨 둡니다`}
+                          >
+                            {dayjs(s.deleteAt).diff(dayjs(), 'hour')}시간 뒤 삭제 · 남겨두기
+                          </button>
+                        )}
                         {/* 다 채웠으면 올린다. 올려야 본부장이 볼 차례가 된다 */}
                         {s.stage === 'DRAFT' && (
                           <button

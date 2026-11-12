@@ -130,8 +130,25 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, rea
   }, [state.employees, state.purchaseSettlements]);
 
   /** 계약팀 — 지금 적힌 담당자가 계약팀이 아니어도 그 사람은 남긴다 */
+  /*
+    담당자 목록.
+
+    계약팀만 올려 뒀더니 매입을 뛰는 분들(안원용·이우주)이 자기 이름을 못 골랐다.
+    정산을 적어 놓고도 자기 이름으로 안 잡히니 "안 들어갔나" 하고 또 적었고 —
+    같은 차가 두 줄, 세 줄이 됐다.
+
+    계약팀을 맨 위에 두고 나머지를 아래에 둔다. 스무 명을 한 줄로 늘어놓으면 네 명을
+    찾느라 눈이 가는데, 묶어 두면 늘 쓰는 쪽이 먼저 보인다.
+  */
   const contractTeam = useMemo(
-    () => state.employees.filter(e => e.department === '계약팀' || e.id === employeeId),
+    () => state.employees.filter(e => e.active !== false && e.department === '계약팀'),
+    [state.employees],
+  );
+  const otherStaff = useMemo(
+    () =>
+      state.employees.filter(
+        e => (e.active !== false || e.id === employeeId) && e.department !== '계약팀',
+      ),
     [state.employees, employeeId],
   );
   const [status, setStatus] = useState<SettlementStatus>(editing?.status ?? 'IN_PROGRESS');
@@ -354,7 +371,13 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, rea
             이미 적힌 사람이 계약팀이 아니면(팀을 옮겼거나 예전 건) 그 사람은 남겨 둔다 —
             목록에서 사라지면 저장할 때 담당자가 바뀐다.
           */}
-          <EmployeeField label="담당자" value={employeeId} onChange={setEmployeeId} employees={contractTeam} />
+          <EmployeeField
+            label="담당자"
+            value={employeeId}
+            onChange={setEmployeeId}
+            employees={contractTeam}
+            others={otherStaff}
+          />
 
           {/* 견적 본 사람 — 담당자와 다르다. 매입을 뛴 사람이 여기 들어간다 */}
           <div>
@@ -416,7 +439,14 @@ export default function PurchaseSettlementForm({ editing, defaultEmployeeId, rea
         </div>
 
         <div className="mt-3">
-          <ContractPhotos value={contractPhotos} onChange={setContractPhotos} />
+          {/*
+            세 장까지 받는다.
+
+            계약서 한 장만 받았는데, 이전 계약서 말고도 같이 봐야 하는 종이가 있다 —
+            똑순이 시세 화면처럼 '그때 얼마로 봤나'가 남는 것들이다. 나중에 값을 두고
+            다투면 그 화면이 근거가 된다.
+          */}
+          <ContractPhotos value={contractPhotos} onChange={setContractPhotos} max={3} />
         </div>
 
         {/* 왼쪽 끝 — 오른쪽으로 넘어간다 */}

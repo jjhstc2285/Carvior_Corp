@@ -99,6 +99,8 @@ interface PurchaseRow extends SaleFields {
   payoutAmount: number;
   /** 견적 본 사람 — 비어 있으면 매입 관리의 실차 확인자를 대신 쓴다 */
   appraiser: string;
+  /** 중복으로 잡혀 지울 때가 찍힌 줄 — 그때까지 줄을 그어 보여 준다 */
+  deleteAt: Date | null;
   /** 카비어 수수료를 무는가 — null 이면 검차 리포트가 있는 건만 문다 */
   carvior: boolean | null;
   prepCosts: { kind: PrepCostKind; amount: number }[];
@@ -1514,6 +1516,8 @@ export class SettlementsService {
       appraiser: row.appraiser?.trim() || intake?.inspector || '',
       /** 매입 관리에 적힌 실차 확인자 — 정산 칸이 비었을 때 어디서 온 이름인지 보여 준다 */
       inspector: intake?.inspector ?? '',
+      /* 중복으로 잡힌 줄 — 화면이 줄을 긋고 언제 지워지는지 적는다 */
+      deleteAt: row.deleteAt ? row.deleteAt.toISOString() : null,
       carviorOn: carviorOn(row.carvior, intake?.hasReport ?? false),
       carviorFee,
       /** 그 사람이 가져가는 몫 — 안 정한 건은 0이다 */
@@ -1670,6 +1674,20 @@ export class SettlementsService {
     const byKind: Record<string, string[]> = {};
     for (const r of rows) (byKind[r.kind] ??= []).push(r.vendor);
     return byKind;
+  }
+
+  /**
+   * 중복으로 잡힌 줄을 남겨 둔다 — 줄 긋기를 걷고 다시 안 집게 표를 단다.
+   *
+   * 되사온 차는 같은 번호로 두 줄이 맞다. 표를 안 달아 두면 다음 청소에서 또 집는다.
+   */
+  async keepPurchase(id: string) {
+    const row = await this.prisma.purchaseSettlement.update({
+      where: { id },
+      data: { deleteAt: null, keepRow: true },
+      include: { ...EMPLOYEE_SELECT, ...PREP_COST_INCLUDE },
+    });
+    return this.withVehicleCost(row);
   }
 
   async removePurchase(id: string) {

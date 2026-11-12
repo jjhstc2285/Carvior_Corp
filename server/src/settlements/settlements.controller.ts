@@ -313,6 +313,17 @@ export class SettlementsController {
   }
 
   /**
+   * 중복으로 잡힌 줄을 남겨 둔다.
+   *
+   * 되사온 차는 같은 번호로 두 줄이 맞다. 한 번 눌러 두면 다음 청소에서 다시 안 집는다 —
+   * 안 그러면 매번 줄이 그어지고 매번 다시 눌러야 한다.
+   */
+  @Post('purchase/:id/keep')
+  keepPurchase(@Param('id') id: string) {
+    return this.settlements.keepPurchase(id);
+  }
+
+  /**
    * 그 달 매입 정산을 한 번에 지운다 — 따로 정산을 끝낸 달을 정리할 때 쓴다.
    * 사무장·대표만. 승인이 찍힌 건은 안 지운다.
    */

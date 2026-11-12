@@ -655,6 +655,13 @@ export interface PurchaseSettlement {
   appraiser?: string;
   /** 매입 관리에 적힌 실차 확인자 — 견적 칸이 비었을 때 어디서 온 이름인지 */
   inspector?: string;
+  /*
+    중복으로 잡혀 지울 때가 찍힌 줄.
+
+    바로 안 지운다 — 하루 동안 줄을 그어 두고 보여 준 다음에 지운다. 사람이 보고
+    '남겨두기'를 누를 틈이 있어야 한다.
+  */
+  deleteAt?: string | null;
   /** 이 차에 검차 리포트가 붙어 있나 — 서버가 매입 관리에서 붙여 준다 */
   hasReport?: boolean;
   /** 셈한 결과 — 실제로 무는가 */
