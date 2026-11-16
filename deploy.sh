@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# 배포 스크립트 — EC2에서 실행한다.
+# 배포 스크립트 — 서버에서 실행한다.
 #
-#   cd ~/anyone-motors && ./deploy.sh
+#   cd ~/carvior-biz && ./deploy.sh
 #
 # 하는 일: git pull → (변경 시)의존성 설치 → 프론트 빌드·배포 → DB 마이그레이션 → API 빌드·재시작
 #
@@ -10,11 +10,17 @@
 #   ./deploy.sh --skip-pull     이미 pull 했을 때 건너뛰기
 #   ./deploy.sh --front         프론트만 배포
 #   ./deploy.sh --api           백엔드만 배포
+#
+# ⚠ 이 레포는 애니원모터스 시스템(skv1motors.com)에서 포크한 것이다. 그 서버는 카비어
+# 것이 아니므로 **절대 거기에 배포하지 않는다.** 아래 두 값과 DATABASE_URL이 카비어
+# 서버를 가리키는지 확인하고 쓸 것 — 이 스크립트는 DB 마이그레이션까지 돌린다.
 
 set -euo pipefail
 
-WEB_ROOT=/var/www/skv1motors
-PM2_APP=anyone-api
+# ⚠ 카비어 서버 값으로 채울 것. 애니원 값(/var/www/skv1motors, anyone-api)을 그대로
+# 쓰면 남의 운영 서비스를 덮어쓴다. 도메인이 정해지면 WEB_ROOT를 그 경로로 바꾼다.
+WEB_ROOT=${WEB_ROOT:-/var/www/carvior-biz}
+PM2_APP=${PM2_APP:-carvior-biz-api}
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
@@ -113,4 +119,4 @@ fi
 log "완료"
 pm2 list 2>/dev/null || true
 echo
-echo "확인: https://skv1motors.com  (브라우저에서 Ctrl+Shift+R 로 강력 새로고침)"
+echo "확인: ${SITE_URL:-<도메인 미정 — SITE_URL 환경변수로 지정>}  (브라우저에서 Ctrl+Shift+R 로 강력 새로고침)"

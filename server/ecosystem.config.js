@@ -1,8 +1,11 @@
-// pm2 설정 — EC2에서 `pm2 start ecosystem.config.js` 로 띄운다.
+// pm2 설정 — 서버에서 `pm2 start ecosystem.config.js` 로 띄운다.
+//
+// ⚠ 이름이 애니원모터스(anyone-api)와 달라야 한다. 같은 이름으로 두면 어느 쪽 로그를
+// 보고 있는지 헷갈리고, 한 상자에 둘을 올릴 수도 없다.
 module.exports = {
   apps: [
     {
-      name: 'anyone-api',
+      name: 'carvior-biz-api',
       script: 'dist/main.js',
       cwd: __dirname,
       instances: 1,
