@@ -9,6 +9,21 @@ export interface AuthUser {
   position: string;
   role: Role;
   provider: AuthProvider | null;
+  /**
+   * 소속 상사와 켜져 있는 모듈. 애니원모터스가 1번이다.
+   *
+   * 카비어가 이 프로그램을 여러 상사에게 주면서 생겼다 — 상사마다 쓰는 모듈이 달라서,
+   * 메뉴를 코드가 아니라 이 목록으로 가른다.
+   *
+   * 옛 세션(이 기능 전에 로그인해 둔 사람)에는 없다. 없으면 전부 보여준다 —
+   * 메뉴가 갑자기 비어 버리면 고장으로 받아들인다.
+   */
+  tenant?: {
+    id: number;
+    code: string;
+    name: string;
+    modules: string[];
+  };
 }
 
 interface LoginResponse {

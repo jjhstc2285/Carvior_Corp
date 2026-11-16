@@ -27,7 +27,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload): Promise<AuthUser> {
     const employee = await this.prisma.employee.findUnique({
       where: { id: payload.sub },
-      select: { id: true, name: true, position: true, department: true, role: true, active: true },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        department: true,
+        role: true,
+        active: true,
+        tenantId: true,
+      },
     });
 
     if (!employee || !employee.active) {
@@ -40,6 +48,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       position: employee.position,
       department: employee.department,
       role: employee.role,
+      // 토큰이 아니라 DB에서 읽는다 — role과 같은 이유다. 상사를 옮겼는데 기존 토큰이
+      // 옛 상사 자료를 계속 보는 일이 없어야 한다.
+      tenantId: employee.tenantId,
     };
   }
 }

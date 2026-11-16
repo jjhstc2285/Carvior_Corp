@@ -14,6 +14,41 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────
+// 상사(테넌트)
+// ─────────────────────────────────────────────
+
+/// 이 시스템을 쓰는 상사 한 곳.
+///
+/// 원래 애니원모터스 한 곳 전용으로 만든 것이라 상사를 가리키는 칸이 아예 없었다.
+/// 카비어가 이걸 여러 상사에게 주려면 테넌트가 필요하다 — 애니원이 1번이다.
+///
+/// ⚠ **지금은 뿌리만 있다.** Employee에 tenantId가 붙었을 뿐이고, 나머지 56개 모델은
+/// 아직 상사 구분이 없다. 그래서 **두 번째 상사를 올리면 안 된다** — 출퇴근·정산·상담이
+/// 전부 섞여 보인다. 모델별 스코핑이 끝나기 전까지 이 테이블에는 1번만 있어야 한다.
+model Tenant {
+  id   Int    @id @default(autoincrement())
+  /// 서브도메인과 같은 값(`{code}.도메인`). carvior의 booking.source·발주사 코드와도 같아야 한다 —
+  /// 한 상사를 가리키는 이름이 갈리면 검차 주문과 정산 중 한 군데가 반드시 어긋난다.
+  code String @unique @db.VarChar(40)
+  name String @db.VarChar(80)
+
+  /// 켜 둘 모듈 키를 쉼표로. 프론트 src/modules.ts의 ModuleKey와 같은 값이다.
+  ///
+  /// 애니원은 22개를 다 쓰지만, 신규 상사에게 주는 v1은 사람·일정·소통 8개뿐이다.
+  /// 정산·주차장처럼 상사마다 양식이 다른 것은 v1에서 빼기로 했다 — 무료로 주는 제품에
+  /// 상사별 커스터마이즈 요구가 붙으면 수익 없이 개발만 하게 된다.
+  modules String @db.Text
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  employees Employee[]
+}
+
+/// 신규 상사에게 주는 v1 모듈 — Tenant.modules 기본값으로 쓴다.
+/// (코드에서 쓰는 상수는 server/src/tenants/tenant.const.ts 에 같은 값으로 둔다)
+
+// ─────────────────────────────────────────────
 // 임직원 / 권한
 // ─────────────────────────────────────────────
 
@@ -35,6 +70,11 @@ model Employee {
   department String?
   role       Role    @default(EMPLOYEE)
   active     Boolean @default(true)
+
+  /// 소속 상사. 기존 데이터는 전부 애니원모터스라 1로 채운다(default 1).
+  /// 로그인 토큰에 이 값을 실어서, 요청마다 어느 상사인지 서버가 알게 한다.
+  tenantId Int    @default(1)
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   // 로그인 수단 — 소셜은 provider+providerId, 관리자 계정은 loginId+passwordHash
   provider     AuthProvider?

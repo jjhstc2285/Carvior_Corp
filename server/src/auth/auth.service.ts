@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import type { ChangePasswordDto, LoginDto, SocialLoginDto } from './dto/login.dto';
 import type { ReviewSignupDto, SignupDto } from './dto/signup.dto';
+import { parseModules } from '../tenants/tenant.const';
 
 export interface LoginResult {
   accessToken: string;
@@ -17,6 +18,18 @@ export interface LoginResult {
     role: Role;
     provider: AuthProvider | null;
     linked: boolean;
+    /**
+     * 소속 상사와 켜져 있는 모듈.
+     *
+     * 프론트가 이걸로 메뉴를 가른다 — 애니원은 22개를 다 쓰고, 신규 상사에게 주는 v1은
+     * 사람·일정·소통 8개뿐이다. 코드에 상사 이름을 박지 않으려고 로그인 응답에 실어 보낸다.
+     */
+    tenant: {
+      id: number;
+      code: string;
+      name: string;
+      modules: string[];
+    };
   };
 }
 
@@ -175,7 +188,17 @@ export class AuthService {
     return { id, status: SignupStatus.APPROVED };
   }
 
-  private issue(employee: Employee): LoginResult {
+  private async issue(employee: Employee): Promise<LoginResult> {
+    // 모듈 구성은 상사마다 다르다. 토큰에 담지 않고 매번 읽는다 — 모듈을 켜 줬는데
+    // 다시 로그인해야 보이면, 그걸 "안 켜졌다"로 받아들인다.
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: employee.tenantId },
+      select: { id: true, code: true, name: true, modules: true, active: true },
+    });
+    if (!tenant || !tenant.active) {
+      throw new UnauthorizedException('사용할 수 없는 상사 계정입니다. 카비어 담당자에게 문의해 주세요.');
+    }
+
     return {
       accessToken: this.jwt.sign({ sub: employee.id }),
       user: {
@@ -185,6 +208,12 @@ export class AuthService {
         role: employee.role,
         provider: employee.provider,
         linked: true,
+        tenant: {
+          id: tenant.id,
+          code: tenant.code,
+          name: tenant.name,
+          modules: parseModules(tenant.modules),
+        },
       },
     };
   }

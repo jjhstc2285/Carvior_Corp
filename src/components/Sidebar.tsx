@@ -51,6 +51,15 @@ interface Props {
   canSeeSheet?: boolean;
   /** 관리자인가 — 경조사비 관리는 여기까지만 연다 */
   isAdmin?: boolean;
+  /**
+   * 이 상사가 켜 둔 모듈. 로그인 응답의 tenant.modules 를 그대로 넘긴다.
+   *
+   * 애니원모터스는 22개를 다 쓰지만, 카비어가 신규 상사에게 주는 v1은 사람·일정·소통
+   * 8개뿐이다. 코드에 상사 이름을 박지 않으려고 서버가 내려준 목록으로 가른다.
+   *
+   * 넘기지 않으면(아직 토큰에 상사 정보가 없는 옛 세션) 전부 보여준다.
+   */
+  modules?: string[];
 }
 
 /**
@@ -144,14 +153,23 @@ export default function Sidebar({
   canSeeSheet = false,
   isAdmin = false,
   isOwner = false,
+  modules,
 }: Props) {
   const [query, setQuery] = useState('');
 
   /*
     볼 수 없는 메뉴는 아예 안 그린다. 거르고 나서 빈 갈래는 제목까지 지운다 —
     아무것도 없는 제목만 남으면 뭔가 고장 난 것처럼 보인다.
+
+    두 가지가 겹쳐 있다.
+      ① 상사가 켜 둔 모듈인지 — 상사마다 다르다(modules)
+      ② 그 상사 안에서 이 사람이 볼 수 있는지 — 직급·권한으로 가른다(아래 조건들)
+    ①이 먼저다. 안 켜 둔 모듈은 누가 봐도 안 보여야 한다.
   */
   const canSee = (key: ModuleKey) =>
+    // 상사가 안 켜 둔 모듈. modules를 안 넘기면(옛 세션) 전부 보여준다 —
+    // 로그인만 해 뒀던 사람의 메뉴가 갑자기 비어 버리면 고장으로 받아들인다.
+    (!modules || modules.includes(key)) &&
     // 상조회비는 사무장과 관리자만 본다
     (key !== 'dealerFee' || canSeeLedger) &&
     // 부동산은 대표만 — 메뉴에서부터 안 보인다

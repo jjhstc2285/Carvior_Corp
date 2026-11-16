@@ -227,8 +227,19 @@ function AuthedApp({ role }: { role: Role }) {
   // 거래처·경조사비도 장부 쪽이다 — 단가와 나간 돈이 적혀 있다
   // 거래처도 장부 쪽이다 — 단가와 결제 조건이 적혀 있다
   const officeOnly: ModuleKey[] = ['dealerFee', 'vendor'];
+  /*
+    이 상사가 켜 둔 모듈. 로그인 응답의 tenant.modules 다.
+
+    애니원모터스는 22개를 다 쓰지만, 카비어가 신규 상사에게 주는 v1은 사람·일정·소통
+    8개뿐이다. 메뉴에서 감추는 것만으로는 주소로 들어올 수 있어서 여기서도 막는다.
+
+    옛 세션(이 기능 전에 로그인해 둔 사람)에는 없다 — 없으면 전부 허용한다.
+    메뉴가 갑자기 비어 버리면 쓰는 사람은 그걸 고장으로 받아들인다.
+  */
+  const tenantModules = user?.tenant?.modules;
   // 누가 보는지는 서버가 정한다 — 대표 · 사무장 · 테스트 계정
   const blocked =
+    (!!tenantModules && !tenantModules.includes(module)) ||
     (officeOnly.includes(module) && !seeLedger) ||
     (module === 'property' && !isCeo) ||
     (module === 'payroll' && !canSeePayroll) ||
@@ -265,6 +276,7 @@ function AuthedApp({ role }: { role: Role }) {
         isOwner={isOwner}
         canSeeSheet={canSeeSheet}
         isAdmin={role === 'ADMIN' && !asEmployee}
+        modules={tenantModules}
       />
       <div className="min-w-0 flex-1">
         <TopBar
