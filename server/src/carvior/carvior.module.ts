@@ -1,6 +1,10 @@
 import {
+  BadRequestException,
+  Body,
+  ConflictException,
   Controller,
   Get,
+  Post,
   Query,
   Injectable,
   Logger,
@@ -8,11 +12,16 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Role } from '@prisma/client';
+import { Roles } from '../auth/roles.decorator';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 
 /**
  * 카비어(carvior.store) 파트너 API 연동.
  *
- * 저쪽에서 성사된 계약을 읽어와 수출 상담 화면에 띄운다. 읽기 전용이다.
+ * 두 방향이 있다.
+ *   읽기 — 저쪽에서 성사된 계약을 가져와 수출 상담·매입 내역에 띄운다.
+ *   쓰기 — 차를 보러 가기 전에 **카비어 평가사에게 검차를 맡긴다**(관리자만).
  *
  * 인증은 client_credentials 방식이다 — id/secret으로 1시간짜리 토큰을 받아 쓴다.
  * 열쇠는 .env에만 두고 저장소에는 넣지 않는다(프론트로도 내려보내지 않는다 —
@@ -20,6 +29,13 @@ import { ConfigService } from '@nestjs/config';
  */
 
 const TOKEN_PATH = '/api/v1/partner-api/oauth/token';
+
+/**
+ * 검차 접수 보조 API. 둘 다 카비어의 검차 신청 화면이 쓰는 공개 엔드포인트라
+ * 토큰이 필요 없다 — 주문 전에 "이미 넣은 차인지", "그 날 갈 수 있는 평가사가
+ * 있는지"를 먼저 확인하려고 쓴다. 확인 없이 주문하면 400/409를 받고 나서야 안다.
+ */
+const REQUEST_PATH = '/api/v1/external/request';
 
 /**
  * 시세 조회용 공개 API. 카비어의 내 차 시세 조회 화면(/price)이 쓰는 것과 같다.
@@ -136,6 +152,66 @@ export interface CarviorContract {
   reportUrl: string | null;
 }
 
+/**
+ * 검차를 맡길 때 보내는 것.
+ *
+ * 앞의 네 개는 없으면 저쪽에서 400이 온다 — 카비어 Booking 테이블에서 비울 수 없는
+ * 칸이다. 나머지는 알면 보내고 모르면 비운다.
+ */
+export interface InspectionOrder {
+  carNumber: string;
+  /** 차가 있는 곳. 매입 전이면 차주 위치, 단지에 들어온 뒤면 단지 주소 */
+  address: string;
+  /** "2026-11-20 14:00" — availableSlots()로 고른 값을 그대로 보낸다 */
+  preferredDateTime: string;
+  /** 신청한 사람 번호 */
+  contact: string;
+
+  carModel?: string;
+  detailAddress?: string;
+  /** 리포트 완료 알림톡을 받을 사람. 안 보내면 신청자가 받는다. */
+  dealerName?: string;
+  dealerContact?: string;
+  carOwner?: string;
+  customerContact?: string;
+  additionalMemo?: string;
+}
+
+/** 검차를 맡긴 직후 저쪽이 돌려주는 것 */
+export interface InspectionOrderResult {
+  /** 카비어 쪽 접수 번호. 나중에 상태를 맞춰 보는 열쇠다 */
+  id: number;
+  carNumber: string;
+  status: string;
+  statusLabel: string;
+  /** 자동배정이 바로 붙으면 이름이 온다. 안 붙으면 없다(나중에 배정될 수 있다) */
+  assignedDriverName: string | null;
+  /**
+   * true면 카비어에 우리 발주사 계정이 없어서 **평가사 배정이 건너뛰어진** 상태다.
+   * 접수는 저장돼 있으니 카비어 담당자에게 계정 등록을 요청하면 이어진다.
+   */
+  needsPartnerSetup: boolean;
+}
+
+/** 맡긴 검차 한 건의 진행 상태 */
+export interface CarviorInspection {
+  id: number;
+  carNumber: string;
+  carModel: string | null;
+  /** PENDING / ASSIGNED / CONFIRMED / COMPLETED / CANCELLED */
+  status: string;
+  /** 저쪽이 만들어 주는 한국어 상태 — 우리가 또 매핑하면 두 군데가 어긋난다 */
+  statusLabel: string;
+  preferredDateTime: string | null;
+  /** 배정된 평가사 이름. 배정 전이면 없다 */
+  assignedDriverName: string | null;
+  dealerName: string | null;
+  mileage: number | null;
+  /** 진단이 끝나고 리포트가 올라오면 생긴다. 그 전에는 없다 */
+  reportUrl: string | null;
+  createdAt: string;
+}
+
 @Injectable()
 export class CarviorService {
   private readonly logger = new Logger(CarviorService.name);
@@ -194,6 +270,60 @@ export class CarviorService {
   }
 
   /**
+   * 검차를 맡긴다.
+   *
+   * 접수는 저쪽에서 전부 처리한다 — 평가사 자동배정, 평가사 알림, 좌표, 묶음,
+   * 관리자 알림톡까지. 우리는 보내고 결과만 받는다.
+   */
+  async requestInspection(order: InspectionOrder): Promise<InspectionOrderResult> {
+    this.assertEnabled();
+    const res = await this.send('POST', `/api/v1/partner-api/${this.partner}/inspection-request`, order);
+    return (await res.json()) as InspectionOrderResult;
+  }
+
+  /** 맡긴 검차들의 진행 상태. 리포트가 올라오면 reportUrl이 같이 온다. */
+  async findInspections(limit = 100): Promise<CarviorInspection[]> {
+    this.assertEnabled();
+    const res = await this.get(
+      `/api/v1/partner-api/${this.partner}/inspections?limit=${encodeURIComponent(String(limit))}`,
+    );
+    const body = (await res.json()) as { data?: CarviorInspection[] };
+    return body.data ?? [];
+  }
+
+  /**
+   * 이미 진단이 돌고 있는 차인지.
+   *
+   * 주문 버튼을 누르기 전에 확인한다 — 같은 차를 두 번 맡기면 평가사가 두 명 가고
+   * 진단비도 두 번 나간다. 저쪽에서도 막지만, 막힌 걸 400으로 알게 되면 적어 넣은
+   * 내용이 날아간다.
+   */
+  async isAlreadyRequested(carNumber: string): Promise<boolean> {
+    const body = await this.publicGetOne<{ isDuplicate?: boolean }>(`${REQUEST_PATH}/check-duplicate`, {
+      carNumber,
+    });
+    return !!body?.isDuplicate;
+  }
+
+  /**
+   * 그 날 그 주소로 갈 수 있는 평가사가 있는 시간대.
+   *
+   * 아무 시간이나 적어 보내면 접수는 되지만 배정이 안 돼서 하루를 버린다 —
+   * 실제로 활동 중인 평가사가 있는 시간만 고르게 한다.
+   */
+  async availableSlots(address: string, date: string): Promise<unknown> {
+    return this.publicGetOne(`${REQUEST_PATH}/available-slots`, { address, date });
+  }
+
+  private assertEnabled(): void {
+    if (!this.enabled) {
+      throw new ServiceUnavailableException(
+        '카비어 연동이 설정되지 않았습니다. 서버 .env의 CARVIOR_CLIENT_ID/SECRET을 확인해 주세요.',
+      );
+    }
+  }
+
+  /**
    * 열쇠 없이 부르는 공개 API.
    *
    * 시세를 못 불러와도 매입 등록 자체는 되어야 하므로, 실패하면 빈 목록을 준다 —
@@ -217,24 +347,82 @@ export class CarviorService {
     }
   }
 
-  private async get(path: string): Promise<Response> {
-    let res = await fetch(`${this.baseUrl}${path}`, {
-      headers: { Authorization: `Bearer ${await this.accessToken()}` },
-    });
+  /**
+   * 열쇠 없이 부르는 공개 API — 목록이 아니라 객체 하나를 주는 것들.
+   *
+   * publicGet()은 배열이 아니면 빈 배열로 떨어뜨리기 때문에 중복 확인·예약 가능 시간
+   * 같은 응답을 받을 수 없다. 여기서는 실패하면 null을 준다 — 확인을 못 했다는 것과
+   * "중복 아님"은 다르다. 호출하는 쪽이 그 둘을 갈라 쓰게 한다.
+   */
+  private async publicGetOne<T>(path: string, params: Record<string, string>): Promise<T | null> {
+    const query = new URLSearchParams(params).toString();
+    try {
+      const res = await fetch(`${this.baseUrl}${path}?${query}`, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        this.logger.warn(`카비어 조회 실패 ${res.status}: ${path}`);
+        return null;
+      }
+      return (await res.json()) as T;
+    } catch (e) {
+      this.logger.warn(`카비어 조회 실패: ${(e as Error).message}`);
+      return null;
+    }
+  }
 
+  private async get(path: string): Promise<Response> {
+    return this.send('GET', path);
+  }
+
+  /**
+   * 토큰을 달아 치고, 만료되면 한 번 다시 친다.
+   *
+   * ⚠ 실패했을 때 저쪽이 보낸 메시지를 그대로 올려보낸다. 전에는 전부
+   * "계약 목록을 가져오지 못했습니다"로 덮었는데, 검차 주문은 "이미 진단이 진행
+   * 중입니다"·"희망 일시가 필요합니다"처럼 **사람이 읽고 고칠 수 있는 이유**가
+   * 오기 때문에 덮으면 화면에서 뭘 고쳐야 할지 알 수 없다.
+   */
+  private async send(method: 'GET' | 'POST', path: string, body?: unknown): Promise<Response> {
+    const call = async () =>
+      fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${await this.accessToken()}`,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(20_000),
+      });
+
+    let res = await call();
     // 만료 시각을 넉넉히 잡아도 서버 시계가 어긋나면 401이 올 수 있다. 한 번은 새 토큰으로 다시 친다.
     if (res.status === 401) {
       this.token = null;
-      res = await fetch(`${this.baseUrl}${path}`, {
-        headers: { Authorization: `Bearer ${await this.accessToken()}` },
-      });
+      res = await call();
     }
 
     if (!res.ok) {
-      this.logger.warn(`카비어 조회 실패 ${res.status}: ${path}`);
-      throw new ServiceUnavailableException('카비어에서 계약 목록을 가져오지 못했습니다.');
+      const reason = await this.readMessage(res);
+      this.logger.warn(`카비어 ${method} 실패 ${res.status}: ${path} — ${reason ?? '이유 없음'}`);
+      // 409는 중복, 400은 보낸 내용이 모자란 것. 둘 다 사람이 고칠 수 있으니 그대로 전한다.
+      if (res.status === 409) throw new ConflictException(reason ?? '이미 접수된 차량입니다.');
+      if (res.status === 400) throw new BadRequestException(reason ?? '보낸 내용이 올바르지 않습니다.');
+      throw new ServiceUnavailableException(reason ?? '카비어와 통신하지 못했습니다.');
     }
+
     return res;
+  }
+
+  /** Nest가 보내는 에러 본문({ message }) 에서 사람이 읽을 문장만 꺼낸다. */
+  private async readMessage(res: Response): Promise<string | null> {
+    try {
+      const body = (await res.json()) as { message?: string | string[]; error_description?: string };
+      const msg = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+      return msg || body.error_description || null;
+    } catch {
+      return null;
+    }
   }
 
   private async accessToken(): Promise<string> {
@@ -299,6 +487,58 @@ export class CarviorController {
   ) {
     if (!manufacturer || !model || !badge) return [];
     return this.carvior.findListings(manufacturer, model, badge);
+  }
+
+  /* ───────────────── 검차 맡기기 ───────────────── */
+
+  /**
+   * 검차를 맡긴다 — **관리자만**.
+   *
+   * 누르면 진단비가 상사 청구액에 올라간다. 직원이 차 보러 가기 전에 자유롭게
+   * 누르게 하면 월말에 청구액을 보고 놀라게 된다. 직원이 필요하다고 하면 관리자가
+   * 눌러주는 흐름으로 시작하고, 쓰다 보고 풀지 결정한다(푸는 건 쉽고 조이는 건 어렵다).
+   */
+  @Roles(Role.ADMIN)
+  @Post('inspection-request')
+  async requestInspection(@Body() body: InspectionOrder, @CurrentUser() user: AuthUser) {
+    const carNumber = body?.carNumber?.trim();
+    if (!carNumber) throw new BadRequestException('차량번호를 적어 주세요.');
+
+    // 적어 넣은 내용이 날아가지 않게 보내기 전에 먼저 본다. 확인 자체가 실패하면
+    // (null) 막지 않고 보낸다 — 저쪽에서 한 번 더 걸러낸다.
+    if (await this.carvior.isAlreadyRequested(carNumber)) {
+      throw new ConflictException(`${carNumber}는 이미 카비어에 진단이 접수된 차량입니다.`);
+    }
+
+    return this.carvior.requestInspection({
+      ...body,
+      carNumber,
+      // 리포트 완료 알림톡을 누가 받을지. 적어 보내지 않았으면 누른 사람이 받는다.
+      dealerName: body.dealerName?.trim() || user.name,
+    });
+  }
+
+  /** 맡긴 검차들의 진행 상태 — 전 직원이 본다. 리포트는 다 같이 봐야 쓸모가 있다. */
+  @Get('inspections')
+  inspections(@Query('limit') limit?: string) {
+    return this.carvior.findInspections(Math.min(Math.max(Number(limit) || 100, 1), 500));
+  }
+
+  /** 그 주소·날짜에 갈 수 있는 평가사가 있는 시간대 */
+  @Get('available-slots')
+  availableSlots(@Query('address') address?: string, @Query('date') date?: string) {
+    if (!address?.trim() || !date?.trim()) {
+      throw new BadRequestException('주소와 날짜를 모두 적어 주세요.');
+    }
+    return this.carvior.availableSlots(address.trim(), date.trim());
+  }
+
+  /** 이미 진단이 돌고 있는 차인지 — 주문 폼에서 차량번호를 적는 동안 확인한다 */
+  @Get('check-duplicate')
+  async checkDuplicate(@Query('carNumber') carNumber?: string) {
+    const target = carNumber?.trim();
+    if (!target) return { isDuplicate: false };
+    return { isDuplicate: await this.carvior.isAlreadyRequested(target) };
   }
 }
 

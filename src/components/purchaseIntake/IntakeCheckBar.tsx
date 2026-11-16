@@ -11,6 +11,8 @@ import {
   serializeChecked,
 } from '../../lib/inspectionCheck';
 import { digitsOnly } from '../../lib/money';
+import { useAuth } from '../../authStore';
+import InspectionOrderModal from './InspectionOrderModal';
 import type { PurchaseIntake } from '../../types';
 
 /**
@@ -18,6 +20,10 @@ import type { PurchaseIntake } from '../../types';
  *
  * 창을 열고 들어가서 체크하게 두면 현장에서 안 쓴다 — 차 앞에 서서 휴대폰으로 누르는
  * 일이라, 목록에 뜬 그 줄에서 바로 눌러야 한다.
+ *
+ * 직접 가기 어려운 차는 여기서 **카비어 평가사에게 맡긴다**. 차를 보러 갈지 말지를
+ * 정하는 자리가 바로 이 줄이라, 맡기는 단추도 같은 자리에 둔다 — 다른 메뉴로 보내면
+ * 결국 전화로 부르게 된다. 진단비가 나가는 일이라 관리자에게만 보인다.
  *
  * 누르면 화면이 먼저 바뀌고 저장은 뒤따라간다. 서버를 기다렸다 바꾸면 누를 때마다 한 박자
  * 멈추는데, 열 개를 연달아 누르는 자리라 그 멈춤이 그대로 쌓인다. 실패하면 되돌리고 알린다.
@@ -33,9 +39,14 @@ interface Props {
   item: PurchaseIntake;
   /** 성공하면 null, 실패하면 화면에 띄울 말 */
   onPatch: (patch: Partial<PurchaseIntake>) => Promise<string | null>;
+  /** 검차를 맡긴 뒤 목록을 다시 받는다 — 리포트 링크가 나중에 거기로 들어온다 */
+  onReload?: () => void;
 }
 
-export default function IntakeCheckBar({ item, onPatch }: Props) {
+export default function IntakeCheckBar({ item, onPatch, onReload }: Props) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const [orderOpen, setOrderOpen] = useState(false);
   /*
     화면에 보이는 값은 여기 들고 있는다.
 
@@ -163,6 +174,33 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
             </button>
           ))}
         </span>
+
+        {/*
+          직접 안 가고 맡기는 길.
+
+          이미 리포트가 있으면 단추 대신 리포트를 띄운다 — 맡겨 놓고 또 맡기는 일이
+          제일 흔한 실수다. 리포트가 들어오는 자리는 매물 줄 위쪽의 "검차 리포트"
+          칩이지만, 여기서도 보여야 이 줄만 보고 판단할 수 있다.
+        */}
+        {isAdmin &&
+          (item.reportUrl ? (
+            <a
+              href={item.reportUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-auto rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100"
+            >
+              리포트 보기
+            </a>
+          ) : (
+            <button
+              onClick={() => setOrderOpen(true)}
+              title="카비어 평가사가 대신 가서 진단 리포트를 올려 줍니다 (진단비 발생)"
+              className="ml-auto rounded-md border border-indigo-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50"
+            >
+              평가사에게 맡기기
+            </button>
+          ))}
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -212,6 +250,14 @@ export default function IntakeCheckBar({ item, onPatch }: Props) {
 
       {error && <p className="mt-1 text-[11px] font-medium text-red-500">{error}</p>}
       </div>
+
+      {orderOpen && (
+        <InspectionOrderModal
+          item={item}
+          onClose={() => setOrderOpen(false)}
+          onOrdered={() => onReload?.()}
+        />
+      )}
     </div>
   );
 }

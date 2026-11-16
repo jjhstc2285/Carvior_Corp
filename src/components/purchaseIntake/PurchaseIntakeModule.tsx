@@ -549,7 +549,7 @@ export default function PurchaseIntakeModule() {
             </div>
 
             {/* 차 앞에 서서 누르는 자리 — 창을 열고 들어가게 두면 현장에서 안 쓴다 */}
-            <IntakeCheckBar item={r} onPatch={patch => api.edit(r.id, patch)} />
+            <IntakeCheckBar item={r} onPatch={patch => api.edit(r.id, patch)} onReload={() => void api.reload()} />
 
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-slate-100 pt-3 text-xs sm:grid-cols-4">
               <div><dt className="text-slate-400">고객</dt><dd className="text-slate-700">{[r.customerName, r.customerPhone].filter(Boolean).join(' · ')}</dd></div>
