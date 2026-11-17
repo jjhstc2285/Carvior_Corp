@@ -15,10 +15,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { existsSync, mkdirSync } from 'node:fs';
-import { extname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { memoryStorage } from 'multer';
+import { StorageService } from '../storage/storage.service';
 import { RequestStatus, Role } from '@prisma/client';
 import { AttendanceService } from './attendance.service';
 import {
@@ -42,16 +40,18 @@ import { todayKst } from '../common/date.util';
   다섯 장까지 받는다. 병원 영수증 한 장으로 끝나는 일이 많지만, 진단서가 두 장이거나
   약 봉투까지 찍어 오는 일이 있다.
 */
-const REQUEST_PHOTO_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'attendance');
+const REQUEST_PHOTO_FOLDER = 'attendance';
 const REQUEST_PHOTO_MAX = 5;
 const MAX_REQUEST_PHOTO_SIZE = 8 * 1024 * 1024;
 const ALLOWED_REQUEST_PHOTO = /^image\/(jpeg|png|webp|heic|heif)$/;
 
-if (!existsSync(REQUEST_PHOTO_DIR)) mkdirSync(REQUEST_PHOTO_DIR, { recursive: true });
 
 @Controller('attendance')
 export class AttendanceController {
-  constructor(private readonly attendance: AttendanceService) {}
+  constructor(
+    private readonly attendance: AttendanceService,
+    private readonly storage: StorageService,
+  ) {}
 
   /**
    * 그 달 출퇴근 기록 — 다 같이 본다.
@@ -174,11 +174,7 @@ export class AttendanceController {
   @Post('requests/photos')
   @UseInterceptors(
     FilesInterceptor('files', REQUEST_PHOTO_MAX, {
-      storage: diskStorage({
-        destination: REQUEST_PHOTO_DIR,
-        filename: (_req, file, cb) =>
-          cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_REQUEST_PHOTO_SIZE, files: REQUEST_PHOTO_MAX },
       fileFilter: (_req, file, cb) => {
         if (!ALLOWED_REQUEST_PHOTO.test(file.mimetype)) {
@@ -189,10 +185,10 @@ export class AttendanceController {
       },
     }),
   )
-  uploadRequestPhotos(@UploadedFiles() files: Express.Multer.File[]) {
+  async uploadRequestPhotos(@UploadedFiles() files: Express.Multer.File[]) {
     if (!files?.length) throw new BadRequestException('올릴 사진이 없습니다.');
-    // Apache가 /uploads 를 그대로 내주므로 이 경로가 곧 보이는 주소가 된다
-    return { urls: files.map((f) => `/uploads/attendance/${f.filename}`) };
+    // 돌려주는 주소를 화면이 그대로 <img src>에 넣는다 — S3면 절대주소가 온다
+    return { urls: await this.storage.saveAll(files, REQUEST_PHOTO_FOLDER) };
   }
 
   /**

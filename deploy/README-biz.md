@@ -14,6 +14,7 @@ sudo ss -ltnp | grep -E '3100|3000|4000'
 
 # ② 디스크 — 2026-09-28에 pm2 로그 6G + yarn 캐시 4.8G로 꽉 차서
 #    목록 API가 500을 뿜은 적이 있다. 새 서비스는 로그를 또 쌓는다.
+#    (사진은 S3로 가므로 디스크를 먹지 않는다 — .env의 AWS_* 가 채워져 있을 때만)
 df -h /
 du -sh ~/.pm2/logs 2>/dev/null
 
@@ -45,11 +46,22 @@ mysql -e "CREATE USER 'carvior_biz'@'localhost' IDENTIFIED BY '<비밀번호>';"
 mysql -e "GRANT ALL ON carvior_biz.* TO 'carvior_biz'@'localhost'; FLUSH PRIVILEGES;"
 
 # 4. server/.env — PORT는 Apache 설정(3100)과 **같아야 한다**
+#
+#    AWS_* 는 카비어가 쓰는 그 버킷을 그대로 쓴다(carvior-back의 .env와 같은 값).
+#    S3_PREFIX 로 갈라 두므로 진단 리포트 사진과 섞이지 않는다.
+#    ⚠ AWS 키가 비어 있으면 사진이 **상자 디스크**로 간다 — 여유가 6.5G뿐인 상자다.
+#       뜰 때 로그에 "업로드 → 로컬 디스크"가 찍히면 키가 안 읽힌 것이다.
 cat > server/.env <<'ENV'
 DATABASE_URL="mysql://carvior_biz:<비밀번호>@localhost:3306/carvior_biz"
 REDIS_URL="redis://127.0.0.1:6379"
 JWT_SECRET="<충분히 긴 임의 문자열>"
 PORT=3100
+
+AWS_S3_BUCKET_NAME="<카비어 버킷>"
+AWS_S3_REGION="<리전>"
+AWS_ACCESS_KEY="<키>"
+AWS_SECRET_KEY="<시크릿>"
+S3_PREFIX="carvior-biz"
 ENV
 
 # 5. 스키마 — 빈 DB라 migrate deploy 로 한 번에 올라간다
@@ -73,6 +85,24 @@ sudo apache2ctl configtest && sudo systemctl reload apache2
 # 9. 배포 — WEB_ROOT/PM2_APP 기본값이 carvior-biz 쪽이라 그대로 쓰면 된다
 SITE_URL=https://biz.carvior.store ./deploy.sh
 ```
+
+## ⚠ S3 버킷 정책에 `carvior-biz/*` 가 포함돼야 한다
+
+사진은 S3로 올라가고, 화면은 `https://<버킷>.s3.<리전>.amazonaws.com/carvior-biz/...` 를
+`<img src>` 에 그대로 넣는다. **공개 읽기가 허용된 접두어여야 보인다.**
+
+carvior-back은 업로드할 때 ACL을 따로 지정하지 않는다 — 버킷 정책으로 공개 읽기를
+허용하고 있다는 뜻이다. 그 정책이 `arn:aws:s3:::<버킷>/*` 처럼 전체를 덮고 있으면
+`carvior-biz/` 도 자동으로 포함되어 그대로 된다. 하지만 `inspections/*` 처럼
+**접두어별로** 열어 뒀다면 `carvior-biz/*` 를 추가해야 한다.
+
+확인:
+```bash
+aws s3api get-bucket-policy --bucket <버킷> --query Policy --output text | python3 -m json.tool
+```
+
+이 설정을 빼먹으면 **업로드는 성공하는데 화면에서 사진이 깨져 보인다**(403).
+올리고 나서 사진 한 장을 올려 보고 실제로 보이는지 꼭 확인할 것.
 
 ## 서브도메인과 테넌트 — 지금은 섞지 않는다
 

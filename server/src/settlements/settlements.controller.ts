@@ -24,20 +24,17 @@ import {
   UpdateSettlementDto,
 } from './dto/settlement.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { existsSync, mkdirSync } from 'node:fs';
-import { extname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { memoryStorage } from 'multer';
+import { StorageService } from '../storage/storage.service';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 
 /** 계약서 사진을 두는 곳. 올리는 파일은 전부 uploads 아래에 종류별로 나눠 둔다. */
-const CONTRACT_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'settlements');
+const CONTRACT_FOLDER = 'settlements';
 /** 앞장·뒷장·특약까지 — 넉넉히 열어둔다 */
 const PHOTO_MAX = 10;
 const MAX_PHOTO_SIZE = 8 * 1024 * 1024;
 const ALLOWED_PHOTO = /^image\/(jpeg|png|webp|heic|heif)$/;
 
-if (!existsSync(CONTRACT_DIR)) mkdirSync(CONTRACT_DIR, { recursive: true });
 
 /*
   청구서 원본을 두는 곳.
@@ -45,13 +42,12 @@ if (!existsSync(CONTRACT_DIR)) mkdirSync(CONTRACT_DIR, { recursive: true });
   엑셀로 오는 달도 있고 카톡 사진으로 오는 달도 있다. 둘 다 받는다 — 무엇으로 왔든
   나중에 다시 볼 것은 원본 하나다. PDF도 받는다(프린트해 스캔해 보내는 달이 있다).
 */
-const PANEL_INVOICE_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'panel-invoice');
+const PANEL_INVOICE_FOLDER = 'panel-invoice';
 const INVOICE_FILE_MAX = 10;
 const MAX_INVOICE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_INVOICE =
   /^(image\/(jpeg|png|webp|heic|heif)|application\/pdf|application\/vnd\.ms-excel|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|text\/csv|application\/octet-stream)$/;
 
-if (!existsSync(PANEL_INVOICE_DIR)) mkdirSync(PANEL_INVOICE_DIR, { recursive: true });
 
 /** 계약팀은 남의 정산도 본다 — 빈칸을 채우는 게 그 팀 일이다. */
 const CONTRACT_TEAM = '계약팀';
@@ -76,7 +72,10 @@ interface PanelInvoiceRow {
 
 @Controller('settlements')
 export class SettlementsController {
-  constructor(private readonly settlements: SettlementsService) {}
+  constructor(
+    private readonly settlements: SettlementsService,
+    private readonly storage: StorageService,
+  ) {}
 
   /**
    * 직원은 본인 담당 건만, 관리자와 계약팀은 전체(또는 담당자 지정).
@@ -398,10 +397,7 @@ export class SettlementsController {
   @Post('purchase/panel-invoice/files')
   @UseInterceptors(
     FilesInterceptor('files', INVOICE_FILE_MAX, {
-      storage: diskStorage({
-        destination: PANEL_INVOICE_DIR,
-        filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_INVOICE_SIZE, files: INVOICE_FILE_MAX },
       fileFilter: (_req, file, cb) => {
         if (!ALLOWED_INVOICE.test(file.mimetype)) {
@@ -412,7 +408,7 @@ export class SettlementsController {
       },
     }),
   )
-  uploadPanelInvoiceFiles(
+  async uploadPanelInvoiceFiles(
     @CurrentUser() user: AuthUser,
     @UploadedFiles() files: Express.Multer.File[],
     @Body() dto: { month?: string; vendor?: string },
@@ -425,10 +421,13 @@ export class SettlementsController {
     const month = (dto.month ?? '').trim();
     if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('달은 YYYY-MM 형식이어야 합니다.');
 
+    // 주소를 먼저 다 받아 둔다. 한 장이라도 실패하면 DB에 아무것도 넣지 않는다 —
+    // 절반만 들어간 청구서 묶음은 빠진 것을 알아채기 어렵다.
+    const urls = await this.storage.saveAll(files, PANEL_INVOICE_FOLDER);
+
     return this.settlements.savePanelInvoiceFiles(month, (dto.vendor ?? '대산').trim(), user.name,
-      files.map((f) => ({
-        // Apache가 /uploads 를 정적으로 내주므로 이 경로가 곧 보이는 주소가 된다
-        url: `/uploads/panel-invoice/${f.filename}`,
+      files.map((f, i) => ({
+        url: urls[i],
         name: Buffer.from(f.originalname, 'latin1').toString('utf8'),
         mime: f.mimetype,
         size: f.size,
@@ -529,10 +528,7 @@ export class SettlementsController {
   @Post('purchase/contract-photos')
   @UseInterceptors(
     FilesInterceptor('files', PHOTO_MAX, {
-      storage: diskStorage({
-        destination: CONTRACT_DIR,
-        filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_PHOTO_SIZE, files: PHOTO_MAX },
       fileFilter: (_req, file, cb) => {
         if (!ALLOWED_PHOTO.test(file.mimetype)) {
@@ -543,10 +539,10 @@ export class SettlementsController {
       },
     }),
   )
-  uploadContractPhotos(@UploadedFiles() files: Express.Multer.File[]) {
+  async uploadContractPhotos(@UploadedFiles() files: Express.Multer.File[]) {
     if (!files?.length) throw new BadRequestException('올릴 사진이 없습니다.');
-    // Apache가 /uploads 를 정적으로 내주므로 이 경로가 곧 보이는 주소가 된다.
-    return { urls: files.map((f) => `/uploads/settlements/${f.filename}`) };
+    // 돌려주는 주소를 화면이 그대로 <img src>에 넣는다 — S3면 절대주소가 온다
+    return { urls: await this.storage.saveAll(files, CONTRACT_FOLDER) };
   }
 
   /**

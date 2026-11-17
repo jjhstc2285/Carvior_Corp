@@ -21,9 +21,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { existsSync, mkdirSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { memoryStorage } from 'multer';
 import { ConfigService } from '@nestjs/config';
 import { Type } from 'class-transformer';
 import {
@@ -41,6 +39,7 @@ import {
 } from 'class-validator';
 import { DealerFeeMethod, NotificationType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { CarviorModule, CarviorService } from '../carvior/carvior.module';
 import { bestMatch, brandOf, dealerKey } from './dealer-match';
 import { formatDateOnly, formatDateOnlyOrNull, todayKst, toDateOnlyOrNull } from '../common/date.util';
@@ -54,8 +53,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
  * Apache 가 /uploads 를 그대로 내주므로 여기 떨어진 파일 경로가 곧 보이는 주소가 된다.
  * 뜰 때 한 번 만들어 둔다 — 없으면 올릴 때마다 실패한다.
  */
-const DEALER_PHOTO_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'dealer-fees');
-if (!existsSync(DEALER_PHOTO_DIR)) mkdirSync(DEALER_PHOTO_DIR, { recursive: true });
+const DEALER_PHOTO_FOLDER = 'dealer-fees';
 import { REALTIME_EVENT, RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { PushService } from '../push/push.service';
@@ -714,6 +712,7 @@ export class DealerFeesController {
   constructor(
     private readonly dealerFees: DealerFeesService,
     private readonly reminder: DealerFeeReminderService,
+    private readonly storage: StorageService,
   ) {}
 
   @Get()
@@ -761,11 +760,7 @@ export class DealerFeesController {
   @Post('photos')
   @UseInterceptors(
     FilesInterceptor('files', 1, {
-      storage: diskStorage({
-        destination: DEALER_PHOTO_DIR,
-        filename: (_req, file, cb) =>
-          cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: 12 * 1024 * 1024, files: 1 },
       fileFilter: (_req, file, cb) => {
         if (!/^image\//.test(file.mimetype)) {
@@ -776,15 +771,15 @@ export class DealerFeesController {
       },
     }),
   )
-  uploadPhotos(
+  async uploadPhotos(
     @CurrentUser() user: AuthUser,
     @Headers('x-property-pass') pass: string,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
     assertUnlocked(user, pass);
     if (!files?.length) throw new BadRequestException('올릴 사진이 없습니다.');
-    // Apache가 /uploads 를 그대로 내주므로 이 경로가 곧 보이는 주소가 된다
-    return { urls: files.map((f) => `/uploads/dealer-fees/${f.filename}`) };
+    // 돌려주는 주소를 화면이 그대로 <img src>에 넣는다 — S3면 절대주소가 온다
+    return { urls: await this.storage.saveAll(files, DEALER_PHOTO_FOLDER) };
   }
 
   /** 엑셀에서 붙여넣은 줄을 한 번에 — 이미 있는 업체명은 건너뛴다 */

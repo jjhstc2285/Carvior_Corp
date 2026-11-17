@@ -15,11 +15,9 @@ import {
 } from '@nestjs/common';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { existsSync, mkdirSync } from 'node:fs';
-import { join, extname } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { memoryStorage } from 'multer';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { Role } from '@prisma/client';
 
@@ -46,12 +44,11 @@ import { Role } from '@prisma/client';
   차량 사진과 달리 지우지 않는다. 공지는 지난 것도 찾아보는 글이라, 한 달 뒤에 사진만
   사라지면 무슨 말인지 모르는 글이 남는다.
 */
-const NOTICE_IMG_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'notices');
+const NOTICE_IMG_FOLDER = 'notices';
 const MAX_IMG_SIZE = 12 * 1024 * 1024;
 const ALLOWED_IMG = /^image\/(jpeg|png|webp|gif|heic|heif)$/;
 const IMG_EXT = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
 
-if (!existsSync(NOTICE_IMG_DIR)) mkdirSync(NOTICE_IMG_DIR, { recursive: true });
 
 /** 아이폰에서 올리면 종류가 application/octet-stream 으로 오는 일이 있다 — 이름으로도 본다 */
 function looksLikeImage(file: { mimetype: string; originalname: string }): boolean {
@@ -138,7 +135,10 @@ export class NoticesService {
 
 @Controller('notices')
 export class NoticesController {
-  constructor(private readonly notices: NoticesService) {}
+  constructor(
+    private readonly notices: NoticesService,
+    private readonly storage: StorageService,
+  ) {}
 
   /** 갈래 — 화면이 같은 말을 쓰게 내려준다 */
   @Get('categories')
@@ -155,10 +155,7 @@ export class NoticesController {
   @Post('images')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: NOTICE_IMG_DIR,
-        filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_IMG_SIZE, files: 1 },
       fileFilter: (_req, file, cb) => {
         if (!looksLikeImage(file)) {
@@ -169,11 +166,11 @@ export class NoticesController {
       },
     }),
   )
-  upload(@CurrentUser() user: AuthUser, @UploadedFile() file: Express.Multer.File) {
+  async upload(@CurrentUser() user: AuthUser, @UploadedFile() file: Express.Multer.File) {
     // 올리는 것도 쓰는 일이다 — 읽기만 되는 사람이 사진을 쌓아 두면 안 된다
     if (user.role !== Role.ADMIN) throw new ForbiddenException('공지는 관리자만 올릴 수 있습니다.');
     if (!file) throw new BadRequestException('올릴 사진이 없습니다.');
-    return { url: `/uploads/notices/${file.filename}` };
+    return { url: await this.storage.save(file, NOTICE_IMG_FOLDER) };
   }
 
   @Post()

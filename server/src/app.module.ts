@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
+import { StorageModule } from './storage/storage.module';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { EmployeesModule } from './employees/employees.module';
@@ -51,6 +52,7 @@ import { RolesGuard } from './auth/roles.guard';
     */
     ConfigModule.forRoot({ isGlobal: true, envFilePath: [join(__dirname, '..', '.env'), '.env'] }),
     PrismaModule,
+    StorageModule,
     RedisModule,
     AuthModule,
     EmployeesModule,

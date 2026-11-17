@@ -16,15 +16,12 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { existsSync, mkdirSync } from 'node:fs';
-import { unlink } from 'node:fs/promises';
-import { extname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { memoryStorage } from 'multer';
 import { IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { VehiclePhotoSlot } from '@prisma/client';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { formatDateOnly, toDateOnly } from '../common/date.util';
 import { normalizePlate } from '../vehicles/vehicle.rules';
 
@@ -38,7 +35,14 @@ import { normalizePlate } from '../vehicles/vehicle.rules';
  * 사진 자체만큼 중요하다.
  */
 
-const PHOTO_DIR = join(process.env.UPLOAD_DIR ?? './uploads', 'vehicles');
+/**
+ * 버킷 안에서 이 사진들이 사는 칸 — 앞에 붙는 접두어는 StorageService가 정한다.
+ *
+ * 전에는 상자 안 ./uploads/vehicles 에 떨어뜨리고 Apache가 내줬다. 차 한 대에 여섯 장,
+ * 한 달에 백 대면 육백 장이라 디스크가 사진에 그대로 먹힌다 — carvior 상자는 29G 중
+ * 6.5G만 남아 있다. S3로 보낸다.
+ */
+const PHOTO_FOLDER = 'vehicles';
 
 /**
  * 사진을 얼마나 들고 있나 — 올린 날부터 한 달.
@@ -67,7 +71,8 @@ function looksLikePhoto(file: { mimetype: string; originalname: string }): boole
   return ALLOWED_PHOTO.test(file.mimetype) || PHOTO_EXT.test(file.originalname);
 }
 
-if (!existsSync(PHOTO_DIR)) mkdirSync(PHOTO_DIR, { recursive: true });
+// 폴더를 미리 만들어 둘 일이 없어졌다 — S3는 폴더라는 것이 없고, 로컬 폴백은
+// StorageService가 쓸 때 mkdir 한다.
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -96,7 +101,10 @@ class PutPhotoDto {
 export class VehiclePhotosService implements OnModuleInit {
   private readonly logger = new Logger(VehiclePhotosService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   /**
    * 하루에 한 번 묵은 사진을 치운다.
@@ -128,17 +136,11 @@ export class VehiclePhotosService implements OnModuleInit {
     });
     if (old.length === 0) return 0;
 
+    // 파일부터 지우고 줄을 지운다. 파일이 남으면 아무도 찾지 못하는 쓰레기가 되지만,
+    // 줄이 남으면 화면에 깨진 사진이 뜬다 — 뒤가 더 눈에 띄는 고장이다.
+    // S3 주소와 옛 /uploads 경로를 StorageService가 알아서 가려낸다.
     for (const set of old) {
-      for (const photo of set.photos) {
-        // /uploads/vehicles/xxx.jpg → 상자 안의 그 파일
-        const name = photo.url.split('/').pop();
-        if (!name) continue;
-        try {
-          await unlink(join(PHOTO_DIR, name));
-        } catch {
-          // 이미 없으면 그만이다 — 줄은 그대로 지운다
-        }
-      }
+      await this.storage.removeAll(set.photos.map((p) => p.url));
     }
 
     await this.prisma.vehiclePhotoSet.deleteMany({ where: { id: { in: old.map((s) => s.id) } } });
@@ -285,7 +287,10 @@ export class VehiclePhotosService implements OnModuleInit {
 
 @Controller('vehicle-photos')
 export class VehiclePhotosController {
-  constructor(private readonly service: VehiclePhotosService) {}
+  constructor(
+    private readonly service: VehiclePhotosService,
+    private readonly storage: StorageService,
+  ) {}
 
   @Get()
   list(
@@ -304,10 +309,9 @@ export class VehiclePhotosController {
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: PHOTO_DIR,
-        filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase() || '.jpg'}`),
-      }),
+      // 상자에 떨어뜨리지 않고 메모리로 받아 S3로 보낸다 — 디스크를 거치면
+      // 올리다 실패한 파일이 그대로 남는다(지우는 사람도 없다).
+      storage: memoryStorage(),
       limits: { fileSize: MAX_PHOTO_SIZE, files: 1 },
       fileFilter: (_req, file, cb) => {
         if (!looksLikePhoto(file)) {
@@ -318,10 +322,11 @@ export class VehiclePhotosController {
       },
     }),
   )
-  upload(@UploadedFile() file: Express.Multer.File) {
+  async upload(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('올릴 사진이 없습니다.');
-    // Apache가 /uploads 를 정적으로 내주므로 이 경로가 곧 보이는 주소가 된다.
-    return { url: `/uploads/vehicles/${file.filename}` };
+    // 돌려주는 주소를 화면이 그대로 <img src>에 넣는다. S3면 절대주소,
+    // AWS 키가 없는 개발 PC면 전과 같은 /uploads/… 가 온다.
+    return { url: await this.storage.save(file, PHOTO_FOLDER) };
   }
 
   @Post('sets')
