@@ -8,13 +8,23 @@
  * 화면에서 보고 손님에게 보내는 사진이다. 긴 변 1280px이면 어느 화면에서든 충분하고,
  * 그 크기로 줄이면 보통 스무 분의 일쯤으로 준다 — 목록을 그리는 속도도 같이 빨라진다.
  *
- * 줄이면서 왼쪽 위에 로고를 박는다. 손님에게 보내고 매물 사이트에 올리는 사진이라, 어디서
- * 돌아다니든 어느 집 차인지는 남아야 한다.
+ * 줄이면서 왼쪽 위에 상사 로고를 박는다. 손님에게 보내고 매물 사이트에 올리는 사진이라,
+ * 어디서 돌아다니든 어느 집 차인지는 남아야 한다.
+ *
+ * 로고는 상사마다 다르다. 전에는 애니원모터스 로고가 번들에 박혀 있었는데, 카비어가 여러
+ * 상사에게 주는 제품에서는 그대로 두면 남의 상사 매물에 애니원 로고가 찍힌다.
+ * 이제 서버의 public/shop-logo.png 를 읽는다 — 없으면 아무것도 안 박는다.
  *
  * 줄여서 더 커지면 원본을 그대로 올린다(이미 작은 사진이 그렇다).
  */
 
-import logoUrl from '../assets/logo.jpg';
+/**
+ * 상사 로고. 번들에 넣지 않고 배포한 자리에서 읽는다 — 상사마다 다르기 때문이다.
+ * 흰 바탕 이미지를 그대로 두면 된다(아래에서 바탕을 잘라낸다).
+ *
+ * 없으면 워터마크를 건너뛴다. 아무 로고나 찍는 쪽이 훨씬 나쁘다.
+ */
+const LOGO_URL = '/shop-logo.png';
 
 /** 긴 변 — 이보다 크면 줄인다. 화면에서 보고 손님에게 보내는 사진이라 이 정도면 된다 */
 const MAX_EDGE = 1280;
@@ -30,18 +40,23 @@ const MARK_MAX = 320;
 /**
  * 로고에서 글자만 잘라 둔다.
  *
- * 가진 로고는 흰 바탕 정사각형이라 그대로 얹으면 흰 네모가 붙는다. 흰 바탕을 뺀 글자
+ * 로고는 보통 흰 바탕 정사각형이라 그대로 얹으면 흰 네모가 붙는다. 흰 바탕을 뺀 글자
  * 자리만 찾아 잘라 쓴다 — 로고를 바꿔도 다시 찾으므로 좌표를 박아두지 않는다.
  *
  * 한 번 만들어 두고 계속 쓴다. 사진마다 다시 자르면 여섯 장에 여섯 번 한다.
+ * 로고 파일이 없으면 null 이 되고, 워터마크 없이 사진만 줄인다.
  */
 let markPromise: Promise<HTMLCanvasElement | null> | null = null;
 
 function loadMark(): Promise<HTMLCanvasElement | null> {
   markPromise ??= (async () => {
     try {
-      const res = await fetch(logoUrl);
-      const bitmap = await createImageBitmap(await res.blob());
+      const res = await fetch(LOGO_URL);
+      // 로고를 안 올려 둔 상사다 — 아파치가 index.html 을 돌려주기도 해서 형식까지 본다
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      if (!blob.type.startsWith('image/')) return null;
+      const bitmap = await createImageBitmap(blob);
 
       const full = document.createElement('canvas');
       full.width = bitmap.width;

@@ -13,10 +13,8 @@ const ID_PATTERN = /^[a-z0-9._-]{4,20}$/;
 /**
  * 회원가입 신청.
  *
- * 신청만 하고 계정은 관리자가 승인할 때 생긴다. 승인 전에는 로그인되지 않는다 —
+ * 신청만 하고 계정은 상사 관리자가 승인할 때 생긴다. 승인 전에는 로그인되지 않는다 —
  * 아무나 가입해서 출퇴근·정산을 들여다보면 안 되기 때문이다.
- *
- * 신청한 브라우저의 지문을 같이 보낸다. 자리 PC에서 신청했다면 관리자가 승인하면서
  */
 export default function SignupForm({ onBack }: Props) {
   const [loginId, setLoginId] = useState('');
@@ -81,17 +79,19 @@ export default function SignupForm({ onBack }: Props) {
     </div>
   );
 
-  const INPUT = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400';
+  const INPUT =
+    'h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 text-sm text-slate-900 outline-none transition ' +
+    'placeholder:text-slate-400 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/10';
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
       <button onClick={onBack} className="mb-3 flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-slate-600">
         <ArrowLeft size={13} /> 로그인으로
       </button>
 
       <h2 className="text-base font-bold text-slate-800">회원가입 신청</h2>
       <p className="mt-1 mb-4 text-xs text-slate-500">
-        신청하면 관리자 승인 후 로그인할 수 있습니다. <b>사무실 자리 PC에서 신청</b>하시면
+        상사 관리자가 승인하면 이 아이디로 로그인할 수 있습니다.
       </p>
 
       {field(
@@ -130,7 +130,7 @@ export default function SignupForm({ onBack }: Props) {
       <button
         onClick={() => void submit()}
         disabled={busy}
-        className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+        className="h-12 w-full rounded-xl bg-violet-600 text-[15px] font-bold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-100 disabled:text-violet-400"
       >
         {busy ? '신청 중…' : '가입 신청'}
       </button>

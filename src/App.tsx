@@ -92,7 +92,7 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   condolence: '경조사비 관리',
   chat: '메시지',
   telegramSale: '입금방',
-  monitoring: '애니원모터스 모니터링',
+  monitoring: '상사 모니터링',
 };
 
 function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
@@ -230,7 +230,7 @@ function AuthedApp({ role }: { role: Role }) {
   /*
     이 상사가 켜 둔 모듈. 로그인 응답의 tenant.modules 다.
 
-    애니원모터스는 22개를 다 쓰지만, 카비어가 신규 상사에게 주는 v1은 사람·일정·소통
+    1번 상사는 22개를 다 쓰지만, 카비어가 신규 상사에게 주는 v1은 사람·일정·소통
     8개뿐이다. 메뉴에서 감추는 것만으로는 주소로 들어올 수 있어서 여기서도 막는다.
 
     옛 세션(이 기능 전에 로그인해 둔 사람)에는 없다 — 없으면 전부 허용한다.

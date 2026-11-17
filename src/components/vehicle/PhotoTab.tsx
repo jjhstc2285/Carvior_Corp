@@ -39,7 +39,7 @@ type SlotKey = (typeof SLOTS)[number]['key'];
  * 파일을 끌어다 놓는 것과 같은 자리에서 받으므로, 안에서 온 것인지 밖에서 온 것인지를
  * 이 이름으로 가린다 — 안에서 온 것이면 파일이 아니라 칸 이름이 실려 있다.
  */
-const DRAG_SLOT = 'application/x-anyone-photo-slot';
+const DRAG_SLOT = 'application/x-carvior-photo-slot';
 
 interface PhotoSet {
   id: string;

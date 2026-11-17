@@ -699,7 +699,7 @@ export class TelegramService implements OnModuleInit {
       return { sent: false, reason: '서버에 봇 토큰이나 방 번호가 없습니다(.env TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).' };
     }
     try {
-      await this.send('🔔 애니원모터스 통합관리 — 공지방이 연결되었습니다.', this.chatId);
+      await this.send('🔔 카비어 비즈 — 공지방이 연결되었습니다.', this.chatId);
       return { sent: true };
     } catch (e) {
       const err = e as Error & { cause?: { code?: string; message?: string } };

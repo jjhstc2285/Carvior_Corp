@@ -45,7 +45,7 @@ function message(e: unknown, fallback: string): string {
  * 읽음 처리(chat:read)는 '보낸 쪽'에게만 소켓으로 가므로, 읽은 본인 화면의 배지는
  * 소켓으로 갱신되지 않는다. 그래서 같은 탭 안에서만 쓰는 이벤트로 알린다.
  */
-const UNREAD_CHANGED = 'anyone-motors:chat-unread-changed';
+const UNREAD_CHANGED = 'carvior-biz:chat-unread-changed';
 
 function notifyUnreadChanged(): void {
   window.dispatchEvent(new CustomEvent(UNREAD_CHANGED));

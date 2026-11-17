@@ -110,7 +110,7 @@ export default function TelegramTestCard() {
           </button>
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-          방에 <b>@anyonecar_bot</b> 을 넣고 아무 말이나 한 줄 친 다음 누르세요. 나온 번호를 서버 <code>.env</code> 에
+          방에 <b>우리 상사 알림봇</b>을 넣고 아무 말이나 한 줄 친 다음 누르세요. 나온 번호를 서버 <code>.env</code> 에
           적습니다 — 공지방은 <code>TELEGRAM_CHAT_ID</code>, 금액이 오가는 입금확인방은{' '}
           <code>TELEGRAM_SALE_CHAT_ID</code>. 초대 링크(t.me/+…)는 방 번호가 아닙니다.
         </p>

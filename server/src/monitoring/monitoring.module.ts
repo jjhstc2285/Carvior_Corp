@@ -8,7 +8,7 @@ import { brokerageProfit } from '../settlements/settlement.calc';
 import { normalizePlate } from '../vehicles/vehicle.rules';
 
 /**
- * 애니원모터스 모니터링 — 상사에 달마다 얼마가 들어오고 얼마가 나가는가.
+ * 상사 모니터링 — 상사에 달마다 얼마가 들어오고 얼마가 나가는가.
  *
  * 차 한 대를 팔면 매도비가 상사로 들어오고, 인건비·부동산비는 달마다 그대로 나간다.
  * 지금까지 그 둘을 한자리에서 본 적이 없다 — 인건비는 인건비 화면에, 월세는 부동산

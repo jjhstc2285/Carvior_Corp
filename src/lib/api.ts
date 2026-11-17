@@ -6,11 +6,21 @@
  */
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api';
 
-const TOKEN_KEY = 'anyone-motors-token';
+const TOKEN_KEY = 'carvior-biz-token';
+/** 애니원모터스 이름으로 저장돼 있던 옛 키. 한 번만 옮겨 담고 지운다 — 안 하면 전원 로그아웃된다. */
+const LEGACY_TOKEN_KEY = 'anyone-motors-token';
 
 let token: string | null = null;
 try {
   token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    const legacy = localStorage.getItem(LEGACY_TOKEN_KEY);
+    if (legacy) {
+      token = legacy;
+      localStorage.setItem(TOKEN_KEY, legacy);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+    }
+  }
 } catch {
   // 시크릿 모드 등에서 접근이 막힐 수 있음 — 토큰 없이 시작
 }
@@ -30,7 +40,7 @@ export function setToken(value: string | null): void {
 }
 
 /** 토큰이 만료·무효일 때 앱 전체가 로그인 화면으로 돌아가게 알린다. */
-export const UNAUTHORIZED_EVENT = 'anyone-motors:unauthorized';
+export const UNAUTHORIZED_EVENT = 'carvior-biz:unauthorized';
 
 export class ApiError extends Error {
   readonly status: number;

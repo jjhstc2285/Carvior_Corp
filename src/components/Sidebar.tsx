@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import type { ModuleKey } from '../modules';
 import { useEscClose } from '../lib/useEscClose';
+import { useShopName } from '../lib/shopName';
 
 interface Props {
   active: ModuleKey;
@@ -54,7 +55,7 @@ interface Props {
   /**
    * 이 상사가 켜 둔 모듈. 로그인 응답의 tenant.modules 를 그대로 넘긴다.
    *
-   * 애니원모터스는 22개를 다 쓰지만, 카비어가 신규 상사에게 주는 v1은 사람·일정·소통
+   * 1번 상사는 22개를 다 쓰지만, 카비어가 신규 상사에게 주는 v1은 사람·일정·소통
    * 8개뿐이다. 코드에 상사 이름을 박지 않으려고 서버가 내려준 목록으로 가른다.
    *
    * 넘기지 않으면(아직 토큰에 상사 정보가 없는 옛 세션) 전부 보여준다.
@@ -136,7 +137,7 @@ const NAV_GROUPS: {
       // 입금방에 무엇이 올라갔나 — 전 직원이 본다
       { key: 'telegramSale', label: '입금방', icon: Send },
       // 상사에 달마다 얼마가 들어오고 나가는가 — 대표만 본다
-      { key: 'monitoring', label: '애니원모터스 모니터링', icon: Activity },
+      { key: 'monitoring', label: '상사 모니터링', icon: Activity },
     ],
   },
 ];
@@ -155,6 +156,7 @@ export default function Sidebar({
   isOwner = false,
   modules,
 }: Props) {
+  const shopName = useShopName('카비어 비즈');
   const [query, setQuery] = useState('');
 
   /*
@@ -256,9 +258,13 @@ export default function Sidebar({
     <>
       <div className="flex items-center justify-between px-4 py-4">
         <div className="flex items-center gap-2">
-          {/* 회사 로고. public/ 에 두고 경로로 부른다 — 번들에 안 섞여서 브라우저가 따로 캐시한다 */}
-          <img src="/icon-192.png" alt="애니원모터스" className="h-8 w-8 rounded-lg object-cover" />
-          <span className="text-[15px] font-bold text-slate-800">애니원모터스</span>
+          {/* 카비어 마크. public/ 에 두고 경로로 부른다 — 번들에 안 섞여서 브라우저가 따로 캐시한다 */}
+          <img src="/carvior-mark.svg" alt="" className="h-8 w-8 rounded-lg" />
+          <div className="leading-tight">
+            {/* 회사 이름은 박아 두지 않는다 — 들어온 상사 이름으로 불려야 한다 */}
+            <span className="block text-[15px] font-bold text-slate-800">{shopName}</span>
+            <span className="block text-[10px] font-bold tracking-wider text-violet-500">CARVIOR BIZ</span>
+          </div>
         </div>
         <button onClick={onMobileClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 md:hidden">
           <X size={18} />

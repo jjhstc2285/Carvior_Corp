@@ -16,6 +16,7 @@ import ApprovalForm from './ApprovalForm';
 import { useEscClose } from '../../lib/useEscClose';
 import IncidentReportPaper from './IncidentReportPaper';
 import { makeIncidentReportPdf } from './incidentReportPdf';
+import { useShopName } from '../../lib/shopName';
 import { downloadPdf, openPdf } from '../property/leaseContractPdf';
 
 /** 목록 한 줄에 붙는 요약 — 열어보지 않고도 무슨 건인지 알게 한다 */
@@ -45,6 +46,7 @@ const STATUS_STYLE: Record<ApprovalDocument['status'], string> = {
  * 보이면 아무도 솔직하게 못 쓴다. 그건 서버가 가른다.
  */
 export default function ApprovalModule({ role }: { role: Role }) {
+  const shopName = useShopName();
   const { state } = useStore();
   const [docs, setDocs] = useState<ApprovalDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,7 @@ export default function ApprovalModule({ role }: { role: Role }) {
     if (!opened) return;
     setPdfBusy(true);
     try {
-      const bytes = await makeIncidentReportPdf(opened);
+      const bytes = await makeIncidentReportPdf(opened, shopName);
       if (mode === 'open') openPdf(bytes);
       else downloadPdf(bytes, `시말서_${opened.name}_${opened.writtenOn}.pdf`);
     } catch (e) {

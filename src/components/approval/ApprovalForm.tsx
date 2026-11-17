@@ -12,6 +12,7 @@ import {
 } from '../../types';
 import { useEscClose } from '../../lib/useEscClose';
 import { makeIncidentReportPdf } from './incidentReportPdf';
+import { useShopName } from '../../lib/shopName';
 import { downloadPdf, openPdf } from '../property/leaseContractPdf';
 
 interface Props {
@@ -44,6 +45,7 @@ const CONTENT_HINT: Record<ApprovalKind, string> = {
 export default function ApprovalForm({ kind, editing, me, onSaved, onClose }: Props) {
   /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
   useEscClose(onClose);
+  const shopName = useShopName();
   const [department, setDepartment] = useState(editing?.department ?? me.department ?? '');
   const [position, setPosition] = useState(editing?.position ?? me.position);
   const [name, setName] = useState(editing?.name ?? me.name);
@@ -93,7 +95,7 @@ export default function ApprovalForm({ kind, editing, me, onSaved, onClose }: Pr
         cause: cause.trim(),
         action: action.trim(),
         prevention: prevention.trim(),
-      });
+      }, shopName);
       if (mode === 'open') openPdf(bytes);
       else downloadPdf(bytes, `시말서_${name.trim() || '작성중'}_${writtenOn}.pdf`);
     } catch (e) {

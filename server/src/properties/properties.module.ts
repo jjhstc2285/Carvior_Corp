@@ -115,14 +115,22 @@ function assertCeo(user: AuthUser, pass?: string): void {
 const DATE = /^(\d{4}-\d{2}-\d{2})?$/;
 
 /**
- * 우리 회사 — 계약서를 만들 때 우리 쪽 칸을 미리 채운다.
- * 로그인 화면 아래 적어둔 사업자 정보와 같은 값이다.
+ * 우리 상사 — 계약서를 만들 때 우리 쪽 칸(상호·주소·전화)을 미리 채운다.
+ *
+ * 전에는 애니원모터스 정보가 코드에 박혀 있었다. 카비어가 여러 상사에게 주는 제품이
+ * 되면서 그대로 둘 수 없다 — 다른 상사가 임대차계약서를 뽑으면 남의 회사 이름이
+ * 인쇄된다. 서버마다 .env 로 받는다.
+ *
+ * 비어 있으면 빈칸으로 둔다. 아무 이름이나 채워 넣는 쪽이 훨씬 위험하다 —
+ * 계약서는 그대로 도장을 찍는 종이다.
  */
-const COMPANY = {
-  name: '애니원모터스',
-  address: '경기도 수원시 권선구 평동로79번길 45, 519호 (평동)',
-  phone: '031-304-9700',
-};
+function company() {
+  return {
+    name: (process.env.COMPANY_NAME ?? '').trim(),
+    address: (process.env.COMPANY_ADDRESS ?? '').trim(),
+    phone: (process.env.COMPANY_PHONE ?? '').trim(),
+  };
+}
 
 export class UpsertPropertyDto {
   @IsString() @IsNotEmpty({ message: '이름을 입력해 주세요.' }) @MaxLength(60) name!: string;
@@ -304,7 +312,7 @@ export class LeaseService {
       임차인 칸에 들어간 채로 인쇄된다.
     */
     const weAreLessor = property.side === '임대';
-    const us = { name: COMPANY.name, address: COMPANY.address, phone: COMPANY.phone };
+    const us = company();
     const other = { name: property.ownerName, address: '', phone: property.ownerPhone };
     const lessorSide = weAreLessor ? us : other;
     const lesseeSide = weAreLessor ? other : us;

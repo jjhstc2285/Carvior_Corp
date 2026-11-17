@@ -22,7 +22,7 @@ export type IncidentReportLike = Pick<
  * 깔아 놓은 종이 위에 긴 글을 얹으면 칸 밖으로 넘치거나 한 줄로 잘린다.
  *
  * 그래서 선부터 글자까지 직접 그린다. 양식에 있는 것만 그대로 옮긴다 —
- * 결재란(담당·관리자·대표이사), 윗표, 네 꼭지, 맺음 날짜와 작성자, '애니원모터스 귀중'.
+ * 결재란(담당·관리자·대표이사), 윗표, 네 꼭지, 맺음 날짜와 작성자, '<상사 이름> 귀중'.
  *
  * 도장은 안 찍는다. 결재란은 비워서 뽑고 손으로 찍는 자리다.
  */
@@ -68,7 +68,8 @@ function wrap(text: string, font: PDFFont, size: number, width: number): string[
   return out;
 }
 
-export async function makeIncidentReportPdf(doc: IncidentReportLike): Promise<Uint8Array> {
+/** @param shopName 서류를 받는 상사 이름. 상사마다 달라서 박아 두지 않고 받는다. */
+export async function makeIncidentReportPdf(doc: IncidentReportLike, shopName: string): Promise<Uint8Array> {
   const fontBytes = await fetch(FONT_URL).then(r => {
     if (!r.ok) throw new Error('글꼴 파일을 찾지 못했습니다.');
     return r.arrayBuffer();
@@ -114,7 +115,7 @@ export async function makeIncidentReportPdf(doc: IncidentReportLike): Promise<Ui
     const w = font.widthOfTextAtSize(label, 9);
     text(label, x + (colW - w) / 2, y + 5, 9);
   });
-  text('애니원모터스', MARGIN, y - 4, 12);
+  text(shopName, MARGIN, y - 4, 12);
 
   y -= signH + 46;
   center('시   말   서', y, 24);
@@ -198,7 +199,7 @@ export async function makeIncidentReportPdf(doc: IncidentReportLike): Promise<Ui
   text('(서명)', MARGIN + 420, y, 10);
 
   y -= 40;
-  center('애니원모터스 귀중', y, 11);
+  center(`${shopName} 귀중`, y, 11);
 
   return pdf.save();
 }

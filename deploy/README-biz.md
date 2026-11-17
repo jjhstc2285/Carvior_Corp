@@ -62,7 +62,19 @@ AWS_S3_REGION="<리전>"
 AWS_ACCESS_KEY="<키>"
 AWS_SECRET_KEY="<시크릿>"
 S3_PREFIX="carvior-biz"
+
+# 이 상사의 사업자 정보 — 임대차계약서의 '우리 쪽' 칸에 그대로 인쇄된다.
+# 비워 두면 빈칸으로 뽑힌다. 아무 이름이나 채워 넣는 쪽이 훨씬 위험하다.
+COMPANY_NAME="<상호>"
+COMPANY_ADDRESS="<사업장 주소>"
+COMPANY_PHONE="<대표번호>"
 ENV
+
+# 4-1. 상사 로고 (선택) — 차량 사진 왼쪽 위에 박히는 워터마크
+#
+#    흰 바탕 이미지를 public/shop-logo.png 로 두면 올리는 사진마다 박힌다.
+#    안 두면 워터마크 없이 사진만 줄여서 올라간다 — 아무 로고나 찍지 않는다.
+#    cp <상사 로고>.png public/shop-logo.png
 
 # 5. 스키마 — 빈 DB라 migrate deploy 로 한 번에 올라간다
 cd server && npx prisma generate && npx prisma migrate deploy && cd ..

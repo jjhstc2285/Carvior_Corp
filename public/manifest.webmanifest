@@ -1,15 +1,16 @@
 {
-  "name": "애니원모터스 통합 관리",
-  "short_name": "애니원모터스",
-  "description": "출퇴근·상담·정산·주차·매입을 한 곳에서 봅니다.",
+  "name": "카비어 비즈 — 상사 통합 관리",
+  "short_name": "카비어 비즈",
+  "description": "검차와 상사 운영, A to Z 한 번에.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f8fafc",
-  "theme_color": "#4f46e5",
+  "background_color": "#ffffff",
+  "theme_color": "#7c3aed",
   "lang": "ko",
   "icons": [
+    { "src": "/carvior-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }

@@ -5,6 +5,7 @@ import { useStore } from '../../store';
 import { dedupe, downloadVCard, isPhone, type Contact } from '../../lib/vcard';
 import type { Vendor } from '../../types';
 import { useEscClose } from '../../lib/useEscClose';
+import { useShopName } from '../../lib/shopName';
 
 /**
  * 연락처를 휴대폰에 넣을 파일로 내려받는다.
@@ -49,12 +50,13 @@ interface DealerFee {
 export default function ContactExportModal({ onClose }: { onClose: () => void }) {
   /* ESC 로 닫는다 — 겹쳐 뜬 창은 맨 위만 닫힌다 */
   useEscClose(onClose);
+  const shopName = useShopName();
   const { state } = useStore();
   const [picked, setPicked] = useState<Set<GroupKey>>(new Set(['vendor']));
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [keyRows, setKeyRows] = useState<KeyRow[]>([]);
   const [dealerFees, setDealerFees] = useState<DealerFee[]>([]);
-  const [prefix, setPrefix] = useState('애니원');
+  const [prefix, setPrefix] = useState(() => shopName);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -187,8 +189,8 @@ export default function ContactExportModal({ onClose }: { onClose: () => void })
           <input
             value={prefix}
             onChange={e => setPrefix(e.target.value)}
-            placeholder="애니원"
-            className="mt-1 block w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400"
+            placeholder={shopName}
+            className="mt-1 block w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-violet-400"
           />
           <span className="mt-1 block text-[11px] text-slate-400">
             휴대폰에 <b className="font-mono">[{prefix}거래처] 금강유리</b> 로 저장됩니다 — 내 연락처와 섞이지 않고,

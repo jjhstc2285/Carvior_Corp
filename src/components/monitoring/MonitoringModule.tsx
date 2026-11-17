@@ -3,9 +3,10 @@ import dayjs from 'dayjs';
 import { Lock, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react';
 import { api, ApiError, getPayrollPass, setPayrollPass } from '../../lib/api';
 import { ColumnResetButton, useColumnOrder, type Column } from '../table/useColumnOrder';
+import { useShopName } from '../../lib/shopName';
 
 /**
- * 애니원모터스 모니터링 — 상사에 달마다 얼마가 들어오고 얼마가 나가는가.
+ * 상사 모니터링 — 상사에 달마다 얼마가 들어오고 얼마가 나가는가.
  *
  * 차 한 대를 팔면 매도비가 상사로 들어오고, 인건비·월세는 달마다 그대로 나간다.
  * 지금까지 그 둘을 한자리에서 본 적이 없다 — 인건비는 인건비 화면에, 월세는 부동산
@@ -71,6 +72,7 @@ const COLUMNS: Column[] = [
 ];
 
 export default function MonitoringModule() {
+  const shopName = useShopName();
   const [locked, setLocked] = useState(!getPayrollPass());
   const [denied, setDenied] = useState(false);
   const [code, setCode] = useState('');
@@ -141,7 +143,7 @@ export default function MonitoringModule() {
       <div className="mx-auto max-w-sm px-4 py-24">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
           <Lock size={26} className="mx-auto text-indigo-500" />
-          <h1 className="mt-3 text-base font-bold text-slate-800">애니원모터스 모니터링</h1>
+          <h1 className="mt-3 text-base font-bold text-slate-800">{shopName} 모니터링</h1>
           <p className="mt-1 text-xs text-slate-500">번호를 넣어 주세요. 창을 닫으면 다시 물어봅니다.</p>
           <input
             type="password"
@@ -174,7 +176,7 @@ export default function MonitoringModule() {
     <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">애니원모터스 모니터링</h1>
+          <h1 className="text-xl font-bold text-slate-900">{shopName} 모니터링</h1>
           <p className="mt-0.5 text-xs text-slate-400">
             차 한 대를 팔면 매도비 <b className="text-slate-600">{NUM(perCar)}원</b>이 상사로 들어옵니다 · 인건비와
             월세는 달마다 그대로 나갑니다

@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import type { ApprovalDocument } from '../../types';
+import { useShopName } from '../../lib/shopName';
 
 /**
  * 시말서 — 회사 종이 양식 그대로.
@@ -39,11 +40,13 @@ function Section({ no, title, hint, body }: { no: number; title: string; hint: s
 }
 
 export default function IncidentReportPaper({ doc }: { doc: ApprovalDocument }) {
+  const shopName = useShopName();
+
   return (
     <div className="text-slate-900">
       {/* 머리 — 왼쪽에 회사 이름, 오른쪽에 결재란(비워서 뽑는다) */}
       <div className="flex items-start justify-between gap-4">
-        <p className="pt-3 text-base font-bold">애니원모터스</p>
+        <p className="pt-3 text-base font-bold">{shopName}</p>
         <table className="border-collapse text-xs">
           <tbody>
             <tr>
@@ -104,7 +107,7 @@ export default function IncidentReportPaper({ doc }: { doc: ApprovalDocument }) 
         <span className="text-slate-500">(서명)</span>
       </div>
 
-      <p className="mt-6 text-center text-sm font-bold">애니원모터스 귀중</p>
+      <p className="mt-6 text-center text-sm font-bold">{shopName} 귀중</p>
     </div>
   );
 }
