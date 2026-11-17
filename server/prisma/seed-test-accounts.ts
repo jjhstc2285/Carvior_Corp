@@ -12,6 +12,10 @@
  * ⚠️ 기본 비밀번호는 테스트 편의를 위한 값이다. 외부에서 접근 가능한 서버에 올렸다면
  *    로그인 후 POST /api/auth/password 로 반드시 바꾸거나, 계정을 지워야 한다.
  */
+// ts-node로 직접 돌리는 스크립트는 .env를 알아서 읽지 않는다 — PrismaClient가
+// 만들어지기 전에 먼저 읽어 둔다(없으면 "Environment variable not found: DATABASE_URL").
+import 'dotenv/config';
+
 import * as bcrypt from 'bcrypt';
 import { AuthProvider, PrismaClient, Role } from '@prisma/client';
 import { invalidateEmployeeCache } from './invalidate-employee-cache';

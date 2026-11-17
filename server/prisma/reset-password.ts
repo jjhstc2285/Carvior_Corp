@@ -9,6 +9,10 @@
  * 임직원 시드(seed.ts)는 기존 계정의 passwordHash를 일부러 건드리지 않으므로
  * 시드를 다시 돌려도 비밀번호는 초기화되지 않는다 — 그때 쓰는 게 이 스크립트다.
  */
+// ts-node로 직접 돌리는 스크립트는 .env를 알아서 읽지 않는다 — PrismaClient가
+// 만들어지기 전에 먼저 읽어 둔다(없으면 "Environment variable not found: DATABASE_URL").
+import 'dotenv/config';
+
 import * as bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
 

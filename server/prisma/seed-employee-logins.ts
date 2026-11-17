@@ -15,6 +15,10 @@
  *    이미 본인이 바꿔 쓰고 있는 계정에 다시 돌리면 그 비밀번호가 초기화된다.
  *    한 사람만 초기화하려면 `npm run reset:password`를 쓸 것.
  */
+// ts-node로 직접 돌리는 스크립트는 .env를 알아서 읽지 않는다 — PrismaClient가
+// 만들어지기 전에 먼저 읽어 둔다(없으면 "Environment variable not found: DATABASE_URL").
+import 'dotenv/config';
+
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as bcrypt from 'bcrypt';
