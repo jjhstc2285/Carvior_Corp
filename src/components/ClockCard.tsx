@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { ipAllowed } from '../lib/ipMatch';
 import { useStore } from '../store';
-import { useCurrentIp } from '../lib/useCurrentIp';
 import { ApiError } from '../lib/api';
 import { alertError } from '../lib/alert';
 // 막히는 규칙은 홈의 출퇴근과 같이 쓴다 — 각자 들고 있으면 한쪽만 고치는 날이 온다
@@ -49,7 +47,6 @@ export default function ClockCard() {
       setMealBusy(false);
     }
   };
-  const { ip, loading: ipLoading, error: ipError } = useCurrentIp();
   const [, forceTick] = useState(0);
 
   // 출근~지금(또는 퇴근시각)까지 원형 게이지가 실시간으로 차오르게 1분마다 리렌더
@@ -71,18 +68,7 @@ export default function ClockCard() {
   const today = dayjs().format('YYYY-MM-DD');
   const record = state.records.find(r => r.employeeId === employee.id && r.date === today);
 
-  /*
-    IP 안내는 관리자에게 띄우지 않는다.
 
-    허용 IP 목록은 관리자만 받아 간다 — 다른 사람 화면에는 애초에 빈 목록이라 이 안내가
-    뜨지 않는다. 그래서 여기서 가릴 건 관리자 한 경우뿐이고, 누가 실제로 찍을 수 있는지는
-    서버가 정한다. 화면이 들고 판단하면 목록을 들고 있는 사람에게만 다르게 보인다.
-  */
-  const isAdmin = employee.role === 'ADMIN';
-
-  const whitelistEnabled = state.ipWhitelist.length > 0 && !isAdmin;
-  // 목록에는 대역(123.45.67.*)도 들어 있다 — 글자 그대로 맞춰 보면 안 된다
-  const ipOk = !whitelistEnabled || (!!ip && ipAllowed(state.ipWhitelist, ip));
 
   const clockedIn = !!record?.clockIn;
   const clockedOut = !!record?.clockOut;
@@ -98,7 +84,7 @@ export default function ClockCard() {
   const mealOn = record?.mealUsed ?? mealAuto;
   const mealSet = record?.mealUsed !== null && record?.mealUsed !== undefined;
 
-  const canClockIn = !clockedIn && (isAdmin || (!ipLoading && ipOk));
+  const canClockIn = !clockedIn;
   const canClockOut = clockedIn && !clockedOut;
 
   const nowMin = toMinutes(dayjs().format('HH:mm'));
@@ -133,12 +119,6 @@ export default function ClockCard() {
             <p>퇴근 : {record?.clockOut ?? '-'}</p>
           </div>
 
-          {whitelistEnabled && !ipOk && !ipLoading && (
-            <p className="mt-2 max-w-xs text-xs text-red-500">
-              현재 IP({ip ?? '확인 불가'})는 출근 등록이 허용된 IP가 아닙니다. 관리자에게 문의해주세요.
-            </p>
-          )}
-          {ipError && <p className="mt-2 text-xs text-red-400">{ipError}</p>}
         </div>
 
         <div className="flex flex-col items-center gap-4">

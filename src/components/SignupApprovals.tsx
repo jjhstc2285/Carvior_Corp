@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import { MonitorCheck, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { alertError, alertSuccess, confirmDanger } from '../lib/alert';
 
@@ -14,8 +14,6 @@ interface SignupRequest {
   formerEmployee: boolean;
   phone: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  /** 신청한 브라우저 지문 — 있으면 그 PC를 출근 단말로 함께 등록할 수 있다 */
-  fingerprint: string | null;
   createdAt: string;
 }
 
@@ -23,13 +21,9 @@ interface SignupRequest {
  * 회원가입 승인.
  *
  * 승인하면 그때 계정이 만들어진다 — 그전까지는 로그인되지 않는다.
- *
- * '이 PC를 출근 단말로도 등록'은 일부러 기본값을 끈다. 자리 PC에서 신청했으면 켜면 되지만,
- * 휴대폰으로 신청한 걸 켜버리면 휴대폰이 출근 단말이 되어 IP·단말 제한이 무의미해진다.
  */
 export default function SignupApprovals() {
   const [rows, setRows] = useState<SignupRequest[]>([]);
-  const [withDevice, setWithDevice] = useState<Record<string, boolean>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const reqId = useRef(0);
@@ -60,14 +54,12 @@ export default function SignupApprovals() {
     try {
       await api(`/auth/signups/${row.id}/review`, {
         method: 'POST',
-        body: { action, ...(action === 'approve' ? { registerDevice: !!withDevice[row.id] } : {}) },
+        body: { action },
       });
       if (action === 'approve') {
         await alertSuccess(
           `${row.name}님 계정을 만들었습니다`,
-          withDevice[row.id]
-            ? '그 PC에서 사무실 안에서 로그인하면 출근 단말 키가 자동으로 심어집니다.'
-            : `이제 '${row.loginId}'로 로그인할 수 있습니다.`,
+          `이제 '${row.loginId}'로 로그인할 수 있습니다.`,
         );
       }
       await load();
@@ -143,24 +135,6 @@ export default function SignupApprovals() {
               </div>
             </div>
 
-            {/* 지문이 없으면 애초에 고를 수 없다(보안 컨텍스트가 아니거나 옛 브라우저) */}
-            {r.fingerprint && (
-              <label className="mt-2 flex items-start gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={!!withDevice[r.id]}
-                  onChange={e => setWithDevice(prev => ({ ...prev, [r.id]: e.target.checked }))}
-                  className="mt-0.5 rounded"
-                />
-                <span>
-                  <MonitorCheck size={11} className="mr-0.5 inline text-slate-500" />
-                  <b>신청한 그 PC를 출근 단말로도 등록</b>
-                  <br />
-                  사무실 자리 PC에서 신청한 게 확실할 때만 켜세요. 휴대폰으로 신청했다면 휴대폰에서
-                  출근이 찍히게 됩니다.
-                </span>
-              </label>
-            )}
           </div>
         ))}
       </div>

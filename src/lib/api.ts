@@ -32,86 +32,6 @@ export function setToken(value: string | null): void {
 /** 토큰이 만료·무효일 때 앱 전체가 로그인 화면으로 돌아가게 알린다. */
 export const UNAUTHORIZED_EVENT = 'anyone-motors:unauthorized';
 
-/**
- * 출근 단말 키.
- *
- * 사무실 WiFi에 붙은 휴대폰과 자리 PC는 같은 공인 IP로 나가서 IP로는 못 가른다.
- * 그래서 등록한 PC 브라우저에만 이 키를 저장해두고 매 요청에 실어 보낸다 —
- * 서버는 등록된 단말이 있을 때 이 키가 있는 요청만 출근을 찍게 한다.
- * 로그인 토큰과 달리 계정이 아니라 '그 PC'에 붙는 값이라 로그아웃해도 지우지 않는다.
- */
-const DEVICE_KEY = 'anyone-motors-device';
-
-interface DeviceRegistration {
-  id: string;
-  token: string;
-}
-
-let device: DeviceRegistration | null = null;
-try {
-  const raw = localStorage.getItem(DEVICE_KEY);
-  if (raw) device = JSON.parse(raw) as DeviceRegistration;
-} catch {
-  // 저장된 값이 깨졌거나 접근이 막힌 경우 — 단말 미등록으로 본다
-}
-
-/** 이 브라우저가 등록된 단말이면 그 id, 아니면 null */
-export function getDeviceId(): string | null {
-  return device?.id ?? null;
-}
-
-export function setDevice(value: DeviceRegistration | null): void {
-  device = value;
-  try {
-    if (value) localStorage.setItem(DEVICE_KEY, JSON.stringify(value));
-    else localStorage.removeItem(DEVICE_KEY);
-  } catch {
-    // 저장이 안 되면 이번 세션에서만 유지된다
-  }
-}
-
-/**
- * 이 브라우저의 지문. 계산이 비동기(SHA-256)라 요청마다 기다릴 수 없어 한 번 구해 들고 있는다.
- *
- * 요청에 같이 실어 보내면 서버가 두 가지에 쓴다:
- *  - 지문 없이 예전에 등록된 단말을 출근 한 번으로 채워 넣기
- *  - 사용기록을 지워 키를 잃었을 때 그 PC를 알아보기
- */
-let fingerprint = '';
-
-void (async () => {
-  try {
-    const { deviceFingerprint } = await import('./deviceFingerprint');
-    fingerprint = await deviceFingerprint();
-  } catch {
-    // 지문을 못 만들어도 기존 방식(저장된 키)은 그대로 동작한다.
-  }
-})();
-
-/**
- * 단말 키 되찾기.
- *
- * 인터넷 사용기록을 지우면 저장해둔 키가 사라진다. 그때마다 관리자를 불러 다시 등록하는 대신,
- * 사무실 IP 안에서 지문이 맞으면 서버가 키를 새로 내준다.
- *
- * 로그인할 때 한 번 조용히 부른다 — 되찾을 게 없으면 아무 일도 일어나지 않는다.
- */
-export async function recoverDevice(): Promise<void> {
-  if (getDeviceId()) return; // 이미 등록된 브라우저
-
-  try {
-    if (!fingerprint) return;
-
-    const res = await api<{ recovered: boolean; id?: string; token?: string; label?: string }>(
-      '/attendance/devices/recover',
-      { method: 'POST', body: { fingerprint } },
-    );
-    if (res.recovered && res.id && res.token) setDevice({ id: res.id, token: res.token });
-  } catch {
-    // 되찾기는 부가 동작이다 — 실패해도 로그인 흐름을 막지 않는다.
-  }
-}
-
 export class ApiError extends Error {
   readonly status: number;
   /**
@@ -233,8 +153,6 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     const pass = getPayrollPass();
     if (pass) headers['X-Payroll-Pass'] = pass;
   }
-  if (device) headers['X-Device-Token'] = device.token;
-  if (fingerprint) headers['X-Device-Fingerprint'] = fingerprint;
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
 
   let res: Response;

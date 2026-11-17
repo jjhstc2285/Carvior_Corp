@@ -6,9 +6,7 @@ import ClockCard from './ClockCard';
 import StatusBar from './StatusBar';
 import SettlementApprovalInbox from './settlement/SettlementApprovalInbox';
 import MonthlyDashboard from './MonthlyDashboard';
-import IpWhitelistSettings from './IpWhitelistSettings';
 import TelegramTestCard from './TelegramTestCard';
-import AttendanceDeviceSettings from './AttendanceDeviceSettings';
 import EmployeeSettings from './EmployeeSettings';
 
 export default function AdminView() {
@@ -38,8 +36,6 @@ export default function AdminView() {
         {/* 공지가 안 오면 여기서 한 줄 보내 본다 — 실패는 로그에만 남아 한참 뒤에야 안다 */}
         {/* 나간 기록은 왼쪽 메뉴 '텔레그램 기록'에 있다 — 여기서는 연결만 본다 */}
         <TelegramTestCard />
-        <IpWhitelistSettings />
-        <AttendanceDeviceSettings />
         <EmployeeSettings />
         <MonthlyDashboard />
       </div>

@@ -2,8 +2,6 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { Clock, LogIn, LogOut } from 'lucide-react';
 import { useStore } from '../../store';
-import { useCurrentIp } from '../../lib/useCurrentIp';
-import { ipAllowed } from '../../lib/ipMatch';
 import { punch } from '../../lib/punch';
 import { askMealThen } from '../../lib/askMeal';
 import { ApiError } from '../../lib/api';
@@ -26,7 +24,6 @@ import { MEAL_IN_BY, MEAL_OUT_FROM } from '../../lib/attendance';
  */
 export default function HomeClockCard() {
   const { state, clockIn, clockOut, setMeal } = useStore();
-  const { ip, loading: ipLoading } = useCurrentIp();
   const [busy, setBusy] = useState(false);
   const [mealBusy, setMealBusy] = useState(false);
 
@@ -38,12 +35,8 @@ export default function HomeClockCard() {
   const clockedIn = !!record?.clockIn;
   const clockedOut = !!record?.clockOut;
 
-  // 허용 IP 목록은 관리자만 받아 간다 — 다른 사람 화면에는 빈 목록이라 애초에 안 걸린다
-  const isAdmin = me.role === 'ADMIN';
-  const whitelistEnabled = state.ipWhitelist.length > 0 && !isAdmin;
-  const ipOk = !whitelistEnabled || (!!ip && ipAllowed(state.ipWhitelist, ip));
 
-  const canIn = !clockedIn && (isAdmin || (!ipLoading && ipOk));
+  const canIn = !clockedIn;
   const canOut = clockedIn && !clockedOut;
 
   const hit = async (action: () => Promise<void>) => {
@@ -158,10 +151,6 @@ export default function HomeClockCard() {
         </span>
       </label>
 
-      {/* 왜 못 누르는지 — 안 적으면 "버튼이 안 눌린다"로 돌아온다 */}
-      {!clockedIn && !canIn && !ipLoading && (
-        <p className="mt-2.5 text-xs text-amber-600">사무실 네트워크에서만 출근을 찍을 수 있습니다.</p>
-      )}
     </div>
   );
 }

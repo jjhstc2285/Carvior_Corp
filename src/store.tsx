@@ -25,7 +25,6 @@ const EMPTY_STATE: AppState = {
   requests: [],
   notifications: [],
   currentEmployeeId: '',
-  ipWhitelist: [],
   settlements: [],
   brokerageSettlements: [],
   purchaseSettlements: [],
@@ -78,8 +77,6 @@ interface Store {
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
 
-  addWhitelistIp: (ip: string) => Promise<void>;
-  removeWhitelistIp: (ip: string) => Promise<void>;
 
   upsertSettlement: (record: Upsert<SettlementRecord, 'createdAt'>) => Promise<void>;
   deleteSettlement: (id: string) => Promise<void>;
@@ -183,7 +180,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         purchaseSettlements,
         consultations,
         parkingVehicles,
-        ipWhitelist,
       ] = await Promise.all([
         // 직원 명단과 오늘 기록은 없으면 아무것도 못 한다 — 이 둘만 막히면 오류로 본다
         api<Employee[]>('/employees'),
@@ -203,7 +199,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         get('매입 정산', () => api<PurchaseSettlement[]>('/settlements/purchase'), []),
         get('상담', () => api<ConsultationRecord[]>('/consultations'), []),
         get('주차장', () => api<ParkingVehicle[]>('/parking'), []),
-        isAdmin ? get('IP 목록', () => api<{ ip: string }[]>('/attendance/ip-whitelist'), []) : Promise.resolve([]),
       ]);
 
       // 응답이 늦게 도착한 이전 요청이 최신 상태를 덮어쓰지 않게 한다.
@@ -220,7 +215,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         purchaseSettlements: purchaseSettlements.map(flatten),
         consultations: consultations.map(flatten),
         parkingVehicles: parkingVehicles.map(flatten),
-        ipWhitelist: ipWhitelist.map((w) => w.ip),
         currentEmployeeId: user.id,
       });
 
@@ -336,10 +330,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       markNotificationRead: (id) => run(() => api(`/attendance/notifications/${id}/read`, { method: 'PATCH' })),
       markAllNotificationsRead: () => run(() => api('/attendance/notifications/read-all', { method: 'PATCH' })),
 
-      addWhitelistIp: (ip) => run(() => api('/attendance/ip-whitelist', { method: 'POST', body: { ip } })),
-      removeWhitelistIp: (ip) =>
-        // 대역에 든 빗금이 주소 칸에서 막히므로 물음표 뒤로 보낸다
-        run(() => api(`/attendance/ip-whitelist?ip=${encodeURIComponent(ip)}`, { method: 'DELETE' })),
 
       upsertSettlement: ({ id, ...body }) =>
         run(() =>

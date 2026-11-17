@@ -52,29 +52,13 @@ export class ReviewDto {
   note?: string;
 }
 
-export class AddIpDto {
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(45)
-  ip!: string;
+/*
+  출근 제한(IP 화이트리스트 · 출근 단말)에 쓰던 DTO 세 개를 걷어냈다.
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  label?: string;
-}
+  애니원 사무실 한 곳을 전제로 만든 기능이다 — 사무실 공인 IP를 등록해 두고 그 안에서만,
+  자리 PC에 심어둔 키가 있어야 출근이 찍혔다. 여러 상사가 쓰는 제품에서는 성립하지 않는다:
+  상사마다 사무실이 다르고, 공유기를 바꾸면 IP가 바뀌고, 애초에 폰으로 출근하는 사람이 많다.
 
-/** 키를 잃은 브라우저가 자기 지문을 들고 온다 */
-export class RecoverDeviceDto {
-  @IsString() @IsNotEmpty() @MaxLength(64) fingerprint!: string;
-}
-
-export class RegisterDeviceDto {
-  /** 이 브라우저를 알아볼 지문 — 사용기록을 지워도 남는다 */
-  @IsOptional() @IsString() @MaxLength(64) fingerprint?: string;
-  /** 어느 자리 PC인지 알아볼 이름 — 예: "1층 카운터 PC" */
-  @IsString()
-  @IsNotEmpty({ message: '단말 이름을 입력해 주세요.' })
-  @MaxLength(50)
-  label!: string;
-}
+  출근은 이제 로그인한 사람이 누르면 찍힌다. 대리 출근이 걱정되면 그건 IP가 아니라
+  위치(GPS)나 사진으로 풀 문제이고, 그때 새로 설계한다.
+*/

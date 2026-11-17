@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
-import { deviceFingerprint } from '../../lib/deviceFingerprint';
 import { alertSuccess } from '../../lib/alert';
 import { DEPARTMENTS } from '../../types';
 
@@ -18,7 +17,6 @@ const ID_PATTERN = /^[a-z0-9._-]{4,20}$/;
  * 아무나 가입해서 출퇴근·정산을 들여다보면 안 되기 때문이다.
  *
  * 신청한 브라우저의 지문을 같이 보낸다. 자리 PC에서 신청했다면 관리자가 승인하면서
- * 그 PC를 출근 단말로 함께 등록할 수 있다(자동은 아니다 — 휴대폰으로 신청하는 경우가 있다).
  */
 export default function SignupForm({ onBack }: Props) {
   const [loginId, setLoginId] = useState('');
@@ -53,7 +51,6 @@ export default function SignupForm({ onBack }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const fingerprint = await deviceFingerprint();
       await api('/auth/signup', {
         method: 'POST',
         body: {
@@ -63,7 +60,6 @@ export default function SignupForm({ onBack }: Props) {
           position: position.trim(),
           department,
           phone: phone.trim(),
-          ...(fingerprint ? { fingerprint } : {}),
         },
         // 401이어도 로그인 화면으로 튕기지 않게 — 여기가 이미 로그인 전이다.
         skipAuthRedirect: true,
@@ -96,7 +92,6 @@ export default function SignupForm({ onBack }: Props) {
       <h2 className="text-base font-bold text-slate-800">회원가입 신청</h2>
       <p className="mt-1 mb-4 text-xs text-slate-500">
         신청하면 관리자 승인 후 로그인할 수 있습니다. <b>사무실 자리 PC에서 신청</b>하시면
-        승인할 때 그 PC를 출근 단말로 함께 등록할 수 있습니다.
       </p>
 
       {field(

@@ -74,7 +74,6 @@ export class AuthService {
         position: dto.position?.trim() ?? '',
         department: dto.department ?? '',
         phone: dto.phone?.trim() ?? '',
-        fingerprint: dto.fingerprint || null,
       },
     });
 
@@ -105,7 +104,6 @@ export class AuthService {
         reviewNote: true,
         createdAt: true,
         // 지문 자체는 안 주고 '있는지'만 알려준다 — 화면은 단말 등록 여부만 정하면 된다.
-        fingerprint: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -125,7 +123,7 @@ export class AuthService {
   /**
    * 승인/반려.
    *
-   * 승인하면 계정을 만들고, 골랐다면 그 PC를 출근 단말로도 등록한다.
+   * 승인하면 그때 계정이 만들어진다.
    * 단말 키는 여기서 만들어도 신청자 브라우저에 전할 방법이 없다 —
    * 그래서 지문만 심어두고, 그 PC에서 사무실 안에서 로그인할 때 키가 내려가게 둔다
    * (attendance 의 단말 되찾기가 그 통로다).
@@ -164,18 +162,6 @@ export class AuthService {
         },
       });
 
-      if (dto.registerDevice && req.fingerprint) {
-        // 같은 지문을 쥔 단말이 있으면 비켜준다(지문은 유니크다).
-        await tx.attendanceDevice.updateMany({ where: { fingerprint: req.fingerprint }, data: { fingerprint: null } });
-        await tx.attendanceDevice.create({
-          data: {
-            label: `${req.name} PC`,
-            // 이 키를 아는 브라우저는 없다. 그 PC에서 로그인할 때 되찾기로 새로 받아간다.
-            tokenHash: createHash('sha256').update(randomBytes(32).toString('base64url')).digest('hex'),
-            fingerprint: req.fingerprint,
-          },
-        });
-      }
 
       await tx.signupRequest.update({
         where: { id },

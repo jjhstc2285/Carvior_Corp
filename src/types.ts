@@ -1550,7 +1550,6 @@ export interface AppState {
   requests: CorrectionRequest[];
   notifications: AppNotification[];
   currentEmployeeId: string;
-  ipWhitelist: string[];
   settlements: SettlementRecord[];
   brokerageSettlements: BrokerageSettlement[];
   purchaseSettlements: PurchaseSettlement[];

@@ -25,19 +25,10 @@ export class SignupDto {
   @IsOptional() @IsIn(DEPARTMENTS as unknown as string[]) department?: string;
   @IsOptional() @IsString() @MaxLength(20) phone?: string;
 
-  /** 신청한 브라우저의 지문 — 승인할 때 출근 단말로 같이 등록할 수 있다 */
-  @IsOptional() @IsString() @MaxLength(64) fingerprint?: string;
 }
 
 export class ReviewSignupDto {
   @IsIn(['approve', 'reject']) action!: 'approve' | 'reject';
   @IsOptional() @IsString() @MaxLength(191) note?: string;
 
-  /**
-   * 신청한 그 PC를 출근 단말로도 등록할지.
-   *
-   * 기본은 끈다 — 휴대폰으로 신청했으면 휴대폰이 출근 단말이 되어버린다.
-   * 사무실 자리 PC에서 신청한 게 확인될 때만 켠다.
-   */
-  @IsOptional() @IsBoolean() registerDevice?: boolean;
 }
