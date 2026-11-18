@@ -193,7 +193,7 @@ export default function ContactExportModal({ onClose }: { onClose: () => void })
             className="mt-1 block w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-violet-400"
           />
           <span className="mt-1 block text-[11px] text-slate-400">
-            휴대폰에 <b className="font-mono">[{prefix}거래처] 금강유리</b> 로 저장됩니다 — 내 연락처와 섞이지 않고,
+            휴대폰에 <b className="font-mono">[{prefix}거래처] 업체이름</b> 으로 저장됩니다 — 내 연락처와 섞이지 않고,
             나중에 지울 때도 한 번에 찾습니다.
           </span>
         </label>

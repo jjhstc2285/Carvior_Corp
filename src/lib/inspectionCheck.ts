@@ -113,7 +113,7 @@ export function serializeChecked(keys: Set<string>): string {
 /**
  * 적어 넣은 업체 이름에서 판금집을 알아본다.
  *
- * 정산에는 '대산판집', '대산 판금', 'KS판집'처럼 사람마다 다르게 적는다. 이름을 붙여
+ * 정산에는 '○○판집', '○○ 판금'처럼 사람마다 다르게 적는다. 이름을 붙여
  * 쓰든 띄어 쓰든 같은 집으로 본다 — 못 알아보면 단가를 못 찾아 금액이 안 채워진다.
  */
 export function vendorOfName(name: string): PrepVendor | null {

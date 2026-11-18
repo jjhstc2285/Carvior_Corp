@@ -47,7 +47,7 @@ export function exportWorkLogs({ logs, who, month, nameOf }: ExportOptions): num
   /*
     칸 너비를 잡아 둔다.
 
-    내용 칸이 기본 너비면 '10시~12시 1186 차량 평동복원집에 입고, ks판집 차장님 픽업…'
+    내용 칸이 기본 너비면 '10시~12시 1186 차량 복원집에 입고, 판금집 차장님 픽업…'
     같은 줄이 ###로 잘려서, 받은 사람이 매번 칸을 늘리고 시작한다.
   */
   sheet['!cols'] = [
