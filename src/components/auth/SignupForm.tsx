@@ -13,8 +13,11 @@ const ID_PATTERN = /^[a-z0-9._-]{4,20}$/;
 /**
  * 회원가입 신청.
  *
- * 신청만 하고 계정은 상사 관리자가 승인할 때 생긴다. 승인 전에는 로그인되지 않는다 —
- * 아무나 가입해서 출퇴근·정산을 들여다보면 안 되기 때문이다.
+ * 상사에 들어오는 길이다. 상사는 이미 열려 있어야 한다 — 대표님이 상사를 열고 나서야
+ * 직원이 신청할 수 있다. 반대 순서면 어느 상사 사람인지 알 수 없고 승인할 사람도 없다.
+ *
+ * 신청만 하고 계정은 대표님·사무장님이 승인할 때 생긴다. 승인 전에는 로그인되지 않는다 —
+ * 아무나 가입해서 출퇴근·상담을 들여다보면 안 되기 때문이다.
  */
 export default function SignupForm({ onBack }: Props) {
   const [loginId, setLoginId] = useState('');
@@ -89,9 +92,10 @@ export default function SignupForm({ onBack }: Props) {
         <ArrowLeft size={13} /> 로그인으로
       </button>
 
-      <h2 className="text-base font-bold text-slate-800">회원가입 신청</h2>
+      <h2 className="text-base font-bold text-slate-800">직원 가입 신청</h2>
       <p className="mt-1 mb-4 text-xs text-slate-500">
-        상사 관리자가 승인하면 이 아이디로 로그인할 수 있습니다.
+        <b>이미 카비어 비즈를 쓰고 계신 상사</b>의 직원만 신청하실 수 있습니다.
+        대표님·사무장님이 승인하면 이 아이디로 로그인됩니다.
       </p>
 
       {field(

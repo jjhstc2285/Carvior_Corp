@@ -187,12 +187,33 @@ export default function LoginPage() {
               </button>
             </div>
 
-            <button
-              onClick={() => setMode('signup')}
-              className="mt-4 h-12 w-full rounded-xl border border-slate-200 text-[14px] font-bold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
+            {/*
+              가입은 순서가 있다 — 대표님이 상사를 열고, 직원이 그 상사에 들어온다.
+              직원이 혼자 가입할 수 있으면 어느 상사 사람인지 알 수 없고 승인할 사람도 없다.
+              그래서 대표 쪽을 위에, 직원 쪽을 아래에 둔다.
+
+              상사 개설은 아직 화면에서 못 한다(한 곳씩 수동으로 연다). 소개 장으로 보낸다 —
+              눌러도 아무 일 없는 단추를 두는 쪽보다 낫다.
+            */}
+            <a
+              href="https://carvior.store/biz"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-violet-200 bg-violet-50/60 text-[14px] font-bold text-violet-700 transition hover:border-violet-300 hover:bg-violet-50"
             >
-              직원 가입 신청
-            </button>
+              상사 대표님 — 상사 개설 신청
+            </a>
+
+            <p className="mt-3 text-center text-[12px] leading-relaxed text-slate-400">
+              직원이신가요? 대표님이 상사를 연 뒤에 가입하실 수 있습니다.
+              <br />
+              <button
+                onClick={() => setMode('signup')}
+                className="mt-1 font-bold text-slate-600 underline-offset-2 hover:text-violet-600 hover:underline"
+              >
+                우리 상사에 직원으로 가입 신청
+              </button>
+            </p>
           </>
         )}
 
