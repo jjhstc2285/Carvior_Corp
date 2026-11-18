@@ -4,6 +4,7 @@ import { useAuth } from '../../authStore';
 import { loginWithPassword } from '../../lib/auth';
 import { ApiError } from '../../lib/api';
 import { alertInfo } from '../../lib/alert';
+import OwnerSignupForm from './OwnerSignupForm';
 import SignupForm from './SignupForm';
 import { AppleMark, GoogleMark, KakaoMark, NaverMark } from './BrandMarks';
 
@@ -38,7 +39,8 @@ type Tab = 'id' | 'carvior';
 export default function LoginPage() {
   const { login } = useAuth();
   const [tab, setTab] = useState<Tab>('id');
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  // 가입은 두 갈래다 — 상사를 여는 쪽(대표님)과 그 상사에 들어오는 쪽(직원).
+  const [mode, setMode] = useState<'login' | 'signup' | 'ownerSignup'>('login');
 
   const [loginId, setLoginId] = useState(readSavedId);
   const [password, setPassword] = useState('');
@@ -87,6 +89,8 @@ export default function LoginPage() {
 
         {mode === 'signup' ? (
           <SignupForm onBack={() => setMode('login')} />
+        ) : mode === 'ownerSignup' ? (
+          <OwnerSignupForm onBack={() => setMode('login')} />
         ) : (
           <>
             {/* 탭 — 들어오는 길을 고른다 */}
@@ -192,17 +196,15 @@ export default function LoginPage() {
               직원이 혼자 가입할 수 있으면 어느 상사 사람인지 알 수 없고 승인할 사람도 없다.
               그래서 대표 쪽을 위에, 직원 쪽을 아래에 둔다.
 
-              상사 개설은 아직 화면에서 못 한다(한 곳씩 수동으로 연다). 소개 장으로 보낸다 —
-              눌러도 아무 일 없는 단추를 두는 쪽보다 낫다.
+              상사 개설은 신청까지만 화면에서 받는다. 누른다고 상사가 열리지는 않는다 —
+              상사마다 데이터가 섞이지 않게 하는 작업이 끝나기 전까지는 사람이 확인하고 손으로 연다.
             */}
-            <a
-              href="https://carvior.store/biz"
-              target="_blank"
-              rel="noreferrer noopener"
+            <button
+              onClick={() => setMode('ownerSignup')}
               className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-violet-200 bg-violet-50/60 text-[14px] font-bold text-violet-700 transition hover:border-violet-300 hover:bg-violet-50"
             >
               상사 대표님 — 상사 개설 신청
-            </a>
+            </button>
 
             <p className="mt-3 text-center text-[12px] leading-relaxed text-slate-400">
               직원이신가요? 대표님이 상사를 연 뒤에 가입하실 수 있습니다.

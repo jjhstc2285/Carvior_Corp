@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/com
 import { Role, SignupStatus } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto, LinkEmployeeDto, LoginDto, SocialLoginDto } from './dto/login.dto';
-import { ReviewSignupDto, SignupDto } from './dto/signup.dto';
+import { OwnerSignupDto, ReviewSignupDto, SignupDto } from './dto/signup.dto';
 import { Public } from './public.decorator';
 import { Roles } from './roles.decorator';
 import { CurrentUser, type AuthUser } from './current-user.decorator';
@@ -38,6 +38,25 @@ export class AuthController {
   @HttpCode(200)
   reviewSignup(@Param('id') id: string, @Body() dto: ReviewSignupDto) {
     return this.auth.reviewSignup(id, dto);
+  }
+
+  /**
+   * 상사 개설 신청 — 로그인 전이라 열어둔다.
+   *
+   * 계정도 상사도 만들지 않는다. 신청만 쌓고 사람이 확인해 손으로 연다.
+   */
+  @Public()
+  @Post('owner-signup')
+  @HttpCode(200)
+  ownerSignup(@Body() dto: OwnerSignupDto) {
+    return this.auth.ownerSignup(dto);
+  }
+
+  /** 들어온 상사 개설 신청 — 관리자만 */
+  @Roles(Role.ADMIN)
+  @Get('owner-signups')
+  ownerSignups(@Query('status') status?: SignupStatus) {
+    return this.auth.listOwnerSignups(status);
   }
 
   @Public()

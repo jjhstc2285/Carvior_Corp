@@ -32,3 +32,25 @@ export class ReviewSignupDto {
   @IsOptional() @IsString() @MaxLength(191) note?: string;
 
 }
+
+/**
+ * 상사 개설 신청.
+ *
+ * 직원 가입과 달리 아이디·비밀번호를 받지 않는다. 여기서 계정이 생기지 않기 때문이다 —
+ * 사람이 확인하고 상사를 연 다음에야 대표님 계정이 만들어진다.
+ * 그래서 받는 것은 "누구에게 전화를 걸어야 하는가"와 "어떤 상사인가" 뿐이다.
+ */
+export class OwnerSignupDto {
+  @IsString() @IsNotEmpty({ message: '상사 이름을 입력해 주세요.' }) @MaxLength(80) shopName!: string;
+  @IsString() @IsNotEmpty({ message: '대표자 성함을 입력해 주세요.' }) @MaxLength(30) ownerName!: string;
+
+  @IsString()
+  @Matches(/^[0-9-]{9,20}$/, { message: '연락처는 숫자와 - 로만 입력해 주세요.' })
+  phone!: string;
+
+  @IsOptional() @IsString() @MaxLength(20) bizNumber?: string;
+  @IsOptional() @IsString() @MaxLength(120) email?: string;
+  @IsOptional() @IsString() @MaxLength(40) region?: string;
+  @IsOptional() @IsString() @MaxLength(20) headcount?: string;
+  @IsOptional() @IsString() @MaxLength(500) memo?: string;
+}

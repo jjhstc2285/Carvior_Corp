@@ -6,7 +6,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import type { ChangePasswordDto, LoginDto, SocialLoginDto } from './dto/login.dto';
-import type { ReviewSignupDto, SignupDto } from './dto/signup.dto';
+import type { OwnerSignupDto, ReviewSignupDto, SignupDto } from './dto/signup.dto';
 import { parseModules } from '../tenants/tenant.const';
 
 export interface LoginResult {
@@ -79,6 +79,54 @@ export class AuthService {
 
     // 비밀번호는 물론 신청 id도 돌려주지 않는다 — 승인 전에는 알 게 없다.
     return { ok: true };
+  }
+
+  // ── 상사 개설 신청 ────────────────────────────
+
+  /**
+   * 상사 개설 신청.
+   *
+   * 여기서 Tenant 를 만들지 않는다. 56개 모델에 상사 구분이 없어서, 두 번째 상사가
+   * 생기는 순간 출퇴근·정산·상담이 서로 섞여 보인다. 신청만 받아 두고 사람이 연다.
+   *
+   * 계정도 만들지 않으므로 비밀번호를 받지 않는다 — 받아 둘 곳이 없는 비밀번호를
+   * 입력시키는 것은 묻지 않아도 될 것을 묻는 일이다.
+   */
+  async ownerSignup(dto: OwnerSignupDto) {
+    // 번호는 숫자만 남겨 둔다. 같은 번호를 010-1234-5678 로도, 01012345678 로도 적는다.
+    const phone = dto.phone.replace(/[^0-9]/g, '');
+
+    const pending = await this.prisma.ownerSignupRequest.findFirst({
+      where: { phone, status: SignupStatus.PENDING },
+      select: { id: true },
+    });
+    // 두 번 눌렀다고 두 번 쌓지 않는다. 어차피 전화 한 번이면 될 일이다.
+    if (pending) {
+      throw new BadRequestException('이미 접수된 신청이 있습니다. 곧 연락드리겠습니다.');
+    }
+
+    await this.prisma.ownerSignupRequest.create({
+      data: {
+        shopName: dto.shopName.trim(),
+        ownerName: dto.ownerName.trim(),
+        phone,
+        bizNumber: dto.bizNumber?.trim() ?? '',
+        email: dto.email?.trim() ?? '',
+        region: dto.region?.trim() ?? '',
+        headcount: dto.headcount?.trim() ?? '',
+        memo: dto.memo?.trim() ?? '',
+      },
+    });
+
+    return { ok: true };
+  }
+
+  /** 들어온 상사 개설 신청. 아직 화면이 없어서 목록만 둔다. */
+  async listOwnerSignups(status?: SignupStatus) {
+    return this.prisma.ownerSignupRequest.findMany({
+      where: status ? { status } : {},
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   /** 관리자 화면의 대기 목록. 해시는 절대 내려보내지 않는다. */

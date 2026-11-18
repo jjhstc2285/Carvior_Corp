@@ -1809,6 +1809,38 @@ enum SignupStatus {
 // 출퇴근·정산 화면 곳곳의 "직원 목록"이 오염된다. 승인될 때 Employee 를 만든다.
 //
 // 비밀번호는 신청 때 이미 해시해서 넣는다. 승인을 기다리는 동안에도 평문이 어디에도 남지 않게.
+/**
+ * 상사 개설 신청.
+ *
+ * 직원 가입(SignupRequest)과는 다른 일이다. 직원은 이미 열려 있는 상사에 들어오지만,
+ * 여기는 상사 자체가 아직 없다 — 대표님이 "우리 상사도 열어 달라"고 남기는 자리다.
+ *
+ * 신청을 받아 두기만 한다. 여기서 Tenant 를 만들지 않는다 — 56개 모델에 상사 구분이
+ * 없어서, 두 번째 상사가 생기는 순간 출퇴근·정산·상담이 서로 섞여 보인다.
+ * 스코핑이 끝나기 전까지는 사람이 확인하고 손으로 연다.
+ */
+model OwnerSignupRequest {
+  id        String @id @default(cuid())
+  shopName  String @db.VarChar(80) // 상사 이름
+  ownerName String @db.VarChar(30) // 대표자 성함
+  phone     String @db.VarChar(20) // 연락처 — 결국 전화로 여는 일이라 제일 중요하다
+  bizNumber String @default("") @db.VarChar(20) // 사업자등록번호
+  email     String @default("") @db.VarChar(120)
+  region    String @default("") @db.VarChar(40) // 어디 단지인지
+  headcount String @default("") @db.VarChar(20) // 직원 수 — 규모를 알아야 준비할 게 보인다
+  memo      String @default("") @db.VarChar(500) // 하고 싶은 말
+
+  status     SignupStatus @default(PENDING)
+  reviewedAt DateTime?
+  reviewNote String?      @db.VarChar(191)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([phone])
+}
+
 model SignupRequest {
   id           String @id @default(cuid())
   loginId      String @unique
