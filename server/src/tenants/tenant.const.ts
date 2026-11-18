@@ -25,8 +25,6 @@ export const ALL_MODULES = [
   'payroll',
   'cleaning',
   'condolence',
-  'adminSheet',
-  'telegramSale',
   'monitoring',
   'chat',
 ] as const;

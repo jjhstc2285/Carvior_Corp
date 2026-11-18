@@ -76,21 +76,5 @@ export function canSeeAllSettlements(
   return SETTLEMENT_VIEWERS.includes((name ?? '').trim());
 }
 
-/**
- * 플랫폼 매물 점검을 볼 수 있는가 — 대표(관리자)와 광고팀.
- *
- * 엔카·차차차에 값을 올리고 고치는 게 광고팀 일이라, 틀어진 걸 찾아 맞추는 자리도 거기다.
- *
- * 메뉴를 감추는 것이지 시트를 잠그는 게 아니다. 시트를 실제로 누가 보느냐는 구글 공유
- * 설정이 정한다 — 링크를 아는 사람은 주소창에 치면 열린다. 둘을 같이 좁혀야 한다.
- */
-export const SHEET_TEAM = '광고팀';
-
-/** 대표(관리자)와 광고팀만 */
-export function canSeeAdminSheet(
-  user: { role: 'EMPLOYEE' | 'ADMIN' } | null,
-  department?: string | null,
-): boolean {
-  if (!user) return false;
-  return user.role === 'ADMIN' || (department ?? '').trim() === SHEET_TEAM;
-}
+/** 광고팀 — 엔카·차차차에 값을 올리고 고치는 사람들. 상담 차트를 이 팀도 본다. */
+export const AD_TEAM = '광고팀';

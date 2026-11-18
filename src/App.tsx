@@ -42,12 +42,9 @@ import NoticeModule from './components/notice/NoticeModule';
 import { GOTO_EVENT } from './lib/goto';
 import type { Role } from './types';
 import Sidebar from './components/Sidebar';
-import AdminSheetModule from './components/admin/AdminSheetModule';
-import { canSeeAdminSheet } from './lib/permissions';
 import TopBar from './components/TopBar';
 import EmployeeView from './components/EmployeeView';
 import AdminView from './components/AdminView';
-import { TelegramSaleModule } from './components/telegram/rooms';
 import MonitoringModule from './components/monitoring/MonitoringModule';
 import SettlementModule from './components/settlement/SettlementModule';
 import ConsultationHub from './components/consultation/ConsultationHub';
@@ -73,7 +70,6 @@ import PayrollModule from './components/payroll/PayrollModule';
 const MODULE_TITLE: Record<ModuleKey, string> = {
   home: '홈',
   notice: '사내 게시판',
-  adminSheet: '플랫폼 매물 점검',
   attendance: '출퇴근 관리',
   workLog: '업무 일지',
   approval: '결재 관리',
@@ -91,7 +87,6 @@ const MODULE_TITLE: Record<ModuleKey, string> = {
   cleaning: '청소 관리',
   condolence: '경조사비 관리',
   chat: '메시지',
-  telegramSale: '입금방',
   monitoring: '상사 모니터링',
 };
 
@@ -131,8 +126,6 @@ function ModuleContent({ module, role }: { module: ModuleKey; role: Role }) {
   if (module === 'settlement') return <SettlementModule role={role} />;
   if (module === 'consultation') return <ConsultationHub role={role} />;
   if (module === 'ad') return <AdModule role={role} />;
-  if (module === 'adminSheet') return <AdminSheetModule />;
-  if (module === 'telegramSale') return <TelegramSaleModule />;
   /*
     모니터링은 화면 안에서 번호를 받는다.
 
@@ -192,8 +185,6 @@ function AuthedApp({ role }: { role: Role }) {
   const today = dayjs().format('YYYY-MM-DD');
   const myRecord = state.records.find(r => r.employeeId === state.currentEmployeeId && r.date === today);
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
-  /** 관리 시트 — 대표(관리자)와 관리팀만. 메뉴에서부터 안 보인다 */
-  const canSeeSheet = canSeeAdminSheet({ role }, me?.department) && !asEmployee;
 
   /*
     다른 화면에서 "여기로 보내 달라"고 하면 옮겨 준다.
@@ -243,7 +234,6 @@ function AuthedApp({ role }: { role: Role }) {
     (officeOnly.includes(module) && !seeLedger) ||
     (module === 'property' && !isCeo) ||
     (module === 'payroll' && !canSeePayroll) ||
-    (module === 'adminSheet' && !canSeeSheet) ||
     // 경조사비는 관리자만 — 메뉴만 감추면 주소로 들어온다
     (module === 'condolence' && (role !== 'ADMIN' || asEmployee)) ||
     // 모니터링은 대표만 — 메뉴만 감추면 주소로 들어온다(서버도 다시 본다)
@@ -274,7 +264,6 @@ function AuthedApp({ role }: { role: Role }) {
         isCeo={isCeo}
         canSeePayroll={canSeePayroll}
         isOwner={isOwner}
-        canSeeSheet={canSeeSheet}
         isAdmin={role === 'ADMIN' && !asEmployee}
         modules={tenantModules}
       />

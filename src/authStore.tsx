@@ -3,7 +3,6 @@ import { getToken, UNAUTHORIZED_EVENT } from './lib/api';
 import { fetchMe, logoutLocal, type AuthUser } from './lib/auth';
 import { connectSocket, disconnectSocket } from './lib/socket';
 import { syncPushSubscription } from './lib/push';
-import { bootChannelTalk, shutdownChannelTalk } from './lib/channelTalk';
 
 interface AuthStore {
   user: AuthUser | null;
@@ -54,20 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) {
       disconnectSocket();
-      // 로그아웃하면 상담 위젯도 내린다 — 다음 사람에게 앞사람 대화가 남지 않게.
-      shutdownChannelTalk();
       return;
     }
     connectSocket();
-    // 문의한 사람이 누군지 상담 화면에서 바로 보이게 이름·직급을 넘긴다.
-    bootChannelTalk(user);
     // 이미 알림을 켜둔 기기면 구독을 서버에 다시 저장한다 —
     // 같은 기기에서 계정을 바꿔 로그인한 경우 알림이 엉뚱한 사람에게 가지 않게.
     void syncPushSubscription();
     // 사용기록을 지워 단말 키가 날아갔으면 사무실 안에서 조용히 되찾는다.
     return () => {
       disconnectSocket();
-      shutdownChannelTalk();
     };
   }, [user]);
 

@@ -1,29 +1,19 @@
 import { request as httpsRequest } from 'node:https';
 import { resolve4 } from 'node:dns/promises';
 import {
-  BadRequestException,
-  Body,
   Controller,
-  ForbiddenException,
   Get,
-  Delete,
-  NotFoundException,
   Global,
   Injectable,
   Logger,
   Module,
   OnModuleInit,
-  Param,
   Post,
-  Query,
 } from '@nestjs/common';
-import { Prisma, TelegramRoom } from '@prisma/client';
+import { TelegramRoom } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
-import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
-import { SaleCardDto, saleCardHtml, saleCardText, type SaleCardMark } from './sale-card';
-import { normalizePlate } from '../vehicles/vehicle.rules';
 import { Role } from '@prisma/client';
 
 /**
@@ -62,42 +52,6 @@ export const ROOM_LABEL: Record<TelegramRoom, string> = {
   [TelegramRoom.PURCHASE]: '매입방',
 };
 
-/**
- * 매입 관리에서 불러온 쪽지 칸 — 금액은 만원이다.
- *
- * 광고가와 코드가는 없다. 그 둘은 그날 정하는 값이라 끌어오면 안 된다.
- */
-export interface SaleCardFill {
-  vehicleNumber: string;
-  vehicleName: string;
-  dealer: string;
-  purchasePrice: number;
-  brokerFee: number;
-  platform: string;
-  /** 매입일 — 같은 차가 여럿일 때 어느 건인지 가리는 값이다 */
-  intakeOn: string;
-  /*
-    상담이 붙었는가.
-
-    안 올린 차 오백 대 중 어느 것이 실제로 손님이 붙은 차인지가 여기서 갈린다 —
-    상담이 없는 차는 아직 광고도 안 나간 차라, 입금 이야기가 나올 자리가 아니다.
-  */
-  hasLead: boolean;
-}
-
-export interface TelegramLogRow {
-  id: string;
-  room: TelegramRoom;
-  text: string;
-  ok: boolean;
-  reason: string;
-  vehicleNumber: string;
-  /** 손으로 올린 쪽지면 올린 사람 */
-  sentBy: string;
-  createdAt: string;
-}
-
-@Injectable()
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
 
@@ -214,232 +168,6 @@ export class TelegramService implements OnModuleInit {
       });
   }
 
-  /**
-   * 입금방에 올린다.
-   *
-   * 고칠 때도 여덟 줄을 통째로 다시 올린다. 방에 뜬 줄을 조용히 고치는 길도 있었는데,
-   * 그러면 알림이 안 울려서 그새 읽고 간 사람은 옛 숫자를 들고 있게 된다 — 그 방을
-   * 보고 입금을 넣는 자리라 바뀐 걸 모르는 쪽이 더 나쁘다.
-   *
-   * 기다린다. 다른 알림은 일하다 곁가지로 나가는 거라 늦어도 그만이지만, 이건 사람이
-   * 단추를 누르고 보고 있는 중이다 — 조용히 실패하면 "단추가 안 된다"로 돌아온다.
-   *
-   * 못 가도 남긴다. 안 간 줄이 빨갛게 떠야 다시 올릴 수 있다.
-   */
-  async postSale(card: SaleCardDto, sentBy: string): Promise<TelegramLogRow> {
-    const chatId = this.saleChatId;
-    if (!this.token || !chatId) {
-      throw new BadRequestException('입금확인방이 서버에 설정되지 않았습니다(.env TELEGRAM_SALE_CHAT_ID).');
-    }
-    const plate = card.vehicleNumber.trim();
-    const mark = await this.markOf(card, plate, sentBy);
-    const text = saleCardText(card, mark);
-    try {
-      const messageId = await this.send(saleCardHtml(card, mark), chatId);
-      return this.toRow(
-        await this.prisma.telegramLog.create({
-          data: { room: TelegramRoom.SALE, chatId, text, vehicleNumber: plate, ok: true, messageId, sentBy },
-        }),
-      );
-    } catch (e) {
-      const reason = this.why(e as Error);
-      this.logger.warn(`입금방에 못 올렸습니다(방 ${chatId}): ${reason}`);
-      await this.prisma.telegramLog
-        .create({
-          data: {
-            room: TelegramRoom.SALE,
-            chatId,
-            text,
-            vehicleNumber: plate,
-            ok: false,
-            reason: reason.slice(0, 300),
-            sentBy,
-          },
-        })
-        .catch(() => undefined);
-      throw new BadRequestException(`입금방에 못 올렸습니다 — ${reason}`);
-    }
-  }
-
-  /**
-   * 고쳐 올리는 것인가 — 그러면 지난 쪽지와 몇 번째인지를 들고 온다.
-   *
-   * 몇 번째인지는 그 차로 나간 쪽지를 세서 낸다. 못 간 것도 센다 — 올리려 한 횟수가
-   * 값이 흔들린 횟수다.
-   */
-  private async markOf(card: SaleCardDto, plate: string, sentBy: string): Promise<SaleCardMark | undefined> {
-    if (!card.basedOn) return undefined;
-    const before = await this.prisma.telegramLog.findUnique({ where: { id: card.basedOn } });
-    if (!before || before.room !== TelegramRoom.SALE) throw new NotFoundException('고칠 쪽지를 찾을 수 없습니다.');
-    const sent = await this.prisma.telegramLog.count({
-      where: { room: TelegramRoom.SALE, vehicleNumber: plate },
-    });
-    return { before: before.text, by: sentBy, seq: sent + 1 };
-  }
-
-  /**
-   * 매입 관리에 있는 차를 불러온다.
-   *
-   * 여덟 줄 중 여섯 줄은 이미 어딘가에 적혀 있다. 차명·매입가·구전은 매입 관리에,
-   * 담당자와 유입경로는 상담에 있다 — 그걸 다시 손으로 치게 하면 한 자씩 틀리고,
-   * 틀린 채로 방에 올라가면 그 숫자로 입금이 들어간다.
-   *
-   * 광고가와 코드가는 비워서 준다. 그 둘은 그날 정하는 값이라 어디에 적힌 걸 끌어오면
-   * 안 된다 — 지난 값이 그대로 올라가면 틀린 금액으로 입금이 들어간다.
-   *
-   * 번호를 안 치면 최근 매입부터 보여 준다. 방금 사온 차를 올리는 일이 제일 잦다.
-   */
-  async saleCards(q: string): Promise<SaleCardFill[]> {
-    const key = normalizePlate(q ?? '').trim();
-    const intakes = await this.intakes(key.length >= 2 ? { vehicleNumber: { contains: key } } : {}, 20);
-    return this.fillCards(intakes.slice(0, 8));
-  }
-
-  /**
-   * 아직 한 번도 안 올린 차.
-   *
-   * 매입 관리에는 있는데 입금방에 쪽지가 간 적이 없는 차다. 목록에 같이 띄워 두면
-   * 무엇이 남았는지가 보인다 — 지금까지는 올린 것만 쌓여서, 안 올린 차는 매입 관리와
-   * 입금방을 번갈아 보며 사람이 맞춰 봐야 했다.
-   *
-   * 방으로 보내지는 않는다. 사오자마자 보내면 광고가가 정해지기 전이라 틀린 금액이
-   * 올라가고, 오백 대가 한꺼번에 가면 방이 그 줄로 덮인다 — 광고가를 적어 올릴 때 간다.
-   */
-  async salePending(): Promise<SaleCardFill[]> {
-    const logs = await this.prisma.telegramLog.findMany({
-      where: { room: TelegramRoom.SALE },
-      select: { vehicleNumber: true },
-    });
-    const sent = new Set(logs.map((r) => normalizePlate(r.vehicleNumber)).filter(Boolean));
-    const rows = (await this.intakes({}, 1200)).filter((r) => !sent.has(normalizePlate(r.vehicleNumber)));
-    return this.fillCards(rows.slice(0, 500));
-  }
-
-  /**
-   * 매입 줄 — 최근 것부터, 한 차에 한 줄.
-   *
-   * 같은 차를 두 사람이 각자 적어 둔 줄이 있다. 고르는 자리에 같은 번호가 두 줄 뜨면
-   * 어느 쪽인지 모른다 — 최근 줄 하나만 남긴다.
-   */
-  private async intakes(where: Prisma.PurchaseIntakeWhereInput, take: number) {
-    const rows = await this.prisma.purchaseIntake.findMany({
-      where,
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-      take,
-      select: {
-        vehicleNumber: true,
-        vehicleName: true,
-        purchaseAmount: true,
-        brokerFee: true,
-        date: true,
-        employee: { select: { name: true } },
-      },
-    });
-    const first = new Map<string, (typeof rows)[number]>();
-    for (const r of rows) {
-      const key = normalizePlate(r.vehicleNumber);
-      if (!first.has(key)) first.set(key, r);
-    }
-    return [...first.values()];
-  }
-
-  /** 매입 줄에 담당자와 유입경로를 붙인다 — 그 둘은 상담에 적혀 있다 */
-  private async fillCards(
-    rows: {
-      vehicleNumber: string;
-      vehicleName: string;
-      purchaseAmount: number;
-      brokerFee: number;
-      date: Date;
-      employee: { name: string } | null;
-    }[],
-  ): Promise<SaleCardFill[]> {
-    if (rows.length === 0) return [];
-    const plates = rows.map((r) => r.vehicleNumber);
-    const consultations = await this.prisma.consultation.findMany({
-      where: { vehicleNumber: { in: plates } },
-      orderBy: [{ date: 'desc' }, { time: 'desc' }],
-      select: {
-        vehicleNumber: true,
-        platform: true,
-        status: true,
-        outsideDealer: true,
-        employee: { select: { name: true } },
-      },
-    });
-    const byPlate = new Map<string, (typeof consultations)[number][]>();
-    for (const c of consultations) {
-      const key = normalizePlate(c.vehicleNumber);
-      const list = byPlate.get(key);
-      if (list) list.push(c);
-      else byPlate.set(key, [c]);
-    }
-
-    const man = (won: number) => Math.round((won || 0) / 10_000);
-    return rows.map((r) => {
-      const mine = byPlate.get(normalizePlate(r.vehicleNumber)) ?? [];
-      /*
-        판 건이 먼저다.
-
-        문의만 하고 만 상담의 담당자를 '판 사람'으로 적으면 안 된다 — 그 방은 누가 판
-        차인지 보고 입금을 넣는 자리다.
-
-        상담이 아예 없으면 매입을 적은 사람으로 둔다. 그 차를 아는 사람이 그 사람뿐이라,
-        비워 두는 것보다 낫다 — 올리기 전에 창에서 보고 고치면 된다.
-
-        상담이 붙었는지는 따로 알려 준다(hasLead). 안 올린 차 오백 대 중 어느 것이
-        실제로 손님이 붙은 차인지가 거기서 갈린다.
-      */
-      const lead = mine.find((c) => c.status === 'SOLD' || c.status === 'CONTRACTED') ?? mine[0] ?? null;
-      // 타사·기타는 우리 직원이 아니다 — 담당자 자리에 남의 딜러·상사 이름이 적혀 있다
-      const dealer = (lead?.outsideDealer ?? '').trim() || lead?.employee?.name || r.employee?.name || '';
-      return {
-        vehicleNumber: r.vehicleNumber,
-        vehicleName: r.vehicleName,
-        dealer,
-        purchasePrice: man(r.purchaseAmount),
-        brokerFee: man(r.brokerFee),
-        platform: (lead?.platform ?? '').trim(),
-        intakeOn: r.date.toISOString().slice(0, 10),
-        hasLead: !!lead,
-      };
-    });
-  }
-
-  /**
-   * 올린 쪽지를 지운다 — 방에서도 지운다.
-   *
-   * 목록에서만 지우면 방에는 그 쪽지가 그대로 남는다. 지우는 까닭이 그 방을 보는
-   * 사람이 틀린 숫자로 입금을 넣지 않게 하려는 거라, 방에 남으면 아무 소용이 없다.
-   *
-   * 못 지울 때가 있다. 텔레그램은 봇이 올린 쪽지도 이틀이 지나면 못 지우게 한다 —
-   * 그때는 목록에서는 지우되 "방에서는 직접 지워 주세요"라고 말해 준다. 말없이
-   * 목록만 지우면 방에 틀린 숫자가 남은 줄도 모르고 넘어간다.
-   */
-  async dropSale(id: string): Promise<{ inRoom: boolean; reason: string }> {
-    const row = await this.prisma.telegramLog.findUnique({ where: { id } });
-    if (!row || row.room !== TelegramRoom.SALE) throw new NotFoundException('그 쪽지를 찾을 수 없습니다.');
-
-    let inRoom = true;
-    let reason = '';
-    // 못 간 줄은 방에 없다 — 지울 것도 없이 목록에서만 내린다
-    if (row.ok && row.messageId && this.token && row.chatId) {
-      try {
-        await this.call('deleteMessage', { chat_id: row.chatId, message_id: Number(row.messageId) });
-      } catch (e) {
-        inRoom = false;
-        reason = this.why(e as Error);
-        this.logger.warn(`입금방에서 쪽지를 못 지웠습니다(방 ${row.chatId}): ${reason}`);
-      }
-    } else if (row.ok && !row.messageId) {
-      inRoom = false;
-      reason = '올릴 때 쪽지 번호를 못 받아 뒀습니다.';
-    }
-
-    await this.prisma.telegramLog.delete({ where: { id } });
-    return { inRoom, reason };
-  }
-
   /** 왜 못 갔나 — 텔레그램이 돌려준 말까지 붙인다. 'fetch failed' 만으로는 아무도 못 고친다 */
   private why(e: Error): string {
     const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
@@ -459,43 +187,6 @@ export class TelegramService implements OnModuleInit {
     void this.prisma.telegramLog
       .create({ data: { room, chatId, text, vehicleNumber, ok, reason: reason.slice(0, 300) } })
       .catch((e: Error) => this.logger.warn(`보낸 것을 남기지 못했습니다: ${e.message}`));
-  }
-
-  /**
-   * 방마다 내보낸 것 — 화면에서 본다.
-   *
-   * 최근 것부터. 다 내려주면 글이 길어 몇 메가가 되므로 끊어서 준다.
-   */
-  async logs(room: TelegramRoom, limit = 100): Promise<TelegramLogRow[]> {
-    const rows = await this.prisma.telegramLog.findMany({
-      where: { room },
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(Math.max(limit, 1), 300),
-    });
-    return rows.map((r) => this.toRow(r));
-  }
-
-  /** 화면이 받는 꼴 — 방 번호와 쪽지 번호는 안 준다. 보는 데 쓸 값이 아니다 */
-  private toRow(r: {
-    id: string;
-    room: TelegramRoom;
-    text: string;
-    ok: boolean;
-    reason: string;
-    vehicleNumber: string;
-    sentBy: string;
-    createdAt: Date;
-  }): TelegramLogRow {
-    return {
-      id: r.id,
-      room: r.room,
-      text: r.text,
-      ok: r.ok,
-      reason: r.reason,
-      vehicleNumber: r.vehicleNumber,
-      sentBy: r.sentBy,
-      createdAt: r.createdAt.toISOString(),
-    };
   }
 
   /**
@@ -762,60 +453,6 @@ export class TelegramController {
     return this.telegram.chats();
   }
 
-  /**
-   * 방에 내보낸 것.
-   *
-   * 입금방은 전 직원이 본다 — 어느 차가 얼마로 올라갔는지는 상담·광고·계약이 다
-   * 같이 보고 움직이는 값이라, 아는 사람만 아는 자리에 둘 값이 아니다.
-   *
-   * 나머지 방은 관리자만이다. 매입방에는 실매입금액과 구전이 든다 — 차 한 대에
-   * 얼마가 남는지가 그대로 드러난다.
-   */
-  @Get('logs/:room')
-  logs(@CurrentUser() user: AuthUser, @Param('room') room: string, @Query('limit') limit?: string) {
-    const asked = room.toUpperCase() as TelegramRoom;
-    const key = Object.values(TelegramRoom).includes(asked) ? asked : TelegramRoom.BROADCAST;
-    if (key !== TelegramRoom.SALE && user.role !== Role.ADMIN) {
-      throw new ForbiddenException('관리자만 볼 수 있습니다.');
-    }
-    return this.telegram.logs(key, Number(limit) || 100);
-  }
-
-  /**
-   * 입금방에 손으로 올린다.
-   *
-   * 고치는 것도 여기로 온다 — basedOn 에 지난 쪽지를 적어 보내면 바뀐 줄을 굵게 적어
-   * 통째로 다시 올린다.
-   *
-   * 로그인한 직원이면 올린다. 올린 사람 이름이 줄에 남는다 — 숫자가 틀렸을 때 누구에게
-   * 물어볼지가 거기서 갈린다.
-   */
-  @Post('sale')
-  postSale(@CurrentUser() user: AuthUser, @Body() dto: SaleCardDto) {
-    return this.telegram.postSale(dto, user.name);
-  }
-
-  /**
-   * 매입 관리에 있는 차를 불러온다 — 광고가·코드가 말고는 다 어딘가에 적혀 있다.
-   *
-   * ':id' 보다 먼저 둔다. 뒤에 두면 'cards' 를 쪽지 번호로 읽는다.
-   */
-  @Get('sale/cards')
-  saleCards(@Query('q') q?: string) {
-    return this.telegram.saleCards(q ?? '');
-  }
-
-  /** 매입 관리에 있는데 아직 한 번도 안 올린 차 — 목록에 같이 띄운다 */
-  @Get('sale/pending')
-  salePending() {
-    return this.telegram.salePending();
-  }
-
-  /** 올린 쪽지를 지운다 — 방에서도 지운다 */
-  @Delete('sale/:id')
-  dropSale(@Param('id') id: string) {
-    return this.telegram.dropSale(id);
-  }
 }
 
 /**

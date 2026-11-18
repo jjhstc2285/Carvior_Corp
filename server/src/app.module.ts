@@ -21,7 +21,6 @@ import { ChatModule } from './chat/chat.module';
 import { PushModule } from './push/push.module';
 import { PurchaseIntakeModule } from './purchase-intake/purchase-intake.module';
 import { CarviorModule } from './carvior/carvior.module';
-import { ChannelTalkModule } from './channeltalk/channeltalk.module';
 import { WashModule } from './wash/wash.module';
 import { VehiclePhotosModule } from './vehicle-photos/vehicle-photos.module';
 import { CondolenceModule } from './condolence/condolence.module';
@@ -71,7 +70,6 @@ import { RolesGuard } from './auth/roles.guard';
     PushModule,
     PurchaseIntakeModule,
     CarviorModule,
-    ChannelTalkModule,
     WashModule,
     VehiclePhotosModule,
     CondolenceModule,

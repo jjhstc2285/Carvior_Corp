@@ -22,10 +22,8 @@ import {
   Search,
   Activity,
   ShoppingCart,
-  Send,
   Sparkles,
   Stamp,
-  Table2,
   Wallet,
   X,
 } from 'lucide-react';
@@ -49,7 +47,6 @@ interface Props {
   /** 인건비를 볼 수 있는 계정인가 — 서버가 정해 준 값 */
   canSeePayroll?: boolean;
   /** 관리 시트를 볼 수 있는가 — 대표와 관리팀 */
-  canSeeSheet?: boolean;
   /** 관리자인가 — 경조사비 관리는 여기까지만 연다 */
   isAdmin?: boolean;
   /**
@@ -123,7 +120,6 @@ const NAV_GROUPS: {
       { key: 'approval', label: '결재 관리', icon: Stamp },
       // '(제시)'를 뗀다 — 메뉴에 붙은 사족이라 읽는 데 품만 든다
       { key: 'stockFinance', label: '재고 금융', icon: Landmark },
-      { key: 'adminSheet', label: '플랫폼 매물 점검', icon: Table2 },
     ],
   },
   {
@@ -134,8 +130,6 @@ const NAV_GROUPS: {
       { key: 'notice', label: '사내 게시판', icon: Notice },
       { key: 'dealerFee', label: '상조회비 관리', icon: Building2 },
       { key: 'chat', label: '메시지', icon: MessageSquare },
-      // 입금방에 무엇이 올라갔나 — 전 직원이 본다
-      { key: 'telegramSale', label: '입금방', icon: Send },
       // 상사에 달마다 얼마가 들어오고 나가는가 — 대표만 본다
       { key: 'monitoring', label: '상사 모니터링', icon: Activity },
     ],
@@ -151,7 +145,6 @@ export default function Sidebar({
   canSeeLedger,
   isCeo = false,
   canSeePayroll = false,
-  canSeeSheet = false,
   isAdmin = false,
   isOwner = false,
   modules,
@@ -178,8 +171,6 @@ export default function Sidebar({
     (key !== 'property' || isCeo) &&
     // 인건비도 마찬가지다. 누가 얼마 받는지는 메뉴에 있는 것만으로도 말이 나온다
     (key !== 'payroll' || canSeePayroll) &&
-    // 플랫폼 매물 점검은 대표와 광고팀만 — 메뉴에서부터 안 보인다
-    (key !== 'adminSheet' || canSeeSheet) &&
     /*
       거래처와 경조사비도 장부 쪽이다.
 
@@ -220,7 +211,7 @@ export default function Sidebar({
       ...g,
       items: g.items.filter(i => canSee(i.key) && (!q || i.label.toLowerCase().includes(q))),
     })).filter(g => g.items.length > 0);
-  }, [query, canSeeLedger, isCeo, canSeePayroll, canSeeSheet, isAdmin]);
+  }, [query, canSeeLedger, isCeo, canSeePayroll, isAdmin]);
 
   /* 휴대폰에서 펼친 메뉴도 ESC 로 닫는다 — 열려 있을 때만 듣는다 */
   useEscClose(onMobileClose, mobileOpen);

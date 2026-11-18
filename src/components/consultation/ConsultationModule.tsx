@@ -15,7 +15,6 @@ import ConsultationForm from './ConsultationForm';
 import PriceCheckModal from '../price/PriceCheckModal';
 import CustomerHistoryModal from './CustomerHistoryModal';
 import SellableVehicles from './SellableVehicles';
-import CallInbox from './CallInbox';
 import ConsultationDetailModal from './ConsultationDetailModal';
 import VisitAssignPanel, { VisitDealerSelect, visitDealers } from './VisitAssignPanel';
 import VisitReviewSection from './VisitReviewSection';
@@ -358,27 +357,6 @@ export default function ConsultationModule({ role, kind }: Props) {
         어느 탭을 보고 있든 다시 걸 사람은 같은 사람이다.
       */}
       <VisitReviewSection role={role} month={dayjs().format('YYYY-MM')} allMonths={false} openToAll />
-
-      {/*
-        채널톡으로 들어온 전화 — 통화 내용을 그대로 상담으로 옮긴다.
-        지금 보고 있는 탭이 그대로 상담 종류가 된다(알선 탭에서 옮기면 알선 상담이다).
-      */}
-      <div className="mb-3">
-        <CallInbox
-          onStart={seed => {
-            setEditing(null);
-            setPreset({
-              content: seed.content,
-              customerPhone: seed.customerPhone,
-              vehicleNumber: seed.vehicle?.vehicleNumber,
-              vehicleName: seed.vehicle?.vehicleModel,
-              visitDate: seed.visitDate,
-              visitTime: seed.visitTime,
-            });
-            setFormOpen(true);
-          }}
-        />
-      </div>
 
       {/*
         방문 배정 — 그날 오는 손님을 누가 맞을지 정한다.

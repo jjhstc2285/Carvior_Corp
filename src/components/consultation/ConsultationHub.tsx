@@ -6,7 +6,7 @@ import ConsultationSheetImportModal from './SheetImportModal';
 import SoldMixChart from './SoldMixChart';
 import PlatformMixChart from './PlatformMixChart';
 import ChartRange, { defaultRange, type Range } from './ChartRange';
-import { SHEET_TEAM } from '../../lib/permissions';
+import { AD_TEAM } from '../../lib/permissions';
 import { useStore } from '../../store';
 
 interface Props {
@@ -38,7 +38,7 @@ export default function ConsultationHub({ role }: Props) {
 
   /* 관리자와 광고팀 — 부서로 연다. 사람이 바뀌어도 그 팀에 들어오면 그대로 보인다 */
   const me = state.employees.find(e => e.id === state.currentEmployeeId);
-  const seesCharts = role === 'ADMIN' || (me?.department ?? '').trim() === SHEET_TEAM;
+  const seesCharts = role === 'ADMIN' || (me?.department ?? '').trim() === AD_TEAM;
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8">
