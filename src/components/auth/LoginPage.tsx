@@ -197,7 +197,7 @@ export default function LoginPage() {
                 onClick={() =>
                   void alertInfo(
                     '비밀번호를 잊으셨나요?',
-                    '상사 관리자(대표님·사무장님)께 말씀하시면 바로 새 비밀번호로 바꿔 드립니다. 관리자 계정까지 막혔다면 카비어 고객센터 010-2285-6017로 연락 주세요.',
+                    '상사 관리자(대표님·사무장님)께 말씀하시면 바로 새 비밀번호로 바꿔 드립니다. 관리자 계정까지 막혔다면 카비어 고객센터 070-4138-2017로 연락 주세요.',
                   )
                 }
                 className="text-slate-500 transition-colors hover:text-violet-600"
@@ -318,8 +318,8 @@ function BizFooter() {
         </a>
         <span className="mx-1.5 text-slate-300">|</span>
         고객센터{' '}
-        <a href="tel:01022856017" className="underline-offset-2 hover:text-slate-600 hover:underline">
-          010-2285-6017
+        <a href="tel:07041382017" className="underline-offset-2 hover:text-slate-600 hover:underline">
+          070-4138-2017
         </a>
       </p>
       <p className="mt-3 text-slate-300">© {new Date().getFullYear()} CARVIOR Corp.</p>

@@ -161,8 +161,8 @@ export default function OwnerSignupForm({ onBack }: Props) {
 
       <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-400">
         급하시면 바로 전화 주셔도 됩니다 —{' '}
-        <a href="tel:01022856017" className="font-semibold text-slate-500 underline-offset-2 hover:text-violet-600 hover:underline">
-          010-2285-6017
+        <a href="tel:07041382017" className="font-semibold text-slate-500 underline-offset-2 hover:text-violet-600 hover:underline">
+          070-4138-2017
         </a>
       </p>
     </div>
