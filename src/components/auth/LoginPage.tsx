@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Building2, ClipboardList, Loader2, User } from 'lucide-react';
 import { useAuth } from '../../authStore';
 import { loginWithPassword } from '../../lib/auth';
 import { ApiError } from '../../lib/api';
@@ -20,26 +20,33 @@ function readSavedId() {
   }
 }
 
-type Tab = 'id' | 'carvior';
+type Tab = 'owner' | 'manager' | 'staff';
+
+/**
+ * 탭은 로그인 방식이 아니라 **누구인가**로 나눈다.
+ *
+ * 셋 다 아이디·비밀번호로 똑같이 들어온다. 그런데 계정을 어떻게 얻느냐가 다르다 —
+ * 대표님은 상사를 열면서 계정이 생기고, 사무장님은 대표님이 만들어 주시고, 직원은
+ * 스스로 신청해서 승인을 받는다. 처음 온 사람이 막히는 자리가 바로 거기다.
+ *
+ * 그래서 탭이 바꾸는 것은 입력칸이 아니라 **아래 단추**다. 고른 자리에 맞는 가입 길
+ * 하나만 보여준다. 세 개를 한꺼번에 늘어놓으면 셋 다 안 읽는다.
+ */
+const TABS: { key: Tab; label: string; Icon: typeof Building2 }[] = [
+  { key: 'owner', label: '상사 대표', Icon: Building2 },
+  { key: 'manager', label: '사무장', Icon: ClipboardList },
+  { key: 'staff', label: '직원', Icon: User },
+];
 
 /**
  * 로그인 화면.
  *
  * 밖에서 제일 먼저 열리는 자리다 — 상사 대표님이 제품을 보러 들어오는 문이기도 해서
  * 사내 화면보다 한 겹 더 다듬어 둔다.
- *
- * 들어오는 길이 둘로 갈린다:
- *  - 아이디 로그인 : 상사에서 발급·승인받은 아이디. 지금 동작하는 길이다.
- *  - 카비어 계정   : 상사 대표님이 카비어 계정(카카오·네이버 포함) 하나로 운영과 검차를
- *                   같이 쓰는 길. 서버에서 받는 부분만 있고 SDK가 아직 안 붙었다.
- *
- * 두 번째 길은 아직 못 쓰는 상태를 숨기지 않는다. 눌러도 아무 일 없는 버튼을 두는 쪽이
- * 준비 중이라고 적어두는 쪽보다 훨씬 나쁘다.
  */
 export default function LoginPage() {
   const { login } = useAuth();
-  const [tab, setTab] = useState<Tab>('id');
-  // 가입은 두 갈래다 — 상사를 여는 쪽(대표님)과 그 상사에 들어오는 쪽(직원).
+  const [tab, setTab] = useState<Tab>('owner');
   const [mode, setMode] = useState<'login' | 'signup' | 'ownerSignup'>('login');
 
   const [loginId, setLoginId] = useState(readSavedId);
@@ -93,81 +100,89 @@ export default function LoginPage() {
           <OwnerSignupForm onBack={() => setMode('login')} />
         ) : (
           <>
-            {/* 탭 — 들어오는 길을 고른다 */}
-            <div className="flex gap-1 rounded-2xl bg-slate-100 p-1">
-              <TabButton active={tab === 'id'} onClick={() => setTab('id')}>
-                아이디 로그인
-              </TabButton>
-              <TabButton active={tab === 'carvior'} onClick={() => setTab('carvior')}>
-                카비어 계정
-                <span className="ml-1.5 inline-block size-1.5 rounded-full bg-amber-400 align-middle" aria-hidden />
-              </TabButton>
+            {/* 탭 — 누구로 들어오는가 */}
+            <div className="flex overflow-hidden rounded-t-2xl border border-b-0 border-slate-200 bg-slate-50">
+              {TABS.map(({ key, label, Icon }, i) => {
+                const on = tab === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTab(key)}
+                    aria-pressed={on}
+                    className={
+                      'flex flex-1 items-center justify-center gap-1.5 py-3 text-[13px] transition ' +
+                      (i > 0 ? 'border-l border-slate-200 ' : '') +
+                      (on ? 'bg-white font-bold text-slate-900' : 'font-medium text-slate-400 hover:text-slate-600')
+                    }
+                  >
+                    <Icon size={14} className={on ? 'text-violet-600' : 'text-slate-300'} />
+                    {label}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-              {tab === 'id' ? (
-                <form onSubmit={handleSubmit} noValidate>
+            <div className="rounded-b-2xl border border-slate-200 bg-white p-6 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+              <form onSubmit={handleSubmit} noValidate>
+                <input
+                  value={loginId}
+                  onChange={e => {
+                    setLoginId(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="아이디를 입력하세요."
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoFocus
+                  className={field}
+                />
+
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="비밀번호를 입력하세요."
+                  autoComplete="current-password"
+                  className={field + ' mt-2.5'}
+                />
+
+                <label className="mt-4 flex w-fit cursor-pointer items-center gap-2 text-[13px] text-slate-500 select-none">
                   <input
-                    value={loginId}
-                    onChange={e => {
-                      setLoginId(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="아이디를 입력하세요."
-                    autoComplete="username"
-                    autoCapitalize="none"
-                    autoFocus
-                    className={field}
+                    type="checkbox"
+                    checked={remember}
+                    onChange={e => setRemember(e.target.checked)}
+                    className="size-4 cursor-pointer rounded border-slate-300 accent-violet-600"
                   />
+                  아이디 저장
+                </label>
 
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => {
-                      setPassword(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="비밀번호를 입력하세요."
-                    autoComplete="current-password"
-                    className={`${field} mt-2.5`}
-                  />
+                {error && (
+                  <p className="mt-4 rounded-xl bg-red-50 px-3.5 py-2.5 text-[13px] font-medium text-red-600">{error}</p>
+                )}
 
-                  <label className="mt-4 flex w-fit cursor-pointer items-center gap-2 text-[13px] text-slate-500 select-none">
-                    <input
-                      type="checkbox"
-                      checked={remember}
-                      onChange={e => setRemember(e.target.checked)}
-                      className="size-4 cursor-pointer rounded border-slate-300 accent-violet-600"
-                    />
-                    아이디 저장
-                  </label>
+                <button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 text-[15px] font-bold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-100 disabled:text-violet-400"
+                >
+                  {busy && <Loader2 size={17} className="animate-spin" />}
+                  로그인
+                </button>
 
-                  {error && (
-                    <p className="mt-4 rounded-xl bg-red-50 px-3.5 py-2.5 text-[13px] font-medium text-red-600">{error}</p>
-                  )}
+                <div className="mt-6 flex items-center gap-3">
+                  <span className="h-px flex-1 bg-slate-100" />
+                  <span className="shrink-0 text-[11px] text-slate-400">SNS 연동 후 사용 가능해요</span>
+                  <span className="h-px flex-1 bg-slate-100" />
+                </div>
 
-                  <button
-                    type="submit"
-                    disabled={!canSubmit}
-                    className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 text-[15px] font-bold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-100 disabled:text-violet-400"
-                  >
-                    {busy && <Loader2 size={17} className="animate-spin" />}
-                    로그인
-                  </button>
-
-                  <div className="mt-6 flex items-center gap-3">
-                    <span className="h-px flex-1 bg-slate-100" />
-                    <span className="shrink-0 text-[11px] text-slate-400">카비어 계정 로그인은 준비 중이에요</span>
-                    <span className="h-px flex-1 bg-slate-100" />
-                  </div>
-
-                  <div className="mt-4">
-                    <SocialRow />
-                  </div>
-                </form>
-              ) : (
-                <CarviorAccountPanel onUseId={() => setTab('id')} />
-              )}
+                <div className="mt-4">
+                  <SocialRow />
+                </div>
+              </form>
             </div>
 
             <div className="mt-5 flex items-center justify-center gap-3 text-[13px]">
@@ -191,31 +206,7 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/*
-              가입은 순서가 있다 — 대표님이 상사를 열고, 직원이 그 상사에 들어온다.
-              직원이 혼자 가입할 수 있으면 어느 상사 사람인지 알 수 없고 승인할 사람도 없다.
-              그래서 대표 쪽을 위에, 직원 쪽을 아래에 둔다.
-
-              상사 개설은 신청까지만 화면에서 받는다. 누른다고 상사가 열리지는 않는다 —
-              상사마다 데이터가 섞이지 않게 하는 작업이 끝나기 전까지는 사람이 확인하고 손으로 연다.
-            */}
-            <button
-              onClick={() => setMode('ownerSignup')}
-              className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-violet-200 bg-violet-50/60 text-[14px] font-bold text-violet-700 transition hover:border-violet-300 hover:bg-violet-50"
-            >
-              상사 대표님 — 상사 개설 신청
-            </button>
-
-            <p className="mt-3 text-center text-[12px] leading-relaxed text-slate-400">
-              직원이신가요? 대표님이 상사를 연 뒤에 가입하실 수 있습니다.
-              <br />
-              <button
-                onClick={() => setMode('signup')}
-                className="mt-1 font-bold text-slate-600 underline-offset-2 hover:text-violet-600 hover:underline"
-              >
-                우리 상사에 직원으로 가입 신청
-              </button>
-            </p>
+            <SignupCta tab={tab} onOwner={() => setMode('ownerSignup')} onStaff={() => setMode('signup')} />
           </>
         )}
 
@@ -225,58 +216,55 @@ export default function LoginPage() {
   );
 }
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={
-        'flex-1 rounded-xl py-2.5 text-[13px] transition ' +
-        (active
-          ? 'bg-white font-bold text-slate-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)]'
-          : 'font-medium text-slate-500 hover:text-slate-700')
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
 /**
- * 카비어 계정 안내.
+ * 고른 자리에 맞는 가입 길 하나.
  *
- * 상사 대표님이 카비어에서 쓰던 계정 그대로 들어오고, 그 계정으로 검차까지 주문하는 그림이다.
- * 아직 연결 전이라 안내만 한다.
+ * 사무장님에게는 단추를 주지 않는다. 사무장 계정은 대표님이 만들어 주시는 것이지
+ * 스스로 신청하는 게 아니라서, 누를 것을 두면 눌러 보고 막힌다.
  */
-function CarviorAccountPanel({ onUseId }: { onUseId: () => void }) {
-  return (
-    <div className="text-center">
-      <img src="/carvior-mark.svg" alt="" className="mx-auto size-12 rounded-2xl" />
-      <h2 className="mt-4 text-[15px] font-bold text-slate-900">카비어 계정 하나로 들어오시게 됩니다</h2>
-      <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
-        카비어에서 쓰시던 계정 그대로 상사 관리에 들어오고,
-        <br />
-        검차 주문까지 같은 계정으로 하실 수 있게 준비하고 있어요.
-      </p>
+function SignupCta({ tab, onOwner, onStaff }: { tab: Tab; onOwner: () => void; onStaff: () => void }) {
+  const OUTLINE =
+    'mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-violet-200 bg-violet-50/60 ' +
+    'text-[14px] font-bold text-violet-700 transition hover:border-violet-300 hover:bg-violet-50';
 
-      <div className="mt-6">
-        <SocialRow />
-      </div>
-
-      <p className="mt-5 rounded-xl bg-slate-50 px-3.5 py-3 text-[12px] leading-relaxed text-slate-500">
-        지금은 발급받으신 아이디로 들어와 주세요.{' '}
-        <button onClick={onUseId} className="font-bold text-violet-600 underline-offset-2 hover:underline">
-          아이디 로그인
+  if (tab === 'owner') {
+    return (
+      <>
+        <button onClick={onOwner} className={OUTLINE}>
+          대표자 회원가입
         </button>
+        <p className="mt-3 text-center text-[12px] leading-relaxed text-slate-400">
+          사용료는 없습니다. 확인 전화를 드린 뒤 상사를 열어 드립니다.
+        </p>
+      </>
+    );
+  }
+
+  if (tab === 'manager') {
+    return (
+      <p className="mt-5 text-center text-[12px] leading-relaxed text-slate-400">
+        사무장님 계정은 <b className="font-bold text-slate-600">대표님이 만들어 드립니다.</b>
+        <br />
+        아직 상사가 열려 있지 않다면 대표님께 먼저 말씀해 주세요.
       </p>
-    </div>
+    );
+  }
+
+  return (
+    <>
+      <button onClick={onStaff} className={OUTLINE}>
+        직원 회원가입
+      </button>
+      <p className="mt-3 text-center text-[12px] leading-relaxed text-slate-400">
+        대표님이 상사를 연 뒤에 신청하실 수 있습니다. 대표님·사무장님이 승인하면 들어오십니다.
+      </p>
+    </>
   );
 }
 
 const SOCIALS = [
-  { key: 'kakao', label: '카카오', Mark: KakaoMark, className: 'bg-[#FEE500] text-[#191600]' },
   { key: 'naver', label: '네이버', Mark: NaverMark, className: 'bg-[#03C75A] text-white' },
+  { key: 'kakao', label: '카카오', Mark: KakaoMark, className: 'bg-[#FEE500] text-[#191600]' },
   { key: 'google', label: '구글', Mark: GoogleMark, className: 'border border-slate-200 bg-white' },
   { key: 'apple', label: '애플', Mark: AppleMark, className: 'bg-slate-900 text-white' },
 ] as const;
@@ -295,9 +283,9 @@ function SocialRow() {
           key={key}
           type="button"
           disabled
-          title={`${label} 로그인 — 준비 중입니다`}
-          aria-label={`${label} 로그인 (준비 중)`}
-          className={`flex size-11 items-center justify-center rounded-full opacity-40 ${className}`}
+          title={label + ' 로그인 — 준비 중입니다'}
+          aria-label={label + ' 로그인 (준비 중)'}
+          className={'flex size-11 items-center justify-center rounded-full opacity-40 ' + className}
         >
           <Mark className="size-5" />
         </button>
