@@ -52,6 +52,7 @@ export const ROOM_LABEL: Record<TelegramRoom, string> = {
   [TelegramRoom.PURCHASE]: '매입방',
 };
 
+@Injectable()
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
 
